@@ -57,12 +57,18 @@ node scripts/gen-cards.mjs
 
 ### 音效与背景音乐
 
-所有音频均由 Web Audio API 实时合成，**不依赖任何音频文件**：
+**背景音乐**为两首 CC0 1.0（公有领域）循环曲，随仓库分发，位于 `apps/lobby-web/public/assets/music/`：
 
-- 背景音乐：四小节和弦循环 + 低音铺底 + 稀疏琶音，低通滤波柔化
-- 交互音效：点击、发牌、出牌、过牌、押注、金币、胜利、失败
-- 顶栏可分别开关音乐与音效，偏好写入 localStorage
-- 受浏览器自动播放策略限制，首次点击页面后才开始播放
+| 文件 | 曲目 | 作者 | 来源 | 许可 |
+|---|---|---|---|---|
+| `menu-theme.mp3` | Feel good slow ambient track with a beat | annandistance | OpenGameArt | CC0 1.0 |
+| `upbeat-theme.mp3` | Rhythm Factory | Zane Little Music | OpenGameArt | CC0 1.0 |
+
+CC0 允许无条件商用与再分发，此处仍标注出处以示尊重。顶栏 ⏭ 按钮可切换曲目。
+
+若音乐文件加载失败，会自动回退到 Web Audio 实时合成的和弦循环，功能不中断。
+
+**交互音效**全部由 Web Audio 实时合成，无音频文件：点击、发牌、出牌、过牌、押注、金币、胜利、失败。顶栏可分别开关音乐与音效，偏好写入 localStorage；受浏览器自动播放策略限制，首次点击页面后才开始播放。
 
 ### 机器人陪玩
 

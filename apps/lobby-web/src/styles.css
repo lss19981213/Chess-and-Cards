@@ -2453,8 +2453,8 @@ button.secondary:hover:not(:disabled) {
   transform-origin: bottom center;
   transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s ease,
     border-color 0.16s ease;
-  animation: deal-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-  animation-delay: calc(var(--i) * 26ms);
+  animation: deal-in 0.52s cubic-bezier(0.22, 0.9, 0.28, 1) backwards;
+  animation-delay: calc(var(--i) * 52ms);
 }
 
 .hand__card:first-child {
@@ -2474,13 +2474,19 @@ button.secondary:hover:not(:disabled) {
 }
 
 @keyframes deal-in {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(-90px) rotateX(55deg) scale(0.82);
+    transform: translate(calc((var(--i, 0) - 10) * 12px), -280px) rotate(-12deg) scale(0.55);
   }
-  to {
+  12% {
     opacity: 1;
-    transform: rotateX(14deg);
+  }
+  72% {
+    transform: translate(0, 6px) rotate(2deg) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg) rotateX(14deg) scale(1);
   }
 }
 

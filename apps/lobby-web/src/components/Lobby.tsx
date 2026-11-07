@@ -18,6 +18,7 @@ interface Props {
 export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLeaderboard }: Props) {
   const [musicOn, setMusicOn] = useState(audio.musicOn);
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
+  const [trackName, setTrackName] = useState(audio.trackName);
 
   return (
     <div className="lobby" style={{ ['--lobby-bg' as string]: `url(${HERO_BG})` }}>
@@ -43,6 +44,14 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
             onClick={() => setSfxOn(audio.toggleSfx())}
           >
             {sfxOn ? '🔊' : '🔇'}
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            title={`切换音乐（当前：${trackName}）`}
+            onClick={() => setTrackName(audio.nextTrack())}
+          >
+            ⏭
           </button>
           <button type="button" className="ghost" onClick={onLeaderboard}>
             排行榜

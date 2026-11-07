@@ -12,6 +12,12 @@ interface AudioPrefs {
   sfx: boolean;
 }
 
+/** 可切换的背景音乐（CC0 1.0，来源 OpenGameArt） */
+const TRACKS: ReadonlyArray<{ id: string; name: string; file: string }> = [
+  { id: 'menu', name: '大厅氛围', file: 'assets/music/menu-theme.mp3' },
+  { id: 'upbeat', name: '轻快节奏', file: 'assets/music/upbeat-theme.mp3' },
+];
+
 const CHORDS: number[][] = [
   [220.0, 261.63, 329.63],
   [174.61, 220.0, 261.63],
@@ -30,6 +36,9 @@ class AudioEngine {
   private bar = 0;
   private unlocked = false;
   private prefs: AudioPrefs = { music: true, sfx: true };
+  private el: HTMLAudioElement | null = null;
+  private trackIndex = 0;
+  private usingSynth = false;
 
   constructor() {
     try {
@@ -206,8 +215,66 @@ class AudioEngine {
     src.start();
   }
 
+  /** 当前曲名，供界面提示 */
+  get trackName(): string {
+    return TRACKS[this.trackIndex]?.name ?? '合成音';
+  }
+
+  /** 切换到下一首 */
+  nextTrack(): string {
+    this.trackIndex = (this.trackIndex + 1) % TRACKS.length;
+    this.stopMusic();
+    if (this.el) {
+      this.el.pause();
+      this.el = null;
+    }
+    this.usingSynth = false;
+    if (this.prefs.music && this.unlocked) this.startMusic();
+    return this.trackName;
+  }
+
   private startMusic(): void {
+    if (!this.prefs.music || !this.unlocked) return;
+
+    // 优先播放真实音乐，加载失败再回退到程序化合成
+    const el = this.ensureAudioEl();
+    if (el) {
+      el.volume = 0.42;
+      void el
+        .play()
+        .then(() => {
+          this.usingSynth = false;
+        })
+        .catch(() => this.startSynth());
+      return;
+    }
+    this.startSynth();
+  }
+
+  private ensureAudioEl(): HTMLAudioElement | null {
+    if (this.el) return this.el;
+    const track = TRACKS[this.trackIndex];
+    if (!track) return null;
+    try {
+      const el = new Audio(`${import.meta.env.BASE_URL}${track.file}`);
+      el.loop = true;
+      el.preload = 'auto';
+      el.volume = 0.42;
+      el.addEventListener('error', () => {
+        console.warn('[audio] 音乐加载失败，改用合成音');
+        this.el = null;
+        this.startSynth();
+      });
+      this.el = el;
+      return el;
+    } catch {
+      return null;
+    }
+  }
+
+  private startSynth(): void {
     if (!this.prefs.music || !this.ctx || this.timer !== null) return;
+    this.usingSynth = true;
     this.bar = 0;
     this.scheduleBar();
     this.timer = window.setInterval(() => this.scheduleBar(), 4000);
@@ -218,6 +285,11 @@ class AudioEngine {
       window.clearInterval(this.timer);
       this.timer = null;
     }
+    if (this.el && !this.el.paused) this.el.pause();
+  }
+
+  get isSynthFallback(): boolean {
+    return this.usingSynth;
   }
 
   private scheduleBar(): void {

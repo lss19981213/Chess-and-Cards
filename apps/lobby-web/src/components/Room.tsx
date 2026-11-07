@@ -84,6 +84,7 @@ export function Room({
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
+            round={room.round}
             onPlay={(cards) => dispatch('play', { cards })}
             onPass={() => dispatch('pass', {})}
           />

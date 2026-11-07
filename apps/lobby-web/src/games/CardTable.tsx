@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SeatPanel, TableStage } from '../components/TableStage';
+import { audio } from '../audio';
 import { cardArt, cardBackArt, cardLabel, comboLabel, isRedCard, type CardView } from './cards';
 
 interface HandCount {
@@ -33,6 +34,7 @@ interface Props {
   snapshot: Record<string, unknown> | null;
   myId: string;
   status: string;
+  round: number;
   onPlay: (cards: string[]) => void;
   onPass: () => void;
 }
@@ -57,9 +59,18 @@ function CardBacks({ count }: { count: number }) {
   );
 }
 
-export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: Props) {
+export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPass }: Props) {
   const data = snapshot as unknown as HandSnapshot | undefined;
   const [selected, setSelected] = useState<string[]>([]);
+
+  // 每局开始时按发牌节奏播放音效，与飞牌动画同步
+  useEffect(() => {
+    if (round === 0) return;
+    const timers = [60, 240, 420, 600].map((delay) =>
+      window.setTimeout(() => audio.play('deal'), delay),
+    );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [round]);
 
   const hand = useMemo(() => {
     const cards = data?.myHand ?? [];
@@ -130,7 +141,7 @@ export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: P
       }
       bottom={
         <div className="hand-area">
-          <div className="hand">
+          <div className="hand" key={`round-${round}`}>
             {hand.map((card, index) => (
               <button
                 key={card.id}
