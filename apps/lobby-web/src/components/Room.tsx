@@ -140,11 +140,11 @@ export function Room({
         </div>
       )}
 
-      <main className={`room__main ${room.status !== 'waiting' ? 'is-stage' : ''}`}>
+      <main className={`room__main ${room.round > 0 ? 'is-stage' : ''}`}>
         <section
           className="room__board"
           style={
-            room.status === 'waiting' && GAME_ART[room.gameId]
+            room.round === 0 && GAME_ART[room.gameId]
               ? {
                   backgroundImage: `linear-gradient(rgba(6,12,11,0.78), rgba(6,12,11,0.9)), url(${GAME_ART[room.gameId]})`,
                   backgroundSize: 'cover',
