@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 import { Chip, ChipStack } from '../components/Chip';
 import { SeatPanel, TableStage } from '../components/TableStage';
@@ -33,6 +34,7 @@ interface TexasSnapshot {
   myHand: CardView[];
   myTotalBet: number;
   raiseUnit: number;
+  maxRaiseAdd: number;
   results: TexasResult[];
   players: TexasPlayer[];
 }
@@ -41,11 +43,17 @@ interface Props {
   snapshot: Record<string, unknown> | null;
   myId: string;
   status: string;
-  onAction: (cmd: string) => void;
+  onAction: (cmd: string, amount?: number) => void;
 }
 
 export function Texas({ snapshot, myId, status, onAction }: Props) {
   const data = snapshot as unknown as TexasSnapshot | undefined;
+  const [raiseAdd, setRaiseAdd] = useState(100);
+
+  useEffect(() => {
+    if (data?.raiseUnit) setRaiseAdd(data.raiseUnit);
+  }, [data?.raiseUnit]);
+
   if (!data) return <div className="board-placeholder">等待发牌…</div>;
 
   const me = data.players.find((p) => p.playerId === myId);
@@ -158,9 +166,27 @@ export function Texas({ snapshot, myId, status, onAction }: Props) {
             >
               跟注 {data.toCall}
             </button>
-            <button type="button" className="primary" disabled={!isMyTurn} onClick={() => onAction('raise')}>
-              加注 +{data.raiseUnit}
-            </button>
+            <div className="raise-group">
+              <input
+                type="number"
+                min={data.raiseUnit}
+                max={data.maxRaiseAdd}
+                step={data.raiseUnit}
+                value={raiseAdd}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setRaiseAdd(Number.isFinite(next) ? Math.max(0, Math.floor(next)) : 0);
+                }}
+              />
+              <button
+                type="button"
+                className="primary"
+                disabled={!isMyTurn || raiseAdd < data.raiseUnit}
+                onClick={() => onAction('raise', raiseAdd)}
+              >
+                加注 +{raiseAdd}
+              </button>
+            </div>
           </div>
         </div>
       }

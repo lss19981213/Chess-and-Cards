@@ -4,10 +4,11 @@ import { PaodekuaiPlugin } from '@cc/game-paodekuai';
 import { TuizhuanziPlugin } from '@cc/game-tuizhuanzi';
 import { TexasPlugin } from '@cc/game-texas';
 import { DicePlugin } from '@cc/game-dice';
+import { BaccaratPlugin } from '@cc/game-baccarat';
 import type { RoomManager } from './registry';
 
 /** 常驻玩法：无玩家也持续开局，需要预先创建房间 */
-const PERSISTENT_GAMES = ['tuizhuanzi', 'dice'];
+const PERSISTENT_GAMES = ['tuizhuanzi', 'dice', 'baccarat'];
 
 /**
  * 内置游戏注册表。
@@ -20,6 +21,7 @@ export function registerBuiltinGames(manager: RoomManager): void {
   manager.register(() => new TuizhuanziPlugin());
   manager.register(() => new TexasPlugin());
   manager.register(() => new DicePlugin());
+  manager.register(() => new BaccaratPlugin());
 
   for (const gameId of PERSISTENT_GAMES) {
     manager.ensurePersistent(gameId, 5);

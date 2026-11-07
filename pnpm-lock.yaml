@@ -81,6 +81,15 @@ importers:
 
   packages/protocol: {}
 
+  services/games/baccarat:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
   services/games/dice:
     dependencies:
       '@cc/game-sdk':
@@ -140,6 +149,9 @@ importers:
       '@cc/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@cc/game-baccarat':
+        specifier: workspace:*
+        version: link:../games/baccarat
       '@cc/game-dice':
         specifier: workspace:*
         version: link:../games/dice

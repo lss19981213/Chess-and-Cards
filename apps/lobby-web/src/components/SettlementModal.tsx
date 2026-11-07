@@ -23,6 +23,7 @@ const GAME_NAME: Record<string, string> = {
   tuizhuanzi: '推筒子',
   texas: '德州扑克',
   dice: '骰宝',
+  baccarat: '百家乐',
 };
 
 export function SettlementModal({ settlement, myId, balance, players, onClose }: Props) {

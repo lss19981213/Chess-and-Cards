@@ -6,6 +6,7 @@ import { GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
 import { SettlementModal } from './SettlementModal';
+import { Baccarat } from '../games/Baccarat';
 import { CardTable } from '../games/CardTable';
 import { Dice } from '../games/Dice';
 import { Gomoku } from '../games/Gomoku';
@@ -40,6 +41,7 @@ const GAME_TITLE: Record<string, string> = {
   tuizhuanzi: '推筒子',
   texas: '德州扑克',
   dice: '骰宝',
+  baccarat: '百家乐',
 };
 
 export function Room({
@@ -128,13 +130,22 @@ export function Room({
             onBet={(area, amount) => dispatch('bet', { area, amount })}
           />
         );
+      case 'baccarat':
+        return (
+          <Baccarat
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            onBet={(area, amount) => dispatch('bet', { area, amount })}
+          />
+        );
       case 'texas':
         return (
           <Texas
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
-            onAction={(cmd) => dispatch(cmd, {})}
+            onAction={(cmd, amount) => dispatch(cmd, amount === undefined ? {} : { amount })}
           />
         );
       default:

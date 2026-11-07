@@ -11,6 +11,7 @@ export const GAME_ART: Record<string, string> = {
   tuizhuanzi: asset('game-tuizhuanzi.jpg'),
   texas: asset('game-texas.jpg'),
   dice: asset('game-dice.jpg'),
+  baccarat: asset('game-baccarat.jpg'),
 };
 
 export const HERO_BG = asset('hero-table.jpg');

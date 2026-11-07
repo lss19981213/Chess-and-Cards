@@ -15,6 +15,8 @@ const SMALL_BLIND = 50;
 const BIG_BLIND = 100;
 const RAISE_UNIT = 100;
 const MAX_RAISES = 5;
+/** 自定义加注上限，防止一次把底池顶爆 */
+const MAX_RAISE_ADD = 5000;
 
 type Phase = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
 
@@ -160,7 +162,19 @@ export class TexasPlugin extends BaseGamePlugin {
       case 'raise': {
         const used = this.state.raises.get(playerId) ?? 0;
         if (used >= MAX_RAISES) throw illegalAction('本局加注次数已达上限');
-        const target = this.state.currentBet + RAISE_UNIT;
+
+        // 支持自定义加注：payload.amount 为「在跟注基础上额外加多少」
+        const rawAdd = intent.payload?.amount;
+        let target = this.state.currentBet + RAISE_UNIT;
+        if (rawAdd !== undefined && rawAdd !== null) {
+          const add = Number(rawAdd);
+          if (!Number.isInteger(add) || add < RAISE_UNIT) {
+            throw badRequest(`加注至少 ${RAISE_UNIT}`);
+          }
+          if (add > MAX_RAISE_ADD) throw badRequest(`单次加注最多 ${MAX_RAISE_ADD}`);
+          target = this.state.currentBet + add;
+        }
+
         const delta = target - (this.state.roundBet.get(playerId) ?? 0);
         if (delta <= 0) throw badRequest('加注金额不合法');
 
@@ -215,6 +229,7 @@ export class TexasPlugin extends BaseGamePlugin {
       smallBlind: SMALL_BLIND,
       bigBlind: BIG_BLIND,
       raiseUnit: RAISE_UNIT,
+      maxRaiseAdd: MAX_RAISE_ADD,
       results: this.state.results,
       players: players.map((p) => {
         const folded = this.state.folded.has(p.playerId);
