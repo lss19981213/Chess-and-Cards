@@ -610,6 +610,57 @@ body {
   min-width: 0;
 }
 
+/* ---------- 梭哈 / 翻金花：操作按钮横排 ---------- */
+.showdown__actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.showdown__actions > button {
+  flex: 1 1 86px;
+  padding: 9px 8px;
+  font-size: 12.5px;
+}
+
+.showdown__actions .raise-group {
+  flex: 1 1 100%;
+  display: flex;
+  gap: 6px;
+}
+
+.showdown__actions .raise-group input {
+  width: 84px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.showdown__seat {
+  padding: 8px 10px;
+}
+
+.showdown {
+  padding-top: 4px;
+  gap: 6px;
+}
+
+.showdown__seat .card {
+  width: 48px;
+  height: 68px;
+}
+
+.showdown__seat .card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.showdown__seat .hand,
+.showdown__seat .mini-cards {
+  gap: 2px;
+}
+
 /* 牌面按横屏高度收缩 */
 .bj-row .card,
 .niuniu-row .card {
