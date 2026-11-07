@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { audio } from '../audio';
+import { DEALER_ASSISTANT } from '../assets';
 import { IconAssistant, IconBack, IconSparkle } from './Icons';
 
 interface ChatItem {
@@ -16,7 +17,7 @@ interface Props {
 
 const GREETING: ChatItem = {
   role: 'assistant',
-  content: '尊贵的牌友您好！我是大厅智谋助手。注册认证、任务奖励、玩法细则、排行榜等任何疑问，我都可以为您解答。如果手气不佳筹码见底，也可以找我聊聊申请接济。',
+  content: '尊贵的牌友您好！我是您的专属荷官助手艾莉丝。注册认证、任务奖励、玩法细则、排行榜等任何疑问，我都可以为您解答。如果手气不佳筹码见底，也可以找我聊聊申请接济哦～',
 };
 
 const QUICK_ASKS = ['怎么注册账号？', '救济金怎么领？', '德州扑克怎么玩？', '我筹码快输光了'];
@@ -75,21 +76,24 @@ export function AssistantView({ onBalanceChange, onBack }: Props) {
         </button>
         <div className="view-title">
           <IconAssistant size={22} />
-          <h2>牌桌智谋助手</h2>
-          <span className="view-sub">智谱 GLM 智能引擎驱动 · 24小时随侍在侧</span>
+          <h2>牌桌智谋阁</h2>
+          <span className="view-sub">智谱 GLM 智能引擎驱动 · 专属动漫荷官管家随时在侧</span>
         </div>
         <div className="view-topbar__placeholder" />
       </header>
 
       <main className="view-main assistant-layout">
-        {/* 左侧说明与快捷求助 */}
-        <aside className="assistant-hero-card">
-          <div className="assistant-bot-icon">
-            <IconAssistant size={44} />
+        {/* 左侧动漫美女荷官管家展台 */}
+        <aside className="assistant-hero-card assistant-hero-card--dealer">
+          <div className="assistant-dealer-portrait">
+            <img src={DEALER_ASSISTANT} alt="专属动漫荷官管家" />
+            <div className="dealer-name-tag">
+              <span className="dealer-name">荷官 · 艾莉丝 (Alice)</span>
+              <span className="dealer-duty">专属管家</span>
+            </div>
           </div>
-          <h3>AI 专属管家</h3>
-          <p>
-            不仅是玩法百科，更是您的牌桌智囊。筹码见底时，助手将核实您的资格并酌情发放接济筹码。
+          <p className="dealer-motto">
+            “不仅是玩法百科，更是您的牌桌智囊。若您手气欠佳，我会竭诚为您核实救济金资格哦～”
           </p>
 
           <div className="quick-asks-title">快捷咨询</div>
@@ -114,13 +118,13 @@ export function AssistantView({ onBalanceChange, onBack }: Props) {
             {messages.map((item, idx) => (
               <div key={idx} className={`chat-bubble-row is-${item.role}`}>
                 <div className="bubble-avatar">
-                  {item.role === 'assistant' ? '🤖' : '👤'}
+                  {item.role === 'assistant' ? '👧' : '👤'}
                 </div>
                 <div className="bubble-content">
                   <p>{item.content}</p>
                   {item.granted && item.granted > 0 && (
                     <div className="granted-notice">
-                      🎁 恭喜！已获发放 <strong>+{item.granted}</strong> 救济筹码
+                      🎁 恭喜！荷官已为您成功发放 <strong>+{item.granted}</strong> 救济筹码！
                     </div>
                   )}
                 </div>
@@ -128,9 +132,9 @@ export function AssistantView({ onBalanceChange, onBack }: Props) {
             ))}
             {loading && (
               <div className="chat-bubble-row is-assistant">
-                <div className="bubble-avatar">🤖</div>
+                <div className="bubble-avatar">👧</div>
                 <div className="bubble-content is-thinking">
-                  <span>思考回复中…</span>
+                  <span>艾莉丝正在查阅资料思考中…</span>
                 </div>
               </div>
             )}
@@ -146,7 +150,7 @@ export function AssistantView({ onBalanceChange, onBack }: Props) {
             <input
               type="text"
               value={input}
-              placeholder="向助手提问或求助筹码…"
+              placeholder="向荷官艾莉丝提问或求助筹码…"
               onChange={(e) => setInput(e.target.value)}
             />
             <button type="submit" className="btn-send-chat" disabled={loading || !input.trim()}>

@@ -22,3 +22,8 @@ export const GAME_ART: Record<string, string> = {
 
 export const HERO_BG = asset('hero-table.jpg');
 export const CHIP_IMG = asset('chip.jpg');
+
+/** 动漫版高颜值专属荷官立绘 */
+export const DEALER_MAIN = asset('dealer-main.jpg');
+export const DEALER_CELEBRATE = asset('dealer-celebrate.jpg');
+export const DEALER_ASSISTANT = asset('dealer-assistant.jpg');

@@ -3,7 +3,24 @@
  * 不依赖任何音频文件，避免额外资源与加载失败。
  */
 
-export type SfxName = 'click' | 'deal' | 'play' | 'pass' | 'win' | 'lose' | 'coin' | 'bet' | 'join';
+export type SfxName =
+  | 'click'
+  | 'deal'
+  | 'play'
+  | 'pass'
+  | 'win'
+  | 'lose'
+  | 'coin'
+  | 'bet'
+  | 'join'
+  | 'bomb'
+  | 'rocket'
+  | 'shunzi'
+  | 'dice_shake'
+  | 'dice_open'
+  | 'alert'
+  | 'chip_clack'
+  | 'jackpot';
 
 const STORAGE_KEY = 'cc.audio';
 
@@ -63,7 +80,9 @@ class AudioEngine {
   /** 首次用户交互时调用：创建音频上下文并开始背景音乐 */
   unlock(): void {
     if (!this.ctx) {
-      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const Ctor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return;
       const ctx = new Ctor();
       const master = ctx.createGain();
@@ -154,6 +173,68 @@ class AudioEngine {
         notes.forEach((freq, index) => {
           this.tone(freq, 0.3, 'sine', 0.18, out, index * 0.11);
         });
+        break;
+      }
+      case 'bomb': {
+        this.tone(90, 0.45, 'triangle', 0.45, out);
+        this.noise(0.4, 0.35, out);
+        this.tone(45, 0.6, 'sine', 0.5, out, 0.05);
+        break;
+      }
+      case 'rocket': {
+        const start = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, start);
+        osc.frequency.exponentialRampToValueAtTime(1600, start + 0.35);
+        gain.gain.setValueAtTime(0.01, start);
+        gain.gain.linearRampToValueAtTime(0.25, start + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+        osc.connect(gain);
+        gain.connect(out);
+        osc.start(start);
+        osc.stop(start + 0.42);
+        this.noise(0.5, 0.4, out);
+        this.tone(55, 0.6, 'sine', 0.4, out, 0.3);
+        break;
+      }
+      case 'shunzi': {
+        const scale = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+        scale.forEach((freq, idx) => {
+          this.tone(freq, 0.14, 'triangle', 0.16, out, idx * 0.06);
+        });
+        break;
+      }
+      case 'dice_shake': {
+        for (let i = 0; i < 4; i++) {
+          this.noise(0.08, 0.22, out);
+          this.tone(280 + Math.random() * 200, 0.05, 'square', 0.1, out, i * 0.09);
+        }
+        break;
+      }
+      case 'dice_open': {
+        this.tone(880, 0.18, 'sine', 0.2, out);
+        this.tone(1320, 0.22, 'triangle', 0.16, out, 0.05);
+        break;
+      }
+      case 'alert': {
+        this.tone(880, 0.06, 'sine', 0.25, out);
+        this.tone(1174.66, 0.08, 'sine', 0.2, out, 0.08);
+        break;
+      }
+      case 'chip_clack': {
+        this.tone(1400, 0.04, 'triangle', 0.2, out);
+        this.tone(1800, 0.05, 'sine', 0.15, out, 0.02);
+        break;
+      }
+      case 'jackpot': {
+        const notes = [659.25, 783.99, 987.77, 1318.51, 1567.98, 1975.53];
+        for (let round = 0; round < 3; round++) {
+          notes.forEach((freq, idx) => {
+            this.tone(freq, 0.12, 'sine', 0.14, out, round * 0.2 + idx * 0.04);
+          });
+        }
         break;
       }
       default:

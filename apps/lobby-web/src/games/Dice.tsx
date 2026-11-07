@@ -1,5 +1,7 @@
-ï»¿import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { chipArt } from '../chips';
+import { audio } from '../audio';
+import { DEALER_MAIN } from '../assets';
 
 interface DiceSnapshot {
   phase: 'bet' | 'reveal' | 'idle';
@@ -86,7 +88,7 @@ function Die({ value, rolling }: { value: number; rolling: boolean }) {
 
 export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as DiceSnapshot | undefined;
-  // çœŸäººä¼˜å…ˆå±•ç¤ºï¼Œå…¶åæŒ‰è¾“èµ¢æ’åºï¼Œé¿å…æœºå™¨äººç»“æœè¢«çœŸäººæŒ¤æ‰
+  // ÕæÈËÓÅÏÈÕ¹Ê¾£¬Æäºó°´ÊäÓ®ÅÅĞò£¬±ÜÃâ»úÆ÷ÈË½á¹û±»ÕæÈË¼·µô
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
     list.sort((a, b) => {
@@ -113,38 +115,38 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
     if (data) setDeadline(Date.now() + data.remainMs);
   }, [data?.remainMs, data?.phase, data?.round]);
 
-  if (!data) return <div className="board-placeholder">æ­£åœ¨è¿æ¥éª°æ¡Œâ€¦</div>;
+  if (!data) return <div className="board-placeholder">ÕıÔÚÁ¬½Ó÷»×À¡­</div>;
 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
   const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
-  const phaseLabel = data?.phase === 'reveal' ? 'å¼€ç‰Œä¸­' : data?.phase === 'idle' ? 'å‡†å¤‡ä¸‹ä¸€å±€' : 'ä¸‹æ³¨ä¸­';
+  const phaseLabel = data?.phase === 'reveal' ? '¿ªÅÆÖĞ' : data?.phase === 'idle' ? '×¼±¸ÏÂÒ»¾Ö' : 'ÏÂ×¢ÖĞ';
   const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = data.phase === 'bet' && status === 'playing';
-  // ä½™é¢åœ¨ä¸‹æ³¨æ—¶å·²å³æ—¶æ‰£é™¤ï¼Œä¸å…è®¸è¶…é¢ä¸‹æ³¨
+  // Óà¶îÔÚÏÂ×¢Ê±ÒÑ¼´Ê±¿Û³ı£¬²»ÔÊĞí³¬¶îÏÂ×¢
   const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
   const betting = Object.values(data.myBet).reduce((sum, value) => sum + (value ?? 0), 0);
 
   const zones: Array<{ key: string; label: string; odds: number }> = [
-    { key: 'small', label: 'å°', odds: data.odds.small },
-    { key: 'big', label: 'å¤§', odds: data.odds.big },
-    { key: 'odd', label: 'å•', odds: data.odds.odd },
-    { key: 'even', label: 'åŒ', odds: data.odds.even },
-    { key: 'triple', label: 'è±¹å­', odds: data.odds.triple },
+    { key: 'small', label: 'Ğ¡', odds: data.odds.small },
+    { key: 'big', label: '´ó', odds: data.odds.big },
+    { key: 'odd', label: 'µ¥', odds: data.odds.odd },
+    { key: 'even', label: 'Ë«', odds: data.odds.even },
+    { key: 'triple', label: '±ª×Ó', odds: data.odds.triple },
   ];
 
   return (
     <div className="lobby-game">
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
-          <span className="lobby-game__round">ç¬¬ {data.round} å±€</span>
+          <span className="lobby-game__round">µÚ {data.round} ¾Ö</span>
           <span className={`lobby-game__phase ${phaseClass}`}>
-            {phaseLabel} Â· {left}s
+            {phaseLabel} ¡¤ {left}s
           </span>
-          {betting > 0 && <span className="lobby-game__mine">æˆ‘æŠ¼äº† {betting}</span>}
-          {data.myStreak >= 2 && <span className="streak-badge">ğŸ”¥ è¿ç»­å‘½ä¸­ {data.myStreak}</span>}
+          {betting > 0 && <span className="lobby-game__mine">ÎÒÑºÁË {betting}</span>}
+          {data.myStreak >= 2 && <span className="streak-badge">?? Á¬ĞøÃüÖĞ {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
@@ -159,11 +161,11 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
               <>
                 <strong>{data.sum}</strong>
                 <span className={data.triple ? 'is-triple' : data.big ? 'is-big' : 'is-small'}>
-                  {data.triple ? 'è±¹å­é€šåƒ' : data.big ? 'å¤§' : 'å°'}
+                  {data.triple ? '±ª×ÓÍ¨³Ô' : data.big ? '´ó' : 'Ğ¡'}
                 </span>
               </>
             ) : (
-              <span className="muted">ç­‰å¾…å¼€ç›…</span>
+              <span className="muted">µÈ´ı¿ªÖÑ</span>
             )}
           </div>
         </div>
@@ -183,7 +185,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 <span className="dice-zone__odds">1:{zone.odds}</span>
                 {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
                   <span className="dice-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
-                    å…±æŠ¼ {data.zoneTotals[zone.key]}
+                    ¹²Ñº {data.zoneTotals[zone.key]}
                   </span>
                 )}
                 {bet > 0 && (
@@ -195,7 +197,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                         className="bet-cancel"
                         role="button"
                         tabIndex={0}
-                        title="å–æ¶ˆè¯¥åŒºä¸‹æ³¨"
+                        title="È¡Ïû¸ÃÇøÏÂ×¢"
                         onClick={(event) => {
                           event.stopPropagation();
                           onClear(zone.key);
@@ -207,7 +209,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                           }
                         }}
                       >
-                        Ã—
+                        ¡Á
                       </span>
                     )}
                   </span>
@@ -227,7 +229,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 className={`dice-sum ${bet > 0 ? 'is-bet' : ''}`}
                 disabled={!canPlace}
                 onClick={() => onBet(`sum-${key}`, amount)}
-                title={`æŠ¼å’Œå€¼ ${key}ï¼Œèµ”ç‡ 1:${data.odds.sums[key]}`}
+                title={`ÑººÍÖµ ${key}£¬ÅâÂÊ 1:${data.odds.sums[key]}`}
               >
                 <strong>{key}</strong>
                 <span>1:{data.odds.sums[key]}</span>
@@ -252,11 +254,11 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
           </div>
           {canBet && betting > 0 && (
             <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
-              æ¸…ç©ºä¸‹æ³¨
+              Çå¿ÕÏÂ×¢
             </button>
           )}
           <div className="bet-controls__custom">
-            <span>è‡ªå®šä¹‰</span>
+            <span>×Ô¶¨Òå</span>
             <input
               type="number"
               min={data.limits.min}
@@ -269,7 +271,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
               }}
             />
             <span className="bet-controls__hint">
-              {data.limits.min}â€“{data.limits.max} / åŒº
+              {data.limits.min}¨C{data.limits.max} / Çø
             </span>
           </div>
         </div>
@@ -283,7 +285,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? 'æˆ‘' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? 'ÎÒ' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
               </span>
             ))}
           </div>
@@ -291,22 +293,22 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
       </div>
 
       <aside className="history">
-        <div className="history__title">èµ°åŠ¿</div>
+        <div className="history__title">×ßÊÆ</div>
         <div className="history__legend history__legend--dice">
-          <span>å±€</span>
-          <span>éª°</span>
-          <span>å’Œ</span>
-          <span>æœ</span>
+          <span>¾Ö</span>
+          <span>÷»</span>
+          <span>ºÍ</span>
+          <span>¹û</span>
         </div>
         <div className="history__list">
-          {data.history.length === 0 && <p className="history__empty">æš‚æ— è®°å½•</p>}
+          {data.history.length === 0 && <p className="history__empty">ÔİÎŞ¼ÇÂ¼</p>}
           {[...data.history].reverse().map((item) => (
             <div key={item.round} className="history__row history__row--dice">
               <span className="history__no">{item.round}</span>
               <span className="history__dice">{item.dice.join(' ')}</span>
               <span className="history__banker">{item.sum}</span>
               <span className={item.triple ? 'is-triple' : item.big ? 'is-big' : 'is-small'}>
-                {item.triple ? 'è±¹' : item.big ? 'å¤§' : 'å°'}
+                {item.triple ? '±ª' : item.big ? '´ó' : 'Ğ¡'}
               </span>
             </div>
           ))}

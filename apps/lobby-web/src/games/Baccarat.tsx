@@ -1,5 +1,7 @@
-ï»¿import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { chipArt } from '../chips';
+import { audio } from '../audio';
+import { DEALER_MAIN } from '../assets';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 
 interface SideView {
@@ -35,12 +37,12 @@ interface Props {
 const PRESET = [10, 50, 100, 500, 1000];
 
 const ZONES: Array<{ key: 'player' | 'banker' | 'tie'; label: string; odds: string }> = [
-  { key: 'player', label: 'é—²', odds: '1 : 1' },
-  { key: 'banker', label: 'åº„', odds: '1 : 0.95' },
-  { key: 'tie', label: 'å’Œ', odds: '1 : 8' },
+  { key: 'player', label: 'ÏÐ', odds: '1 : 1' },
+  { key: 'banker', label: '×¯', odds: '1 : 0.95' },
+  { key: 'tie', label: 'ºÍ', odds: '1 : 8' },
 ];
 
-const OUTCOME_TEXT: Record<string, string> = { player: 'é—²èµ¢', banker: 'åº„èµ¢', tie: 'å’Œå±€' };
+const OUTCOME_TEXT: Record<string, string> = { player: 'ÏÐÓ®', banker: '×¯Ó®', tie: 'ºÍ¾Ö' };
 
 function Hand({ side, revealed }: { side: SideView; revealed: boolean }) {
   const cards = revealed ? side.cards : [];
@@ -64,14 +66,14 @@ function Hand({ side, revealed }: { side: SideView; revealed: boolean }) {
           </>
         )}
       </div>
-      <div className="bac-hand__points">{revealed && side.points !== null ? `${side.points} ç‚¹` : 'â€”'}</div>
+      <div className="bac-hand__points">{revealed && side.points !== null ? `${side.points} µã` : '¡ª'}</div>
     </div>
   );
 }
 
 export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as BacSnapshot | undefined;
-  // çœŸäººä¼˜å…ˆå±•ç¤ºï¼Œå…¶åŽæŒ‰è¾“èµ¢æŽ’åºï¼Œé¿å…æœºå™¨äººç»“æžœè¢«çœŸäººæŒ¤æŽ‰
+  // ÕæÈËÓÅÏÈÕ¹Ê¾£¬Æäºó°´ÊäÓ®ÅÅÐò£¬±ÜÃâ»úÆ÷ÈË½á¹û±»ÕæÈË¼·µô
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
     list.sort((a, b) => {
@@ -98,15 +100,15 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
     if (data) setDeadline(Date.now() + data.remainMs);
   }, [data?.remainMs, data?.phase, data?.round]);
 
-  if (!data) return <div className="board-placeholder">æ­£åœ¨è¿žæŽ¥ç‰Œæ¡Œâ€¦</div>;
+  if (!data) return <div className="board-placeholder">ÕýÔÚÁ¬½ÓÅÆ×À¡­</div>;
 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
   const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
-  const phaseLabel = data?.phase === 'reveal' ? 'å¼€ç‰Œä¸­' : data?.phase === 'idle' ? 'å‡†å¤‡ä¸‹ä¸€å±€' : 'ä¸‹æ³¨ä¸­';
+  const phaseLabel = data?.phase === 'reveal' ? '¿ªÅÆÖÐ' : data?.phase === 'idle' ? '×¼±¸ÏÂÒ»¾Ö' : 'ÏÂ×¢ÖÐ';
   const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
   const canBet = data.phase === 'bet' && status === 'playing';
-  // ä½™é¢åœ¨ä¸‹æ³¨æ—¶å·²å³æ—¶æ‰£é™¤ï¼Œä¸å…è®¸è¶…é¢ä¸‹æ³¨
+  // Óà¶îÔÚÏÂ×¢Ê±ÒÑ¼´Ê±¿Û³ý£¬²»ÔÊÐí³¬¶îÏÂ×¢
   const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
   const betting = data.myBet.player + data.myBet.banker + data.myBet.tie;
@@ -115,18 +117,18 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
     <div className="lobby-game">
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
-          <span className="lobby-game__round">ç¬¬ {data.round} å±€</span>
+          <span className="lobby-game__round">µÚ {data.round} ¾Ö</span>
           <span className={`lobby-game__phase ${phaseClass}`}>
-            {phaseLabel} Â· {left}s
+            {phaseLabel} ¡¤ {left}s
           </span>
-          {betting > 0 && <span className="lobby-game__mine">æˆ‘æŠ¼äº† {betting}</span>}
-          {data.myStreak >= 2 && <span className="streak-badge">ðŸ”¥ è¿žç»­å‘½ä¸­ {data.myStreak}</span>}
+          {betting > 0 && <span className="lobby-game__mine">ÎÒÑºÁË {betting}</span>}
+          {data.myStreak >= 2 && <span className="streak-badge">?? Á¬ÐøÃüÖÐ {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
         <div className="bac-table">
           <div className="bac-side">
-            <span className="bac-side__label">é—²</span>
+            <span className="bac-side__label">ÏÐ</span>
             <Hand side={data.player} revealed={revealed} />
           </div>
 
@@ -139,7 +141,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
           </div>
 
           <div className="bac-side">
-            <span className="bac-side__label">åº„</span>
+            <span className="bac-side__label">×¯</span>
             <Hand side={data.banker} revealed={revealed} />
           </div>
         </div>
@@ -160,7 +162,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                 <span className="bac-zone__odds">{zone.odds}</span>
                 {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
                   <span className="bac-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
-                    å…±æŠ¼ {data.zoneTotals[zone.key]}
+                    ¹²Ñº {data.zoneTotals[zone.key]}
                   </span>
                 )}
                 {bet > 0 && (
@@ -172,7 +174,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                         className="bet-cancel"
                         role="button"
                         tabIndex={0}
-                        title="å–æ¶ˆè¯¥åŒºä¸‹æ³¨"
+                        title="È¡Ïû¸ÃÇøÏÂ×¢"
                         onClick={(event) => {
                           event.stopPropagation();
                           onClear(zone.key);
@@ -184,7 +186,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                           }
                         }}
                       >
-                        Ã—
+                        ¡Á
                       </span>
                     )}
                   </span>
@@ -210,11 +212,11 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
           </div>
           {canBet && betting > 0 && (
             <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
-              æ¸…ç©ºä¸‹æ³¨
+              Çå¿ÕÏÂ×¢
             </button>
           )}
           <div className="bet-controls__custom">
-            <span>è‡ªå®šä¹‰</span>
+            <span>×Ô¶¨Òå</span>
             <input
               type="number"
               min={data.limits.min}
@@ -227,7 +229,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
               }}
             />
             <span className="bet-controls__hint">
-              {data.limits.min}â€“{data.limits.max} / åŒº
+              {data.limits.min}¨C{data.limits.max} / Çø
             </span>
           </div>
         </div>
@@ -241,7 +243,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? 'æˆ‘' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? 'ÎÒ' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
               </span>
             ))}
           </div>
@@ -249,15 +251,15 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
       </div>
 
       <aside className="history">
-        <div className="history__title">èµ°åŠ¿</div>
+        <div className="history__title">×ßÊÆ</div>
         <div className="history__legend history__legend--dice">
-          <span>å±€</span>
-          <span>é—²</span>
-          <span>åº„</span>
-          <span>æžœ</span>
+          <span>¾Ö</span>
+          <span>ÏÐ</span>
+          <span>×¯</span>
+          <span>¹û</span>
         </div>
         <div className="history__list">
-          {data.history.length === 0 && <p className="history__empty">æš‚æ— è®°å½•</p>}
+          {data.history.length === 0 && <p className="history__empty">ÔÝÎÞ¼ÇÂ¼</p>}
           {[...data.history].reverse().map((item) => (
             <div key={item.round} className="history__row history__row--dice">
               <span className="history__no">{item.round}</span>
@@ -268,7 +270,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                   item.outcome === 'player' ? 'is-small' : item.outcome === 'banker' ? 'is-big' : 'is-triple'
                 }
               >
-                {item.outcome === 'player' ? 'é—²' : item.outcome === 'banker' ? 'åº„' : 'å’Œ'}
+                {item.outcome === 'player' ? 'ÏÐ' : item.outcome === 'banker' ? '×¯' : 'ºÍ'}
               </span>
             </div>
           ))}
