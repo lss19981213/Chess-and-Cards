@@ -101,17 +101,15 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
                 ) : (
                   <span className="game-card__icon">{game.icon}</span>
                 )}
+                <span className="game-card__cta">{user ? '开始 →' : '登录玩 →'}</span>
               </span>
               <span className="game-card__body">
                 <span className="game-card__name">{game.name}</span>
                 <span className="game-card__desc">{game.description}</span>
-                <span className="game-card__meta">
-                  <span className="game-card__tags">
-                    {game.tags.map((tag) => (
-                      <em key={tag}>{tag}</em>
-                    ))}
-                  </span>
-                  <span className="game-card__cta">{user ? '快速开始 →' : '登录后开始 →'}</span>
+                <span className="game-card__tags">
+                  {game.tags.map((tag) => (
+                    <em key={tag}>{tag}</em>
+                  ))}
                 </span>
               </span>
             </button>
