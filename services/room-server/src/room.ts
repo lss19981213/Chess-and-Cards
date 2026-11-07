@@ -67,6 +67,8 @@ export class GameRoom {
   private tickTimer: NodeJS.Timeout | null = null;
   private closed = false;
   private emoteTimes = new Map<string, number[]>();
+  /** 结算展示期间预约的准备意愿 */
+  private pendingReady = new Map<string, boolean>();
 
   constructor(id: string, plugin: GamePlugin, mode: string, maxPlayers: number, deps: RoomDeps) {
     this.id = id;
@@ -285,6 +287,12 @@ export class GameRoom {
   setReady(playerId: string, ready: boolean): void {
     const seat = this.seats.get(playerId);
     if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+
+    // 结算展示期间点的「准备」先预约下来，回到等待态时自动生效
+    if (this.status === 'settled') {
+      this.pendingReady.set(playerId, ready);
+      return;
+    }
     if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '当前不能修改准备状态');
     if (seat.ready === ready) return;
     seat.ready = ready;
@@ -408,7 +416,10 @@ export class GameRoom {
     if (this.closed) return;
     this.status = 'waiting';
     // 机器人没有客户端，结算后自动重新准备，否则只能陪玩一局
-    for (const seat of this.seats.values()) seat.ready = seat.isBot;
+    for (const seat of this.seats.values()) {
+      seat.ready = seat.isBot || (this.pendingReady.get(seat.playerId) ?? false);
+    }
+    this.pendingReady.clear();
     this.broadcastView();
     this.dirty = true;
     this.tryStart();

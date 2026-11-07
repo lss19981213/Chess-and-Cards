@@ -58,15 +58,6 @@ export function Room({
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
 
   const [settleOpen, setSettleOpen] = useState(false);
-  /** 点了「继续」，等回到等待态就自动准备，实现连续对局 */
-  const [wantReady, setWantReady] = useState(false);
-
-  useEffect(() => {
-    if (wantReady && room.status === 'waiting') {
-      onReady(true);
-      setWantReady(false);
-    }
-  }, [wantReady, room.status, onReady]);
 
   // 每局结算弹出战绩，8 秒后自动收起，避免打断连续对局
   useEffect(() => {
@@ -171,7 +162,8 @@ export function Room({
           players={room.players}
           onClose={() => {
             setSettleOpen(false);
-            setWantReady(true);
+            // 服务端会把这次准备预约到结算结束，回到等待态即自动开局
+            onReady(true);
           }}
         />
       )}
@@ -208,6 +200,22 @@ export function Room({
           </div>
 
           {renderGame()}
+
+          {room.status === 'waiting' && room.round > 0 && (
+            <div className="ready-overlay">
+              <span className="ready-overlay__title">第 {room.round} 局结束</span>
+              <button
+                type="button"
+                className={me?.ready ? 'secondary' : 'primary'}
+                onClick={() => {
+                  audio.play('click');
+                  onReady(!me?.ready);
+                }}
+              >
+                {me?.ready ? '已准备 · 等待其他玩家' : '准备下一局'}
+              </button>
+            </div>
+          )}
 
           {room.status === 'playing' && (
             <div className="emote-bar">

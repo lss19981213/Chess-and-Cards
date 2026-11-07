@@ -2616,6 +2616,41 @@ button.secondary:hover:not(:disabled) {
   background: rgba(240, 180, 41, 0.1);
 }
 
+/* 等待下一局的中央准备入口 */
+
+.ready-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 30px;
+  border-radius: 18px;
+  background: rgba(8, 12, 20, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  z-index: 30;
+  animation: pop 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ready-overlay__title {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.ready-overlay button {
+  width: 190px;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
 /* ===== 结算战绩 ===== */
 
 .settle-mask {
