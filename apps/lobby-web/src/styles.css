@@ -5912,3 +5912,11 @@ button.secondary:hover:not(:disabled) {
     max-height: none;
   }
 }
+@media (max-height: 560px) {
+  .stage--gomoku .board--stage {
+    width: min(52vh, 210px);
+  }
+  .stage--gomoku .stage__center {
+    top: 54%;
+  }
+}
