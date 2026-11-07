@@ -12,9 +12,25 @@ interface RoomRow {
   persistent: boolean;
 }
 
+interface AdminEventRow {
+  at: number;
+  level: 'info' | 'warn' | 'error';
+  scope: string;
+  message: string;
+  detail?: Record<string, unknown>;
+}
+
 interface OverviewData {
   dayKey: string;
-  summary: { rooms: number; platformRooms: number; playerRooms: number; online: number; games: number };
+  summary: {
+    rooms: number;
+    platformRooms: number;
+    playerRooms: number;
+    online: number;
+    humans: number;
+    bots: number;
+    games: number;
+  };
   rooms: RoomRow[];
   daily: Array<{ userId: string; nickname: string; net: number; rounds: number }>;
 }
@@ -25,6 +41,7 @@ export function AdminPanel() {
   const [token, setToken] = useState(() => localStorage.getItem(STORAGE_KEY) ?? '');
   const [input, setInput] = useState('');
   const [data, setData] = useState<OverviewData | null>(null);
+  const [events, setEvents] = useState<AdminEventRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -33,10 +50,17 @@ export function AdminPanel() {
       if (!key) return;
       setLoading(true);
       try {
-        const res = await fetch(`${BASE_PATH}/api/admin/overview?token=${encodeURIComponent(key)}`);
-        const body = (await res.json()) as OverviewData & { message?: string };
-        if (!res.ok) throw new Error(body.message ?? '加载失败');
+        const [overviewRes, eventsRes] = await Promise.all([
+          fetch(`${BASE_PATH}/api/admin/overview?token=${encodeURIComponent(key)}`),
+          fetch(`${BASE_PATH}/api/admin/events?token=${encodeURIComponent(key)}&limit=60`),
+        ]);
+        const body = (await overviewRes.json()) as OverviewData & { message?: string };
+        if (!overviewRes.ok) throw new Error(body.message ?? '加载失败');
         setData(body);
+        if (eventsRes.ok) {
+          const eventBody = (await eventsRes.json()) as { events: AdminEventRow[] };
+          setEvents(eventBody.events ?? []);
+        }
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败');
@@ -125,8 +149,12 @@ export function AdminPanel() {
               <strong>{data.summary.playerRooms}</strong>
             </div>
             <div>
-              <span>在线人数</span>
-              <strong className="is-live">{data.summary.online}</strong>
+              <span>真人在线</span>
+              <strong className="is-live">{data.summary.humans ?? 0}</strong>
+            </div>
+            <div>
+              <span>氛围机器人</span>
+              <strong className="is-bot">{data.summary.bots ?? 0}</strong>
             </div>
             <div>
               <span>已上线游戏</span>
@@ -167,6 +195,26 @@ export function AdminPanel() {
                 )}
               </tbody>
             </table>
+          </section>
+
+          <section className="admin__section">
+            <h2>实时事件流</h2>
+            <div className="admin__events">
+              {events.map((event, index) => (
+                <div key={`${event.at}-${index}`} className={`admin__event is-${event.level}`}>
+                  <span className="admin__event-time">
+                    {new Date(event.at).toLocaleTimeString('zh-CN', { hour12: false })}
+                  </span>
+                  <span className="admin__event-level">{event.level.toUpperCase()}</span>
+                  <span className="admin__event-scope">{event.scope}</span>
+                  <span className="admin__event-msg">{event.message}</span>
+                  {event.detail?.durationMs !== undefined && (
+                    <span className="admin__event-cost">{String(event.detail.durationMs)}ms</span>
+                  )}
+                </div>
+              ))}
+              {events.length === 0 && <p className="hint">暂无事件，等待新的请求或结算</p>}
+            </div>
           </section>
 
           <section className="admin__section">

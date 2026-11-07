@@ -73,6 +73,10 @@ export interface RoomSummary {
   hostId: string | null;
   hostName: string;
   players: number;
+  /** 真人数量（不含氛围机器人） */
+  humans: number;
+  /** 场内机器人数量 */
+  bots: number;
   maxPlayers: number;
   status: 'waiting' | 'playing' | 'settled';
   /** 平台坐庄的常驻台，玩家不可创建也不可关闭 */

@@ -2,6 +2,8 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import { signToken, verifyToken, type TokenPayload } from '@cc/auth';
 import type { GameMeta, Settlement } from '@cc/protocol';
 import { config } from './config';
+import { createLogger } from './logger';
+import { recordEvent, recentEvents } from './events';
 import { MemoryRepository } from './repository/memory';
 import { PostgresRepository } from './repository/postgres';
 import type { Repository } from './repository/types';
@@ -120,6 +122,17 @@ function clientIp(req: FastifyRequest): string {
 async function start(): Promise<void> {
   const repo = await createRepository();
   const app = Fastify({ logger: false });
+const apiLog = createLogger('api');
+const requestStart = new WeakMap<FastifyRequest, number>();
+
+/** 需要进入后台事件流的路径（轮询类接口不记，避免刷屏） */
+const EVENT_PATHS = new Set([
+  '/api/register',
+  '/api/login',
+  '/api/tasks/claim',
+  '/api/assistant/chat',
+  '/api/admin/overview',
+]);
 
   // 登录防爆破：IP 维度 10 次 / 10 分钟，账号维度 5 次 / 10 分钟
   const ipLimiter = new AttemptLimiter(10, 10 * 60_000);
@@ -175,6 +188,7 @@ async function start(): Promise<void> {
   }
 
   app.addHook('onRequest', async (req, reply) => {
+    requestStart.set(req, Date.now());
     reply.header('access-control-allow-origin', config.corsOrigin);
     reply.header('access-control-allow-headers', 'content-type,authorization');
     reply.header('access-control-allow-methods', 'GET,POST,OPTIONS');
@@ -183,9 +197,34 @@ async function start(): Promise<void> {
     }
   });
 
-  app.setErrorHandler((error: Error & { statusCode?: number }, _req, reply) => {
+  app.addHook('onResponse', async (req, reply) => {
+    const started = requestStart.get(req);
+    const durationMs = started ? Date.now() - started : 0;
+    const path = (req.url ?? '/').split('?')[0] ?? '/';
+    const status = reply.statusCode;
+    const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info';
+    const detail = { method: req.method, path, status, durationMs };
+
+    if (status >= 400) {
+      apiLog.warn('HTTP 请求异常', detail);
+      recordEvent('warn', 'http', `${req.method} ${path} → ${status}`, detail);
+    } else {
+      apiLog.debug('HTTP 请求', detail);
+      if (EVENT_PATHS.has(path)) {
+        recordEvent('info', 'http', `${req.method} ${path} → ${status}`, detail);
+      }
+    }
+  });
+
+  app.setErrorHandler((error: Error & { statusCode?: number }, req, reply) => {
     const status = error.statusCode ?? 500;
-    if (status >= 500) console.error('[api] 请求异常', error);
+    const path = (req.url ?? '/').split('?')[0] ?? '/';
+    apiLog.error('请求处理异常', { method: req.method, path, status, error: error.message });
+    recordEvent('error', 'http', `${req.method} ${path} 处理失败：${error.message}`, {
+      method: req.method,
+      path,
+      status,
+    });
     reply.status(status).send({ error: error.message });
   });
 
@@ -398,12 +437,12 @@ async function start(): Promise<void> {
     const dayKey = periodKeyFor('daily');
 
     const totalOnline = rooms.reduce((sum, room) => sum + Number(room.players ?? 0), 0);
+    const humans = rooms.reduce((sum, room) => sum + Number(room.humans ?? 0), 0);
+    const bots = rooms.reduce((sum, room) => sum + Number(room.bots ?? 0), 0);
     const platformRooms = rooms.filter((room) => room.persistent === true).length;
     const playerRooms = rooms.length - platformRooms;
 
-    console.info(
-      `${new Date().toISOString()} INFO  [admin] 拉取总览 {"rooms":${rooms.length},"online":${totalOnline}}`,
-    );
+    apiLog.info('后台拉取总览', { rooms: rooms.length, online: totalOnline, humans, bots });
 
     return {
       dayKey,
@@ -412,12 +451,23 @@ async function start(): Promise<void> {
         platformRooms,
         playerRooms,
         online: totalOnline,
+        humans,
+        bots,
         games: games.length,
       },
       rooms,
       games,
       daily,
     };
+  });
+
+  app.get('/api/admin/events', async (req) => {
+    const query = req.query as { token?: string; limit?: string };
+    if (!config.adminToken || query.token !== config.adminToken) {
+      throw httpError('后台口令不正确', 403);
+    }
+    const limit = Math.min(Math.max(Number(query.limit ?? 60) || 60, 1), 240);
+    return { events: recentEvents(limit) };
   });
 
   app.post('/api/assistant/chat', async (req) => {
@@ -490,13 +540,27 @@ async function start(): Promise<void> {
       return reply.status(400).send({ error: '结算数据格式错误' });
     }
     const result = await repo.applySettlement(settlement);
+    const detail = {
+      settlementId: settlement.settlementId,
+      gameId: settlement.gameId,
+      round: settlement.round,
+      entries: settlement.entries.length,
+      result,
+    };
+    if (result === 'duplicate') {
+      apiLog.warn('重复结算上报', detail);
+      recordEvent('warn', 'settle', `重复结算 ${settlement.gameId} 第 ${settlement.round} 局`, detail);
+    } else {
+      apiLog.info('结算入账', detail);
+      recordEvent('info', 'settle', `${settlement.gameId} 第 ${settlement.round} 局结算入账`, detail);
+    }
     return { result };
   });
 
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: 'not found' }));
 
   await app.listen({ port: config.port, host: config.host });
-  console.log(`[api] http://${config.host}:${config.port}`);
+  apiLog.info('HTTP 服务已启动', { host: config.host, port: config.port });
 
   const shutdown = async (): Promise<void> => {
     console.log('[api] 正在关闭...');

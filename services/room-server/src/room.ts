@@ -253,7 +253,9 @@ export class GameRoom {
 
   /** 供选台列表使用 */
   summary(): RoomSummary {
-    const host = [...this.seats.values()].find((seat) => seat.playerId === this.hostId);
+    const seats = [...this.seats.values()];
+    const host = seats.find((seat) => seat.playerId === this.hostId);
+    const bots = seats.filter((seat) => seat.isBot).length;
     return {
       roomId: this.id,
       gameId: this.plugin.meta.gameId,
@@ -263,6 +265,8 @@ export class GameRoom {
       hostId: this.hostId,
       hostName: this.persistent ? '平台庄' : (host?.nickname ?? '玩家'),
       players: this.seats.size,
+      humans: seats.length - bots,
+      bots,
       maxPlayers: this.capacity,
       status: this.status === 'closed' ? 'settled' : this.status,
       persistent: this.persistent,
