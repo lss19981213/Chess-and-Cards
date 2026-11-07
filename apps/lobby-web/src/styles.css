@@ -5899,3 +5899,16 @@ button.secondary:hover:not(:disabled) {
   .lobby-game .bac-zone { padding: 5px 3px; }
   .lobby-game .bac-zone__label { font-size: 14px; }
 }
+@media (max-height: 560px) {
+  .lobby-game {
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 10px;
+    max-height: 100%;
+  }
+  .lobby-game .history {
+    max-height: 100%;
+  }
+  .lobby-game .history__list {
+    max-height: none;
+  }
+}
