@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Chip } from '../components/Chip';
+import { Chip, ChipStack } from '../components/Chip';
 import { SeatPanel, TableStage } from '../components/TableStage';
 
 interface TuiCard {
@@ -115,6 +115,7 @@ export function Tuizhuanzi({ snapshot, myId, status, onBet }: Props) {
               <Chip size={19} />
               <strong>{pot}</strong>
             </span>
+            <ChipStack amount={pot} />
             <span className="pot-display__timer">{remain}s</span>
           </div>
         ) : (

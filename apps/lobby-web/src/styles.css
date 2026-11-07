@@ -2445,6 +2445,28 @@ button.secondary:hover:not(:disabled) {
   gap: 7px;
 }
 
+.chip-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  margin-top: 2px;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.6));
+}
+
+.chip-stack span {
+  width: 42px;
+  height: 11px;
+  border-radius: 50%;
+  margin-top: -5px;
+  background: linear-gradient(180deg, #ffe08a 0%, #f0b429 42%, #a9750c 100%);
+  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.chip-stack span.is-red {
+  background: linear-gradient(180deg, #ff8f8f 0%, #e5484d 42%, #97191d 100%);
+}
+
 .pot-display__value strong {
   font-size: 26px;
   color: var(--gold);

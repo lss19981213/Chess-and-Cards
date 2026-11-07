@@ -1,5 +1,5 @@
 import { cardLabel, isRedCard, type CardView } from './cards';
-import { Chip } from '../components/Chip';
+import { Chip, ChipStack } from '../components/Chip';
 import { SeatPanel, TableStage } from '../components/TableStage';
 
 interface TexasPlayer {
@@ -117,6 +117,7 @@ export function Texas({ snapshot, myId, status, onAction }: Props) {
                 <Chip size={18} />
                 <strong>{data.pot}</strong>
               </span>
+              <ChipStack amount={data.pot} />
               <span className="pot-display__meta">
                 当前注 {data.currentBet} · 我的投入 {data.myTotalBet}
               </span>
