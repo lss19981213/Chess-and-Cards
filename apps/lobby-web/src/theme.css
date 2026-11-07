@@ -411,15 +411,31 @@ button.secondary {
   box-shadow: inset 0 0 0 1px rgba(243, 212, 137, 0.35);
 }
 
-.dice-zone__label {
+.dice-zone__label,
+.dice-zone strong,
+.dice-zone b {
   font-size: 12.5px;
   font-weight: 700;
+  color: var(--text);
 }
 
 .dice-zone__odds,
-.dice-zone__pool {
+.dice-zone__pool,
+.dice-zone small,
+.dice-zone em {
   font-size: 9.5px;
-  color: rgba(237, 228, 207, 0.55);
+  color: rgba(237, 228, 207, 0.5);
+  font-style: normal;
+}
+
+.dice-zone span:not(.dice-zone__label) {
+  color: rgba(237, 228, 207, 0.62);
+}
+
+/* 已下注的区才点亮金 */
+.dice-zone.is-bet .dice-zone__label,
+.dice-zone.is-bet strong {
+  color: #f3d489;
 }
 
 /* ================= 筹码：真实筹码感 ================= */
@@ -438,11 +454,18 @@ button.secondary {
 }
 
 .chip-btn {
-  min-width: 46px;
-  min-height: 46px;
+  min-width: 52px;
+  min-height: 52px;
   border-radius: 50%;
   background: transparent;
   border: none;
+  padding: 0;
+}
+
+.chip-btn img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 }
 
 .chip-btn.is-active {

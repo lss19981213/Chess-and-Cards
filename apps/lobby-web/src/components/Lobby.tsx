@@ -132,7 +132,7 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
                   }
                   onClick={() => enter(game)}
                 >
-                  <em className="live-card__badge">平台庄</em>
+                  {/* 区块标题已说明坐庄类型，卡片不再重复标签 */}
                   <span className="live-card__body">
                     <span className="live-card__icon">{game.icon}</span>
                     <strong>{game.name}</strong>
