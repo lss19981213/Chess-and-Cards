@@ -20,7 +20,7 @@ import { createLogger } from './logger';
 const log = createLogger('room-server');
 import { RoomManager } from './registry';
 import { createSettlementReporter } from './settlement';
-import { createWalletClient } from './wallet';
+import { createReleaseClient, createWalletClient } from './wallet';
 import { registerBuiltinGames } from './plugins';
 
 const AUTH_TIMEOUT_MS = 15_000;
@@ -37,8 +37,28 @@ interface Session {
   authTimer: NodeJS.Timeout | null;
 }
 
-const manager = new RoomManager(config, createSettlementReporter(config), createWalletClient(config));
+const releaseBets = createReleaseClient(config);
+const manager = new RoomManager(
+  config,
+  createSettlementReporter(config),
+  createWalletClient(config),
+  releaseBets,
+);
 registerBuiltinGames(manager);
+
+// 房间服务重启意味着上一进程的所有房间状态都已作废，未结算的下注本金不可能再等来结算。
+// 大厅可能稍后才就绪，做有限次重试。
+void (async () => {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await releaseBets('');
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+  log.warn('启动时清理未结算下注失败，需人工检查', {});
+})();
 
 function send(ws: WebSocket, t: string, d: unknown): void {
   if (ws.readyState !== 1) return;

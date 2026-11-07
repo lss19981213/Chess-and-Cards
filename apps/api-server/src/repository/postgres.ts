@@ -51,6 +51,53 @@ export class PostgresRepository implements Repository {
     await this.pool.query(SCHEMA_SQL);
   }
 
+  async releaseOrphanBets(roomId?: string): Promise<number> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const groups = await client.query<{ user_id: string; hold_id: string; staked: string }>(
+        `select l.user_id,
+                split_part(l.biz_id, ':', 1) || ':' || split_part(l.biz_id, ':', 2) || ':' || l.user_id as hold_id,
+                sum(l.delta) as staked
+           from ledger l
+          where l.biz_type in ('game_bet', 'game_bet_refund')
+            and ($1::text is null or split_part(l.biz_id, ':', 1) = $1)
+            and not exists (
+              select 1 from ledger r
+               where r.biz_type in ('game_bet_return', 'game_bet_release')
+                 and r.user_id = l.user_id
+                 and r.biz_id = split_part(l.biz_id, ':', 1) || ':' || split_part(l.biz_id, ':', 2) || ':' || l.user_id || ':return'
+            )
+          group by 1, 2
+         having sum(l.delta) < 0`,
+        [roomId ?? null],
+      );
+
+      let released = 0;
+      for (const row of groups.rows) {
+        const amount = -Number(row.staked);
+        const updated = await client.query<{ balance: string }>(
+          'update wallets set balance = balance + $2, version = version + 1 where user_id = $1 returning balance',
+          [row.user_id, amount],
+        );
+        await client.query(
+          `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+           values ($1, 'coin', $2, $3, 'game_bet_release', $4)
+           on conflict (biz_type, biz_id, user_id) do nothing`,
+          [row.user_id, amount, Number(updated.rows[0]?.balance ?? 0), `${row.hold_id}:return`],
+        );
+        released += amount;
+      }
+      await client.query('COMMIT');
+      return released;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async register(input: RegisterInput): Promise<RegisterResult> {
     const client = await this.pool.connect();
     try {
@@ -188,8 +235,16 @@ export class PostgresRepository implements Repository {
           `select coalesce(sum(delta), 0) as staked from ledger
             where user_id = $1
               and biz_type in ('game_bet', 'game_bet_refund')
-              and biz_id like $2`,
-          [entry.playerId, `${settlement.settlementId}:${entry.playerId}:%`],
+              and biz_id like $2
+              and not exists (
+                select 1 from ledger r
+                 where r.biz_type = 'game_bet_release' and r.user_id = $1 and r.biz_id = $3
+              )`,
+          [
+            entry.playerId,
+            `${settlement.settlementId}:${entry.playerId}:%`,
+            `${settlement.settlementId}:${entry.playerId}:return`,
+          ],
         );
         const staked = Number(stakedRes.rows[0]?.staked ?? 0);
         const credit = entry.delta - staked;

@@ -9,6 +9,22 @@ export interface WalletAdjustInput {
 }
 
 export type WalletClient = (input: WalletAdjustInput) => Promise<number>;
+export type ReleaseClient = (roomId: string) => Promise<void>;
+
+/** 房间销毁时通知大厅释放该房间未结算的下注扣款 */
+export function createReleaseClient(config: RoomServerConfig): ReleaseClient {
+  return async (roomId) => {
+    const res = await fetch(`${config.apiBaseUrl}/internal/wallet/release`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-internal-key': config.internalKey,
+      },
+      body: JSON.stringify(roomId ? { roomId } : {}),
+    });
+    if (!res.ok) throw new Error(`释放下注扣款失败 (${res.status})`);
+  };
+}
 
 /**
  * 下注即时扣款客户端。

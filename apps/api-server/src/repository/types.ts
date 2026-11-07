@@ -83,6 +83,11 @@ export interface Repository {
   applySettlement(settlement: Settlement): Promise<SettlementResult>;
   /** 原子扣款/退款，返回操作后的余额；余额不足抛 InsufficientFundsError */
   adjustBet(input: BetAdjustment): Promise<number>;
+  /**
+   * 释放未结算的已扣本金。房间销毁或房间服务重启后，那些局永远不会再有结算，
+   * 需要把冻结的筹码退回，避免玩家凭空损失。roomId 为空则全量清理。
+   */
+  releaseOrphanBets(roomId?: string): Promise<number>;
   listRecords(userId: string, limit: number): Promise<GameRecordView[]>;
   /** 幂等加币（任务奖励等），返回入账后余额 */
   credit(userId: string, amount: number, bizType: string, bizId: string): Promise<number>;

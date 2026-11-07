@@ -13,7 +13,7 @@ import {
 } from '@cc/protocol';
 import type { GameIntent, GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import type { RoomServerConfig } from './config';
-import type { WalletClient } from './wallet';
+import type { ReleaseClient, WalletClient } from './wallet';
 import { createLogger } from './logger';
 
 const roomLog = createLogger('room');
@@ -50,6 +50,8 @@ export interface RoomDeps {
   settle(settlement: Settlement): void;
   /** 下注即时扣款 / 撤注退款，返回操作后余额 */
   adjustWallet: WalletClient;
+  /** 房间销毁时释放未结算的下注扣款 */
+  releaseBets: ReleaseClient;
   /** 空房间回收 */
   empty(roomId: string): void;
 }
@@ -569,6 +571,8 @@ export class GameRoom {
     }
     this.seats.clear();
     this.plugin.onDestroy?.(this.ctx);
+    // 本局还没结算就散场，把已扣的下注本金退回，不能让筹码凭空消失
+    void this.deps.releaseBets(this.id).catch(() => undefined);
     this.deps.empty(this.id);
   }
 

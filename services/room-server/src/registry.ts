@@ -5,7 +5,7 @@ import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
 import { GameRoom, PLATFORM_CAPACITY, type RoomDeps } from './room';
 import type { RoomServerConfig } from './config';
-import type { WalletClient } from './wallet';
+import type { ReleaseClient, WalletClient } from './wallet';
 import { createLogger } from './logger';
 
 /** 平台房初始数量与弹性上限 */
@@ -32,11 +32,13 @@ export class RoomManager {
     config: RoomServerConfig,
     reportSettlement: (settlement: Settlement) => void,
     adjustWallet: WalletClient,
+    releaseBets: ReleaseClient,
   ) {
     this.deps = {
       config,
       settle: (settlement) => reportSettlement(settlement),
       adjustWallet,
+      releaseBets,
       empty: (roomId) => {
         this.rooms.delete(roomId);
       },

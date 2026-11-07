@@ -600,6 +600,18 @@ const EVENT_PATHS = new Set([
     }
   });
 
+  /** 房间销毁后释放该房间未结算的下注扣款，避免筹码悬空 */
+  app.post('/internal/wallet/release', async (req, reply) => {
+    if (req.headers['x-internal-key'] !== config.internalKey) {
+      return reply.status(403).send({ error: '内部接口鉴权失败' });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    // 不传 roomId 表示房间服务刚重启，全量清理孤儿扣款
+    const roomId = typeof body.roomId === 'string' && body.roomId ? body.roomId : undefined;
+    const released = await repo.releaseOrphanBets(roomId);
+    return { released };
+  });
+
   app.post('/internal/settle', async (req, reply) => {
     if (req.headers['x-internal-key'] !== config.internalKey) {
       return reply.status(403).send({ error: '内部接口鉴权失败' });

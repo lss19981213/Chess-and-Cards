@@ -76,6 +76,25 @@ export class MemoryRepository implements Repository {
     return this.balances.get(userId) ?? 0;
   }
 
+  async init(): Promise<void> {}
+
+  async releaseOrphanBets(roomId?: string): Promise<number> {
+    let released = 0;
+    for (const [key, staked] of this.staked) {
+      if (staked >= 0) continue;
+      if (roomId && !key.startsWith(`${roomId}:`)) continue;
+      const userId = key.slice(key.lastIndexOf(':') + 1);
+      const releaseKey = `game_bet_release:${key}:return:${userId}`;
+      if (this.appliedKeys.has(releaseKey)) continue;
+      this.appliedKeys.add(releaseKey);
+      const amount = -staked;
+      this.balances.set(userId, Math.max(0, (this.balances.get(userId) ?? 0) + amount));
+      this.staked.set(key, 0);
+      released += amount;
+    }
+    return released;
+  }
+
   async adjustBet(input: BetAdjustment): Promise<number> {
     const bizType = input.action === 'debit' ? 'game_bet' : 'game_bet_refund';
     const ledgerKey = `${bizType}:${input.bizId}:${input.userId}`;
