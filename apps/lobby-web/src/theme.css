@@ -191,6 +191,11 @@ button:active:not(:disabled),
   overflow: hidden;
 }
 
+/* 有美术图时 emoji 图标是重复信息，隐去 */
+.live-card__icon {
+  display: none;
+}
+
 /* CTA：描边小签，不再金渐变 */
 .live-card__cta {
   font-size: 10.5px;
