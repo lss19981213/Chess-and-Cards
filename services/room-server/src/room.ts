@@ -298,7 +298,9 @@ export class GameRoom {
       return;
     }
     if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '当前不能修改准备状态');
-    if (!ready) this.autoReady.delete(playerId);
+    // 主动准备即进入连续对局模式，主动取消才退出
+    if (ready) this.autoReady.add(playerId);
+    else this.autoReady.delete(playerId);
     if (seat.ready === ready) return;
     seat.ready = ready;
     this.plugin.onPlayerReady(this.ctx, playerId);
