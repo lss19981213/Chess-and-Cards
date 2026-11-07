@@ -202,6 +202,7 @@ export default function App() {
           snapshot={snapshot}
           settlement={settlement}
           myId={user.id}
+          balance={user.balance}
           onReady={handleReady}
           onLeave={handleLeave}
           onIntent={handleIntent}

@@ -1,7 +1,6 @@
 import type { RoomView, Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
-import { CHIP_IMG } from '../assets';
 import { Chip } from './Chip';
 import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
@@ -13,6 +12,7 @@ interface Props {
   snapshot: SnapshotEnvelope | null;
   settlement: Settlement | null;
   myId: string;
+  balance: number;
   onReady: (ready: boolean) => void;
   onLeave: () => void;
   onIntent: (cmd: string, payload: Record<string, unknown>) => void;
@@ -34,7 +34,17 @@ const GAME_TITLE: Record<string, string> = {
   texas: '德州扑克',
 };
 
-export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onIntent, onAddBot }: Props) {
+export function Room({
+  room,
+  snapshot,
+  settlement,
+  myId,
+  balance,
+  onReady,
+  onLeave,
+  onIntent,
+  onAddBot,
+}: Props) {
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
@@ -104,7 +114,13 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
           <span className={`badge badge--${room.status}`}>{STATUS_TEXT[room.status] ?? room.status}</span>
         </div>
         <div className="room__meta">
-          房间 {room.roomId.slice(0, 8)} · 第 {room.round} 局
+          <span className="room__roomno">
+            房间 {room.roomId.slice(0, 8)} · 第 {room.round} 局
+          </span>
+          <span className="wallet wallet--sm">
+            <Chip size={17} />
+            <strong>{balance.toLocaleString()}</strong>
+          </span>
         </div>
       </header>
 
@@ -118,10 +134,7 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
       )}
 
       <main className="room__main">
-        <section className="room__board">
-          <div className="room__board-wash" aria-hidden style={{ backgroundImage: `url(${CHIP_IMG})` }} />
-          {renderGame()}
-        </section>
+        <section className="room__board">{renderGame()}</section>
 
         <aside className="room__side">
           <div className="panel">
