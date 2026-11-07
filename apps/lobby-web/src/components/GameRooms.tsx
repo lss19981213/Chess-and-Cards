@@ -136,7 +136,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
 
         {isLive && (
           <p className="lobby__footnote">
-            该玩法由平台坐庄，每 12 秒一局（下注 5 秒），多台同时进行；台子接近满员时系统会自动加开新台。
+            该玩法由平台坐庄，每 38 秒一局（下注 30 秒、开牌 5 秒），多台同时进行；台子接近满员时系统会自动加开新台。
           </p>
         )}
       </main>

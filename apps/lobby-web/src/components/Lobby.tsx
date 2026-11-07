@@ -18,7 +18,7 @@ interface Props {
 const CATEGORIES = [
   { key: 'board', title: '棋类对弈', desc: '一对一，纯技术' },
   { key: 'table', title: '牌桌对战', desc: '多人竞技，凭牌技取胜' },
-  { key: 'live', title: '极速下注', desc: '平台坐庄，每 12 秒一局' },
+  { key: 'live', title: '极速下注', desc: '平台坐庄，每 38 秒一局' },
 ] as const;
 
 export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLeaderboard }: Props) {

@@ -17,6 +17,7 @@ interface TuiSnapshot {
   myBet: { heaven: number; earth: number; human: number };
   doorTotals: { heaven: number; earth: number; human: number };
   myStreak: number;
+  phaseDurationMs: number;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{
     round: number;
@@ -69,6 +70,10 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
   }, [data?.remainMs, data?.phase, data?.round]);
 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
+  const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
+  const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
+  const phaseLabel = data?.phase === 'reveal' ? '开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
+  const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = Boolean(data) && data!.phase === 'bet' && status === 'playing';
   const revealed = Boolean(data) && data!.phase !== 'bet';
@@ -86,11 +91,12 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
-          <span className={`lobby-game__phase ${data.phase === 'bet' ? 'is-open' : ''}`}>
-            {data.phase === 'bet' ? `下注中 · ${left}s` : '已封盘'}
+          <span className={`lobby-game__phase ${phaseClass}`}>
+            {phaseLabel} · {left}s
           </span>
           {totals > 0 && <span className="lobby-game__mine">我押了 {totals}</span>}
           {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
+          <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
         <div className="banker-box">

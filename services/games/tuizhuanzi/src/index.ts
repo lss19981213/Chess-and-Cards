@@ -10,7 +10,7 @@ import {
 /**
  * 推筒子（平台庄家版）
  * - 平台坐庄，玩家只能在「天 / 地 / 人」三门下注，猜哪门比庄家大，赔率 1:1
- * - 常驻运行：不依赖人数，每 12 秒一局（5 秒下注 + 4 秒开牌 + 3 秒间隔）
+ * - 常驻运行：不依赖人数，每 38 秒一局（30 秒下注 + 5 秒开牌 + 3 秒间隔）
  * - 每局给三门与庄家各发两张筒子牌，点数取个位
  */
 
@@ -25,8 +25,8 @@ const DOOR_LABEL: Record<DoorKey, string> = {
 
 const RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-const BET_MS = 5_000;
-const REVEAL_MS = 4_000;
+const BET_MS = 30_000;
+const REVEAL_MS = 5_000;
 const IDLE_MS = 3_000;
 
 const MIN_BET = 10;
@@ -281,6 +281,8 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
       phase: this.state.phase,
       round: this.state.roundNo,
       remainMs,
+      phaseDurationMs:
+        this.state.phase === 'bet' ? BET_MS : this.state.phase === 'reveal' ? REVEAL_MS : IDLE_MS,
       betEndsAt: this.state.phase === 'bet' ? this.state.phaseEndsAt : 0,
       banker: {
         points: revealed ? this.state.banker.points : null,

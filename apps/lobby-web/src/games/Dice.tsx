@@ -12,6 +12,7 @@ interface DiceSnapshot {
   myBet: Record<string, number>;
   zoneTotals: Record<string, number>;
   myStreak: number;
+  phaseDurationMs: number;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{ round: number; dice: number[]; sum: number; triple: boolean; big: boolean }>;
   odds: { big: number; small: number; odd: number; even: number; triple: number; sums: Record<string, number> };
@@ -99,6 +100,10 @@ export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
   if (!data) return <div className="board-placeholder">正在连接骰桌…</div>;
 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
+  const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
+  const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
+  const phaseLabel = data?.phase === 'reveal' ? '开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
+  const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = data.phase === 'bet' && status === 'playing';
   const revealed = data.phase !== 'bet';
@@ -117,11 +122,12 @@ export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
-          <span className={`lobby-game__phase ${data.phase === 'bet' ? 'is-open' : ''}`}>
-            {data.phase === 'bet' ? `下注中 · ${left}s` : '已封盘'}
+          <span className={`lobby-game__phase ${phaseClass}`}>
+            {phaseLabel} · {left}s
           </span>
           {betting > 0 && <span className="lobby-game__mine">我押了 {betting}</span>}
           {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
+          <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
         <div className="dice-stage">
