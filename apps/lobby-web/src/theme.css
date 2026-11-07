@@ -462,14 +462,31 @@ body {
 }
 
 /* 操作区（筹码选择、下注按钮）常驻底部，横屏滚动时也不丢失 */
+.bet-controls,
+.showdown__actions,
+.bj-actions,
+.hand-actions,
 .stage__bottom,
 .lobby-game__actions {
   position: sticky;
   bottom: 0;
   z-index: 8;
-  background: linear-gradient(180deg, rgba(8, 12, 20, 0), rgba(8, 12, 20, 0.92) 34%);
+  background: linear-gradient(180deg, rgba(8, 12, 20, 0), rgba(8, 12, 20, 0.94) 30%);
   backdrop-filter: blur(6px);
-  padding-bottom: 6px;
+  padding: 10px 6px 6px;
+}
+
+/* 筹码行更紧凑 */
+.bet-controls {
+  gap: 8px;
+}
+
+.bet-controls__chips {
+  gap: 8px;
+}
+
+.bet-controls__hint {
+  font-size: 10px;
 }
 
 .lobby-game {
@@ -525,6 +542,49 @@ body {
 
 .dice-zones {
   gap: 6px;
+}
+
+/* ---------- 公共牌桌纵向压缩 ---------- */
+.lobby-game__bar {
+  padding-bottom: 6px;
+  font-size: 11px;
+  gap: 10px;
+}
+
+.lobby-game__main {
+  gap: 8px;
+}
+
+.dice-zone {
+  padding: 5px 4px;
+  gap: 1px;
+}
+
+.dice-zone__label {
+  font-size: 12px;
+}
+
+.dice-zone__odds,
+.dice-zone__pool {
+  font-size: 9.5px;
+}
+
+.dice-stage {
+  gap: 6px;
+}
+
+.dice-stage__sum {
+  font-size: 11px;
+}
+
+.dice-stage__sum strong {
+  font-size: 20px;
+}
+
+/* 21点 / 斗牛 行卡片紧凑 */
+.bj-row,
+.niuniu-row {
+  padding: 6px 10px;
 }
 
 /* ---------- 弹窗 ---------- */
