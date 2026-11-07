@@ -1,3 +1,5 @@
+import { BASE_PATH } from './api';
+
 type Handler = (data: unknown) => void;
 
 /** 带自动重连与房间恢复的 WebSocket 客户端 */
@@ -20,7 +22,7 @@ export class GameSocket {
       return;
     }
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+    const ws = new WebSocket(`${proto}://${window.location.host}${BASE_PATH}/ws`);
     this.ws = ws;
 
     ws.onopen = () => {

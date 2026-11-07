@@ -8,6 +8,9 @@ export interface User {
 
 const TOKEN_KEY = 'cc.token';
 
+/** 站点部署在子路径（/lobby/），所有接口都带此前缀 */
+export const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -23,7 +26,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
 
-  const res = await fetch(path, { ...init, headers });
+  const res = await fetch(`${BASE_PATH}${path}`, { ...init, headers });
   const text = await res.text();
   const body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
   if (!res.ok) {
