@@ -1,6 +1,7 @@
 import type { RoomView, Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
+import { GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
@@ -134,7 +135,20 @@ export function Room({
       )}
 
       <main className="room__main">
-        <section className="room__board">{renderGame()}</section>
+        <section
+          className="room__board"
+          style={
+            room.status === 'waiting' && GAME_ART[room.gameId]
+              ? {
+                  backgroundImage: `linear-gradient(rgba(6,12,11,0.78), rgba(6,12,11,0.9)), url(${GAME_ART[room.gameId]})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : undefined
+          }
+        >
+          {renderGame()}
+        </section>
 
         <aside className="room__side">
           <div className="panel">
