@@ -426,6 +426,11 @@ body {
   margin-bottom: 58px;
 }
 
+/* 大厅内容为悬浮导航留出空间，避免遮挡最后一行卡片 */
+.lobby {
+  padding-bottom: 62px;
+}
+
 /* ---------- 底部导航 ---------- */
 .app-tabbar {
   bottom: 5px;
@@ -498,6 +503,23 @@ body {
 .boardgame {
   gap: 6px;
   padding: 4px;
+  position: relative;
+  background:
+    radial-gradient(52% 86% at 50% 50%, rgba(232, 189, 106, 0.07), transparent 72%);
+}
+
+.boardgame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 14% 30%, rgba(232, 189, 106, 0.06) 0%, transparent 46%),
+    radial-gradient(circle at 86% 70%, rgba(232, 189, 106, 0.06) 0%, transparent 46%);
+  pointer-events: none;
+}
+
+.boardgame > * {
+  position: relative;
 }
 
 .boardgame__bar {
