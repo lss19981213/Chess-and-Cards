@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { EMOTES, type EmotePayload, type RoomView, type Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
-import { GAME_ART } from '../assets';
+import { DEALER_MAIN, GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
 import { RulesModal } from './RulesModal';
@@ -79,6 +79,20 @@ export function Room({
   const [rulesOpen, setRulesOpen] = useState(false);
   const [emoteOpen, setEmoteOpen] = useState(false);
   const [playersDrawerOpen, setPlayersDrawerOpen] = useState(false);
+  const [cheerEffect, setCheerEffect] = useState(false);
+
+  const dealerTip = useMemo(() => {
+    if (room.status === 'waiting') return '各位牌友请就绪，精彩马上开启～';
+    if (room.status === 'playing') return '艾莉丝发牌中，祝主人好运连连！';
+    if (room.status === 'settled') return '本局结算完毕，手气真棒～';
+    return '艾莉丝陪伴为您服务';
+  }, [room.status]);
+
+  const handleDealerCheer = () => {
+    audio.play('shunzi');
+    setCheerEffect(true);
+    window.setTimeout(() => setCheerEffect(false), 800);
+  };
 
   // 结果有两个来源：对战类用结算单，常驻类直接用快照里的本局明细
   const liveResults = (
@@ -324,6 +338,27 @@ export function Room({
               </div>
             ))}
           </div>
+
+          {/* 动漫美女荷官专属牌桌陪伴席 (常驻显式展示) */}
+          <aside
+            className="room-dealer-companion"
+            onClick={handleDealerCheer}
+            role="button"
+            tabIndex={0}
+            title="点击与荷官艾莉丝互动"
+          >
+            <div className="room-dealer-avatar">
+              <img src={DEALER_MAIN} alt="荷官艾莉丝" draggable={false} />
+              <span className="room-dealer-live-dot" />
+            </div>
+            <div className="room-dealer-speech">
+              <div className="room-dealer-header">
+                <span className="room-dealer-name">荷官 · 艾莉丝</span>
+                {cheerEffect && <span className="dealer-heart-float">💖</span>}
+              </div>
+              <span className="room-dealer-text">{dealerTip}</span>
+            </div>
+          </aside>
 
           {/* 渲染游戏牌桌 */}
           {renderGame()}

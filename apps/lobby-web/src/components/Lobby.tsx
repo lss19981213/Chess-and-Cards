@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Announcement, GameMeta } from '@cc/protocol';
 import { api, type User } from '../api';
 import { audio } from '../audio';
-import { GAME_ART, HERO_BG } from '../assets';
+import { DEALER_MAIN, GAME_ART, HERO_BG } from '../assets';
 import { Chip } from './Chip';
 import {
   IconAssistant,
@@ -41,6 +41,14 @@ const TABS: Array<{ key: CategoryTab; label: string; icon: typeof IconFlame }> =
   { key: 'board', label: '棋艺对弈', icon: IconChess },
 ];
 
+const DEALER_QUOTES = [
+  '尊贵的主人，艾莉丝已就绪，今天想挑战哪位牌王？',
+  '祝主人牌运亨通，把把天胡，筹码暴涨！',
+  '百人推筒子正在火热下注，主人要不要去试试手气？',
+  '点击右上方「助手」，艾莉丝随时为您提供算牌与胜率推演哦～',
+  '每天都有丰厚福利金币，记得去「福利」领取哦！',
+];
+
 export function Lobby({
   user,
   games,
@@ -58,6 +66,8 @@ export function Lobby({
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
   const [trackName, setTrackName] = useState(audio.trackName);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [dealerHeart, setDealerHeart] = useState(false);
 
   useEffect(() => {
     const load = () => {
@@ -69,6 +79,14 @@ export function Lobby({
     load();
     const timer = window.setInterval(load, 30_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  // 荷官台词自然轮换
+  useEffect(() => {
+    const quoteTimer = window.setInterval(() => {
+      setQuoteIndex((prev) => (prev + 1) % DEALER_QUOTES.length);
+    }, 6000);
+    return () => window.clearInterval(quoteTimer);
   }, []);
 
   const ticker = useMemo(() => {
@@ -92,6 +110,21 @@ export function Lobby({
   const enter = (game: GameMeta) => {
     audio.play('click');
     onEnter(game);
+  };
+
+  const handleDealerClick = () => {
+    audio.play('shunzi');
+    setDealerHeart(true);
+    setQuoteIndex((prev) => (prev + 1) % DEALER_QUOTES.length);
+    window.setTimeout(() => setDealerHeart(false), 800);
+  };
+
+  const handleQuickPlay = () => {
+    audio.play('click');
+    const target = filteredGames[0] ?? games[0];
+    if (target) {
+      onEnter(target);
+    }
   };
 
   return (
@@ -148,7 +181,7 @@ export function Lobby({
           <span className="marquee-arrow">›</span>
         </div>
 
-        {/* 顶部右侧系统功能群 (全部使用精细矢量图标，无下方导航栏干扰) */}
+        {/* 顶部右侧系统功能群 (精细矢量图标，全屏无弹窗模式) */}
         <div className="app-top__tools">
           <button
             type="button"
@@ -221,93 +254,149 @@ export function Lobby({
         </div>
       </header>
 
-      {/* 大厅主展台：彻底取消底部导航栏，视野宽广 */}
-      <main className="app-main app-main--showcase app-main--pure">
-        {/* 分类切换胶囊栏 */}
-        <div className="category-capsule-bar">
-          <div className="category-capsules">
-            {TABS.map((tab) => {
-              const TabIcon = tab.icon;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  className={`category-capsule ${activeTab === tab.key ? 'is-active' : ''}`}
-                  onClick={() => {
-                    audio.play('click');
-                    setActiveTab(tab.key);
-                  }}
-                >
-                  <TabIcon size={14} />
-                  <span className="capsule-label">{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="category-counter">
-            收录 <strong>{filteredGames.length}</strong> 款经典竞技游戏
-          </div>
-        </div>
-
-        {/* 横向游戏画卷展示 */}
-        <div className="games-carousel-track">
-          {filteredGames.map((game) => {
-            const isLive = game.persistent === true || game.category === 'live';
-            const isBoard = game.category === 'board';
-            const artUrl = GAME_ART[game.gameId];
-
-            return (
-              <div
-                key={game.gameId}
-                className={`showcase-card ${isLive ? 'is-live' : isBoard ? 'is-board' : 'is-table'}`}
-                style={artUrl ? { ['--card-art' as string]: `url(${artUrl})` } : undefined}
-                onClick={() => enter(game)}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="showcase-card__rim" />
-                <div className="showcase-card__shimmer" />
-
-                <div className="showcase-card__top">
-                  <span className={`game-badge ${isLive ? 'badge--live' : isBoard ? 'badge--board' : 'badge--table'}`}>
-                    {isLive ? '平台坐庄' : isBoard ? '棋艺博弈' : '多人竞技'}
-                  </span>
-                  <span className="game-players-badge">
-                    {isLive ? '极速轮转' : `${game.minPlayers}-${game.maxPlayers}人`}
-                  </span>
-                </div>
-
-                <div className="showcase-card__poster">
-                  {artUrl ? (
-                    <img src={artUrl} alt={game.name} loading="lazy" draggable={false} />
-                  ) : (
-                    <div className="showcase-card__fallback-icon">{game.icon}</div>
-                  )}
-                  <div className="showcase-card__poster-gradient" />
-                </div>
-
-                <div className="showcase-card__content">
-                  <div className="showcase-card__header">
-                    <h3 className="showcase-card__title">{game.name}</h3>
-                  </div>
-                  <p className="showcase-card__desc">{game.description}</p>
-
-                  <div className="showcase-card__action">
-                    <button type="button" className="btn-enter-table">
-                      <span>{user ? '进入选台' : '一键开玩'}</span>
-                      <em className="btn-shine" />
+      {/* 大厅主展台：彻底消灭底部与边缘空白，左侧游戏画卷 + 右侧美女荷官展台 */}
+      <main className="app-main app-main--showcase app-main--pure app-main--fullwidth">
+        <div className="lobby-stage-layout">
+          {/* 左侧主要区域：分类胶囊 + 纵向满幅横向游戏画卷 */}
+          <section className="lobby-games-section">
+            <div className="category-capsule-bar">
+              <div className="category-capsules">
+                {TABS.map((tab) => {
+                  const TabIcon = tab.icon;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      className={`category-capsule ${activeTab === tab.key ? 'is-active' : ''}`}
+                      onClick={() => {
+                        audio.play('click');
+                        setActiveTab(tab.key);
+                      }}
+                    >
+                      <TabIcon size={14} />
+                      <span className="capsule-label">{tab.label}</span>
                     </button>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
-
-          {filteredGames.length === 0 && (
-            <div className="empty-showcase">
-              <p>暂无此类游戏，请确认游戏服已正常启动</p>
+              <div className="category-counter">
+                收录 <strong>{filteredGames.length}</strong> 款经典竞技游戏
+              </div>
             </div>
-          )}
+
+            {/* 横向游戏画卷轨道：高度自适应拉伸充满视口 */}
+            <div className="games-carousel-track">
+              {filteredGames.map((game) => {
+                const isLive = game.persistent === true || game.category === 'live';
+                const isBoard = game.category === 'board';
+                const artUrl = GAME_ART[game.gameId];
+
+                return (
+                  <div
+                    key={game.gameId}
+                    className={`showcase-card ${isLive ? 'is-live' : isBoard ? 'is-board' : 'is-table'}`}
+                    style={artUrl ? { ['--card-art' as string]: `url(${artUrl})` } : undefined}
+                    onClick={() => enter(game)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="showcase-card__rim" />
+                    <div className="showcase-card__shimmer" />
+
+                    <div className="showcase-card__top">
+                      <span className={`game-badge ${isLive ? 'badge--live' : isBoard ? 'badge--board' : 'badge--table'}`}>
+                        {isLive ? '平台坐庄' : isBoard ? '棋艺博弈' : '多人竞技'}
+                      </span>
+                      <span className="game-players-badge">
+                        {isLive ? '极速轮转' : `${game.minPlayers}-${game.maxPlayers}人`}
+                      </span>
+                    </div>
+
+                    <div className="showcase-card__poster">
+                      {artUrl ? (
+                        <img src={artUrl} alt={game.name} loading="lazy" draggable={false} />
+                      ) : (
+                        <div className="showcase-card__fallback-icon">{game.icon}</div>
+                      )}
+                      <div className="showcase-card__poster-gradient" />
+                    </div>
+
+                    <div className="showcase-card__content">
+                      <div className="showcase-card__header">
+                        <h3 className="showcase-card__title">{game.name}</h3>
+                      </div>
+                      <p className="showcase-card__desc">{game.description}</p>
+
+                      <div className="showcase-card__action">
+                        <button type="button" className="btn-enter-table">
+                          <span>{user ? '进入选台' : '一键开玩'}</span>
+                          <em className="btn-shine" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {filteredGames.length === 0 && (
+                <div className="empty-showcase">
+                  <p>暂无此类游戏，请切换分类或确认游戏服状态</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* 右侧专属区域：动漫首席荷官·艾莉丝迎宾展台 (显式呈现，灵动陪伴) */}
+          <aside className="lobby-dealer-stand" onClick={handleDealerClick} title="点击与美女荷官艾莉丝互动">
+            {/* 灵动台词气泡 */}
+            <div className="dealer-stand__bubble">
+              <span className="bubble-speaker">艾莉丝 (Alice)</span>
+              <p className="bubble-text">{DEALER_QUOTES[quoteIndex]}</p>
+              <div className="bubble-tail" />
+              {dealerHeart && <span className="dealer-heart-float">💖</span>}
+            </div>
+
+            {/* 荷官精美大立绘卡片 */}
+            <div className="dealer-stand__portrait-card">
+              <div className="dealer-stand__halo" />
+              <img
+                src={DEALER_MAIN}
+                alt="首席动漫美女荷官艾莉丝"
+                className="dealer-stand__img"
+                draggable={false}
+              />
+              <div className="dealer-stand__vignette" />
+
+              <div className="dealer-stand__badge">
+                <span className="dealer-badge__title">首席金牌荷官</span>
+                <span className="dealer-badge__status">
+                  <em className="status-live-dot" /> 发牌迎宾中
+                </span>
+              </div>
+            </div>
+
+            {/* 荷官专属交互动作栏 */}
+            <div className="dealer-stand__actions" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="dealer-action-btn dealer-action-btn--assistant"
+                onClick={onAssistant}
+                title="开启智谋助手"
+              >
+                <IconAssistant size={14} />
+                <span>智谋推演</span>
+              </button>
+              <button
+                type="button"
+                className="dealer-action-btn dealer-action-btn--play"
+                onClick={handleQuickPlay}
+                title="立即快速开始对局"
+              >
+                <span>快速匹配</span>
+                <span className="action-arrow">›</span>
+              </button>
+            </div>
+          </aside>
         </div>
       </main>
     </div>

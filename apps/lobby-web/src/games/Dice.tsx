@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
 import { chipArt } from '../chips';
-import { audio } from '../audio';
 import { DEALER_MAIN } from '../assets';
 
 interface DiceSnapshot {
@@ -67,87 +66,100 @@ const FACE_DOTS: Record<number, number[][]> = {
   ],
 };
 
-function Die({ value, rolling }: { value: number; rolling: boolean }) {
+function Die({ value, rolling }: { value: number; rolling?: boolean }) {
   const dots = FACE_DOTS[value] ?? [];
   return (
-    <div className={`die ${rolling ? 'is-rolling' : ''} ${value === 0 ? 'is-hidden' : ''}`}>
-      {value === 0 ? (
-        <span className="die__q">?</span>
-      ) : (
-        dots.map(([x = 0, y = 0], index) => (
-          <span
-            key={index}
-            className="die__pip"
-            style={{ left: `${50 + x * 26}%`, top: `${50 + y * 26}%` }}
-          />
-        ))
-      )}
+    <div className={`die-cube ${rolling ? 'is-rolling' : ''}`} data-face={value}>
+      <div className="die-face">
+        {dots.map((dot, idx) => {
+          const x = dot[0] ?? 0;
+          const y = dot[1] ?? 0;
+          return (
+            <span
+              key={idx}
+              className={`die-pip die-pip--${value === 1 ? 'red' : value === 4 ? 'red' : 'dark'}`}
+              style={{
+                left: `${50 + x * 28}%`,
+                top: `${50 + y * 28}%`,
+              }}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as DiceSnapshot | undefined;
-  // ÕæÈËÓÅÏÈÕ¹Ê¾£¬Æäºó°´ÊäÓ®ÅÅĞò£¬±ÜÃâ»úÆ÷ÈË½á¹û±»ÕæÈË¼·µô
+  // çœŸäººä¼˜å…ˆå±•ç¤ºï¼Œå…¶åæŒ‰è¾“èµ¢æ’åºï¼Œé¿å…æœºå™¨äººç»“æœè¢«çœŸäººæŒ¤æ‰
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
     list.sort((a, b) => {
-      const aBot = a.playerId.startsWith('ambient:');
-      const bBot = b.playerId.startsWith('ambient:');
-      if (aBot !== bBot) return aBot ? 1 : -1;
-      return b.delta - a.delta;
+      if (a.playerId === myId) return -1;
+      if (b.playerId === myId) return 1;
+      return Math.abs(b.delta) - Math.abs(a.delta);
     });
-    const mine = list.filter((row) => row.playerId === myId);
-    const rest = list.filter((row) => row.playerId !== myId);
-    return [...mine, ...rest].slice(0, 12);
+    return list;
   }, [data?.results, myId]);
 
-  const [amount, setAmount] = useState(100);
-  const [now, setNow] = useState(Date.now());
-  const [deadline, setDeadline] = useState(0);
+  const [amount, setAmount] = useState<number>(100);
+  const [deadline, setDeadline] = useState<number>(() => Date.now() + (data?.remainMs ?? 0));
+  const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(timer);
+    const timer = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
     if (data) setDeadline(Date.now() + data.remainMs);
   }, [data?.remainMs, data?.phase, data?.round]);
 
-  if (!data) return <div className="board-placeholder">ÕıÔÚÁ¬½Ó÷»×À¡­</div>;
+  if (!data) return <div className="board-placeholder">æ­£åœ¨è¿æ¥ç‰Œæ¡Œâ€¦</div>;
 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
   const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
-  const phaseLabel = data?.phase === 'reveal' ? '¿ªÅÆÖĞ' : data?.phase === 'idle' ? '×¼±¸ÏÂÒ»¾Ö' : 'ÏÂ×¢ÖĞ';
+  const phaseLabel = data?.phase === 'reveal' ? 'å¼€ç‰Œä¸­' : data?.phase === 'idle' ? 'å‡†å¤‡ä¸‹ä¸€å±€' : 'ä¸‹æ³¨ä¸­';
   const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = data.phase === 'bet' && status === 'playing';
-  // Óà¶îÔÚÏÂ×¢Ê±ÒÑ¼´Ê±¿Û³ı£¬²»ÔÊĞí³¬¶îÏÂ×¢
+  // ä½™é¢åœ¨ä¸‹æ³¨æ—¶å·²å³æ—¶æ‰£é™¤ï¼Œä¸å…è®¸è¶…é¢ä¸‹æ³¨
   const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
   const betting = Object.values(data.myBet).reduce((sum, value) => sum + (value ?? 0), 0);
 
   const zones: Array<{ key: string; label: string; odds: number }> = [
-    { key: 'small', label: 'Ğ¡', odds: data.odds.small },
-    { key: 'big', label: '´ó', odds: data.odds.big },
-    { key: 'odd', label: 'µ¥', odds: data.odds.odd },
-    { key: 'even', label: 'Ë«', odds: data.odds.even },
-    { key: 'triple', label: '±ª×Ó', odds: data.odds.triple },
+    { key: 'small', label: 'å°', odds: data.odds.small },
+    { key: 'big', label: 'å¤§', odds: data.odds.big },
+    { key: 'odd', label: 'å•', odds: data.odds.odd },
+    { key: 'even', label: 'åŒ', odds: data.odds.even },
+    { key: 'triple', label: 'è±¹å­', odds: data.odds.triple },
   ];
 
   return (
     <div className="lobby-game">
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
-          <span className="lobby-game__round">µÚ {data.round} ¾Ö</span>
+          <span className="lobby-game__round">ç¬¬ {data.round} å±€</span>
           <span className={`lobby-game__phase ${phaseClass}`}>
-            {phaseLabel} ¡¤ {left}s
+            {phaseLabel} Â· {left}s
           </span>
-          {betting > 0 && <span className="lobby-game__mine">ÎÒÑºÁË {betting}</span>}
-          {data.myStreak >= 2 && <span className="streak-badge">?? Á¬ĞøÃüÖĞ {data.myStreak}</span>}
+          {betting > 0 && <span className="lobby-game__mine">æˆ‘æŠ¼äº† {betting}</span>}
+          {data.myStreak >= 2 && <span className="streak-badge">ğŸ”¥ è¿ç»­å‘½ä¸­ {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
+        </div>
+
+        {/* åŠ¨æ¼«ç¾å¥³è·å®˜ä¸“å±å¸­ä½ */}
+        <div className="table-dealer-host table-dealer-host--dice">
+          <div className="dealer-mini-portrait">
+            <img src={DEALER_MAIN} alt="è·å®˜è‰¾è‰ä¸" draggable={false} />
+          </div>
+          <div className="dealer-text-badge">
+            <span className="dealer-title">è·å®˜Â·è‰¾è‰ä¸</span>
+            <span className="dealer-action">{revealed ? 'å¼€ç›…è§å–œ' : 'æ‘‡éª°å°ç›…ä¸­'}</span>
+          </div>
         </div>
 
         <div className="dice-stage">
@@ -161,11 +173,11 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
               <>
                 <strong>{data.sum}</strong>
                 <span className={data.triple ? 'is-triple' : data.big ? 'is-big' : 'is-small'}>
-                  {data.triple ? '±ª×ÓÍ¨³Ô' : data.big ? '´ó' : 'Ğ¡'}
+                  {data.triple ? 'è±¹å­é€šåƒ' : data.big ? 'å¤§' : 'å°'}
                 </span>
               </>
             ) : (
-              <span className="muted">µÈ´ı¿ªÖÑ</span>
+              <span className="muted">ç­‰å¾…å¼€ç›…</span>
             )}
           </div>
         </div>
@@ -185,7 +197,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 <span className="dice-zone__odds">1:{zone.odds}</span>
                 {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
                   <span className="dice-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
-                    ¹²Ñº {data.zoneTotals[zone.key]}
+                    å…±æŠ¼ {data.zoneTotals[zone.key]}
                   </span>
                 )}
                 {bet > 0 && (
@@ -197,7 +209,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                         className="bet-cancel"
                         role="button"
                         tabIndex={0}
-                        title="È¡Ïû¸ÃÇøÏÂ×¢"
+                        title="å–æ¶ˆè¯¥åŒºä¸‹æ³¨"
                         onClick={(event) => {
                           event.stopPropagation();
                           onClear(zone.key);
@@ -209,7 +221,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                           }
                         }}
                       >
-                        ¡Á
+                        Ã—
                       </span>
                     )}
                   </span>
@@ -229,7 +241,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 className={`dice-sum ${bet > 0 ? 'is-bet' : ''}`}
                 disabled={!canPlace}
                 onClick={() => onBet(`sum-${key}`, amount)}
-                title={`ÑººÍÖµ ${key}£¬ÅâÂÊ 1:${data.odds.sums[key]}`}
+                title={`æŠ¼å’Œå€¼ ${key}ï¼Œèµ”ç‡ 1:${data.odds.sums[key]}`}
               >
                 <strong>{key}</strong>
                 <span>1:{data.odds.sums[key]}</span>
@@ -254,11 +266,11 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
           </div>
           {canBet && betting > 0 && (
             <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
-              Çå¿ÕÏÂ×¢
+              æ¸…ç©ºä¸‹æ³¨
             </button>
           )}
           <div className="bet-controls__custom">
-            <span>×Ô¶¨Òå</span>
+            <span>è‡ªå®šä¹‰</span>
             <input
               type="number"
               min={data.limits.min}
@@ -271,7 +283,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
               }}
             />
             <span className="bet-controls__hint">
-              {data.limits.min}¨C{data.limits.max} / Çø
+              {data.limits.min}â€“{data.limits.max} / åŒº
             </span>
           </div>
         </div>
@@ -285,7 +297,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? 'ÎÒ' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? 'æˆ‘' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
               </span>
             ))}
           </div>
@@ -293,22 +305,22 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
       </div>
 
       <aside className="history">
-        <div className="history__title">×ßÊÆ</div>
+        <div className="history__title">èµ°åŠ¿</div>
         <div className="history__legend history__legend--dice">
-          <span>¾Ö</span>
-          <span>÷»</span>
-          <span>ºÍ</span>
-          <span>¹û</span>
+          <span>å±€</span>
+          <span>éª°</span>
+          <span>å’Œ</span>
+          <span>æœ</span>
         </div>
         <div className="history__list">
-          {data.history.length === 0 && <p className="history__empty">ÔİÎŞ¼ÇÂ¼</p>}
+          {data.history.length === 0 && <p className="history__empty">æš‚æ— è®°å½•</p>}
           {[...data.history].reverse().map((item) => (
             <div key={item.round} className="history__row history__row--dice">
               <span className="history__no">{item.round}</span>
               <span className="history__dice">{item.dice.join(' ')}</span>
               <span className="history__banker">{item.sum}</span>
               <span className={item.triple ? 'is-triple' : item.big ? 'is-big' : 'is-small'}>
-                {item.triple ? '±ª' : item.big ? '´ó' : 'Ğ¡'}
+                {item.triple ? 'è±¹' : item.big ? 'å¤§' : 'å°'}
               </span>
             </div>
           ))}

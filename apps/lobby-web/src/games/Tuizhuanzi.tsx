@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { chipArt } from '../chips';
-import { audio } from '../audio';
 import { DEALER_MAIN } from '../assets';
 import { cardBackArt, dotArt } from './cards';
 
@@ -60,70 +59,74 @@ function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: numbe
 
 export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as TuiSnapshot | undefined;
-  // ÕæÈËÓÅÏÈÕ¹Ê¾£¬Æäºó°´ÊäÓ®ÅÅĞò£¬±ÜÃâ»úÆ÷ÈË½á¹û±»ÕæÈË¼·µô
+  // çœŸäººä¼˜å…ˆå±•ç¤ºï¼Œå…¶åæŒ‰è¾“èµ¢æ’åºï¼Œé¿å…æœºå™¨äººç»“æœè¢«çœŸäººæŒ¤æ‰
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
     list.sort((a, b) => {
-      const aBot = a.playerId.startsWith('ambient:');
-      const bBot = b.playerId.startsWith('ambient:');
-      if (aBot !== bBot) return aBot ? 1 : -1;
-      return b.delta - a.delta;
+      if (a.playerId === myId) return -1;
+      if (b.playerId === myId) return 1;
+      return Math.abs(b.delta) - Math.abs(a.delta);
     });
-    const mine = list.filter((row) => row.playerId === myId);
-    const rest = list.filter((row) => row.playerId !== myId);
-    return [...mine, ...rest].slice(0, 12);
+    return list;
   }, [data?.results, myId]);
 
-  const [amount, setAmount] = useState(100);
-  const [now, setNow] = useState(Date.now());
-  const [deadline, setDeadline] = useState(0);
+  const [amount, setAmount] = useState<number>(100);
+  const [deadline, setDeadline] = useState<number>(() => Date.now() + (data?.remainMs ?? 0));
+  const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(timer);
+    const timer = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
     if (data) setDeadline(Date.now() + data.remainMs);
   }, [data?.remainMs, data?.phase, data?.round]);
 
+  if (!data) return <div className="board-placeholder">æ­£åœ¨è¿æ¥ç‰Œæ¡Œâ€¦</div>;
+
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
   const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
-  const phaseLabel = data?.phase === 'reveal' ? '¿ªÅÆÖĞ' : data?.phase === 'idle' ? '×¼±¸ÏÂÒ»¾Ö' : 'ÏÂ×¢ÖĞ';
+  const phaseLabel = data?.phase === 'reveal' ? 'å¼€ç‰Œä¸­' : data?.phase === 'idle' ? 'å‡†å¤‡ä¸‹ä¸€å±€' : 'ä¸‹æ³¨ä¸­';
   const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
-  const canBet = Boolean(data) && data!.phase === 'bet' && status === 'playing';
-  // Óà¶îÔÚÏÂ×¢Ê±ÒÑ¼´Ê±¿Û³ı£¬²»ÔÊĞí³¬¶îÏÂ×¢
+  const canBet = data.phase === 'bet' && status === 'playing';
+  // ä½™é¢åœ¨ä¸‹æ³¨æ—¶å·²å³æ—¶æ‰£é™¤ï¼Œä¸å…è®¸è¶…é¢ä¸‹æ³¨
   const canPlace = canBet && amount > 0 && amount <= balance;
-  const revealed = Boolean(data) && data!.phase !== 'bet';
-
-  const history = data?.history ?? [];
-  const totals = useMemo(() => {
-    const bet = data?.myBet ?? { heaven: 0, earth: 0, human: 0 };
-    return bet.heaven + bet.earth + bet.human;
-  }, [data?.myBet]);
-
-  if (!data) return <div className="board-placeholder">ÕıÔÚÁ¬½ÓÅÆ×À¡­</div>;
+  const revealed = data.phase !== 'bet';
+  const totals = data.myBet.heaven + data.myBet.earth + data.myBet.human;
+  const history = data.history ?? [];
 
   return (
     <div className="lobby-game">
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
-          <span className="lobby-game__round">µÚ {data.round} ¾Ö</span>
+          <span className="lobby-game__round">ç¬¬ {data.round} å±€</span>
           <span className={`lobby-game__phase ${phaseClass}`}>
-            {phaseLabel} ¡¤ {left}s
+            {phaseLabel} Â· {left}s
           </span>
-          {totals > 0 && <span className="lobby-game__mine">ÎÒÑºÁË {totals}</span>}
-          {data.myStreak >= 2 && <span className="streak-badge">?? Á¬ĞøÃüÖĞ {data.myStreak}</span>}
+          {totals > 0 && <span className="lobby-game__mine">æˆ‘æŠ¼äº† {totals}</span>}
+          {data.myStreak >= 2 && <span className="streak-badge">ğŸ”¥ è¿ç»­å‘½ä¸­ {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
+        {/* åŠ¨æ¼«ç¾å¥³è·å®˜ä¸“å±å¸­ä½ */}
+        <div className="table-dealer-host">
+          <div className="dealer-mini-portrait">
+            <img src={DEALER_MAIN} alt="è·å®˜è‰¾è‰ä¸" draggable={false} />
+          </div>
+          <div className="dealer-text-badge">
+            <span className="dealer-title">è·å®˜Â·è‰¾è‰ä¸</span>
+            <span className="dealer-action">{revealed ? 'å¼€ç‰Œæ ¸éªŒ' : 'æ´—ç‰Œå‘ç‰Œä¸­'}</span>
+          </div>
+        </div>
+
         <div className="banker-box">
-          <div className="banker-box__label">×¯¼Ò</div>
+          <div className="banker-box__label">åº„å®¶</div>
           <DoorCards cards={data.banker.cards} revealed={revealed} />
           <div className="banker-box__points">
-            {revealed && data.banker.points !== null ? `${data.banker.points} µã` : '¡ª'}
+            {revealed && data.banker.points !== null ? `${data.banker.points} ç‚¹` : 'â€”'}
           </div>
         </div>
 
@@ -143,24 +146,24 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
                 <span className="door__label">{door.label}</span>
                 <DoorCards cards={door.cards} revealed={revealed} />
                 <span className="door__points">
-                  {revealed && door.points !== null ? `${door.points} µã` : '´ı¿ªÅÆ'}
+                  {revealed && door.points !== null ? `${door.points} ç‚¹` : 'å¾…å¼€ç‰Œ'}
                 </span>
                 {(data.doorTotals?.[key] ?? 0) > 0 && (
                   <span className="door__pool" key={`pool-${data.doorTotals[key]}`}>
                     <img src={chipArt(data.doorTotals[key])} alt="" />
-                    ¹²Ñº {data.doorTotals[key]}
+                    å…±æŠ¼ {data.doorTotals[key]}
                   </span>
                 )}
                 {bet > 0 && (
                   <span className="door__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
-                    ÎÒ {bet}
+                    æˆ‘ {bet}
                     {canBet && (
                       <span
                         className="bet-cancel"
                         role="button"
                         tabIndex={0}
-                        title="È¡Ïû¸ÃÇøÏÂ×¢"
+                        title="å–æ¶ˆè¯¥åŒºä¸‹æ³¨"
                         onClick={(event) => {
                           event.stopPropagation();
                           onClear(key);
@@ -172,7 +175,7 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
                           }
                         }}
                       >
-                        ¡Á
+                        Ã—
                       </span>
                     )}
                   </span>
@@ -198,11 +201,11 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
           </div>
           {canBet && totals > 0 && (
             <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
-              Çå¿ÕÏÂ×¢
+              æ¸…ç©ºä¸‹æ³¨
             </button>
           )}
           <div className="bet-controls__custom">
-            <span>×Ô¶¨Òå</span>
+            <span>è‡ªå®šä¹‰</span>
             <input
               type="number"
               min={data.limits.min}
@@ -215,7 +218,7 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
               }}
             />
             <span className="bet-controls__hint">
-              {data.limits.min}¨C{data.limits.max} / ÃÅ
+              {data.limits.min}â€“{data.limits.max} / é—¨
             </span>
           </div>
         </div>
@@ -229,7 +232,7 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? 'ÎÒ' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? 'æˆ‘' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
               </span>
             ))}
           </div>
@@ -237,16 +240,16 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
       </div>
 
       <aside className="history">
-        <div className="history__title">×ßÊÆ</div>
+        <div className="history__title">èµ°åŠ¿</div>
         <div className="history__legend">
-          <span>¾Ö</span>
-          <span>×¯</span>
-          <span>Ìì</span>
-          <span>µØ</span>
-          <span>ÈË</span>
+          <span>å±€</span>
+          <span>åº„</span>
+          <span>å¤©</span>
+          <span>åœ°</span>
+          <span>äºº</span>
         </div>
         <div className="history__list">
-          {history.length === 0 && <p className="history__empty">ÔİÎŞ¼ÇÂ¼</p>}
+          {history.length === 0 && <p className="history__empty">æš‚æ— è®°å½•</p>}
           {[...history].reverse().map((item) => (
             <div key={item.round} className="history__row">
               <span className="history__no">{item.round}</span>
