@@ -583,16 +583,26 @@ input:focus {
 
 .room__board {
   position: relative;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 20px 16px;
   border-radius: 22px;
   background:
-    radial-gradient(ellipse 70% 55% at 50% 32%, rgba(38, 96, 74, 0.5), rgba(10, 24, 22, 0.92) 72%),
-    linear-gradient(180deg, #0d1a18 0%, #080f0e 100%);
-  border: 1px solid rgba(62, 207, 142, 0.14);
-  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.65), 0 24px 60px rgba(0, 0, 0, 0.45);
-  min-height: 520px;
+    radial-gradient(ellipse 70% 60% at 50% 26%, rgba(20, 46, 40, 0.85), rgba(6, 12, 11, 0.97) 72%),
+    linear-gradient(180deg, #08110f 0%, #050908 100%);
+  border: 1px solid rgba(240, 180, 41, 0.1);
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.8), 0 30px 70px rgba(0, 0, 0, 0.55);
+  min-height: 660px;
+  overflow: hidden;
+}
+
+.room__main.is-stage {
+  grid-template-columns: 1fr;
+}
+
+.room__main.is-stage .room__side {
+  display: none;
 }
 
 .room__side {
@@ -2050,6 +2060,305 @@ button.secondary:hover:not(:disabled) {
 
 .settle-bar .chip-ico {
   margin: 0 2px;
+}
+
+/* ===== 牌桌舞台 ===== */
+
+.stage {
+  position: relative;
+  width: 100%;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage__felt {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: min(74%, 820px);
+  aspect-ratio: 16 / 9;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 58% 52% at 50% 36%, #1d5b48 0%, #123a30 40%, #0a2019 72%, #05100d 100%);
+  box-shadow:
+    0 0 0 9px #2a1b10,
+    0 0 0 12px #573722,
+    0 0 0 15px rgba(0, 0, 0, 0.65),
+    inset 0 0 80px rgba(0, 0, 0, 0.72),
+    inset 0 16px 44px rgba(255, 255, 255, 0.05),
+    0 44px 90px rgba(0, 0, 0, 0.72);
+}
+
+.stage__felt-ring {
+  position: absolute;
+  inset: 5%;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 180, 41, 0.13);
+  box-shadow: inset 0 0 70px rgba(240, 180, 41, 0.05);
+  pointer-events: none;
+}
+
+.stage__watermark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 12px;
+  color: rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.stage__center {
+  position: absolute;
+  left: 50%;
+  top: 41%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 86px;
+  z-index: 2;
+}
+
+.center-play {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.center-play__label {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.4px;
+}
+
+.center-play__label span {
+  color: var(--gold);
+  margin-left: 5px;
+  font-weight: 600;
+}
+
+.center-play__cards {
+  display: flex;
+  gap: 5px;
+}
+
+.center-hint {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.42);
+  letter-spacing: 0.5px;
+}
+
+.center-hint.is-on {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* 座位 */
+
+.stage__seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  transition: opacity 0.25s ease;
+}
+
+.stage__seat.is-active {
+  z-index: 4;
+}
+
+.stage__seat.is-dim {
+  opacity: 0.42;
+}
+
+.seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 13px 8px;
+  border-radius: 14px;
+  min-width: 112px;
+  background: rgba(9, 14, 24, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.seat.is-turn {
+  border-color: rgba(240, 180, 41, 0.62);
+  box-shadow: 0 0 0 1px rgba(240, 180, 41, 0.3), 0 0 30px rgba(240, 180, 41, 0.26),
+    0 14px 32px rgba(0, 0, 0, 0.55);
+  transform: translateY(-3px);
+  animation: seat-glow 2s ease-in-out infinite;
+}
+
+@keyframes seat-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(240, 180, 41, 0.3), 0 0 22px rgba(240, 180, 41, 0.18),
+      0 14px 32px rgba(0, 0, 0, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(240, 180, 41, 0.45), 0 0 38px rgba(240, 180, 41, 0.36),
+      0 14px 32px rgba(0, 0, 0, 0.55);
+  }
+}
+
+.seat__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e8edff;
+  background: linear-gradient(160deg, #3c4767, #1f2740);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.seat__avatar.is-bot {
+  background: linear-gradient(160deg, #4e78ff, #7b4dff);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 4px 12px rgba(110, 90, 255, 0.4);
+}
+
+.seat__name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.seat__meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cardbacks {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 22px;
+  margin-top: 1px;
+}
+
+.cardbacks__item {
+  width: 12px;
+  height: 19px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(45deg, #22304d, #22304d 3px, #2f4166 3px, #2f4166 6px);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  transform: rotate(var(--r, 0deg));
+  transform-origin: bottom center;
+  margin-left: -6px;
+}
+
+.cardbacks__item:first-child {
+  margin-left: 0;
+}
+
+.cardbacks__num {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+/* 手牌与操作 */
+
+.stage__bottom {
+  margin-top: auto;
+  padding: 10px 6px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  z-index: 5;
+}
+
+.hand-area {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+}
+
+.hand {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  perspective: 1000px;
+  padding: 14px 4px 4px;
+  min-height: 88px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.hand__card {
+  min-width: 46px;
+  height: 66px;
+  margin-left: -5px;
+  transform: rotateX(14deg);
+  transform-origin: bottom center;
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s ease,
+    border-color 0.16s ease;
+  animation: deal-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--i) * 26ms);
+}
+
+.hand__card:first-child {
+  margin-left: 0;
+}
+
+.hand__card:hover:not(:disabled) {
+  transform: rotateX(0deg) translateY(-10px);
+  z-index: 3;
+}
+
+.hand__card.is-selected {
+  transform: rotateX(0deg) translateY(-16px);
+  border-color: var(--gold);
+  box-shadow: 0 12px 26px rgba(240, 180, 41, 0.42);
+  z-index: 4;
+}
+
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-90px) rotateX(55deg) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: rotateX(14deg);
+  }
+}
+
+.hand-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.hand-actions .turn-hint {
+  margin-right: 0;
 }
 
 .room__meta {

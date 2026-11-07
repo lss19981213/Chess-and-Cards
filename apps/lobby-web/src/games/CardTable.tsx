@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { SeatPanel, TableStage } from '../components/TableStage';
 import { cardLabel, comboLabel, isRedCard, type CardView } from './cards';
 
 interface HandCount {
@@ -7,6 +8,7 @@ interface HandCount {
   seat: number;
   count: number;
   isLandlord?: boolean;
+  isBot?: boolean;
 }
 
 interface LastCombo {
@@ -35,6 +37,24 @@ interface Props {
   onPass: () => void;
 }
 
+/** 用牌背竖条表现对手手牌数量，最多画 14 张 */
+function CardBacks({ count }: { count: number }) {
+  const shown = Math.min(count, 14);
+  const mid = (shown - 1) / 2;
+  return (
+    <div className="cardbacks">
+      {Array.from({ length: shown }, (_, index) => (
+        <span
+          key={index}
+          className="cardbacks__item"
+          style={{ '--r': `${(index - mid) * 3}deg` } as CSSProperties}
+        />
+      ))}
+      {count > 0 && <em className="cardbacks__num">{count}</em>}
+    </div>
+  );
+}
+
 export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: Props) {
   const data = snapshot as unknown as HandSnapshot | undefined;
   const [selected, setSelected] = useState<string[]>([]);
@@ -48,43 +68,47 @@ export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: P
     setSelected((prev) => prev.filter((id) => hand.some((card) => card.id === id)));
   }, [hand]);
 
-  if (!data) return <div className="board-placeholder">等待发牌…</div>;
+  if (!data) {
+    return <div className="board-placeholder">正在发牌…</div>;
+  }
 
   const isMyTurn = data.turn === myId && status === 'playing';
   const canPass = Boolean(data.lastCombo) && data.lastPlayerId !== myId;
+  const others = data.handCounts.filter((player) => player.playerId !== myId);
+  const lastPlayer = data.handCounts.find((player) => player.playerId === data.lastPlayerId);
 
   const toggle = (id: string): void => {
     if (!isMyTurn) return;
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const others = data.handCounts.filter((p) => p.playerId !== myId);
-
   return (
-    <div className="card-table">
-      <div className="card-table__opponents">
-        {others.map((player) => (
-          <div
-            key={player.playerId}
-            className={`opponent ${data.turn === player.playerId ? 'is-active' : ''}`}
-          >
-            <span className="opponent__name">
-              {player.nickname}
-              {player.isLandlord && <em className="badge-landlord">地主</em>}
-            </span>
-            <span className="opponent__count">{player.count} 张</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="card-table__center">
-        {data.lastCombo ? (
-          <div className="played">
-            <div className="played__label">
-              {data.handCounts.find((p) => p.playerId === data.lastPlayerId)?.nickname ?? '上家'} 出
+    <TableStage
+      watermark={variant === 'doudizhu' ? 'DOU DI ZHU' : 'PAO DE KUAI'}
+      seats={others.map((player) => ({
+        key: player.playerId,
+        active: data.turn === player.playerId,
+        dim: player.count === 0,
+        node: (
+          <SeatPanel
+            nickname={player.nickname}
+            initial={player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
+            isBot={player.isBot}
+            badge={player.isLandlord ? <em className="badge-landlord">地主</em> : null}
+            active={data.turn === player.playerId}
+            meta={player.count === 0 ? '已出完' : `${player.count} 张`}
+            cards={player.count > 0 ? <CardBacks count={player.count} /> : null}
+          />
+        ),
+      }))}
+      center={
+        data.lastCombo ? (
+          <div className="center-play">
+            <div className="center-play__label">
+              {lastPlayer?.nickname ?? '上家'} 出
               <span>{comboLabel(data.lastCombo.kind)}</span>
             </div>
-            <div className="card-row">
+            <div className="center-play__cards">
               {data.lastCombo.cards.map((card) => (
                 <div key={card.id} className={`pcard pcard--sm ${isRedCard(card) ? 'is-red' : ''}`}>
                   {cardLabel(card)}
@@ -93,46 +117,52 @@ export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: P
             </div>
           </div>
         ) : (
-          <div className="played__empty">{isMyTurn ? '由你领出' : '等待出牌…'}</div>
-        )}
-      </div>
-
-      <div className="card-table__mine">
-        <div className="card-row card-row--hand">
-          {hand.map((card) => (
-            <button
-              key={card.id}
-              type="button"
-              className={`pcard ${isRedCard(card) ? 'is-red' : ''} ${selected.includes(card.id) ? 'is-selected' : ''}`}
-              onClick={() => toggle(card.id)}
-              disabled={!isMyTurn}
-            >
-              {cardLabel(card)}
-            </button>
-          ))}
-          {hand.length === 0 && <span className="hint">本局已结束</span>}
-        </div>
-
-        <div className="card-actions">
-          <span className={`turn-hint ${isMyTurn ? 'is-on' : ''}`}>
-            {isMyTurn ? '轮到你出牌' : '等待其他玩家…'}
+          <span className={`center-hint ${isMyTurn ? 'is-on' : ''}`}>
+            {isMyTurn ? '由你领出' : '等待出牌…'}
           </span>
-          <button type="button" className="secondary" disabled={!isMyTurn || !canPass} onClick={onPass}>
-            不出
-          </button>
-          <button
-            type="button"
-            className="primary"
-            disabled={!isMyTurn || selected.length === 0}
-            onClick={() => {
-              onPlay(selected);
-              setSelected([]);
-            }}
-          >
-            出牌{variant === 'doudizhu' ? '' : ''}
-          </button>
+        )
+      }
+      bottom={
+        <div className="hand-area">
+          <div className="hand">
+            {hand.map((card, index) => (
+              <button
+                key={card.id}
+                type="button"
+                style={{ '--i': index } as CSSProperties}
+                className={`pcard hand__card ${isRedCard(card) ? 'is-red' : ''} ${
+                  selected.includes(card.id) ? 'is-selected' : ''
+                }`}
+                onClick={() => toggle(card.id)}
+                disabled={!isMyTurn}
+              >
+                {cardLabel(card)}
+              </button>
+            ))}
+            {hand.length === 0 && <span className="hint">本局已结束</span>}
+          </div>
+
+          <div className="hand-actions">
+            <span className={`turn-hint ${isMyTurn ? 'is-on' : ''}`}>
+              {isMyTurn ? '该你出牌了' : '等待其他玩家…'}
+            </span>
+            <button type="button" className="secondary" disabled={!isMyTurn || !canPass} onClick={onPass}>
+              不出
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={!isMyTurn || selected.length === 0}
+              onClick={() => {
+                onPlay(selected);
+                setSelected([]);
+              }}
+            >
+              出牌
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

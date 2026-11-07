@@ -134,7 +134,7 @@ export function Room({
         </div>
       )}
 
-      <main className="room__main">
+      <main className={`room__main ${room.status !== 'waiting' ? 'is-stage' : ''}`}>
         <section
           className="room__board"
           style={
