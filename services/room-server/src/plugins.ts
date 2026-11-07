@@ -7,6 +7,10 @@ import { DicePlugin } from '@cc/game-dice';
 import { BaccaratPlugin } from '@cc/game-baccarat';
 import { NiuniuPlugin } from '@cc/game-niuniu';
 import { BlackjackPlugin } from '@cc/game-blackjack';
+import { StudPlugin } from '@cc/game-stud';
+import { GoldenFlowerPlugin } from '@cc/game-goldenflower';
+import { ChessPlugin } from '@cc/game-chess';
+import { XiangqiPlugin } from '@cc/game-xiangqi';
 import { PLATFORM_ROOMS_INITIAL, type RoomManager } from './registry';
 
 /** 常驻玩法：无玩家也持续开局，需要预先创建房间 */
@@ -26,6 +30,10 @@ export function registerBuiltinGames(manager: RoomManager): void {
   manager.register(() => new BaccaratPlugin());
   manager.register(() => new NiuniuPlugin());
   manager.register(() => new BlackjackPlugin());
+  manager.register(() => new StudPlugin());
+  manager.register(() => new GoldenFlowerPlugin());
+  manager.register(() => new ChessPlugin());
+  manager.register(() => new XiangqiPlugin());
 
   for (const gameId of PERSISTENT_GAMES) {
     manager.ensurePlatformRooms(gameId, PLATFORM_ROOMS_INITIAL);

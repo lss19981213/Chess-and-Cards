@@ -6170,6 +6170,193 @@ button.secondary:hover:not(:disabled) {
   box-shadow: 0 4px 12px rgba(229, 181, 103, 0.3);
 }
 
+/* 国际象棋 / 中国象棋 */
+.boardgame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.boardgame__bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.boardgame__turn {
+  color: #f0cd85;
+  font-weight: 700;
+}
+
+.boardgame__check {
+  color: #e2604f;
+  font-weight: 700;
+}
+
+.boardgame__seats {
+  display: flex;
+  gap: 10px;
+  color: rgba(226, 213, 186, 0.6);
+  font-style: normal;
+}
+
+.boardgame__board {
+  display: grid;
+  padding: 10px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #6d5132, #48331f);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.08),
+    0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.boardgame__cell {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.boardgame--chess .boardgame__cell {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+}
+
+.boardgame--chess .boardgame__cell.is-dark {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.boardgame--xiangqi .boardgame__cell.is-dark {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.boardgame__cell.is-target::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(126, 224, 148, 0.8);
+  box-shadow: 0 0 10px rgba(126, 224, 148, 0.6);
+}
+
+.boardgame__cell.is-selected {
+  background: rgba(255, 225, 140, 0.32);
+}
+
+.boardgame__cell.is-last {
+  background: rgba(240, 205, 133, 0.18);
+}
+
+.boardgame__piece {
+  font-size: 30px;
+  line-height: 1;
+  color: #f4e9d2;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.65);
+}
+
+.boardgame__piece.is-b {
+  color: #211f1c;
+}
+
+.boardgame--xiangqi .boardgame__piece {
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.boardgame--xiangqi .boardgame__piece.is-r {
+  color: #d8402f;
+}
+
+/* 梭哈 / 翻金花 */
+.showdown {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+}
+
+.showdown__bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(229, 181, 103, 0.28);
+  background: rgba(20, 17, 13, 0.6);
+}
+
+.showdown__seats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.showdown__seat {
+  min-width: 134px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.035);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.showdown__seat.is-turn {
+  border-color: rgba(229, 181, 103, 0.6);
+  box-shadow: 0 0 0 1px rgba(229, 181, 103, 0.22);
+}
+
+.showdown__seat.is-me {
+  background: rgba(229, 181, 103, 0.1);
+}
+
+.showdown__seat.is-folded {
+  opacity: 0.55;
+}
+
+.showdown__name {
+  font-size: 12px;
+  color: #e9dfc9;
+}
+
+.showdown__cards {
+  display: flex;
+  gap: 3px;
+}
+
+.showdown__bet {
+  font-size: 11px;
+  color: rgba(226, 213, 186, 0.6);
+}
+
+.showdown__hand {
+  display: flex;
+  gap: 6px;
+}
+
+.showdown__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 /* 21 点 */
 .bj-row {
   display: flex;

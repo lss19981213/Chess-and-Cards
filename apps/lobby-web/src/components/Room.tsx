@@ -9,10 +9,12 @@ import { RulesModal } from './RulesModal';
 import { SettlePanel, type ResultRow } from './SettlePanel';
 import { Baccarat } from '../games/Baccarat';
 import { Blackjack } from '../games/Blackjack';
+import { BoardGame } from '../games/BoardGame';
 import { CardTable } from '../games/CardTable';
 import { Dice } from '../games/Dice';
 import { Gomoku } from '../games/Gomoku';
 import { Niuniu } from '../games/Niuniu';
+import { ShowdownTable } from '../games/ShowdownTable';
 import { Texas } from '../games/Texas';
 import { Tuizhuanzi } from '../games/Tuizhuanzi';
 
@@ -49,6 +51,10 @@ const GAME_TITLE: Record<string, string> = {
   baccarat: '百家乐',
   niuniu: '斗牛',
   blackjack: '21点',
+  stud: '梭哈',
+  goldenflower: '翻金花',
+  chess: '国际象棋',
+  xiangqi: '中国象棋',
 };
 
 export function Room({
@@ -194,6 +200,28 @@ export function Room({
             onBet={(area, amount) => dispatch('bet', { area, amount })}
             onClear={(area) => dispatch('clear', area ? { area } : {})}
             onAction={(cmd) => dispatch(cmd, {})}
+          />
+        );
+      case 'chess':
+      case 'xiangqi':
+        return (
+          <BoardGame
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            variant={room.gameId === 'chess' ? 'chess' : 'xiangqi'}
+            onAction={(cmd, payload) => dispatch(cmd, payload ?? {})}
+          />
+        );
+      case 'stud':
+      case 'goldenflower':
+        return (
+          <ShowdownTable
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            balance={balance}
+            onAction={(cmd, amount) => dispatch(cmd, amount === undefined ? {} : { amount })}
           />
         );
       case 'texas':
