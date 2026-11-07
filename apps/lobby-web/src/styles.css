@@ -1,0 +1,708 @@
+:root {
+  --bg: #070a14;
+  --surface: rgba(19, 25, 44, 0.82);
+  --surface-solid: #131a2c;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text: #e9edf9;
+  --muted: #8b93ad;
+  --gold: #f0b429;
+  --gold-dim: rgba(240, 180, 41, 0.14);
+  --green: #3ecf8e;
+  --red: #e5484d;
+  --radius: 16px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1100px 600px at 12% -10%, rgba(240, 180, 41, 0.12), transparent 60%),
+    radial-gradient(900px 520px at 88% 0%, rgba(78, 120, 255, 0.16), transparent 62%),
+    var(--bg);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: transform 0.12s ease, filter 0.18s ease, background 0.18s ease;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.995);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: linear-gradient(180deg, #ffcf5c, var(--gold));
+  color: #1a1405;
+  padding: 13px 18px;
+  width: 100%;
+}
+
+button.primary:hover {
+  filter: brightness(1.06);
+}
+
+button.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  padding: 13px 18px;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 12px;
+  font-weight: 500;
+}
+
+button.ghost:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+input {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 10px;
+  background: rgba(8, 11, 22, 0.75);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+input:focus {
+  border-color: rgba(240, 180, 41, 0.6);
+  box-shadow: 0 0 0 3px var(--gold-dim);
+}
+
+/* ---------- 启动 ---------- */
+
+.boot {
+  height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  color: var(--muted);
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- 登录 ---------- */
+
+.auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth__card {
+  width: min(420px, 100%);
+  padding: 34px 30px 26px;
+  border-radius: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
+.brand__mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  font-size: 24px;
+  color: #1a1405;
+  background: linear-gradient(160deg, #ffd875, var(--gold));
+  box-shadow: 0 8px 22px rgba(240, 180, 41, 0.28);
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: 0.5px;
+}
+
+.brand p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.brand--sm .brand__mark {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-radius: 11px;
+}
+
+.brand--sm h1 {
+  font-size: 17px;
+}
+
+.auth label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: -8px;
+}
+
+.auth__hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.form-error {
+  margin: -6px 0 0;
+  font-size: 13px;
+  color: var(--red);
+}
+
+/* ---------- 大厅 ---------- */
+
+.lobby {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 30px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(9, 12, 23, 0.72);
+  backdrop-filter: blur(14px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wallet {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  background: var(--gold-dim);
+  border: 1px solid rgba(240, 180, 41, 0.28);
+}
+
+.wallet span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.wallet strong {
+  font-size: 16px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.user-chip {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: linear-gradient(160deg, #4e78ff, #7b4dff);
+  font-size: 14px;
+}
+
+.user-name {
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby__main {
+  width: min(1140px, 100%);
+  margin: 0 auto;
+  padding: 34px 24px 60px;
+  flex: 1;
+}
+
+.section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.section-title h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.section-title span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 18px;
+}
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  padding: 22px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 400;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.game-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(240, 180, 41, 0.45);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.game-card__icon {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.game-card__name {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.game-card__desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+  min-height: 40px;
+}
+
+.game-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.game-card__tags em {
+  font-style: normal;
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+}
+
+.game-card__cta {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 28px 0;
+}
+
+/* ---------- 房间 ---------- */
+
+.room {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.room__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.room__title h1 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.room__meta {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.badge--waiting {
+  background: var(--gold-dim);
+  color: var(--gold);
+}
+
+.badge--playing {
+  background: rgba(62, 207, 142, 0.14);
+  color: var(--green);
+}
+
+.badge--settled {
+  background: rgba(78, 120, 255, 0.16);
+  color: #8fa9ff;
+}
+
+.room__main {
+  flex: 1;
+  width: min(1160px, 100%);
+  margin: 0 auto;
+  padding: 26px 24px 50px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 22px;
+  align-items: start;
+}
+
+.room__board {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  min-height: 520px;
+}
+
+.room__side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  padding: 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.panel h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+}
+
+.player-list li.is-me {
+  border-color: rgba(240, 180, 41, 0.35);
+  background: var(--gold-dim);
+}
+
+.player-list__avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.1);
+  flex: none;
+}
+
+.player-list__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-list__name em {
+  font-style: normal;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(240, 180, 41, 0.18);
+  color: var(--gold);
+  flex: none;
+}
+
+.player-list__state {
+  font-size: 11.5px;
+  color: var(--green);
+  flex: none;
+}
+
+.player-list__state.offline {
+  color: var(--muted);
+}
+
+.player-list__score {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* ---------- 五子棋 ---------- */
+
+.gomoku {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.gomoku__status {
+  font-size: 14px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+}
+
+.board {
+  width: min(600px, 100%);
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  display: block;
+}
+
+.board--active {
+  cursor: crosshair;
+}
+
+.stone {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
+
+.stone--black {
+  fill: #16181f;
+}
+
+.stone--white {
+  fill: #f8fafc;
+}
+
+.gomoku__legend {
+  display: flex;
+  gap: 18px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.board-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 420px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.game-fallback {
+  padding: 60px 20px;
+  color: var(--muted);
+}
+
+.result {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  border-radius: 20px;
+  background: rgba(6, 9, 18, 0.82);
+  backdrop-filter: blur(6px);
+  text-align: center;
+  animation: fadein 0.25s ease;
+}
+
+.result h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.result p {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.result p.up {
+  color: var(--green);
+}
+
+.result p.down {
+  color: var(--red);
+}
+
+.result span {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---------- 提示 ---------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 34px;
+  transform: translateX(-50%);
+  padding: 12px 22px;
+  border-radius: 12px;
+  background: rgba(24, 30, 52, 0.96);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  font-size: 13.5px;
+  z-index: 100;
+  animation: fadein 0.2s ease;
+}
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 900px) {
+  .room__main {
+    grid-template-columns: 1fr;
+  }
+
+  .room__board {
+    min-height: auto;
+    padding: 14px;
+  }
+
+  .topbar {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+
+  .lobby__main {
+    padding: 24px 16px 50px;
+  }
+
+  .user-name {
+    display: none;
+  }
+}
