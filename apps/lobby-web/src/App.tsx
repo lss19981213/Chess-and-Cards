@@ -246,6 +246,7 @@ export default function App() {
           onAddBot={handleAddBot}
           emotes={emotes}
           onEmote={handleEmote}
+          persistent={games.find((g) => g.gameId === room.gameId)?.persistent === true}
         />
       ) : selectedGame && user ? (
         <GameRooms

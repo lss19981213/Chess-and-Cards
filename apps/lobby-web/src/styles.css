@@ -3776,6 +3776,200 @@ button.secondary:hover:not(:disabled) {
   letter-spacing: 1px;
 }
 
+/* ===== 左侧结算结果 ===== */
+
+.settle-panel {
+  position: fixed;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 232px;
+  max-height: min(520px, calc(100vh - 150px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(8, 13, 22, 0.93);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  z-index: 45;
+  animation: settle-slide 0.34s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes settle-slide {
+  from {
+    opacity: 0;
+    transform: translate(-26px, -50%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
+}
+
+.settle-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.settle-panel__close {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+}
+
+.settle-panel__close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.settle-panel__result {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+.settle-panel.is-win .settle-panel__result {
+  color: var(--green);
+}
+
+.settle-panel.is-lose .settle-panel__result {
+  color: var(--red);
+}
+
+.settle-panel__delta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.settle-panel__delta strong {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settle-panel.is-win .settle-panel__delta strong {
+  color: var(--green);
+  text-shadow: 0 0 22px rgba(62, 207, 142, 0.35);
+}
+
+.settle-panel.is-lose .settle-panel__delta strong {
+  color: var(--red);
+}
+
+.settle-panel__stats {
+  display: flex;
+  gap: 8px;
+}
+
+.settle-panel__stats > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.settle-panel__stats span {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.settle-panel__stats strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settle-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.settle-panel__list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12px;
+}
+
+.settle-panel__list li.is-me {
+  border: 1px solid rgba(240, 180, 41, 0.4);
+  background: var(--gold-dim);
+}
+
+.settle-panel__no {
+  width: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.settle-panel__name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settle-panel__btn {
+  width: 100% !important;
+  padding: 10px 0 !important;
+  font-size: 13px !important;
+}
+
+@media (max-width: 900px) {
+  .settle-panel {
+    left: 10px;
+    right: 10px;
+    top: 12px;
+    width: auto;
+    transform: none;
+    max-height: 210px;
+    animation: settle-fade 0.3s ease;
+  }
+
+  @keyframes settle-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
 /* ===== 结算战绩 ===== */
 
 .settle-mask {

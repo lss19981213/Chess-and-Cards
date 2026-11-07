@@ -5,7 +5,7 @@ import { audio } from '../audio';
 import { GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
-import { SettlementModal } from './SettlementModal';
+import { SettlePanel } from './SettlePanel';
 import { Baccarat } from '../games/Baccarat';
 import { CardTable } from '../games/CardTable';
 import { Dice } from '../games/Dice';
@@ -25,6 +25,8 @@ interface Props {
   onAddBot: () => void;
   emotes: EmotePayload[];
   onEmote: (key: string) => void;
+  /** 平台坐庄的常驻玩法 */
+  persistent: boolean;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -56,6 +58,7 @@ export function Room({
   onAddBot,
   emotes,
   onEmote,
+  persistent,
 }: Props) {
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
@@ -63,16 +66,17 @@ export function Room({
 
   const [settleOpen, setSettleOpen] = useState(false);
 
-  // 每局结算弹出战绩，8 秒后自动收起，避免打断连续对局
+  // 结算结果显示在左侧：常驻玩法 8 秒自动收起，对战类保留到玩家点「继续」
   useEffect(() => {
     if (!settlement) {
       setSettleOpen(false);
       return;
     }
     setSettleOpen(true);
+    if (!persistent) return;
     const timer = window.setTimeout(() => setSettleOpen(false), 8000);
     return () => window.clearTimeout(timer);
-  }, [settlement?.settlementId]);
+  }, [settlement?.settlementId, persistent]);
 
   /** 统一派发指令，并按动作类型播放音效 */
   const dispatch = (cmd: string, payload: Record<string, unknown> = {}): void => {
@@ -177,26 +181,19 @@ export function Room({
       {settlement && myDelta > 0 && <CoinBurst key={`${room.roomId}-${room.round}`} />}
 
       {settleOpen && settlement && (
-        <SettlementModal
+        <SettlePanel
           settlement={settlement}
           myId={myId}
           balance={balance}
           players={room.players}
-          onClose={() => {
+          persistent={persistent}
+          onContinue={() => {
             setSettleOpen(false);
             // 服务端会把这次准备预约到结算结束，回到等待态即自动开局
             onReady(true);
           }}
+          onClose={() => setSettleOpen(false)}
         />
-      )}
-
-      {settlement && (
-        <div className={`settle-bar ${myDelta > 0 ? 'is-win' : myDelta < 0 ? 'is-lose' : ''}`}>
-          本局结算：
-          <Chip size={18} />
-          <strong>{myDelta > 0 ? `+${myDelta}` : myDelta}</strong>
-          <span>筹码，5 秒后自动回到准备状态</span>
-        </div>
       )}
 
       <main className={`room__main ${room.round > 0 ? 'is-stage' : ''}`}>
@@ -222,22 +219,6 @@ export function Room({
           </div>
 
           {renderGame()}
-
-          {room.status === 'waiting' && room.round > 0 && (
-            <div className="ready-overlay">
-              <span className="ready-overlay__title">第 {room.round} 局结束</span>
-              <button
-                type="button"
-                className={me?.ready ? 'secondary' : 'primary'}
-                onClick={() => {
-                  audio.play('click');
-                  onReady(!me?.ready);
-                }}
-              >
-                {me?.ready ? '已准备 · 等待其他玩家' : '准备下一局'}
-              </button>
-            </div>
-          )}
 
           {room.status === 'playing' && (
             <div className="emote-bar">
