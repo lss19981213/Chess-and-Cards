@@ -184,11 +184,14 @@ export class GameRoom {
       this.attach(player.playerId, socket);
       return;
     }
-    if (this.status !== 'waiting') {
-      throw new AppError(ErrorCode.RoomFull, '房间已开局，请等待本局结束');
-    }
-    if (this.seats.size >= this.maxPlayers) {
-      throw new AppError(ErrorCode.RoomFull, '房间人数已满');
+    // 常驻下注房不限人数、不关盘，玩家随时可进出
+    if (!this.persistent) {
+      if (this.status !== 'waiting') {
+        throw new AppError(ErrorCode.RoomFull, '房间已开局，请等待本局结束');
+      }
+      if (this.seats.size >= this.maxPlayers) {
+        throw new AppError(ErrorCode.RoomFull, '房间人数已满');
+      }
     }
 
     const seat: Seat = {
