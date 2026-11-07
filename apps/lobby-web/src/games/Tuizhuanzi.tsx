@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { chipArt } from '../chips';
 import { cardBackArt, dotArt } from './cards';
 
@@ -119,7 +119,7 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
                   {revealed && door.points !== null ? `${door.points} 点` : '待开牌'}
                 </span>
                 {bet > 0 && (
-                  <span className="door__bet">
+                  <span className="door__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
                     {bet}
                   </span>

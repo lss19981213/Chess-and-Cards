@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { chipArt } from '../chips';
 
 interface DiceSnapshot {
@@ -157,7 +157,7 @@ export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
                 <span className="dice-zone__label">{zone.label}</span>
                 <span className="dice-zone__odds">1:{zone.odds}</span>
                 {bet > 0 && (
-                  <span className="dice-zone__bet">
+                  <span className="dice-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
                     {bet}
                   </span>

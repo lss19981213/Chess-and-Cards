@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+﻿import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { verifyToken } from '@cc/auth';
@@ -15,6 +15,9 @@ import {
 } from '@cc/protocol';
 import { BOT_NAMES, driveBot } from './bot';
 import { config } from './config';
+import { createLogger } from './logger';
+
+const log = createLogger('room-server');
 import { RoomManager } from './registry';
 import { createSettlementReporter } from './settlement';
 import { registerBuiltinGames } from './plugins';
@@ -111,7 +114,7 @@ wss.on('connection', (ws) => {
       if (error instanceof AppError) {
         sendError(ws, error.code, error.message);
       } else {
-        console.error('[ws] 未处理异常', error);
+        log.error('未处理的连接异常', { error: (error as Error).message });
         sendError(ws, ErrorCode.Internal, '服务器内部错误');
       }
     });
@@ -195,6 +198,14 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       }
 
       session.roomId = room.id;
+      log.info('玩家进入房间', {
+        playerId: session.playerId,
+        roomId: room.id,
+        gameId: room.gameId,
+        players: room.playerCount,
+        byRoomId: Boolean(roomId),
+        create,
+      });
       send(session.ws, ServerMsg.RoomView, { room: room.view() });
       return;
     }
@@ -296,12 +307,12 @@ const heartbeat = setInterval(() => {
 heartbeat.unref?.();
 
 httpServer.listen(config.port, () => {
-  console.log(`[room-server] ws://0.0.0.0:${config.port}/ws`);
-  console.log(`[room-server] 已注册游戏: ${manager.listGames().map((g) => g.gameId).join(', ') || '无'}`);
+  log.info('WebSocket 服务已启动', { port: config.port, rooms: manager.list().length });
+  log.info('游戏注册完成', { games: manager.listGames().map((g) => g.gameId) });
 });
 
 function shutdown(): void {
-  console.log('[room-server] 正在关闭...');
+  log.warn('服务正在关闭');
   clearInterval(heartbeat);
   clearInterval(botTicker);
   manager.shutdown();

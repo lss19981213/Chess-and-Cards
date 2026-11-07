@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
   AppError,
@@ -15,6 +15,18 @@ import type { RoomServerConfig } from './config';
 
 const TICK_MS = 200;
 const SETTLE_RESET_MS = 5_000;
+/** 平台台容量 */
+export const PLATFORM_CAPACITY = 168;
+/** 场内最低氛围人数 */
+const AMBIENT_MIN = 30;
+const AMBIENT_MAX = 50;
+
+const AMBIENT_NAMES = [
+  '夜雨声烦', '老赌徒', '一掷千金', '淡定哥', '风清扬', '南城旧梦', '小赌怡情', '铁头娃',
+  '顺风耳', '稳如老狗', '赌一把', '飘渺孤鸿', '半夜不睡', '老王来了', '暴富梦想', '手气不错',
+  '一见发财', '沉默的羔羊', '不服就干', '春天里', '看牌高手', '好运来', '点背到家', '再来一把',
+  '月下独酌', '浪里白条', '百万富翁', '风继续吹', '佛系玩家', '追梦人', '东方不败', '笑看风云',
+];
 
 interface Seat {
   playerId: string;
@@ -135,6 +147,35 @@ export class GameRoom {
     return this.persistent;
   }
 
+  /** 台子容量：平台台固定 168，玩家房按游戏配置 */
+  get capacity(): number {
+    return this.persistent ? PLATFORM_CAPACITY : this.maxPlayers;
+  }
+
+  /** 补足场内氛围玩家，让人少的时候也热闹 */
+  private ensureAmbient(): void {
+    if (!this.persistent || this.closed) return;
+    const total = this.seats.size;
+    if (total >= AMBIENT_MIN) return;
+
+    const want = AMBIENT_MIN + Math.floor(Math.random() * (AMBIENT_MAX - AMBIENT_MIN + 1));
+    for (let i = total; i < want; i += 1) {
+      const playerId = `ambient:${randomUUID()}`;
+      const nickname = AMBIENT_NAMES[Math.floor(Math.random() * AMBIENT_NAMES.length)] ?? '牌友';
+      this.seats.set(playerId, {
+        playerId,
+        nickname,
+        seat: this.nextSeatIndex(),
+        ready: true,
+        score: 0,
+        socket: null,
+        graceTimer: null,
+        isBot: true,
+      });
+    }
+    this.dirty = true;
+  }
+
   /** 开启新一局：常驻玩法由插件按时间轴主动调用 */
   beginRound(): void {
     if (this.closed) return;
@@ -144,6 +185,7 @@ export class GameRoom {
     this.status = 'playing';
     this.settledThisRound = false;
     this.dirty = true;
+    this.ensureAmbient();
     this.plugin.onRoundStart?.(this.ctx);
     this.broadcastView();
     this.pushSnapshots();
@@ -191,7 +233,7 @@ export class GameRoom {
       hostId: this.hostId,
       hostName: this.persistent ? '平台庄' : (host?.nickname ?? '玩家'),
       players: this.seats.size,
-      maxPlayers: this.maxPlayers,
+      maxPlayers: this.capacity,
       status: this.status === 'closed' ? 'settled' : this.status,
       persistent: this.persistent,
       joinable: this.isJoinable || this.persistent,
@@ -204,7 +246,7 @@ export class GameRoom {
       this.attach(player.playerId, socket);
       return;
     }
-    // 常驻下注房不限人数、不关盘，玩家随时可进出
+    // 常驻下注房不关盘，但受容量限制，玩家随时可进出
     if (!this.persistent) {
       if (this.status !== 'waiting') {
         throw new AppError(ErrorCode.RoomFull, '房间已开局，请等待本局结束');
@@ -212,6 +254,8 @@ export class GameRoom {
       if (this.seats.size >= this.maxPlayers) {
         throw new AppError(ErrorCode.RoomFull, '房间人数已满');
       }
+    } else if (this.seats.size >= this.capacity) {
+      throw new AppError(ErrorCode.RoomFull, '本桌已满，换一张台吧');
     }
 
     const seat: Seat = {

@@ -153,6 +153,22 @@ export class DicePlugin extends BaseGamePlugin {
       // 连胜跨局保留
       streaks: this.state.streaks,
     };
+    this.seedBotBets(ctx);
+  }
+
+  /** 场内机器人气氛下注 */
+  private seedBotBets(ctx: RoomContext): void {
+    const areas: Area[] = ['big', 'small', 'odd', 'even', 'triple'];
+    const amounts = [10, 20, 50, 100, 200];
+    for (const bot of ctx.players) {
+      if (!bot.isBot) continue;
+      if (Math.random() > 0.6) continue;
+      const area = areas[Math.floor(Math.random() * areas.length)]!;
+      const amount = amounts[Math.floor(Math.random() * amounts.length)]!;
+      const bet = this.state.bets.get(bot.playerId) ?? {};
+      bet[area] = (bet[area] ?? 0) + amount;
+      this.state.bets.set(bot.playerId, bet);
+    }
   }
 
   override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
@@ -221,7 +237,8 @@ export class DicePlugin extends BaseGamePlugin {
 
       const nickname = ctx.getPlayer(playerId)?.nickname ?? '玩家';
       results.push({ playerId, nickname, delta, detail: hits.join(' ') || '未命中' });
-      if (delta !== 0) {
+      // 机器人只参与展示，不写账本
+      if (delta !== 0 && ctx.getPlayer(playerId)?.isBot !== true) {
         entries.push({ playerId, currency: 'coin', delta, reason: 'game.dice' });
       }
     }

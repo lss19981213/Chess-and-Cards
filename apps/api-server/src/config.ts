@@ -15,6 +15,8 @@ export interface ApiConfig {
   initialCoins: number;
   tokenTtlSeconds: number;
   corsOrigin: string;
+  /** 运营后台访问口令 */
+  adminToken: string;
   zhipu: ZhipuConfig;
 }
 
@@ -33,6 +35,7 @@ export const config: ApiConfig = {
   initialCoins: Number(env('INITIAL_COINS', '1000')),
   tokenTtlSeconds: Number(env('TOKEN_TTL', '7200')),
   corsOrigin: env('CORS_ORIGIN', '*'),
+  adminToken: env('ADMIN_TOKEN', 'admin-dev-token'),
   zhipu: {
     apiKey: env('ZHIPU_API_KEY', ''),
     baseUrl: env('ZHIPU_BASE_URL', 'https://open.bigmodel.cn/api/paas/v4'),

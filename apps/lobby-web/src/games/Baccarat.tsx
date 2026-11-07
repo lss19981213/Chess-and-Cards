@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { chipArt } from '../chips';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 
@@ -134,7 +134,7 @@ export function Baccarat({ snapshot, myId: _myId, status, onBet }: Props) {
                 <span className="bac-zone__label">{zone.label}</span>
                 <span className="bac-zone__odds">{zone.odds}</span>
                 {bet > 0 && (
-                  <span className="bac-zone__bet">
+                  <span className="bac-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
                     {bet}
                   </span>

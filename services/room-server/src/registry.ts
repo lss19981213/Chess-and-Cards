@@ -3,8 +3,16 @@ import type { GameMeta, RoomSummary, Settlement } from '@cc/protocol';
 import { AppError, ErrorCode } from '@cc/protocol';
 import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
-import { GameRoom, type RoomDeps } from './room';
+import { GameRoom, PLATFORM_CAPACITY, type RoomDeps } from './room';
 import type { RoomServerConfig } from './config';
+
+/** 平台房初始数量与弹性上限 */
+const PLATFORM_ROOMS_INITIAL = 3;
+const PLATFORM_ROOMS_MAX = 12;
+/** 三间平均使用率达到该比例就扩容 */
+const PLATFORM_SCALE_RATIO = 0.85;
+
+export { PLATFORM_ROOMS_INITIAL };
 
 /**
  * 房间与插件注册中心。
@@ -65,11 +73,24 @@ export class RoomManager {
     const factory = this.factories.get(gameId);
     if (!factory) throw new AppError(ErrorCode.BadRequest, `游戏不存在或未部署: ${gameId}`);
 
-    // 下注类玩法只有一个常驻房间，所有玩家共享同一时间轴
-    const persistent = this.list(gameId).find((r) => r.isPersistent);
-    if (persistent) {
-      persistent.join(player, socket);
-      return persistent;
+    // 下注类玩法：在平台台里挑人最少且未满的一间
+    const platforms = this.list(gameId).filter((r) => r.isPersistent);
+    if (platforms.length > 0) {
+      const open = platforms
+        .filter((room) => room.playerCount < room.capacity)
+        .sort((a, b) => a.playerCount - b.playerCount);
+      const target = open[0];
+      if (target) {
+        target.join(player, socket);
+        this.scaleIfNeeded(gameId, platforms);
+        return target;
+      }
+      // 全部满员，临时扩一间
+      const extra = this.createPlatform(gameId);
+      if (extra) {
+        extra.join(player, socket);
+        return extra;
+      }
     }
 
     let room = this.list(gameId).find((r) => r.isJoinable);
@@ -114,17 +135,44 @@ export class RoomManager {
     return room;
   }
 
-  /** 创建常驻房间：服务启动即开局，无人也持续推进 */
-  ensurePersistent(gameId: string, maxPlayers: number): GameRoom | null {
+  /** 新建一间平台台 */
+  createPlatform(gameId: string): GameRoom | null {
     const factory = this.factories.get(gameId);
     if (!factory) return null;
-    const existing = this.list(gameId).find((r) => r.isPersistent);
-    if (existing) return existing;
-    const room = new GameRoom(randomUUID(), factory(), 'classic', maxPlayers, this.deps, {
+    const room = new GameRoom(randomUUID(), factory(), 'classic', PLATFORM_CAPACITY, this.deps, {
       persistent: true,
     });
     this.rooms.set(room.id, room);
     return room;
+  }
+
+  /** 创建常驻房间：服务启动即开局，无人也持续推进 */
+  ensurePersistent(gameId: string): GameRoom | null {
+    const factory = this.factories.get(gameId);
+    if (!factory) return null;
+    const existing = this.list(gameId).find((r) => r.isPersistent);
+    if (existing) return existing;
+    return this.createPlatform(gameId);
+  }
+
+  /** 每款平台玩法默认开 N 间，起步就有多个台子可选 */
+  ensurePlatformRooms(gameId: string, count: number): void {
+    if (!this.factories.has(gameId)) return;
+    const current = this.list(gameId).filter((r) => r.isPersistent).length;
+    for (let i = current; i < count; i += 1) this.createPlatform(gameId);
+  }
+
+  /** 三间都快满时自动加开一间，避免玩家挤不进来 */
+  private scaleIfNeeded(gameId: string, platforms: GameRoom[]): void {
+    if (platforms.length >= PLATFORM_ROOMS_MAX) return;
+    const threshold = PLATFORM_CAPACITY * PLATFORM_SCALE_RATIO;
+    if (!platforms.every((room) => room.playerCount >= threshold)) return;
+    const room = this.createPlatform(gameId);
+    if (room) {
+      console.info(
+        `[scale] ${gameId} 平台台已达 ${platforms.length} 间且接近满员，自动加开 1 间（共 ${platforms.length + 1}）`,
+      );
+    }
   }
 
   shutdown(): void {

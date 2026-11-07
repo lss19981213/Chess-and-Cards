@@ -10,6 +10,7 @@ import {
 import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
 import { GameSocket } from './ws';
+import { AdminPanel } from './components/AdminPanel';
 import { Assistant } from './components/Assistant';
 import { AuthModal } from './components/AuthModal';
 import { GameRooms } from './components/GameRooms';
@@ -216,6 +217,10 @@ export default function App() {
   const handleBalanceChange = useCallback((balance: number) => {
     setUser((prev) => (prev ? { ...prev, balance } : prev));
   }, []);
+
+  if (window.location.hash === '#/admin') {
+    return <AdminPanel />;
+  }
 
   if (booting) {
     return (

@@ -102,8 +102,9 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
                 {room.persistent && <em className="room-tile__badge">平台庄</em>}
               </div>
               <div className="room-tile__meta">
-                <span>
-                  {room.players}/{room.maxPlayers} 人
+                <span className="room-tile__online">
+                  <em />
+                  在线 {room.players}/{room.maxPlayers}
                 </span>
                 <span className={room.status === 'waiting' ? 'is-open' : ''}>
                   {STATUS_TEXT[room.status] ?? room.status}

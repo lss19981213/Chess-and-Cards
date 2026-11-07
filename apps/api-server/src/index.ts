@@ -368,6 +368,58 @@ async function start(): Promise<void> {
     return { dayKey, entries: rows };
   });
 
+  // ---- 运营后台（口令鉴权）----
+  app.get('/api/admin/overview', async (req) => {
+    const token = String((req.query as { token?: string }).token ?? '');
+    if (!config.adminToken || token !== config.adminToken) {
+      throw httpError('后台口令不正确', 403);
+    }
+
+    const safeFetch = async (path: string): Promise<Record<string, unknown>> => {
+      try {
+        const res = await fetch(`${config.roomServerUrl}${path}`, {
+          signal: AbortSignal.timeout(2500),
+        });
+        if (!res.ok) return {};
+        return (await res.json()) as Record<string, unknown>;
+      } catch {
+        return {};
+      }
+    };
+
+    const [roomData, gameData] = await Promise.all([
+      safeFetch('/rooms'),
+      safeFetch('/games'),
+    ]);
+
+    const rooms = (roomData.rooms as Array<Record<string, unknown>>) ?? [];
+    const games = (gameData.games as Array<Record<string, unknown>>) ?? [];
+    const daily = await repo.dailyWinners(10);
+    const dayKey = periodKeyFor('daily');
+
+    const totalOnline = rooms.reduce((sum, room) => sum + Number(room.players ?? 0), 0);
+    const platformRooms = rooms.filter((room) => room.persistent === true).length;
+    const playerRooms = rooms.length - platformRooms;
+
+    console.info(
+      `${new Date().toISOString()} INFO  [admin] 拉取总览 {"rooms":${rooms.length},"online":${totalOnline}}`,
+    );
+
+    return {
+      dayKey,
+      summary: {
+        rooms: rooms.length,
+        platformRooms,
+        playerRooms,
+        online: totalOnline,
+        games: games.length,
+      },
+      rooms,
+      games,
+      daily,
+    };
+  });
+
   app.post('/api/assistant/chat', async (req) => {
     const claims = authHeader(req);
     const state = assistantLimiter.check(claims.sub);
