@@ -725,10 +725,22 @@ button.secondary {
 .modal {
   border-radius: 12px;
   max-width: min(480px, 94vw);
+  /* 横屏视口矮：弹窗必须能在视口内滚动，否则内容被裁 */
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: #12160f;
   border: 1px solid rgba(216, 162, 74, 0.3);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
-  overscroll-behavior: contain;
+}
+
+.modal::-webkit-scrollbar {
+  width: 4px;
+}
+
+.modal::-webkit-scrollbar-thumb {
+  background: rgba(216, 162, 74, 0.35);
+  border-radius: 2px;
 }
 
 .modal__head h2 {
