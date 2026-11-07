@@ -69,6 +69,8 @@ export class GameRoom {
   private emoteTimes = new Map<string, number[]>();
   /** 结算展示期间预约的准备意愿 */
   private pendingReady = new Map<string, boolean>();
+  /** 已开启「连续对局」的玩家：之后每局结算都自动准备 */
+  private autoReady = new Set<string>();
 
   constructor(id: string, plugin: GamePlugin, mode: string, maxPlayers: number, deps: RoomDeps) {
     this.id = id;
@@ -291,9 +293,12 @@ export class GameRoom {
     // 结算展示期间点的「准备」先预约下来，回到等待态时自动生效
     if (this.status === 'settled') {
       this.pendingReady.set(playerId, ready);
+      if (ready) this.autoReady.add(playerId);
+      else this.autoReady.delete(playerId);
       return;
     }
     if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '当前不能修改准备状态');
+    if (!ready) this.autoReady.delete(playerId);
     if (seat.ready === ready) return;
     seat.ready = ready;
     this.plugin.onPlayerReady(this.ctx, playerId);
@@ -416,8 +421,9 @@ export class GameRoom {
     if (this.closed) return;
     this.status = 'waiting';
     // 机器人没有客户端，结算后自动重新准备，否则只能陪玩一局
+    // 真人若点过「继续」，视为开启连续对局，后续每局都自动准备
     for (const seat of this.seats.values()) {
-      seat.ready = seat.isBot || (this.pendingReady.get(seat.playerId) ?? false);
+      seat.ready = seat.isBot || this.autoReady.has(seat.playerId);
     }
     this.pendingReady.clear();
     this.broadcastView();
@@ -467,6 +473,9 @@ export class GameRoom {
   }
 
   private removePlayer(playerId: string): void {
+    this.autoReady.delete(playerId);
+    this.pendingReady.delete(playerId);
+    this.emoteTimes.delete(playerId);
     this.removeSeat(playerId);
     this.broadcastView();
     this.dirty = true;
