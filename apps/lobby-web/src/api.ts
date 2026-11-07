@@ -97,6 +97,12 @@ export const api = {
       body: JSON.stringify({ key }),
     }),
 
+  assistantChat: (message: string, history: Array<{ role: string; content: string }>) =>
+    request<{ reply: string; granted: number; balance: number; fallback?: boolean }>('/api/assistant/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+
   leaderboard: (limit = 50) =>
     request<{ entries: LeaderboardEntry[]; myRank: number | null; myUserId: string | null }>(
       `/api/leaderboard?limit=${limit}`,

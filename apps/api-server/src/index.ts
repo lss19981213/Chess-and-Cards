@@ -16,6 +16,15 @@ import {
   verifyPassword,
 } from './security';
 import { TASKS, findTask, periodKeyFor, titleFor, type TaskView } from './tasks';
+import {
+  GRANT_AMOUNT,
+  GRANT_MAX_BALANCE,
+  askAssistant,
+  assistantReady,
+  fallbackReply,
+  splitGrant,
+  type ChatMessage,
+} from './assistant';
 
 const FALLBACK_GAMES: GameMeta[] = [
   {
@@ -115,6 +124,8 @@ async function start(): Promise<void> {
   // 登录防爆破：IP 维度 10 次 / 10 分钟，账号维度 5 次 / 10 分钟
   const ipLimiter = new AttemptLimiter(10, 10 * 60_000);
   const accountLimiter = new AttemptLimiter(5, 10 * 60_000);
+  // AI 助手：每用户每分钟最多 20 次
+  const assistantLimiter = new AttemptLimiter(20, 60_000);
 
   let gamesCache: { at: number; data: GameMeta[] } = { at: 0, data: FALLBACK_GAMES };
 
@@ -348,6 +359,65 @@ async function start(): Promise<void> {
       myRank,
       myUserId,
     };
+  });
+
+  app.post('/api/assistant/chat', async (req) => {
+    const claims = authHeader(req);
+    const state = assistantLimiter.check(claims.sub);
+    if (!state.allowed) throw httpError('问得有点快，喝口水再来问我', 429);
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const message = typeof body.message === 'string' ? body.message.trim().slice(0, 400) : '';
+    if (!message) throw httpError('说点什么吧', 400);
+
+    const rawHistory = Array.isArray(body.history) ? body.history : [];
+    const history: ChatMessage[] = rawHistory
+      .filter(
+        (item): item is { role: string; content: string } =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as { role?: unknown }).role === 'string' &&
+          typeof (item as { content?: unknown }).content === 'string',
+      )
+      .slice(-6)
+      .map((item) => ({
+        role: item.role === 'assistant' ? 'assistant' : 'user',
+        content: item.content.slice(0, 400),
+      }));
+
+    assistantLimiter.fail(claims.sub);
+
+    const raw = assistantReady()
+      ? await askAssistant([...history, { role: 'user', content: message }])
+      : null;
+
+    const balance = await repo.getBalance(claims.sub, 'coin');
+
+    if (!raw) {
+      return { reply: fallbackReply(message), granted: 0, balance, fallback: true };
+    }
+
+    const { text, grant } = splitGrant(raw);
+    let granted = 0;
+    let note = '';
+
+    if (grant) {
+      if (balance >= GRANT_MAX_BALANCE) {
+        note = '\n\n（牌友，你筹码还厚实，机会留给真断粮的兄弟吧～）';
+      } else {
+        const dayKey = periodKeyFor('daily');
+        const fresh = await repo.claimTask(claims.sub, 'assistant_grant', dayKey);
+        if (!fresh) {
+          note = '\n\n（今天的救济已经给过你啦，明天再来找我。）';
+        } else {
+          granted = GRANT_AMOUNT;
+          await repo.credit(claims.sub, granted, 'assistant', `${claims.sub}:${dayKey}`);
+        }
+      }
+    }
+
+    const newBalance = granted > 0 ? await repo.getBalance(claims.sub, 'coin') : balance;
+    return { reply: text + note, granted, balance: newBalance };
   });
 
   app.post('/internal/settle', async (req, reply) => {

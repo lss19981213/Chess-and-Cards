@@ -3,6 +3,7 @@ import { ClientMsg, ServerMsg, type GameMeta, type RoomView, type Settlement } f
 import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
 import { GameSocket } from './ws';
+import { Assistant } from './components/Assistant';
 import { AuthModal } from './components/AuthModal';
 import { Lobby } from './components/Lobby';
 import { LeaderboardModal } from './components/LeaderboardModal';
@@ -225,6 +226,7 @@ export default function App() {
         <TasksModal onBalanceChange={handleBalanceChange} onClose={() => setTasksOpen(false)} />
       )}
       {rankOpen && <LeaderboardModal myUserId={user?.id ?? null} onClose={() => setRankOpen(false)} />}
+      {!room && user && <Assistant onBalanceChange={handleBalanceChange} />}
       {toast && <div className="toast">{toast}</div>}
     </>
   );
