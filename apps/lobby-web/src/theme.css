@@ -1,391 +1,216 @@
 /**
- * 腾讯棋牌风格主题层：深色鎏金、玻璃质感、强可点区。
- * 在 styles.css 之后加载，只做视觉覆盖，不改布局结构。
+ * 设计系统层 —— 「桌上物」
+ *
+ * 简报：中国棋牌 · 移动端横屏 · 玩家视角
+ * 色板：夜幕 #0a0d12 / 台呢 #0c231c / 大漆 #3d2a16 / 黄铜 #d8a24a / 朱砂 #d24d43 / 宣纸 #ede4cf
+ * 原则：
+ *   1. 金色只给焦点 —— 行动中的元素才用金，其余退到宣纸白
+ *   2. 桌上物 —— 元素是摆在桌面上的物件（筹码圆、牌圆角矩、公告木匾），不是统一圆角卡
+ *   3. 触屏优先 —— ≥44px 命中区、:active 反馈、safe-area
+ *   4. 标志性一笔 —— 牌桌毛毡聚光
+ * 在 styles.css 之后加载，只覆盖视觉与横屏形态，不改组件结构。
  */
-:root {
-  --gold: #e8bd6a;
-  --gold-bright: #ffd98a;
-  --gold-deep: #b8862e;
-  --bg-deep: #0a1018;
-  --danger: #d8453c;
-  --ok: #3fbf7f;
-}
+
+/* ================= 基座 ================= */
 
 body {
-  background:
-    radial-gradient(120% 70% at 50% -10%, #1a2536 0%, #0a1018 62%) fixed;
-  color: #ece4d4;
+  background: #0a0d12;
+  color: var(--text);
+  /* 触屏合规 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
 }
 
-/* ---------- 玩家信息栏 ---------- */
+/* 数字一律表格数字，横屏窄列里对齐不跳动 */
+button,
+.dice-zone,
+.wallet--sm,
+.app-top__wallet,
+.history,
+.lobby-results,
+.rank-board,
+.bet-controls {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 焦点可见（保留默认轮廓，只重描色，绝不 outline-none 裸奔） */
+:focus-visible {
+  outline: 2px solid #d8a24a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 动效合规：只动 transform/opacity，尊重减弱动态偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 触屏按压反馈替代 hover 光晕 */
+button:active:not(:disabled),
+.live-card:active,
+.mini-card:active,
+.room-tile:active,
+.dice-zone:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 0.08s ease;
+}
+
+/* ================= 大厅顶栏：暗木条 ================= */
+
 .app-top {
-  height: 66px;
-  background: linear-gradient(180deg, rgba(15, 21, 34, 0.97), rgba(8, 12, 20, 0.94));
-  border-bottom: 1px solid rgba(232, 189, 106, 0.2);
-  backdrop-filter: blur(14px);
-}
-
-.app-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 2px solid rgba(232, 189, 106, 0.55);
-  background: linear-gradient(150deg, #f2dfb4, #c9a25e);
-  color: #2a2419;
-  font-size: 16px;
-  font-weight: 800;
-  box-shadow: 0 4px 14px rgba(232, 189, 106, 0.25);
-}
-
-.app-top__id strong {
-  font-size: 14.5px;
-  color: #f4e9cf;
-}
-
-.app-top__wallet {
-  padding: 7px 15px;
-  border-radius: 999px;
-  background: linear-gradient(150deg, rgba(232, 189, 106, 0.24), rgba(232, 189, 106, 0.08));
-  border: 1px solid rgba(232, 189, 106, 0.45);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 6px 18px rgba(0, 0, 0, 0.35);
-}
-
-.app-top__wallet strong {
-  font-size: 16px;
-  color: var(--gold-bright);
-  letter-spacing: 0.5px;
-}
-
-.app-top__tools .icon-btn {
-  border-radius: 10px;
-  color: rgba(236, 228, 212, 0.75);
-}
-
-/* ---------- 公告条 ---------- */
-.notice-bar {
-  border-radius: 14px;
-  background: linear-gradient(150deg, rgba(232, 189, 106, 0.12), rgba(232, 189, 106, 0.04));
-  border: 1px solid rgba(232, 189, 106, 0.18);
-}
-
-/* ---------- 分组标题 ---------- */
-.app-section__title h2 {
-  font-size: 17px;
-  color: #f4e9cf;
-  letter-spacing: 2px;
-}
-
-.app-section__title em {
-  width: 4px;
-  height: 18px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ffe6ad, #d9a53c);
-  box-shadow: 0 0 10px rgba(232, 189, 106, 0.45);
-}
-
-/* ---------- 平台庄卡片 ---------- */
-.live-card {
-  border-radius: 20px;
-  border: 1px solid rgba(232, 189, 106, 0.32);
-  box-shadow:
-    0 14px 30px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.live-card::after {
-  background: linear-gradient(180deg, rgba(6, 9, 18, 0.04) 0%, rgba(6, 9, 18, 0.42) 45%, rgba(6, 9, 18, 0.94) 100%);
-}
-
-.live-card:hover {
-  transform: translateY(-5px);
-  border-color: rgba(255, 217, 138, 0.75);
-  box-shadow:
-    0 22px 46px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(232, 189, 106, 0.35),
-    0 0 26px rgba(232, 189, 106, 0.22);
-}
-
-.live-card__badge {
-  background: linear-gradient(150deg, #ffe6ad, #e0b45f);
-  color: #2a1f08;
-  box-shadow: 0 4px 12px rgba(232, 189, 106, 0.4);
-}
-
-.live-card__body strong {
-  font-size: 18px;
-  color: #fff3da;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-}
-
-.live-card__cta {
-  color: var(--gold-bright);
-}
-
-/* ---------- 小卡片 ---------- */
-.mini-card {
-  border-radius: 18px;
-  background: linear-gradient(165deg, rgba(32, 42, 66, 0.85), rgba(12, 18, 30, 0.94));
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
-}
-
-.mini-card:hover {
-  border-color: rgba(232, 189, 106, 0.55);
-  box-shadow:
-    0 16px 30px rgba(0, 0, 0, 0.42),
-    0 0 20px rgba(232, 189, 106, 0.16);
-}
-
-.mini-card__thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  border: 1px solid rgba(232, 189, 106, 0.3);
-  background: rgba(232, 189, 106, 0.08);
-}
-
-.mini-card strong {
-  color: #f0e6d0;
-}
-
-/* ---------- 底部导航 ---------- */
-.app-tabbar {
-  background: rgba(12, 17, 28, 0.92);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(232, 189, 106, 0.22);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-}
-
-.app-tabbar button.is-active {
-  background: linear-gradient(150deg, rgba(232, 189, 106, 0.26), rgba(232, 189, 106, 0.1));
-  color: var(--gold-bright);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-/* ---------- 通用按钮 ---------- */
-.primary {
-  background: linear-gradient(180deg, #f6d08a, #d9a53c);
-  color: #2b1e07;
-  border: none;
-  border-radius: 12px;
-  font-weight: 700;
-  box-shadow:
-    0 6px 16px rgba(217, 165, 60, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-}
-
-.primary:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.secondary {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 12px;
-  color: #e9dfc9;
-}
-
-.secondary:hover:not(:disabled) {
-  border-color: rgba(232, 189, 106, 0.5);
-}
-
-.ghost {
-  border-radius: 10px;
-  color: rgba(236, 228, 212, 0.82);
-}
-
-/* ---------- 牌桌顶栏 ---------- */
-.room .topbar {
-  border-bottom: 1px solid rgba(232, 189, 106, 0.16);
-}
-
-.room__title h1 {
-  color: #f4e9cf;
-  letter-spacing: 2px;
-}
-
-.wallet--sm {
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: rgba(232, 189, 106, 0.14);
-  border: 1px solid rgba(232, 189, 106, 0.35);
-}
-
-.wallet--sm strong {
-  color: var(--gold-bright);
-}
-
-/* ---------- 筹码选择 ---------- */
-.chip-btn {
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.chip-btn.is-active {
-  border-color: rgba(255, 217, 138, 0.8);
-  box-shadow:
-    0 0 0 2px rgba(232, 189, 106, 0.35),
-    0 0 16px rgba(232, 189, 106, 0.35);
-}
-
-/* ---------- 下注区 ---------- */
-.dice-zone {
-  border-radius: 14px;
-  border: 1px solid rgba(232, 189, 106, 0.22);
-  background: linear-gradient(165deg, rgba(36, 46, 68, 0.7), rgba(14, 20, 32, 0.85));
-}
-
-.dice-zone:hover:not(:disabled) {
-  border-color: rgba(255, 217, 138, 0.6);
-  transform: translateY(-2px);
-}
-
-.dice-zone.is-bet {
-  background: linear-gradient(165deg, rgba(232, 189, 106, 0.3), rgba(232, 189, 106, 0.12));
-  border-color: rgba(255, 217, 138, 0.7);
-}
-
-.dice-zone:disabled {
-  opacity: 0.55;
-}
-
-/* ---------- 底池 ---------- */
-.pot-display__value strong {
-  color: var(--gold-bright);
-  font-size: 20px;
-}
-
-.pot-display__label {
-  color: rgba(236, 228, 212, 0.65);
-}
-
-/* ---------- 结果与结算 ---------- */
-.reveal-list {
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.reveal-row {
-  border-radius: 10px;
-}
-
-.up {
-  color: #6ee7a0;
-}
-
-.down {
-  color: #ef8a80;
-}
-
-/* ---------- 弹窗 ---------- */
-.modal {
-  border-radius: 20px;
-  border: 1px solid rgba(232, 189, 106, 0.24);
-  box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.62),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.modal__head h2 {
-  color: #f4e9cf;
-}
-
-/* ---------- 倒计时 ---------- */
-.dice-stage__timer-bar {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.dice-stage__timer-bar i {
-  background: linear-gradient(90deg, #f6d08a, #d9a53c);
-  box-shadow: 0 0 10px rgba(232, 189, 106, 0.5);
-}
-
-/* ==================================================================
-   移动端横屏形态：全局按手机横屏（约 844×390）量级设计，
-   桌面端同样渲染为紧凑横屏布局。
-   ================================================================== */
-
-/* ---------- 大厅顶栏 ---------- */
-.app-top {
-  height: 48px;
-  padding: 0 12px;
-  gap: 8px;
+  height: 50px;
+  padding: 0 max(12px, env(safe-area-inset-left)) 0 max(12px, env(safe-area-inset-left));
+  background: linear-gradient(180deg, #171207, #0d0a05);
+  border-bottom: 1px solid rgba(216, 162, 74, 0.28);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
 }
 
 .app-avatar {
   width: 34px;
   height: 34px;
   font-size: 14px;
-  border-radius: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, #f3d489, #c8912f);
+  border: none;
+  box-shadow: 0 0 0 2px #3d2a16, 0 2px 6px rgba(0, 0, 0, 0.55);
+  color: #241a08;
 }
 
 .app-top__id strong {
   font-size: 13px;
+  color: var(--text);
+  font-weight: 700;
 }
 
 .app-top__id small {
   font-size: 9.5px;
+  color: rgba(237, 228, 207, 0.45);
 }
 
+/* 余额：金是焦点 */
 .app-top__wallet {
-  padding: 4px 12px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(10, 13, 18, 0.72);
+  border: 1px solid rgba(216, 162, 74, 0.55);
 }
 
 .app-top__wallet strong {
-  font-size: 14px;
+  font-size: 15px;
+  color: #f3d489;
 }
 
 .app-top__tools .icon-btn {
-  width: 26px;
-  height: 26px;
-  font-size: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: rgba(237, 228, 207, 0.62);
 }
 
-/* ---------- 公告 ---------- */
+/* ================= 公告：木匾 ================= */
+
 .notice-bar {
-  padding: 5px 12px;
+  padding: 6px 12px;
   font-size: 11px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2a1d0e, #1c130a);
+  border: 1px solid rgba(216, 162, 74, 0.3);
+  box-shadow: inset 0 1px 0 rgba(243, 212, 137, 0.1);
+  color: rgba(237, 228, 207, 0.85);
+  overflow: hidden;
+  padding-right: 12px;
 }
 
-/* ---------- 大厅区块 ---------- */
-.app-section {
-  gap: 8px;
+.notice-bar > *:last-child {
+  flex-shrink: 0;
 }
+
+/* ================= 区块标题 ================= */
+
+.app-section__title h2 {
+  font-size: 15px;
+  color: var(--text);
+  letter-spacing: 3px;
+  font-weight: 800;
+  text-wrap: balance;
+}
+
+.app-section__title em {
+  width: 3px;
+  height: 15px;
+  border-radius: 1px;
+  background: #d8a24a;
+}
+
+.app-section__head > span {
+  font-size: 10px;
+  color: rgba(237, 228, 207, 0.4);
+}
+
+/* ================= 平台庄卡：压暗画面 + 宣纸字 ================= */
 
 .live-card {
-  height: 104px;
-  border-radius: 12px;
+  height: 108px;
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.live-card::after {
+  background: linear-gradient(180deg, rgba(6, 8, 12, 0.1) 0%, rgba(6, 8, 12, 0.5) 48%, rgba(6, 8, 12, 0.93) 100%);
 }
 
 .live-card__body {
-  left: 10px;
-  right: 10px;
-  bottom: 7px;
+  left: 11px;
+  right: 11px;
+  bottom: 8px;
   gap: 1px;
 }
 
 .live-card__body strong {
-  font-size: 14px;
+  font-size: 14.5px;
+  color: var(--text);
+  letter-spacing: 2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 .live-card__body small {
   font-size: 10px;
+  color: rgba(237, 228, 207, 0.66);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
+/* CTA：描边小签，不再金渐变 */
 .live-card__cta {
   font-size: 10.5px;
-  margin-top: 2px;
+  margin-top: 3px;
+  color: #f3d489;
+  letter-spacing: 1px;
 }
 
 .live-card__badge {
+  right: 8px;
+  top: 8px;
   font-size: 9px;
-  padding: 2px 7px;
-  right: 7px;
-  top: 7px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(10, 13, 18, 0.78);
+  border: 1px solid rgba(216, 162, 74, 0.5);
+  color: #f3d489;
 }
+
+/* ================= 分类小卡：轻描边 ================= */
 
 .mini-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -393,32 +218,60 @@ body {
 }
 
 .mini-card {
-  padding: 7px 4px;
+  padding: 8px 4px;
   gap: 3px;
-  border-radius: 12px;
+  border-radius: 10px;
+  background: rgba(23, 28, 22, 0.6);
+  border: 1px solid rgba(237, 228, 207, 0.08);
+  box-shadow: none;
 }
 
 .mini-card__thumb {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  font-size: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 162, 74, 0.4);
+  font-size: 19px;
+  overflow: hidden;
 }
 
 .mini-card strong {
   font-size: 11.5px;
+  color: var(--text);
 }
 
 .mini-card small {
   font-size: 9.5px;
+  color: rgba(237, 228, 207, 0.42);
 }
 
-.app-section__title h2 {
-  font-size: 14px;
+/* ================= 底部导航 ================= */
+
+.app-tabbar {
+  bottom: max(6px, env(safe-area-inset-bottom));
+  width: min(440px, calc(100% - 20px));
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(13, 17, 13, 0.94);
+  border: 1px solid rgba(216, 162, 74, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
 
-.app-section__head > span {
-  font-size: 10px;
+.app-tabbar button {
+  padding: 5px 0;
+  font-size: 9.5px;
+  border-radius: 999px;
+  color: rgba(237, 228, 207, 0.55);
+  min-height: 44px;
+}
+
+.app-tabbar button span {
+  font-size: 16px;
+}
+
+.app-tabbar button.is-active {
+  color: #f3d489;
+  background: rgba(216, 162, 74, 0.14);
 }
 
 .app-footnote {
@@ -426,147 +279,217 @@ body {
   margin-bottom: 58px;
 }
 
-/* 大厅内容为悬浮导航留出空间，避免遮挡最后一行卡片 */
 .lobby {
   padding-bottom: 62px;
 }
 
-/* ---------- 底部导航 ---------- */
-.app-tabbar {
-  bottom: 5px;
-  padding: 3px;
-  border-radius: 14px;
-  width: min(460px, calc(100% - 16px));
+/* ================= 选台页 / 等待室 ================= */
+
+.room-tile {
+  border-radius: 10px;
+  background: rgba(23, 28, 22, 0.6);
+  border: 1px solid rgba(237, 228, 207, 0.08);
+  box-shadow: none;
 }
 
-.app-tabbar button {
-  padding: 3px 0;
-  font-size: 9.5px;
-  border-radius: 9px;
+.room-tile__cta {
+  color: #f3d489;
 }
 
-.app-tabbar button span {
-  font-size: 15px;
-}
+/* ================= 牌桌壳 ================= */
 
-/* ---------- 牌桌通用 ---------- */
 .room .topbar {
-  height: 44px;
+  height: 46px;
+  background: linear-gradient(180deg, #171207, #0d0a05);
+  border-bottom: 1px solid rgba(216, 162, 74, 0.24);
 }
 
+.room__title h1 {
+  font-size: 16px;
+  letter-spacing: 4px;
+  color: var(--text);
+}
+
+.wallet--sm {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(10, 13, 18, 0.72);
+  border: 1px solid rgba(216, 162, 74, 0.5);
+}
+
+.wallet--sm strong {
+  color: #f3d489;
+}
+
+/* 标志性一笔：台面毛毡 + 聚光暗角 */
 .stage {
   min-height: 0;
-  height: calc(100dvh - 44px);
+  height: calc(100dvh - 46px);
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
+  user-select: none;
+  background:
+    radial-gradient(90% 110% at 50% 42%, rgba(14, 42, 33, 0.5) 0%, rgba(5, 8, 7, 0.88) 78%),
+    #050807;
 }
 
 .stage::-webkit-scrollbar {
   display: none;
 }
 
-/* 操作区（筹码选择、下注按钮）常驻底部，横屏滚动时也不丢失 */
-.bet-controls,
-.showdown__actions,
-.bj-actions,
-.hand-actions,
 .stage__bottom,
 .lobby-game__actions {
   position: sticky;
   bottom: 0;
   z-index: 8;
-  background: linear-gradient(180deg, rgba(8, 12, 20, 0), rgba(8, 12, 20, 0.94) 30%);
-  backdrop-filter: blur(6px);
-  padding: 10px 6px 6px;
+  background: linear-gradient(180deg, rgba(5, 8, 7, 0) 0%, rgba(5, 8, 7, 0.94) 32%);
+  padding: 10px 6px max(6px, env(safe-area-inset-bottom));
 }
 
-/* 筹码行更紧凑 */
+/* ================= 按钮：金色只给主行动 ================= */
+
+button.primary {
+  background: linear-gradient(180deg, #e7b45a, #c8912f);
+  color: #241a08;
+  font-weight: 800;
+  letter-spacing: 2px;
+  box-shadow: 0 3px 0 #7a5a1e;
+}
+
+button.primary:active:not(:disabled) {
+  box-shadow: 0 1px 0 #7a5a1e;
+  transform: translateY(2px);
+}
+
+button.secondary {
+  background: rgba(237, 228, 207, 0.07);
+  border: 1px solid rgba(237, 228, 207, 0.22);
+  color: var(--text);
+  letter-spacing: 1px;
+}
+
+button.danger {
+  background: rgba(210, 77, 67, 0.16);
+  border: 1px solid rgba(210, 77, 67, 0.5);
+  color: #ec9a92;
+}
+
+button.ghost {
+  color: rgba(237, 228, 207, 0.7);
+}
+
+/* 主行动最小触屏命中 */
+button.primary,
+button.secondary {
+  min-height: 44px;
+}
+
+/* ================= 下注区 ================= */
+
+.dice-zones {
+  gap: 6px;
+}
+
+.dice-zone {
+  padding: 7px 4px;
+  gap: 1px;
+  border-radius: 8px;
+  min-height: 52px;
+  background: rgba(12, 35, 28, 0.55);
+  border: 1px solid rgba(216, 162, 74, 0.22);
+  color: var(--text);
+}
+
+.dice-zone:hover:not(:disabled) {
+  transform: none;
+}
+
+.dice-zone.is-bet {
+  background: rgba(216, 162, 74, 0.16);
+  border-color: rgba(243, 212, 137, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(243, 212, 137, 0.35);
+}
+
+.dice-zone__label {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.dice-zone__odds,
+.dice-zone__pool {
+  font-size: 9.5px;
+  color: rgba(237, 228, 207, 0.55);
+}
+
+/* ================= 筹码：真实筹码感 ================= */
+
 .bet-controls {
   gap: 8px;
 }
 
 .bet-controls__chips {
-  gap: 8px;
+  gap: 10px;
 }
 
 .bet-controls__hint {
   font-size: 10px;
+  color: rgba(237, 228, 207, 0.45);
 }
+
+.chip-btn {
+  min-width: 46px;
+  min-height: 46px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+}
+
+.chip-btn.is-active {
+  box-shadow: 0 0 0 2px rgba(243, 212, 137, 0.85), 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* 自定义金额输入 */
+.bet-controls__custom input {
+  background: rgba(10, 13, 18, 0.72);
+  border: 1px solid rgba(216, 162, 74, 0.4);
+  border-radius: 8px;
+  color: #f3d489;
+  min-height: 40px;
+}
+
+/* ================= 走势 / 历史 ================= */
+
+.history {
+  border-radius: 8px;
+  background: rgba(10, 13, 18, 0.62);
+  border: 1px solid rgba(237, 228, 207, 0.08);
+  font-size: 11px;
+}
+
+.history__row {
+  border-radius: 4px;
+}
+
+.history__no {
+  color: rgba(237, 228, 207, 0.4);
+}
+
+.up {
+  color: #6fd3a2;
+}
+
+.down {
+  color: #e88b80;
+}
+
+/* ================= 牌桌纵向压缩 ================= */
 
 .lobby-game {
   grid-template-columns: minmax(0, 1fr) 148px;
   gap: 10px;
 }
 
-/* ---------- 棋盘自适应 ---------- */
-.boardgame {
-  gap: 6px;
-  padding: 4px;
-  position: relative;
-  background:
-    radial-gradient(52% 86% at 50% 50%, rgba(232, 189, 106, 0.07), transparent 72%);
-}
-
-.boardgame::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 14% 30%, rgba(232, 189, 106, 0.06) 0%, transparent 46%),
-    radial-gradient(circle at 86% 70%, rgba(232, 189, 106, 0.06) 0%, transparent 46%);
-  pointer-events: none;
-}
-
-.boardgame > * {
-  position: relative;
-}
-
-.boardgame__bar {
-  font-size: 11px;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.boardgame__board {
-  height: calc(100dvh - 92px);
-  max-height: 430px;
-  width: auto;
-  margin: 0 auto;
-  padding: 4px;
-  border-radius: 10px;
-}
-
-.boardgame__cell {
-  width: 100%;
-  height: 100%;
-}
-
-.boardgame__piece {
-  font-size: clamp(13px, 3.6dvh, 26px);
-}
-
-.boardgame--xiangqi .boardgame__piece {
-  font-size: clamp(11px, 3.1dvh, 22px);
-}
-
-.boardgame__cell.is-target::after {
-  width: 10px;
-  height: 10px;
-}
-
-/* ---------- 骰宝 ---------- */
-.dice-stage__tray {
-  padding: 8px 14px;
-  gap: 10px;
-  border-radius: 12px;
-}
-
-.dice-zones {
-  gap: 6px;
-}
-
-/* ---------- 公共牌桌纵向压缩 ---------- */
 .lobby-game__bar {
   padding-bottom: 6px;
   font-size: 11px;
@@ -577,39 +500,42 @@ body {
   gap: 8px;
 }
 
-.dice-zone {
-  padding: 5px 4px;
-  gap: 1px;
-}
-
-.dice-zone__label {
-  font-size: 12px;
-}
-
-.dice-zone__odds,
-.dice-zone__pool {
-  font-size: 9.5px;
-}
-
 .dice-stage {
   gap: 6px;
 }
 
-.dice-stage__sum {
-  font-size: 11px;
+.dice-stage__tray {
+  padding: 8px 14px;
+  gap: 10px;
+  border-radius: 10px;
+  background: radial-gradient(ellipse at 50% 28%, rgba(16, 46, 36, 0.9), rgba(5, 10, 8, 0.95));
+  border: 1px solid rgba(216, 162, 74, 0.24);
 }
 
 .dice-stage__sum strong {
   font-size: 20px;
+  color: #f3d489;
 }
 
-/* 21点 / 斗牛 行卡片紧凑 */
+/* 21点 / 斗牛 行卡片 */
 .bj-row,
 .niuniu-row {
   padding: 6px 10px;
 }
 
-/* 带走势面板的纵向牌桌（21点 / 斗牛）在横屏下改为两列：牌桌左、走势右 */
+.bj-row__tag,
+.niuniu-row__tag {
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.55);
+}
+
+.bj-row__points,
+.niuniu-row__points {
+  font-size: 13px;
+  color: #f3d489;
+}
+
+/* 带走势的纵向牌桌：横屏两列（牌桌左、走势右） */
 .dice-stage:has(> .history),
 .dice-stage:has(> aside) {
   display: grid;
@@ -622,7 +548,7 @@ body {
 .dice-stage:has(> aside) > aside {
   grid-column: 2;
   grid-row: 1 / -1;
-  max-height: calc(100dvh - 96px);
+  max-height: calc(100dvh - 100px);
   overflow-y: auto;
 }
 
@@ -632,7 +558,27 @@ body {
   min-width: 0;
 }
 
-/* ---------- 梭哈 / 翻金花：操作按钮横排 ---------- */
+/* 牌面按横屏高度收缩 */
+.bj-row .card,
+.niuniu-row .card {
+  width: 54px;
+  height: 76px;
+}
+
+.bj-row .card img,
+.niuniu-row .card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ================= 梭哈 / 翻金花 ================= */
+
+.showdown {
+  padding-top: 4px;
+  gap: 6px;
+}
+
 .showdown__actions {
   flex-direction: row;
   flex-wrap: wrap;
@@ -662,11 +608,6 @@ body {
   padding: 8px 10px;
 }
 
-.showdown {
-  padding-top: 4px;
-  gap: 6px;
-}
-
 .showdown__seat .card {
   width: 48px;
   height: 68px;
@@ -678,45 +619,54 @@ body {
   object-fit: contain;
 }
 
-.showdown__seat .hand,
-.showdown__seat .mini-cards {
-  gap: 2px;
+/* ================= 棋盘 ================= */
+
+.boardgame {
+  gap: 6px;
+  padding: 4px;
+  position: relative;
+  background: radial-gradient(52% 86% at 50% 50%, rgba(216, 162, 74, 0.06), transparent 72%);
 }
 
-/* 牌面按横屏高度收缩 */
-.bj-row .card,
-.niuniu-row .card {
-  width: 54px;
-  height: 76px;
+.boardgame__bar {
+  font-size: 11px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.bj-row .card img,
-.niuniu-row .card img {
+.boardgame__turn {
+  color: #f3d489;
+}
+
+.boardgame__check {
+  color: #e88b80;
+}
+
+.boardgame__board {
+  height: calc(100dvh - 96px);
+  max-height: 430px;
+  width: auto;
+  margin: 0 auto;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.boardgame__cell {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  min-width: 34px;
+  min-height: 34px;
 }
 
-.bj-row__tag,
-.niuniu-row__tag {
-  font-size: 10.5px;
+.boardgame__piece {
+  font-size: clamp(13px, 3.6dvh, 26px);
 }
 
-.bj-row__points,
-.niuniu-row__points {
-  font-size: 13px;
+.boardgame--xiangqi .boardgame__piece {
+  font-size: clamp(11px, 3.1dvh, 22px);
 }
 
-.dice-stage__cards {
-  gap: 6px;
-}
-
-/* ---------- 弹窗 ---------- */
-.modal {
-  max-width: min(480px, 94vw);
-}
-
-/* ---------- 中国象棋棋盘：木色网格，去掉马赛克色块 ---------- */
+/* 中国象棋：木面 + 网格线 */
 .boardgame--xiangqi .boardgame__cell.is-dark {
   background: transparent;
 }
@@ -731,27 +681,42 @@ body {
     0 18px 40px rgba(0, 0, 0, 0.5);
 }
 
-/* ---------- 卡片描述可读性 ---------- */
-.live-card__body small {
-  color: rgba(255, 255, 255, 0.82);
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* 可落子点与选中：绿点 / 金框 */
+.boardgame__cell.is-selected {
+  outline: 2px solid #f3d489;
+  outline-offset: -2px;
+  background: transparent;
 }
 
-/* ---------- 公告条防溢出 ---------- */
-.notice-bar {
-  overflow: hidden;
-  padding-right: 12px;
+.boardgame__cell.is-last {
+  background: rgba(243, 212, 137, 0.12);
 }
 
-.notice-bar > *:last-child {
-  flex-shrink: 0;
+/* ================= 弹窗 / 排行榜 ================= */
+
+.modal {
+  border-radius: 12px;
+  max-width: min(480px, 94vw);
+  background: #12160f;
+  border: 1px solid rgba(216, 162, 74, 0.3);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  overscroll-behavior: contain;
 }
 
-/* ---------- 横屏媒体查询兜底：超矮视口进一步压缩 ---------- */
+.modal__head h2 {
+  color: var(--text);
+  letter-spacing: 2px;
+}
+
+.rank-board__row.is-top1,
+.rank-board__row.is-top2,
+.rank-board__row.is-top3 {
+  background: rgba(216, 162, 74, 0.08);
+  border-color: rgba(216, 162, 74, 0.3);
+}
+
+/* ================= 横屏媒体查询兜底：超矮视口进一步压缩 ================= */
+
 @media (max-height: 460px) {
   .app-top {
     height: 42px;
@@ -783,4 +748,3 @@ body {
     grid-template-columns: minmax(0, 1fr) 128px;
   }
 }
-

@@ -145,7 +145,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
                   </div>
                 </div>
               )}
-              <div className="room-tile__cta">{room.joinable ? '进入牌桌 →' : '已满 / 已开局'}</div>
+              <div className="room-tile__cta">{room.joinable ? '进入牌桌' : '已满 / 已开局'}</div>
             </button>
             );
           })}

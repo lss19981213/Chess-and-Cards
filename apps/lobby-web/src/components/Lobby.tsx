@@ -137,7 +137,7 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
                     <span className="live-card__icon">{game.icon}</span>
                     <strong>{game.name}</strong>
                     <small>{game.description}</small>
-                    <span className="live-card__cta">{user ? '选台 →' : '登录玩 →'}</span>
+                    <span className="live-card__cta">{user ? '选台' : '登录开玩'}</span>
                   </span>
                 </button>
               ))}
