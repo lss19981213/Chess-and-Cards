@@ -5,9 +5,9 @@ packages:
   - 'services/games/*'
 
 allowBuilds:
-  cpu-features: set this to true or false
+  cpu-features: true
   esbuild: true
-  ssh2: set this to true or false
+  ssh2: true
 
 onlyBuiltDependencies:
   - esbuild
