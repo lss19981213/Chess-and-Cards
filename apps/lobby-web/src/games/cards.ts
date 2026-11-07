@@ -47,3 +47,18 @@ const COMBO_LABEL: Record<string, string> = {
 export function comboLabel(kind?: string | null): string {
   return kind ? (COMBO_LABEL[kind] ?? kind) : '';
 }
+
+/** 矢量牌面：按牌 id 取图（S14 → assets/cards/S14.svg） */
+export function cardArt(id: string): string {
+  return `${import.meta.env.BASE_URL}assets/cards/${id}.svg`;
+}
+
+export function cardBackArt(): string {
+  return `${import.meta.env.BASE_URL}assets/cards/back.svg`;
+}
+
+/** 筒子牌面：1-9 点 */
+export function dotArt(points: number): string {
+  const safe = Math.min(9, Math.max(1, points));
+  return `${import.meta.env.BASE_URL}assets/cards/dot${safe}.svg`;
+}

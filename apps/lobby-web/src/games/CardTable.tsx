@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { SeatPanel, TableStage } from '../components/TableStage';
-import { cardLabel, comboLabel, isRedCard, type CardView } from './cards';
+import { cardArt, cardBackArt, cardLabel, comboLabel, isRedCard, type CardView } from './cards';
 
 interface HandCount {
   playerId: string;
@@ -48,7 +48,9 @@ function CardBacks({ count }: { count: number }) {
           key={index}
           className="cardbacks__item"
           style={{ '--r': `${(index - mid) * 3}deg` } as CSSProperties}
-        />
+        >
+          <img src={cardBackArt()} alt="" draggable={false} />
+        </span>
       ))}
       {count > 0 && <em className="cardbacks__num">{count}</em>}
     </div>
@@ -111,7 +113,7 @@ export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: P
             <div className="center-play__cards">
               {data.lastCombo.cards.map((card) => (
                 <div key={card.id} className={`pcard pcard--sm ${isRedCard(card) ? 'is-red' : ''}`}>
-                  {cardLabel(card)}
+                  <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
                 </div>
               ))}
             </div>
@@ -135,8 +137,9 @@ export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: P
                 }`}
                 onClick={() => toggle(card.id)}
                 disabled={!isMyTurn}
+                title={cardLabel(card)}
               >
-                {cardLabel(card)}
+                <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
               </button>
             ))}
             {hand.length === 0 && <span className="hint">本局已结束</span>}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 134" width="96" height="134"><defs>
+    <linearGradient id="bone" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#fffdf6"/>
+      <stop offset="1" stop-color="#eee2c8"/>
+    </linearGradient>
+    <radialGradient id="dotG" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#4a5a78"/>
+      <stop offset="1" stop-color="#101828"/>
+    </radialGradient>
+  </defs>
+  <rect x="1.5" y="1.5" width="93" height="131" rx="7.5" fill="url(#bone)" stroke="#c9bda3" stroke-width="1.4"/>
+  <rect x="5" y="5" width="86" height="124" rx="5" fill="none" stroke="#b23a2f" stroke-opacity="0.35"/>
+  <circle cx="48" cy="67" r="8.5" fill="url(#dotG)"/><circle cx="48" cy="67" r="5.27" fill="none" stroke="#fff" stroke-opacity="0.28"/>
+  <text x="48" y="124" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="9" fill="#a8927a">1</text></svg>

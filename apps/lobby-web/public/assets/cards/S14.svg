@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 134" width="96" height="134"><defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e7ecf6"/>
+    </linearGradient>
+  </defs>
+  <rect x="1.5" y="1.5" width="93" height="131" rx="7.5" fill="url(#paper)" stroke="#c2c8d8" stroke-width="1.4"/>
+  <rect x="4.5" y="4.5" width="87" height="125" rx="5.5" fill="none" stroke="#151b2b" stroke-opacity="0.13"/>
+  <text x="10" y="27" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="20" fill="#151b2b">A</text>
+  <path d="M50 6C50 6 14 38 14 60c0 16 13 26 25 22 6-2 10-6 11-11 1 5 5 9 11 11 12 4 25-6 25-22C86 38 50 6 50 6Z M50 66c-3 10-7 20-9 30h18c-2-10-6-20-9-30Z" transform="translate(10,31) scale(0.105)" fill="#151b2b"/>
+  <path d="M50 6C50 6 14 38 14 60c0 16 13 26 25 22 6-2 10-6 11-11 1 5 5 9 11 11 12 4 25-6 25-22C86 38 50 6 50 6Z M50 66c-3 10-7 20-9 30h18c-2-10-6-20-9-30Z" transform="translate(25,44) scale(0.48)" fill="#151b2b" opacity="0.9"/>
+  <g transform="rotate(180 48 67)">
+    <text x="10" y="27" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="20" fill="#151b2b">A</text>
+    <path d="M50 6C50 6 14 38 14 60c0 16 13 26 25 22 6-2 10-6 11-11 1 5 5 9 11 11 12 4 25-6 25-22C86 38 50 6 50 6Z M50 66c-3 10-7 20-9 30h18c-2-10-6-20-9-30Z" transform="translate(10,31) scale(0.105)" fill="#151b2b"/>
+  </g></svg>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Chip, ChipStack } from '../components/Chip';
 import { SeatPanel, TableStage } from '../components/TableStage';
+import { cardBackArt, dotArt } from './cards';
 
 interface TuiCard {
   id: string;
@@ -46,8 +47,12 @@ function TuiCards({ cards, size = 'sm' }: { cards: TuiCard[]; size?: 'sm' | 'lg'
   if (cards.length === 0) {
     return (
       <div className="tui-cards">
-        <span className={`tui-card tui-card--back tui-card--${size}`}>?</span>
-        <span className={`tui-card tui-card--back tui-card--${size}`}>?</span>
+        <span className={`tui-card tui-card--${size}`}>
+          <img src={cardBackArt()} alt="" draggable={false} />
+        </span>
+        <span className={`tui-card tui-card--${size}`}>
+          <img src={cardBackArt()} alt="" draggable={false} />
+        </span>
       </div>
     );
   }
@@ -55,7 +60,7 @@ function TuiCards({ cards, size = 'sm' }: { cards: TuiCard[]; size?: 'sm' | 'lg'
     <div className="tui-cards">
       {cards.map((card) => (
         <span key={card.id} className={`tui-card tui-card--${size}`}>
-          {card.rank}
+          <img src={dotArt(card.rank)} alt={`${card.rank} 点`} draggable={false} />
         </span>
       ))}
     </div>

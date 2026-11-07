@@ -1,4 +1,4 @@
-import { cardLabel, isRedCard, type CardView } from './cards';
+import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 import { Chip, ChipStack } from '../components/Chip';
 import { SeatPanel, TableStage } from '../components/TableStage';
 
@@ -102,12 +102,12 @@ export function Texas({ snapshot, myId, status, onAction }: Props) {
             <div className="texas-center__board">
               {data.community.map((card) => (
                 <div key={card.id} className={`pcard pcard--lg ${isRedCard(card) ? 'is-red' : ''}`}>
-                  {cardLabel(card)}
+                  <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
                 </div>
               ))}
               {Array.from({ length: 5 - data.community.length }).map((_, index) => (
                 <div key={`empty-${index}`} className="pcard pcard--lg pcard--back">
-                  ?
+                  <img src={cardArt('back')} alt="" draggable={false} />
                 </div>
               ))}
             </div>
@@ -133,8 +133,9 @@ export function Texas({ snapshot, myId, status, onAction }: Props) {
                 key={card.id}
                 className={`pcard hand__card pcard--lg ${isRedCard(card) ? 'is-red' : ''}`}
                 style={{ ['--i' as string]: index }}
+                title={cardLabel(card)}
               >
-                {cardLabel(card)}
+                <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
               </div>
             ))}
           </div>
