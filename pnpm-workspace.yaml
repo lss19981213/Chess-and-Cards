@@ -1,0 +1,15 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'services/*'
+  - 'services/games/*'
+
+allowBuilds:
+  cpu-features: true
+  esbuild: true
+  ssh2: true
+
+onlyBuiltDependencies:
+  - esbuild
+  - ssh2
+  - cpu-features
