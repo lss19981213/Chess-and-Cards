@@ -3783,12 +3783,12 @@ button.secondary:hover:not(:disabled) {
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  width: 232px;
+  width: 206px;
   max-height: min(520px, calc(100vh - 150px));
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  gap: 9px;
+  padding: 12px;
   border-radius: 16px;
   background: rgba(8, 13, 22, 0.93);
   border: 1px solid rgba(255, 255, 255, 0.1);
