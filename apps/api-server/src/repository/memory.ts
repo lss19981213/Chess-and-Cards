@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { periodKeyFor } from '../tasks';
+import { InsufficientFundsError } from './types';
 import type {
+  BetAdjustment,
   AuthUser,
   DailyWinnerRow,
   GameRecordView,
@@ -26,6 +28,10 @@ export class MemoryRepository implements Repository {
   private readonly usernameIndex = new Map<string, string>();
   private readonly balances = new Map<string, number>();
   private readonly appliedKeys = new Set<string>();
+  /** 下注/撤注流水：key 为 `${bizType}:${bizId}:${userId}`，value 为 delta */
+  private readonly betLedger = new Map<string, number>();
+  /** 每局每个玩家已扣未退的净本金（负数），key 为 `${settlementId}:${userId}` */
+  private readonly staked = new Map<string, number>();
   private readonly records: GameRecordView[] = [];
   private readonly taskCells = new Map<string, TaskCell>();
   private readonly daily = new Map<string, { net: number; rounds: number }>();
@@ -70,6 +76,29 @@ export class MemoryRepository implements Repository {
     return this.balances.get(userId) ?? 0;
   }
 
+  async adjustBet(input: BetAdjustment): Promise<number> {
+    const bizType = input.action === 'debit' ? 'game_bet' : 'game_bet_refund';
+    const ledgerKey = `${bizType}:${input.bizId}:${input.userId}`;
+    const current = this.balances.get(input.userId) ?? 0;
+    if (this.betLedger.has(ledgerKey)) return current;
+
+    let amount = input.amount;
+    if (input.action === 'refund') {
+      const original = this.betLedger.get(`game_bet:${input.bizId}:${input.userId}`);
+      if (original === undefined) throw new Error('原下注凭证不存在');
+      amount = -original;
+    }
+    const delta = input.action === 'debit' ? -amount : amount;
+    if (current + delta < 0) throw new InsufficientFundsError();
+    const next = current + delta;
+    this.balances.set(input.userId, next);
+    this.betLedger.set(ledgerKey, delta);
+    const parts = input.bizId.split(':');
+    const stakeKey = `${parts.slice(0, 2).join(':')}:${input.userId}`;
+    this.staked.set(stakeKey, (this.staked.get(stakeKey) ?? 0) + delta);
+    return next;
+  }
+
   async applySettlement(settlement: Settlement): Promise<SettlementResult> {
     const keys = settlement.entries.map((e) => `game_settle:${settlement.settlementId}:${e.playerId}`);
     if (keys.some((key) => this.appliedKeys.has(key))) return 'duplicate';
@@ -78,7 +107,9 @@ export class MemoryRepository implements Repository {
     for (const entry of settlement.entries) {
       const current = this.balances.get(entry.playerId);
       if (current === undefined) continue;
-      this.balances.set(entry.playerId, current + entry.delta);
+      // 下注时已扣本金，结算时退回本金再按净盈亏入账
+      const staked = this.staked.get(`${settlement.settlementId}:${entry.playerId}`) ?? 0;
+      this.balances.set(entry.playerId, current + entry.delta - staked);
       this.bumpCell(entry.playerId, 'daily_play', dayKey, 1);
       if (entry.delta > 0) this.bumpCell(entry.playerId, 'daily_win', dayKey, 1);
 

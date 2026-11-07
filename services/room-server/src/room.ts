@@ -13,6 +13,7 @@ import {
 } from '@cc/protocol';
 import type { GameIntent, GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import type { RoomServerConfig } from './config';
+import type { WalletClient } from './wallet';
 import { createLogger } from './logger';
 
 const roomLog = createLogger('room');
@@ -47,6 +48,8 @@ export interface RoomDeps {
   config: RoomServerConfig;
   /** 上报结算到大厅（幂等落库 + 账本） */
   settle(settlement: Settlement): void;
+  /** 下注即时扣款 / 撤注退款，返回操作后余额 */
+  adjustWallet: WalletClient;
   /** 空房间回收 */
   empty(roomId: string): void;
 }
@@ -78,6 +81,8 @@ export class GameRoom {
   private status: RoomStatus = 'waiting';
   private round = 0;
   private seq = 0;
+  /** 本进程内递增，用于生成下注扣款的幂等凭证 */
+  private betSeq = 0;
   private seed = '';
   private dirty = true;
   private settledThisRound = false;
@@ -132,6 +137,17 @@ export class GameRoom {
         self.dirty = true;
       },
       settle: (input: SettlementInput) => self.handleSettle(input),
+      charge: async (playerId: string, amount: number) => {
+        const ref = `${self.id}:${self.round}:${playerId}:${++self.betSeq}`;
+        const balance = await self.deps.adjustWallet({ playerId, amount, action: 'debit', bizId: ref });
+        self.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
+        return ref;
+      },
+      refund: async (playerId: string, ref: string) => {
+        // 退款金额以大厅侧记录的原始扣款额为准
+        const balance = await self.deps.adjustWallet({ playerId, amount: 0, action: 'refund', bizId: ref });
+        self.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
+      },
       beginRound: () => self.beginRound(),
       log: (message: string, extra?: Record<string, unknown>) => {
         roomLog.debug(message, { roomId: self.id, ...extra });
@@ -495,13 +511,20 @@ export class GameRoom {
     this.tryStart();
   }
 
-  handleIntent(playerId: string, cmd: string, payload: Record<string, unknown>): void {
+  async handleIntent(playerId: string, cmd: string, payload: Record<string, unknown>): Promise<void> {
     if (!this.seats.has(playerId)) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
     if (this.status !== 'playing') throw new AppError(ErrorCode.IllegalAction, '当前不在对局中');
     if (!this.plugin.commands.includes(cmd)) {
       throw new AppError(ErrorCode.IllegalAction, `未知指令: ${cmd}`);
     }
-    this.plugin.onIntent(this.ctx, playerId, { cmd, payload });
+    try {
+      // 平台玩法下注需要 await 即时扣款，余额不足时会抛错并拒绝下注
+      await this.plugin.onIntent(this.ctx, playerId, { cmd, payload });
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      // 插件的普通 Error（封盘、注额限制、筹码不足等）原样回传给客户端
+      throw new AppError(ErrorCode.IllegalAction, (error as Error).message || '操作失败');
+    }
   }
 
   /** 客户端主动离开 */

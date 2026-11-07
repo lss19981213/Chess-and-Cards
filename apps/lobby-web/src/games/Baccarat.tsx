@@ -27,6 +27,7 @@ interface Props {
   snapshot: Record<string, unknown> | null;
   myId: string;
   status: string;
+  balance: number;
   onBet: (area: string, amount: number) => void;
   onClear: (area?: string) => void;
 }
@@ -68,7 +69,7 @@ function Hand({ side, revealed }: { side: SideView; revealed: boolean }) {
   );
 }
 
-export function Baccarat({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
+export function Baccarat({ snapshot, myId: _myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as BacSnapshot | undefined;
   const [amount, setAmount] = useState(100);
   const [now, setNow] = useState(Date.now());
@@ -91,6 +92,8 @@ export function Baccarat({ snapshot, myId: _myId, status, onBet, onClear }: Prop
   const phaseLabel = data?.phase === 'reveal' ? '开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
   const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
   const canBet = data.phase === 'bet' && status === 'playing';
+  // 余额在下注时已即时扣除，不允许超额下注
+  const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
   const betting = data.myBet.player + data.myBet.banker + data.myBet.tie;
 
@@ -136,7 +139,7 @@ export function Baccarat({ snapshot, myId: _myId, status, onBet, onClear }: Prop
                 key={zone.key}
                 type="button"
                 className={`bac-zone ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''}`}
-                disabled={!canBet}
+                disabled={!canPlace}
                 onClick={() => onBet(zone.key, amount)}
               >
                 <span className="bac-zone__label">{zone.label}</span>

@@ -6,6 +6,7 @@ import { createLogger } from './logger';
 import { getLastSettlementAt, markSettlement, recordEvent, recentEvents } from './events';
 import { MemoryRepository } from './repository/memory';
 import { PostgresRepository } from './repository/postgres';
+import { InsufficientFundsError } from './repository/types';
 import type { Repository } from './repository/types';
 import {
   AttemptLimiter,
@@ -570,6 +571,33 @@ const EVENT_PATHS = new Set([
 
     const newBalance = granted > 0 ? await repo.getBalance(claims.sub, 'coin') : balance;
     return { reply: text + note, granted, balance: newBalance };
+  });
+
+  /** 下注即时扣款 / 撤注退款。余额校验在数据库原子完成，拒绝超额下注。 */
+  app.post('/internal/wallet', async (req, reply) => {
+    if (req.headers['x-internal-key'] !== config.internalKey) {
+      return reply.status(403).send({ error: '内部接口鉴权失败' });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const playerId = typeof body.playerId === 'string' ? body.playerId : '';
+    const bizId = typeof body.bizId === 'string' ? body.bizId : '';
+    const amount = Number(body.amount);
+    const action = body.action === 'debit' || body.action === 'refund' ? body.action : '';
+    if (
+      !playerId || !bizId || !action || !Number.isInteger(amount) ||
+      (action === 'debit' && (amount <= 0 || amount > 1_000_000))
+    ) {
+      return reply.status(400).send({ error: '扣款参数不合法' });
+    }
+    try {
+      const balance = await repo.adjustBet({ userId: playerId, amount, action, bizId });
+      return { balance };
+    } catch (error) {
+      if (error instanceof InsufficientFundsError) {
+        return reply.status(409).send({ error: error.message });
+      }
+      throw error;
+    }
   });
 
   app.post('/internal/settle', async (req, reply) => {

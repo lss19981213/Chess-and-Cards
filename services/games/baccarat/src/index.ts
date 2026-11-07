@@ -1,6 +1,6 @@
 import type { GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
-import { BaseGamePlugin, createCardDeck, shuffleWithSeed, type Card } from '@cc/game-sdk';
+import { BaseGamePlugin, TicketBook, createCardDeck, shuffleWithSeed, type Card } from '@cc/game-sdk';
 
 /**
  * 百家乐（平台庄家版）
@@ -59,6 +59,8 @@ interface State {
   roundNo: number;
   streaks: Map<string, number>;
   botPlans: BotPlan[];
+  /** 真人下注的即时扣款凭证 */
+  tickets: TicketBook;
 }
 
 interface BotPlan {
@@ -95,6 +97,7 @@ function emptyState(): State {
     roundNo: 0,
     streaks: new Map(),
     botPlans: [],
+    tickets: new TicketBook(),
   };
 }
 
@@ -210,17 +213,23 @@ export class BaccaratPlugin extends BaseGamePlugin {
     this.state.botPlans = plans;
   }
 
-  override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
+  override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
     if (this.state.phase !== 'bet') throw new Error('本局已封盘，等下一局吧');
 
-    // 撤注：传 area 只清该区，不传则清空全部
+    // 撤注：先按凭证逐笔退款，全部成功后才改注单
     if (intent.cmd === 'clear') {
       const area = String(intent.payload?.area ?? '');
-      if (area) {
-        const bet = this.state.bets.get(playerId);
-        if (bet) bet[area as Area] = 0;
-      } else {
+      const dropped = this.state.tickets.peek(playerId, area || undefined);
+      for (const ticket of dropped) await ctx.refund(playerId, ticket.ref);
+      this.state.tickets.take(playerId, area || undefined);
+      if (!area) {
         this.state.bets.delete(playerId);
+      } else {
+        const bet = this.state.bets.get(playerId);
+        if (bet) {
+          for (const ticket of dropped) bet[ticket.area as Area] -= ticket.amount;
+          if (bet[area as Area] < 0) bet[area as Area] = 0;
+        }
       }
       ctx.markDirty();
       return;
@@ -234,12 +243,22 @@ export class BaccaratPlugin extends BaseGamePlugin {
     if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
     if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
 
-    const current = this.state.bets.get(playerId) ?? { player: 0, banker: 0, tie: 0 };
-    const total = current.player + current.banker + current.tie;
-    if (total + amount > MAX_TOTAL) throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+    const before = this.state.bets.get(playerId) ?? { player: 0, banker: 0, tie: 0 };
+    if (before.player + before.banker + before.tie + amount > MAX_TOTAL) {
+      throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+    }
 
+    const isBot = ctx.getPlayer(playerId)?.isBot === true;
+    const ref = isBot ? '' : await ctx.charge(playerId, amount);
+
+    const current = this.state.bets.get(playerId) ?? { player: 0, banker: 0, tie: 0 };
+    if (current.player + current.banker + current.tie + amount > MAX_TOTAL) {
+      if (ref) await ctx.refund(playerId, ref);
+      throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+    }
     current[area] += amount;
     this.state.bets.set(playerId, current);
+    if (ref) this.state.tickets.add(playerId, { ref, area, amount });
     ctx.markDirty();
   }
 
@@ -308,7 +327,9 @@ export class BaccaratPlugin extends BaseGamePlugin {
         } else delta -= bet.tie;
       }
 
-      if (delta === 0 && hits.length === 0) continue;
+      // 有即时扣款凭证的真人必须走完结算，即使净盈亏为 0，否则本金退不回来
+      const staked = this.state.tickets.peek(playerId).length > 0;
+      if (delta === 0 && hits.length === 0 && !staked) continue;
 
       const streak = delta > 0 ? (this.state.streaks.get(playerId) ?? 0) + 1 : 0;
       this.state.streaks.set(playerId, streak);
@@ -316,7 +337,7 @@ export class BaccaratPlugin extends BaseGamePlugin {
       const nickname = ctx.getPlayer(playerId)?.nickname ?? '玩家';
       results.push({ playerId, nickname, delta, detail: hits.join(' ') || '未命中' });
       // 机器人只参与展示，不写账本
-      if (delta !== 0 && ctx.getPlayer(playerId)?.isBot !== true) {
+      if (staked && ctx.getPlayer(playerId)?.isBot !== true) {
         entries.push({ playerId, currency: 'coin', delta, reason: 'game.baccarat' });
       }
     }

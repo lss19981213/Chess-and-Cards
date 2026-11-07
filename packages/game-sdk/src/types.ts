@@ -47,6 +47,13 @@ export interface RoomContext {
   markDirty(): void;
   /** 上报结算，容器负责幂等落库与账本记账。每局只允许调用一次。 */
   settle(input: SettlementInput): void;
+  /**
+   * 下注即时扣款，余额不足时抛错，返回可供撤注退款的幂等凭证。
+   * 本金已扣，结算时容器会自动返还本金，插件的结算 delta 仍按净盈亏计算。
+   */
+  charge(playerId: string, amount: number): Promise<string>;
+  /** 撤注退款，凭证必须是 charge 的返回值 */
+  refund(playerId: string, ref: string): Promise<void>;
   /** 开启新一局（常驻玩法由插件按时间轴调用） */
   beginRound(): void;
   log(message: string, extra?: Record<string, unknown>): void;
@@ -68,7 +75,8 @@ export interface GamePlugin {
   onPlayerJoin(ctx: RoomContext, player: PlayerContext): void;
   onPlayerLeave(ctx: RoomContext, playerId: string): void;
   onPlayerReady(ctx: RoomContext, playerId: string): void;
-  onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void;
+  /** 允许异步：需要即时扣款等副作用时可 await，容器会等待完成 */
+  onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void | Promise<void>;
   onTick?(ctx: RoomContext, dtMs: number): void;
   onDestroy?(ctx: RoomContext): void;
 

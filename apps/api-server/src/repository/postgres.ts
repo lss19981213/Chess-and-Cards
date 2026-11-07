@@ -3,8 +3,10 @@ import pg from 'pg';
 import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { SCHEMA_SQL } from '../schema';
 import { periodKeyFor } from '../tasks';
+import { InsufficientFundsError } from './types';
 import type {
   AuthUser,
+  BetAdjustment,
   GameRecordView,
   DailyWinnerRow,
   LeaderboardRow,
@@ -109,6 +111,69 @@ export class PostgresRepository implements Repository {
     return Number(res.rows[0]?.balance ?? 0);
   }
 
+  async adjustBet(input: BetAdjustment): Promise<number> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      let amount = input.amount;
+      if (input.action === 'refund') {
+        const origin = await client.query<{ delta: string }>(
+          `select delta from ledger
+            where user_id = $1 and biz_type = 'game_bet' and biz_id = $2`,
+          [input.userId, input.bizId],
+        );
+        if (origin.rowCount === 0) throw new Error('原下注凭证不存在');
+        // 以实际扣款额为准，不信任调用方传来的金额
+        amount = -Number(origin.rows[0]?.delta ?? 0);
+      }
+
+      const bizType = input.action === 'debit' ? 'game_bet' : 'game_bet_refund';
+      const delta = input.action === 'debit' ? -amount : amount;
+      const updated = await client.query<{ balance: string }>(
+        `update wallets
+            set balance = balance + $2, version = version + 1
+          where user_id = $1
+            and balance + $2 >= 0
+            and not exists (
+              select 1 from ledger where biz_type = $3 and biz_id = $4 and user_id = $1
+            )
+        returning balance`,
+        [input.userId, delta, bizType, input.bizId],
+      );
+
+      if (updated.rowCount === 0) {
+        const dup = await client.query(
+          'select 1 from ledger where biz_type = $1 and biz_id = $2 and user_id = $3',
+          [bizType, input.bizId, input.userId],
+        );
+        const current = await client.query<{ balance: string }>(
+          'select balance from wallets where user_id = $1',
+          [input.userId],
+        );
+        const balance = Number(current.rows[0]?.balance ?? 0);
+        await client.query('COMMIT');
+        if (dup.rowCount && dup.rowCount > 0) return balance;
+        throw new InsufficientFundsError();
+      }
+
+      const balance = Number(updated.rows[0]?.balance ?? 0);
+      await client.query(
+        `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+         values ($1, 'coin', $2, $3, $4, $5)
+         on conflict (biz_type, biz_id, user_id) do nothing`,
+        [input.userId, delta, balance, bizType, input.bizId],
+      );
+      await client.query('COMMIT');
+      return balance;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async applySettlement(settlement: Settlement): Promise<SettlementResult> {
     const client = await this.pool.connect();
     try {
@@ -117,6 +182,18 @@ export class PostgresRepository implements Repository {
       const dayKey = periodKeyFor('daily');
 
       for (const entry of settlement.entries) {
+        // 本局下注已即时扣过本金，结算时先退还本金，再按净盈亏入账。
+        // game_settle 仍记净额，战报/今日净收益的口径不变。
+        const stakedRes = await client.query<{ staked: string }>(
+          `select coalesce(sum(delta), 0) as staked from ledger
+            where user_id = $1
+              and biz_type in ('game_bet', 'game_bet_refund')
+              and biz_id like $2`,
+          [entry.playerId, `${settlement.settlementId}:${entry.playerId}:%`],
+        );
+        const staked = Number(stakedRes.rows[0]?.staked ?? 0);
+        const credit = entry.delta - staked;
+
         const updated = await client.query<{ balance: string }>(
           `update wallets
               set balance = balance + $2, version = version + 1
@@ -126,16 +203,25 @@ export class PostgresRepository implements Repository {
                  where biz_type = 'game_settle' and biz_id = $3 and user_id = $1
               )
           returning balance`,
-          [entry.playerId, entry.delta, settlement.settlementId],
+          [entry.playerId, credit, settlement.settlementId],
         );
         if (updated.rowCount === 0) continue;
+        const balanceAfter = Number(updated.rows[0]?.balance ?? 0);
 
         await client.query(
           `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
            values ($1, $2, $3, $4, 'game_settle', $5)
            on conflict (biz_type, biz_id, user_id) do nothing`,
-          [entry.playerId, entry.currency, entry.delta, Number(updated.rows[0]?.balance ?? 0), settlement.settlementId],
+          [entry.playerId, entry.currency, entry.delta, balanceAfter, settlement.settlementId],
         );
+        if (staked < 0) {
+          await client.query(
+            `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+             values ($1, 'coin', $2, $3, 'game_bet_return', $4)
+             on conflict (biz_type, biz_id, user_id) do nothing`,
+            [entry.playerId, -staked, balanceAfter, `${settlement.settlementId}:${entry.playerId}:return`],
+          );
+        }
 
         await this.bumpTaskTx(client, entry.playerId, 'daily_play', dayKey, 1);
         if (entry.delta > 0) {

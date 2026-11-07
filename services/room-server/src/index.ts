@@ -20,6 +20,7 @@ import { createLogger } from './logger';
 const log = createLogger('room-server');
 import { RoomManager } from './registry';
 import { createSettlementReporter } from './settlement';
+import { createWalletClient } from './wallet';
 import { registerBuiltinGames } from './plugins';
 
 const AUTH_TIMEOUT_MS = 15_000;
@@ -36,7 +37,7 @@ interface Session {
   authTimer: NodeJS.Timeout | null;
 }
 
-const manager = new RoomManager(config, createSettlementReporter(config));
+const manager = new RoomManager(config, createSettlementReporter(config), createWalletClient(config));
 registerBuiltinGames(manager);
 
 function send(ws: WebSocket, t: string, d: unknown): void {
@@ -220,7 +221,7 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       const room = requireRoom(session);
       const cmd = asString(payload.cmd, 'cmd');
       const data = isPlainObject(payload.payload) ? payload.payload : {};
-      room.handleIntent(session.playerId, cmd, data);
+      await room.handleIntent(session.playerId, cmd, data);
       return;
     }
 

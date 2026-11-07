@@ -101,6 +101,14 @@ export default function App() {
       setSnapshot(data as SnapshotEnvelope);
     });
 
+    // 下注/撤注后服务端即时推送最新余额，不必等到局末结算
+    socket.on(ServerMsg.Wallet, (data) => {
+      const payload = data as { balance?: number };
+      if (Number.isFinite(payload.balance)) {
+        setUser((prev) => (prev ? { ...prev, balance: payload.balance as number } : prev));
+      }
+    });
+
     socket.on(ServerMsg.Settlement, (data) => {
       const payload = data as { settlement: Settlement };
       setSettlement(payload.settlement);

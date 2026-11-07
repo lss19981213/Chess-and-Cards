@@ -2,6 +2,7 @@ import type { GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import {
   BaseGamePlugin,
+  TicketBook,
   createCardDeck,
   shuffleWithSeed,
   type Card,
@@ -76,6 +77,8 @@ interface State {
   streaks: Map<string, number>;
   /** 机器人按时间陆续下注的计划 */
   botPlans: BotPlan[];
+  /** 真人下注的即时扣款凭证 */
+  tickets: TicketBook;
 }
 
 interface BotPlan {
@@ -102,6 +105,7 @@ function emptyState(): State {
     roundNo: 0,
     streaks: new Map(),
     botPlans: [],
+    tickets: new TicketBook(),
   };
 }
 
@@ -146,7 +150,8 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     this.state.banker = takeHand();
     this.state.bets = new Map();
     this.state.results = [];
-    // streaks 跨局保留
+    this.state.tickets = new TicketBook();
+    // streaks 与 history 跨局保留
     this.state.phase = 'bet';
     this.state.phaseEndsAt = Date.now() + BET_MS;
     this.state.roundNo = ctx.config.round;
@@ -178,17 +183,24 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     this.state.botPlans = plans;
   }
 
-  override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
+  override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
     if (this.state.phase !== 'bet') throw new Error('本局已停止下注，等下一局吧');
 
-    // 撤注：传 area 只清该门，不传则清空全部
+    // 撤注：先按凭证逐笔退款，全部成功后才改注单
     if (intent.cmd === 'clear') {
-      const area = String(intent.payload?.area ?? '') as DoorKey;
-      if (area && DOORS.includes(area)) {
-        const bet = this.state.bets.get(playerId);
-        if (bet) bet[area] = 0;
-      } else {
+      const raw = String(intent.payload?.area ?? '');
+      const area = DOORS.includes(raw as DoorKey) ? raw : '';
+      const dropped = this.state.tickets.peek(playerId, area || undefined);
+      for (const ticket of dropped) await ctx.refund(playerId, ticket.ref);
+      this.state.tickets.take(playerId, area || undefined);
+      if (!area) {
         this.state.bets.delete(playerId);
+      } else {
+        const bet = this.state.bets.get(playerId);
+        if (bet) {
+          for (const ticket of dropped) bet[ticket.area as DoorKey] -= ticket.amount;
+          if (bet[area as DoorKey] < 0) bet[area as DoorKey] = 0;
+        }
       }
       ctx.markDirty();
       return;
@@ -202,12 +214,22 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
     if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
 
-    const current = this.state.bets.get(playerId) ?? { heaven: 0, earth: 0, human: 0 };
-    const total = current.heaven + current.earth + current.human;
-    if (total + amount > MAX_TOTAL) throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+    const before = this.state.bets.get(playerId) ?? { heaven: 0, earth: 0, human: 0 };
+    if (before.heaven + before.earth + before.human + amount > MAX_TOTAL) {
+      throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+    }
 
+    const isBot = ctx.getPlayer(playerId)?.isBot === true;
+    const ref = isBot ? '' : await ctx.charge(playerId, amount);
+
+    const current = this.state.bets.get(playerId) ?? { heaven: 0, earth: 0, human: 0 };
+    if (current.heaven + current.earth + current.human + amount > MAX_TOTAL) {
+      if (ref) await ctx.refund(playerId, ref);
+      throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+    }
     current[area as DoorKey] += amount;
     this.state.bets.set(playerId, current);
+    if (ref) this.state.tickets.add(playerId, { ref, area, amount });
     ctx.markDirty();
   }
 
@@ -266,7 +288,9 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
         }
         // 点数相同视为和局，该门不输不赢
       }
-      if (delta === 0 && hits.length === 0) continue;
+      // 和局时净盈亏为 0，但有即时扣款凭证的真人必须入账，否则本金退不回来
+      const staked = this.state.tickets.peek(playerId).length > 0;
+      if (delta === 0 && hits.length === 0 && !staked) continue;
 
       const streak = delta > 0 ? (this.state.streaks.get(playerId) ?? 0) + 1 : 0;
       this.state.streaks.set(playerId, streak);
@@ -274,7 +298,7 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
       const nickname = ctx.getPlayer(playerId)?.nickname ?? '玩家';
       results.push({ playerId, nickname, delta, detail: hits.join(' ') || '未命中' });
       // 机器人只参与展示，不写账本
-      if (delta !== 0 && ctx.getPlayer(playerId)?.isBot !== true) {
+      if (staked && ctx.getPlayer(playerId)?.isBot !== true) {
         entries.push({
           playerId,
           currency: 'coin',

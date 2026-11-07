@@ -140,6 +140,7 @@ export function Room({
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
+            balance={balance}
             onBet={(area, amount) => dispatch('bet', { area, amount })}
             onClear={(area) => dispatch('clear', area ? { area } : {})}
           />
@@ -150,6 +151,7 @@ export function Room({
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
+            balance={balance}
             onBet={(area, amount) => dispatch('bet', { area, amount })}
             onClear={(area) => dispatch('clear', area ? { area } : {})}
           />
@@ -160,6 +162,7 @@ export function Room({
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
+            balance={balance}
             onBet={(area, amount) => dispatch('bet', { area, amount })}
             onClear={(area) => dispatch('clear', area ? { area } : {})}
           />

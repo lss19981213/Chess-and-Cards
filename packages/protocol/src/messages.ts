@@ -24,6 +24,8 @@ export const ServerMsg = {
   RoomView: 'server:room_view',
   Snapshot: 'server:snapshot',
   Settlement: 'server:settlement',
+  /** 下注/撤注后即时下发的最新余额 */
+  Wallet: 'server:wallet',
   Error: 'server:error',
   Pong: 'server:pong',
   /** 广播的快捷喊话 */
@@ -125,6 +127,10 @@ export interface SnapshotPayload {
 
 export interface SettlementPayload {
   settlement: import('./types').Settlement;
+}
+
+export interface WalletPayload {
+  balance: number;
 }
 
 export interface ErrorPayload {

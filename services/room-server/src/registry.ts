@@ -5,6 +5,7 @@ import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
 import { GameRoom, PLATFORM_CAPACITY, type RoomDeps } from './room';
 import type { RoomServerConfig } from './config';
+import type { WalletClient } from './wallet';
 import { createLogger } from './logger';
 
 /** 平台房初始数量与弹性上限 */
@@ -27,10 +28,15 @@ export class RoomManager {
   private readonly rooms = new Map<string, GameRoom>();
   private readonly deps: RoomDeps;
 
-  constructor(config: RoomServerConfig, reportSettlement: (settlement: Settlement) => void) {
+  constructor(
+    config: RoomServerConfig,
+    reportSettlement: (settlement: Settlement) => void,
+    adjustWallet: WalletClient,
+  ) {
     this.deps = {
       config,
       settle: (settlement) => reportSettlement(settlement),
+      adjustWallet,
       empty: (roomId) => {
         this.rooms.delete(roomId);
       },

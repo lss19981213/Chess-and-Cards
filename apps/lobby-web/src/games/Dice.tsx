@@ -23,6 +23,7 @@ interface Props {
   snapshot: Record<string, unknown> | null;
   myId: string;
   status: string;
+  balance: number;
   onBet: (area: string, amount: number) => void;
   onClear: (area?: string) => void;
 }
@@ -83,7 +84,7 @@ function Die({ value, rolling }: { value: number; rolling: boolean }) {
   );
 }
 
-export function Dice({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
+export function Dice({ snapshot, myId: _myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as DiceSnapshot | undefined;
   const [amount, setAmount] = useState(100);
   const [now, setNow] = useState(Date.now());
@@ -107,6 +108,8 @@ export function Dice({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
   const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = data.phase === 'bet' && status === 'playing';
+  // 余额在下注时已即时扣除，不允许超额下注
+  const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
   const betting = Object.values(data.myBet).reduce((sum, value) => sum + (value ?? 0), 0);
 
@@ -159,7 +162,7 @@ export function Dice({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
                 key={zone.key}
                 type="button"
                 className={`dice-zone ${bet > 0 ? 'is-bet' : ''} ${zone.key === 'triple' ? 'is-triple' : ''}`}
-                disabled={!canBet}
+                disabled={!canPlace}
                 onClick={() => onBet(zone.key, amount)}
               >
                 <span className="dice-zone__label">{zone.label}</span>
@@ -208,7 +211,7 @@ export function Dice({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
                 key={key}
                 type="button"
                 className={`dice-sum ${bet > 0 ? 'is-bet' : ''}`}
-                disabled={!canBet}
+                disabled={!canPlace}
                 onClick={() => onBet(`sum-${key}`, amount)}
                 title={`押和值 ${key}，赔率 1:${data.odds.sums[key]}`}
               >

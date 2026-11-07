@@ -12,7 +12,7 @@ export abstract class BaseGamePlugin implements GamePlugin {
   onPlayerJoin(_ctx: RoomContext, _player: PlayerContext): void {}
   onPlayerLeave(_ctx: RoomContext, _playerId: string): void {}
   onPlayerReady(_ctx: RoomContext, _playerId: string): void {}
-  onIntent(_ctx: RoomContext, _playerId: string, _intent: GameIntent): void {}
+  onIntent(_ctx: RoomContext, _playerId: string, _intent: GameIntent): void | Promise<void> {}
   onTick(_ctx: RoomContext, _dtMs: number): void {}
   onDestroy(_ctx: RoomContext): void {}
 

@@ -34,6 +34,7 @@ interface Props {
   snapshot: Record<string, unknown> | null;
   myId: string;
   status: string;
+  balance: number;
   onBet: (area: string, amount: number) => void;
   onClear: (area?: string) => void;
 }
@@ -55,7 +56,7 @@ function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: numbe
   );
 }
 
-export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
+export function Tuizhuanzi({ snapshot, myId: _myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as TuiSnapshot | undefined;
   const [amount, setAmount] = useState(100);
   const [now, setNow] = useState(Date.now());
@@ -77,6 +78,8 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet, onClear }: Pr
   const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = Boolean(data) && data!.phase === 'bet' && status === 'playing';
+  // 余额在下注时已即时扣除，不允许超额下注
+  const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = Boolean(data) && data!.phase !== 'bet';
 
   const history = data?.history ?? [];
@@ -118,7 +121,7 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet, onClear }: Pr
                 key={key}
                 type="button"
                 className={`door ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''}`}
-                disabled={!canBet}
+                disabled={!canPlace}
                 onClick={() => onBet(key, amount)}
               >
                 <span className="door__label">{door.label}</span>

@@ -1,6 +1,6 @@
 import type { GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
-import { BaseGamePlugin } from '@cc/game-sdk';
+import { BaseGamePlugin, TicketBook } from '@cc/game-sdk';
 
 /**
  * 三颗骰子猜大小（平台庄家版）
@@ -71,6 +71,8 @@ interface State {
   /** 连续命中次数 */
   streaks: Map<string, number>;
   botPlans: BotPlan[];
+  /** 真人下注的即时扣款凭证 */
+  tickets: TicketBook;
 }
 
 interface BotPlan {
@@ -92,6 +94,7 @@ function emptyState(): State {
     roundNo: 0,
     streaks: new Map(),
     botPlans: [],
+    tickets: new TicketBook(),
   };
 }
 
@@ -190,17 +193,26 @@ export class DicePlugin extends BaseGamePlugin {
     this.state.botPlans = plans;
   }
 
-  override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
+  override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
     if (this.state.phase !== 'bet') throw new Error('本局已封盘，等下一局吧');
 
-    // 撤注：传 area 只清该区，不传则清空全部
+    // 撤注：先按凭证逐笔退款，全部成功后才改注单，避免钱退了注还在或反之
     if (intent.cmd === 'clear') {
       const area = String(intent.payload?.area ?? '');
-      if (area) {
-        const bet = this.state.bets.get(playerId);
-        if (bet) delete bet[area as Area];
-      } else {
+      const dropped = this.state.tickets.peek(playerId, area || undefined);
+      for (const ticket of dropped) await ctx.refund(playerId, ticket.ref);
+      this.state.tickets.take(playerId, area || undefined);
+      if (!area) {
         this.state.bets.delete(playerId);
+      } else {
+        const bet = this.state.bets.get(playerId);
+        if (bet) {
+          for (const ticket of dropped) {
+            const left = (bet[ticket.area as Area] ?? 0) - ticket.amount;
+            if (left > 0) bet[ticket.area as Area] = left;
+            else delete bet[ticket.area as Area];
+          }
+        }
       }
       ctx.markDirty();
       return;
@@ -214,13 +226,27 @@ export class DicePlugin extends BaseGamePlugin {
     if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
     if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
 
-    const current = this.state.bets.get(playerId) ?? {};
+    const before = this.state.bets.get(playerId) ?? {};
     let total = 0;
-    for (const value of Object.values(current)) total += value ?? 0;
+    for (const value of Object.values(before)) total += value ?? 0;
     if (total + amount > MAX_TOTAL) throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+
+    // 真人下注即时从钱包扣款，余额不足会抛错，注单不会落地；机器人不参与账本
+    const isBot = ctx.getPlayer(playerId)?.isBot === true;
+    const ref = isBot ? '' : await ctx.charge(playerId, amount);
+
+    // await 后重新取注单并复核总注，避免并发下注互相覆盖或突破上限
+    const current = this.state.bets.get(playerId) ?? {};
+    let currentTotal = 0;
+    for (const value of Object.values(current)) currentTotal += value ?? 0;
+    if (currentTotal + amount > MAX_TOTAL) {
+      if (ref) await ctx.refund(playerId, ref);
+      throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+    }
 
     current[area] = (current[area] ?? 0) + amount;
     this.state.bets.set(playerId, current);
+    if (ref) this.state.tickets.add(playerId, { ref, area, amount });
     ctx.markDirty();
   }
 
@@ -277,7 +303,9 @@ export class DicePlugin extends BaseGamePlugin {
           delta -= amount;
         }
       }
-      if (delta === 0 && hits.length === 0) continue;
+      // 有即时扣款凭证的真人必须走完结算，即使净盈亏为 0，否则本金退不回来
+      const staked = this.state.tickets.peek(playerId).length > 0;
+      if (delta === 0 && hits.length === 0 && !staked) continue;
 
       const streak = delta > 0 ? (this.state.streaks.get(playerId) ?? 0) + 1 : 0;
       this.state.streaks.set(playerId, streak);
@@ -285,7 +313,7 @@ export class DicePlugin extends BaseGamePlugin {
       const nickname = ctx.getPlayer(playerId)?.nickname ?? '玩家';
       results.push({ playerId, nickname, delta, detail: hits.join(' ') || '未命中' });
       // 机器人只参与展示，不写账本
-      if (delta !== 0 && ctx.getPlayer(playerId)?.isBot !== true) {
+      if (staked && ctx.getPlayer(playerId)?.isBot !== true) {
         entries.push({ playerId, currency: 'coin', delta, reason: 'game.dice' });
       }
     }
