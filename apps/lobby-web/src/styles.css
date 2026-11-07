@@ -5920,3 +5920,11 @@ button.secondary:hover:not(:disabled) {
     top: 54%;
   }
 }
+@media (max-height: 560px) {
+  .stage--gomoku .stage__center {
+    top: 60%;
+  }
+  .stage--gomoku .stage__seat {
+    transform: scale(0.68);
+  }
+}
