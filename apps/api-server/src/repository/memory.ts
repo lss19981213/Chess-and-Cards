@@ -109,7 +109,7 @@ export class MemoryRepository implements Repository {
       if (current === undefined) continue;
       // 下注时已扣本金，结算时退回本金再按净盈亏入账
       const staked = this.staked.get(`${settlement.settlementId}:${entry.playerId}`) ?? 0;
-      this.balances.set(entry.playerId, current + entry.delta - staked);
+      this.balances.set(entry.playerId, Math.max(0, current + entry.delta - staked));
       this.bumpCell(entry.playerId, 'daily_play', dayKey, 1);
       if (entry.delta > 0) this.bumpCell(entry.playerId, 'daily_win', dayKey, 1);
 
@@ -146,7 +146,7 @@ export class MemoryRepository implements Repository {
     const current = this.balances.get(userId) ?? 0;
     if (this.appliedKeys.has(key)) return current;
     this.appliedKeys.add(key);
-    const next = current + amount;
+    const next = Math.max(0, current + amount);
     this.balances.set(userId, next);
     return next;
   }

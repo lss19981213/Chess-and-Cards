@@ -43,10 +43,11 @@ interface Props {
   snapshot: Record<string, unknown> | null;
   myId: string;
   status: string;
+  balance: number;
   onAction: (cmd: string, amount?: number) => void;
 }
 
-export function Texas({ snapshot, myId, status, onAction }: Props) {
+export function Texas({ snapshot, myId, status, balance, onAction }: Props) {
   const data = snapshot as unknown as TexasSnapshot | undefined;
   const [raiseAdd, setRaiseAdd] = useState(100);
 
@@ -161,7 +162,7 @@ export function Texas({ snapshot, myId, status, onAction }: Props) {
             <button
               type="button"
               className="primary"
-              disabled={!isMyTurn || canCheck}
+              disabled={!isMyTurn || canCheck || data.toCall > balance}
               onClick={() => onAction('call')}
             >
               跟注 {data.toCall}
@@ -181,7 +182,7 @@ export function Texas({ snapshot, myId, status, onAction }: Props) {
               <button
                 type="button"
                 className="primary"
-                disabled={!isMyTurn || raiseAdd < data.raiseUnit}
+                disabled={!isMyTurn || raiseAdd < data.raiseUnit || data.toCall + raiseAdd > balance}
                 onClick={() => onAction('raise', raiseAdd)}
               >
                 加注 +{raiseAdd}

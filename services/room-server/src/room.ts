@@ -83,6 +83,8 @@ export class GameRoom {
   private seq = 0;
   /** 本进程内递增，用于生成下注扣款的幂等凭证 */
   private betSeq = 0;
+  /** 同一玩家的意图队列，保证 await 扣款期间不会被并发指令穿插 */
+  private readonly intentQueues = new Map<string, Promise<void>>();
   private seed = '';
   private dirty = true;
   private settledThisRound = false;
@@ -517,13 +519,23 @@ export class GameRoom {
     if (!this.plugin.commands.includes(cmd)) {
       throw new AppError(ErrorCode.IllegalAction, `未知指令: ${cmd}`);
     }
+    // 同一玩家的指令串行执行，避免 await 扣款期间并发下注重复扣款或覆盖注单
+    const prev = this.intentQueues.get(playerId) ?? Promise.resolve();
+    const run = prev.catch(() => undefined).then(async () => {
+      try {
+        // 平台玩法/德州下注需要 await 即时扣款，余额不足时会抛错并拒绝下注
+        await this.plugin.onIntent(this.ctx, playerId, { cmd, payload });
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        // 插件的普通 Error（封盘、注额限制、筹码不足等）原样回传给客户端
+        throw new AppError(ErrorCode.IllegalAction, (error as Error).message || '操作失败');
+      }
+    });
+    this.intentQueues.set(playerId, run);
     try {
-      // 平台玩法下注需要 await 即时扣款，余额不足时会抛错并拒绝下注
-      await this.plugin.onIntent(this.ctx, playerId, { cmd, payload });
-    } catch (error) {
-      if (error instanceof AppError) throw error;
-      // 插件的普通 Error（封盘、注额限制、筹码不足等）原样回传给客户端
-      throw new AppError(ErrorCode.IllegalAction, (error as Error).message || '操作失败');
+      await run;
+    } finally {
+      if (this.intentQueues.get(playerId) === run) this.intentQueues.delete(playerId);
     }
   }
 

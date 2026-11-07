@@ -5934,3 +5934,52 @@ button.secondary:hover:not(:disabled) {
     top: 0 !important;
   }
 }
+
+/* 牌桌内规则帮助 */
+.rules-trigger {
+  white-space: nowrap;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.rules-modal__body {
+  padding: 4px 2px 8px;
+}
+
+.rules-modal__intro {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  line-height: 1.7;
+  font-size: 13px;
+  color: #e8ddc4;
+}
+
+.rules-section {
+  margin-bottom: 18px;
+}
+
+.rules-section h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #e5b567;
+}
+
+.rules-section ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.rules-section li {
+  margin-bottom: 6px;
+  line-height: 1.65;
+  font-size: 13px;
+  color: #cbbfa8;
+}
+
+@media (max-width: 720px) {
+  .rules-trigger {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+}

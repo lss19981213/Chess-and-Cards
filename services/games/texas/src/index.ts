@@ -46,6 +46,8 @@ interface State {
   dealerIndex: number;
   settled: boolean;
   results: ResultRow[];
+  /** 本局已即时扣款的真人玩家，结算时必须入账以便返还本金 */
+  charged: Set<string>;
 }
 
 function emptyState(): State {
@@ -64,6 +66,7 @@ function emptyState(): State {
     dealerIndex: 0,
     settled: false,
     results: [],
+    charged: new Set(),
   };
 }
 
@@ -135,12 +138,21 @@ export class TexasPlugin extends BaseGamePlugin {
     ctx.markDirty();
   }
 
-  override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
+  override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
     if (this.state.settled) throw illegalAction('本局已结束');
     if (this.state.folded.has(playerId)) throw illegalAction('你已弃牌');
     if (this.state.turn !== playerId) throw illegalAction('还没轮到你行动');
 
     const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
+    const isBot = ctx.getPlayer(playerId)?.isBot === true;
+
+    // 真人跟注/加注即时从钱包扣款，余额不足会抛错且注单不落地。
+    // 开局的盲注由系统自动投入，不在此扣款，局末结算会按净盈亏一并结清。
+    const pay = async (amount: number): Promise<void> => {
+      if (isBot || amount <= 0) return;
+      await ctx.charge(playerId, amount);
+      this.state.charged.add(playerId);
+    };
 
     switch (intent.cmd) {
       case 'fold':
@@ -155,6 +167,7 @@ export class TexasPlugin extends BaseGamePlugin {
 
       case 'call': {
         if (toCall <= 0) throw illegalAction('当前无需跟注');
+        await pay(toCall);
         this.commit(playerId, toCall);
         this.state.acted.add(playerId);
         break;
@@ -179,6 +192,7 @@ export class TexasPlugin extends BaseGamePlugin {
         const delta = target - (this.state.roundBet.get(playerId) ?? 0);
         if (delta <= 0) throw badRequest('加注金额不合法');
 
+        await pay(delta);
         this.commit(playerId, delta);
         this.state.currentBet = target;
         this.state.raises.set(playerId, used + 1);
@@ -399,8 +413,13 @@ export class TexasPlugin extends BaseGamePlugin {
     this.state.results = results;
     this.state.turn = null;
 
+    // 已即时扣款的真人必须入账（哪怕净盈亏为 0），否则本金退不回来；机器人不写账本
     const entries: SettlementEntry[] = results
-      .filter((r) => r.delta !== 0)
+      .filter(
+        (r) =>
+          (r.delta !== 0 || this.state.charged.has(r.playerId)) &&
+          ctx.getPlayer(r.playerId)?.isBot !== true,
+      )
       .map((r) => ({
         playerId: r.playerId,
         currency: 'coin' as const,

@@ -196,7 +196,7 @@ export class PostgresRepository implements Repository {
 
         const updated = await client.query<{ balance: string }>(
           `update wallets
-              set balance = balance + $2, version = version + 1
+              set balance = greatest(balance + $2, 0), version = version + 1
             where user_id = $1
               and not exists (
                 select 1 from ledger
@@ -295,7 +295,7 @@ export class PostgresRepository implements Repository {
       await client.query('BEGIN');
       const updated = await client.query<{ balance: string }>(
         `update wallets
-            set balance = balance + $2, version = version + 1
+            set balance = greatest(balance + $2, 0), version = version + 1
           where user_id = $1
             and not exists (
               select 1 from ledger where biz_type = $3 and biz_id = $4 and user_id = $1

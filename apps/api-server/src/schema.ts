@@ -70,4 +70,10 @@ create table if not exists announcements (
 );
 
 create index if not exists announcements_created_idx on announcements (created_at desc);
+
+-- 筹码永远不允许为负：先修正历史脏数据，再加数据库兜底约束。
+-- 老库的表已存在，CREATE TABLE IF NOT EXISTS 不会补约束，所以这里显式 ALTER。
+update wallets set balance = 0 where balance < 0;
+alter table wallets drop constraint if exists wallets_balance_nonneg;
+alter table wallets add constraint wallets_balance_nonneg check (balance >= 0);
 `;

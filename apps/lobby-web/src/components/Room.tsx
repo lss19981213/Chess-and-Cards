@@ -5,6 +5,7 @@ import { audio } from '../audio';
 import { GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
+import { RulesModal } from './RulesModal';
 import { SettlePanel, type ResultRow } from './SettlePanel';
 import { Baccarat } from '../games/Baccarat';
 import { CardTable } from '../games/CardTable';
@@ -65,6 +66,7 @@ export function Room({
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
 
   const [dismissedKey, setDismissedKey] = useState('');
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // 结果有两个来源：对战类用结算单，常驻类直接用快照里的本局明细
   const liveResults = (
@@ -173,6 +175,7 @@ export function Room({
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
+            balance={balance}
             onAction={(cmd, amount) => dispatch(cmd, amount === undefined ? {} : { amount })}
           />
         );
@@ -195,6 +198,9 @@ export function Room({
           <span className="room__roomno">
             房间 {room.roomId.slice(0, 8)} · 第 {room.round} 局
           </span>
+          <button type="button" className="ghost rules-trigger" onClick={() => setRulesOpen(true)}>
+            ? 规则
+          </button>
           <span className="wallet wallet--sm">
             <Chip size={17} />
             <strong>{balance.toLocaleString()}</strong>
@@ -202,6 +208,7 @@ export function Room({
         </div>
       </header>
 
+      {rulesOpen && <RulesModal gameId={room.gameId} onClose={() => setRulesOpen(false)} />}
       {settlement && myDelta > 0 && <CoinBurst key={`${room.roomId}-${room.round}`} />}
 
       {showPanel && (
