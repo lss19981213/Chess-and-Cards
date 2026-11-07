@@ -4,6 +4,7 @@
  */
 
 export const ClientMsg = {
+  Hello: 'client:hello',
   JoinRoom: 'client:join_room',
   LeaveRoom: 'client:leave_room',
   Ready: 'client:ready',
@@ -43,6 +44,11 @@ export interface Envelope<T = unknown> {
   d: T;
   seq?: number;
   ts: number;
+}
+
+export interface ClientHelloPayload {
+  /** 由大厅 API 签发的访问令牌 */
+  token: string;
 }
 
 export interface JoinRoomPayload {

@@ -1,0 +1,424 @@
+import { randomBytes } from 'node:crypto';
+import type { WebSocket } from 'ws';
+import {
+  AppError,
+  ErrorCode,
+  ServerMsg,
+  type PlayerView,
+  type RoomStatus,
+  type RoomView,
+  type Settlement,
+} from '@cc/protocol';
+import type { GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
+import type { RoomServerConfig } from './config';
+
+const TICK_MS = 200;
+const SETTLE_RESET_MS = 5_000;
+
+interface Seat {
+  playerId: string;
+  nickname: string;
+  seat: number;
+  ready: boolean;
+  score: number;
+  socket: WebSocket | null;
+  graceTimer: NodeJS.Timeout | null;
+}
+
+export interface RoomDeps {
+  config: RoomServerConfig;
+  /** 上报结算到大厅（幂等落库 + 账本） */
+  settle(settlement: Settlement): void;
+  /** 空房间回收 */
+  empty(roomId: string): void;
+}
+
+function sendEnvelope(socket: WebSocket | null, t: string, d: unknown): void {
+  if (!socket || socket.readyState !== 1) return;
+  try {
+    socket.send(JSON.stringify({ t, d, ts: Date.now() }));
+  } catch {
+    /* 忽略发送失败，由心跳负责清理 */
+  }
+}
+
+/**
+ * 通用房间容器：承载任意 GamePlugin。
+ * 负责座位、准备、开局、断线重连、快照下发与结算上报，
+ * 不包含任何具体游戏规则。
+ */
+export class GameRoom {
+  readonly id: string;
+  private readonly plugin: GamePlugin;
+  private readonly mode: string;
+  private readonly maxPlayers: number;
+  private readonly deps: RoomDeps;
+  private readonly seats = new Map<string, Seat>();
+  private readonly ctx: RoomContext;
+
+  private hostId: string | null = null;
+  private status: RoomStatus = 'waiting';
+  private round = 0;
+  private seq = 0;
+  private seed = '';
+  private dirty = true;
+  private settledThisRound = false;
+  private tickTimer: NodeJS.Timeout | null = null;
+  private closed = false;
+
+  constructor(id: string, plugin: GamePlugin, mode: string, maxPlayers: number, deps: RoomDeps) {
+    this.id = id;
+    this.plugin = plugin;
+    this.mode = mode;
+    this.maxPlayers = Math.max(plugin.meta.minPlayers, Math.min(maxPlayers, plugin.meta.maxPlayers));
+    this.deps = deps;
+
+    const self = this;
+    this.ctx = {
+      get config() {
+        return {
+          roomId: self.id,
+          gameId: self.plugin.meta.gameId,
+          mode: self.mode,
+          maxPlayers: self.maxPlayers,
+          round: self.round,
+          seed: self.seed,
+        };
+      },
+      get players(): readonly PlayerContext[] {
+        return self.playerContexts();
+      },
+      getPlayer: (playerId: string) => self.playerContexts().find((p) => p.playerId === playerId),
+      broadcast: (t: string, d: unknown) => {
+        for (const seat of self.seats.values()) sendEnvelope(seat.socket, t, d);
+      },
+      sendTo: (playerId: string, t: string, d: unknown) => {
+        sendEnvelope(self.seats.get(playerId)?.socket ?? null, t, d);
+      },
+      markDirty: () => {
+        self.dirty = true;
+      },
+      settle: (input: SettlementInput) => self.handleSettle(input),
+      log: (message: string, extra?: Record<string, unknown>) => {
+        console.log(`[room ${self.id}] ${message}`, extra ?? '');
+      },
+    };
+
+    this.plugin.onRoomCreate(this.ctx);
+    this.tickTimer = setInterval(() => this.tick(), TICK_MS);
+  }
+
+  get gameId(): string {
+    return this.plugin.meta.gameId;
+  }
+
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  /** 是否还有空位且可加入 */
+  get isJoinable(): boolean {
+    return !this.closed && this.status === 'waiting' && this.seats.size < this.maxPlayers;
+  }
+
+  get playerCount(): number {
+    return this.seats.size;
+  }
+
+  view(): RoomView {
+    return {
+      roomId: this.id,
+      gameId: this.plugin.meta.gameId,
+      mode: this.mode,
+      status: this.status,
+      round: this.round,
+      maxPlayers: this.maxPlayers,
+      players: this.playerViews(),
+      hostId: this.hostId,
+    };
+  }
+
+  join(player: { playerId: string; nickname: string }, socket: WebSocket): void {
+    const existing = this.seats.get(player.playerId);
+    if (existing) {
+      this.attach(player.playerId, socket);
+      return;
+    }
+    if (this.status !== 'waiting') {
+      throw new AppError(ErrorCode.RoomFull, '房间已开局，请等待本局结束');
+    }
+    if (this.seats.size >= this.maxPlayers) {
+      throw new AppError(ErrorCode.RoomFull, '房间人数已满');
+    }
+
+    const seat: Seat = {
+      playerId: player.playerId,
+      nickname: player.nickname,
+      seat: this.nextSeatIndex(),
+      ready: false,
+      score: 0,
+      socket,
+      graceTimer: null,
+    };
+    this.seats.set(player.playerId, seat);
+    if (this.hostId === null) this.hostId = player.playerId;
+
+    this.plugin.onPlayerJoin(this.ctx, {
+      playerId: seat.playerId,
+      nickname: seat.nickname,
+      seat: seat.seat,
+      connected: true,
+    });
+
+    this.broadcastView();
+    this.dirty = true;
+    this.tryStart();
+  }
+
+  /** 断线重连：复用原座位，保留分数与角色 */
+  attach(playerId: string, socket: WebSocket): void {
+    const seat = this.seats.get(playerId);
+    if (!seat) throw new AppError(ErrorCode.RoomNotFound, '房间内不存在该玩家');
+    if (seat.graceTimer) {
+      clearTimeout(seat.graceTimer);
+      seat.graceTimer = null;
+    }
+    seat.socket = socket;
+    this.broadcastView();
+    this.dirty = true;
+    this.ctx.sendTo(playerId, ServerMsg.RoomView, { room: this.view() });
+  }
+
+  /** 连接断开：等待宽限期后真正移除 */
+  detach(playerId: string): void {
+    const seat = this.seats.get(playerId);
+    if (!seat) return;
+    seat.socket = null;
+    if (seat.graceTimer) clearTimeout(seat.graceTimer);
+    seat.graceTimer = setTimeout(() => this.removePlayer(playerId), this.deps.config.disconnectGraceMs);
+    seat.graceTimer.unref?.();
+    this.broadcastView();
+    this.dirty = true;
+  }
+
+  setReady(playerId: string, ready: boolean): void {
+    const seat = this.seats.get(playerId);
+    if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+    if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '当前不能修改准备状态');
+    if (seat.ready === ready) return;
+    seat.ready = ready;
+    this.plugin.onPlayerReady(this.ctx, playerId);
+    this.broadcastView();
+    this.tryStart();
+  }
+
+  handleIntent(playerId: string, cmd: string, payload: Record<string, unknown>): void {
+    if (!this.seats.has(playerId)) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+    if (this.status !== 'playing') throw new AppError(ErrorCode.IllegalAction, '当前不在对局中');
+    if (!this.plugin.commands.includes(cmd)) {
+      throw new AppError(ErrorCode.IllegalAction, `未知指令: ${cmd}`);
+    }
+    this.plugin.onIntent(this.ctx, playerId, { cmd, payload });
+  }
+
+  /** 客户端主动离开 */
+  leave(playerId: string): void {
+    const inGame = this.status === 'playing';
+    if (inGame) {
+      // 对局中直接退出视为认输，交由插件决定结算
+      this.plugin.onPlayerLeave(this.ctx, playerId);
+      this.removeSeat(playerId);
+      this.checkEnoughPlayers();
+    } else {
+      this.removeSeat(playerId);
+    }
+    this.broadcastView();
+    this.dirty = true;
+  }
+
+  destroy(): void {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.tickTimer) clearInterval(this.tickTimer);
+    this.tickTimer = null;
+    for (const seat of this.seats.values()) {
+      if (seat.graceTimer) clearTimeout(seat.graceTimer);
+      try {
+        seat.socket?.close(4001, 'room closed');
+      } catch {
+        /* ignore */
+      }
+    }
+    this.seats.clear();
+    this.plugin.onDestroy?.(this.ctx);
+    this.deps.empty(this.id);
+  }
+
+  private tick(): void {
+    if (this.closed) return;
+    if (this.status === 'playing') {
+      try {
+        this.plugin.onTick?.(this.ctx, TICK_MS);
+      } catch (error) {
+        console.error(`[room ${this.id}] onTick 异常`, error);
+      }
+      if (this.dirty) {
+        this.dirty = false;
+        this.pushSnapshots();
+      }
+    }
+  }
+
+  private tryStart(): void {
+    if (this.status !== 'waiting' || this.closed) return;
+    if (this.seats.size < this.plugin.meta.minPlayers) return;
+    if (![...this.seats.values()].every((s) => s.ready)) return;
+    this.startRound();
+  }
+
+  private startRound(): void {
+    this.round += 1;
+    this.seed = randomBytes(16).toString('hex');
+    this.status = 'playing';
+    this.settledThisRound = false;
+    this.plugin.onRoundStart?.(this.ctx);
+    this.dirty = true;
+    this.broadcastView();
+    this.pushSnapshots();
+  }
+
+  private handleSettle(input: SettlementInput): void {
+    if (this.settledThisRound) {
+      throw new AppError(ErrorCode.IllegalAction, '本局已结算，不能重复结算');
+    }
+    this.settledThisRound = true;
+    this.status = 'settled';
+
+    const entries = input.entries.filter((e) => {
+      const valid = Number.isInteger(e.delta) && Math.abs(e.delta) <= 1_000_000;
+      if (!valid) console.warn(`[room ${this.id}] 结算条目非法，已丢弃`, e);
+      return valid;
+    });
+    const settlement: Settlement = {
+      settlementId: `${this.id}:${this.round}`,
+      roomId: this.id,
+      gameId: this.plugin.meta.gameId,
+      round: this.round,
+      seed: this.seed,
+      winners: input.winners,
+      entries,
+      finishedAt: Date.now(),
+    };
+
+    for (const entry of entries) {
+      const seat = this.seats.get(entry.playerId);
+      if (seat) seat.score += entry.delta;
+    }
+
+    this.ctx.broadcast(ServerMsg.Settlement, { settlement });
+    this.deps.settle(settlement);
+    this.dirty = true;
+    this.pushSnapshots();
+
+    setTimeout(() => this.resetRound(), SETTLE_RESET_MS).unref?.();
+  }
+
+  private resetRound(): void {
+    if (this.closed) return;
+    this.status = 'waiting';
+    for (const seat of this.seats.values()) seat.ready = false;
+    this.broadcastView();
+    this.dirty = true;
+  }
+
+  private checkEnoughPlayers(): void {
+    if (this.seats.size === 0) {
+      this.destroy();
+      return;
+    }
+    if (this.status === 'playing' && this.seats.size < this.plugin.meta.minPlayers) {
+      // 人数不足，中止本局（不计输赢）
+      this.status = 'waiting';
+      for (const seat of this.seats.values()) seat.ready = false;
+      this.broadcastView();
+    }
+  }
+
+  private removePlayer(playerId: string): void {
+    this.removeSeat(playerId);
+    this.broadcastView();
+    this.dirty = true;
+    this.checkEnoughPlayers();
+  }
+
+  private removeSeat(playerId: string): void {
+    const seat = this.seats.get(playerId);
+    if (!seat) return;
+    if (seat.graceTimer) clearTimeout(seat.graceTimer);
+    this.seats.delete(playerId);
+    this.plugin.onPlayerLeave(this.ctx, playerId);
+
+    if (this.hostId === playerId) {
+      const next = [...this.seats.values()].sort((a, b) => a.seat - b.seat)[0];
+      this.hostId = next ? next.playerId : null;
+    }
+    if (this.seats.size === 0) this.destroy();
+  }
+
+  private nextSeatIndex(): number {
+    const used = new Set([...this.seats.values()].map((s) => s.seat));
+    for (let i = 0; i < this.maxPlayers; i += 1) {
+      if (!used.has(i)) return i;
+    }
+    return this.seats.size;
+  }
+
+  private playerContexts(): PlayerContext[] {
+    return [...this.seats.values()]
+      .sort((a, b) => a.seat - b.seat)
+      .map((s) => ({
+        playerId: s.playerId,
+        nickname: s.nickname,
+        seat: s.seat,
+        connected: s.socket !== null,
+      }));
+  }
+
+  private playerViews(): PlayerView[] {
+    return [...this.seats.values()]
+      .sort((a, b) => a.seat - b.seat)
+      .map((s) => ({
+        playerId: s.playerId,
+        nickname: s.nickname,
+        seat: s.seat,
+        ready: s.ready,
+        online: s.socket !== null,
+        score: s.score,
+      }));
+  }
+
+  private broadcastView(): void {
+    this.ctx.broadcast(ServerMsg.RoomView, { room: this.view() });
+  }
+
+  private pushSnapshots(): void {
+    this.seq += 1;
+    const view = this.view();
+    for (const seat of this.seats.values()) {
+      if (!seat.socket) continue;
+      try {
+        const snapshot = this.plugin.getSnapshot(this.ctx, seat.playerId);
+        sendEnvelope(seat.socket, ServerMsg.Snapshot, {
+          roomId: this.id,
+          gameId: this.plugin.meta.gameId,
+          status: view.status,
+          round: this.round,
+          seq: this.seq,
+          snapshot,
+        });
+      } catch (error) {
+        console.error(`[room ${this.id}] getSnapshot 异常`, error);
+      }
+    }
+  }
+}

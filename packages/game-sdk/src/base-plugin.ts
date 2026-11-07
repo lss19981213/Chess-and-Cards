@@ -8,6 +8,7 @@ export abstract class BaseGamePlugin implements GamePlugin {
   readonly commands: readonly string[] = [];
 
   onRoomCreate(_ctx: RoomContext): void {}
+  onRoundStart(_ctx: RoomContext): void {}
   onPlayerJoin(_ctx: RoomContext, _player: PlayerContext): void {}
   onPlayerLeave(_ctx: RoomContext, _playerId: string): void {}
   onPlayerReady(_ctx: RoomContext, _playerId: string): void {}

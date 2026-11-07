@@ -3,3 +3,9 @@ packages:
   - 'apps/*'
   - 'services/*'
   - 'services/games/*'
+
+allowBuilds:
+  esbuild: true
+
+onlyBuiltDependencies:
+  - esbuild

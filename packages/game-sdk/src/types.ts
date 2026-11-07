@@ -42,6 +42,8 @@ export interface RoomContext {
   broadcast(t: string, d: unknown): void;
   /** 定向某个玩家发送（用于隐藏手牌等私密信息） */
   sendTo(playerId: string, t: string, d: unknown): void;
+  /** 标记状态变更，容器在下一个 tick 统一下发快照 */
+  markDirty(): void;
   /** 上报结算，容器负责幂等落库与账本记账。每局只允许调用一次。 */
   settle(input: SettlementInput): void;
   log(message: string, extra?: Record<string, unknown>): void;
@@ -58,6 +60,8 @@ export interface GamePlugin {
   readonly commands: readonly string[];
 
   onRoomCreate(ctx: RoomContext): void;
+  /** 满足开局条件、新一局开始时触发，插件在此初始化牌局状态 */
+  onRoundStart?(ctx: RoomContext): void;
   onPlayerJoin(ctx: RoomContext, player: PlayerContext): void;
   onPlayerLeave(ctx: RoomContext, playerId: string): void;
   onPlayerReady(ctx: RoomContext, playerId: string): void;
