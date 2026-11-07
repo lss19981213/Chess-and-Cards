@@ -97,6 +97,7 @@ function pointsOf(cards: Card[]): number {
 
 export class TuizhuanziPlugin extends BaseGamePlugin {
   override readonly apiVersion = 1;
+  override readonly commands = ['bet'] as const;
 
   override readonly meta: GameMeta = {
     gameId: 'tuizhuanzi',

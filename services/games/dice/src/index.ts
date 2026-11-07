@@ -118,6 +118,7 @@ function areaWins(area: Area, dice: number[], sum: number, triple: boolean): boo
 
 export class DicePlugin extends BaseGamePlugin {
   override readonly apiVersion = 1;
+  override readonly commands = ['bet'] as const;
 
   override readonly meta: GameMeta = {
     gameId: 'dice',
