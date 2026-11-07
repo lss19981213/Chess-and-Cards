@@ -201,9 +201,10 @@ function dotTile(n) {
       <stop offset="0" stop-color="#fffdf6"/>
       <stop offset="1" stop-color="#eee2c8"/>
     </linearGradient>
-    <radialGradient id="dotG" cx="0.35" cy="0.3" r="0.8">
-      <stop offset="0" stop-color="#4a5a78"/>
-      <stop offset="1" stop-color="#101828"/>
+    <radialGradient id="dotG" cx="0.35" cy="0.28" r="0.85">
+      <stop offset="0" stop-color="#e8836f"/>
+      <stop offset="0.5" stop-color="#c0392b"/>
+      <stop offset="1" stop-color="#7d1a12"/>
     </radialGradient>
   </defs>`,
   );
