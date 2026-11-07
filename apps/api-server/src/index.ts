@@ -190,7 +190,7 @@ const EVENT_PATHS = new Set([
     requestStart.set(req, Date.now());
     reply.header('access-control-allow-origin', config.corsOrigin);
     reply.header('access-control-allow-headers', 'content-type,authorization');
-    reply.header('access-control-allow-methods', 'GET,POST,OPTIONS');
+    reply.header('access-control-allow-methods', 'GET,POST,DELETE,OPTIONS');
     if (req.method === 'OPTIONS') {
       await reply.status(204).send();
     }
@@ -459,6 +459,47 @@ const EVENT_PATHS = new Set([
       games,
       daily,
     };
+  });
+
+  app.get('/api/announcements', async (req) => {
+    const limit = Math.min(Math.max(Number((req.query as { limit?: string }).limit ?? 8) || 8, 1), 50);
+    return { announcements: await repo.listAnnouncements(limit) };
+  });
+
+  app.post('/api/admin/announcements', async (req) => {
+    const query = req.query as { token?: string };
+    if (!config.adminToken || query.token !== config.adminToken) {
+      throw httpError('后台口令不正确', 403);
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const title = String(body.title ?? '').trim();
+    const content = String(body.content ?? '').trim();
+    const kind = String(body.kind ?? 'notice');
+    if (!title || title.length > 40) throw httpError('标题需在 1–40 字之间', 400);
+    if (!content || content.length > 300) throw httpError('内容需在 1–300 字之间', 400);
+    if (!['notice', 'event', 'maintenance'].includes(kind)) throw httpError('公告类型不合法', 400);
+
+    const row = await repo.createAnnouncement({
+      title,
+      content,
+      kind: kind as 'notice' | 'event' | 'maintenance',
+    });
+    apiLog.info('发布公告', { id: row.id, title, kind });
+    recordEvent('info', 'announce', `发布公告「${title}」`, { id: row.id, kind });
+    return { announcement: row };
+  });
+
+  app.delete('/api/admin/announcements/:id', async (req) => {
+    const query = req.query as { token?: string };
+    if (!config.adminToken || query.token !== config.adminToken) {
+      throw httpError('后台口令不正确', 403);
+    }
+    const id = String((req.params as { id?: string }).id ?? '');
+    const ok = await repo.deleteAnnouncement(id);
+    if (!ok) throw httpError('公告不存在', 404);
+    apiLog.info('删除公告', { id });
+    recordEvent('warn', 'announce', `删除公告 ${id}`, { id });
+    return { ok: true };
   });
 
   app.get('/api/admin/events', async (req) => {

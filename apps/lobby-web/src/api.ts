@@ -1,4 +1,4 @@
-import type { GameMeta } from '@cc/protocol';
+import type { Announcement, GameMeta } from '@cc/protocol';
 
 export interface User {
   id: string;
@@ -96,6 +96,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ key }),
     }),
+
+  announcements: () =>
+    request<{ announcements: Announcement[] }>('/api/announcements'),
+
+  adminCreateAnnouncement: (
+    token: string,
+    input: { title: string; content: string; kind: Announcement['kind'] },
+  ) =>
+    request<{ announcement: Announcement }>(`/api/admin/announcements?token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  adminDeleteAnnouncement: (token: string, id: string) =>
+    request<{ ok: boolean }>(
+      `/api/admin/announcements/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`,
+      { method: 'DELETE' },
+    ),
 
   rooms: (gameId: string) =>
     request<{

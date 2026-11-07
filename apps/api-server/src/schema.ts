@@ -60,4 +60,14 @@ create table if not exists task_progress (
   claimed_at timestamptz,
   primary key (user_id, task_key, period_key)
 );
+
+create table if not exists announcements (
+  id         text primary key,
+  title      text not null,
+  content    text not null,
+  kind       text not null default 'notice',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists announcements_created_idx on announcements (created_at desc);
 `;

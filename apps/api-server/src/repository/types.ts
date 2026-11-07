@@ -1,4 +1,4 @@
-import type { Currency, Settlement, SettlementEntry } from '@cc/protocol';
+import type { Announcement, Currency, Settlement, SettlementEntry } from '@cc/protocol';
 
 export interface UserRecord {
   id: string;
@@ -76,5 +76,12 @@ export interface Repository {
   leaderboard(limit: number): Promise<LeaderboardRow[]>;
   /** 今日净收益榜（按结算流水聚合） */
   dailyWinners(limit: number): Promise<DailyWinnerRow[]>;
+  listAnnouncements(limit: number): Promise<Announcement[]>;
+  createAnnouncement(input: {
+    title: string;
+    content: string;
+    kind: Announcement['kind'];
+  }): Promise<Announcement>;
+  deleteAnnouncement(id: string): Promise<boolean>;
   close(): Promise<void>;
 }

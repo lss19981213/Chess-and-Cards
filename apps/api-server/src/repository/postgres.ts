@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import type { Currency, Settlement } from '@cc/protocol';
+import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { SCHEMA_SQL } from '../schema';
 import { periodKeyFor } from '../tasks';
 import type {
@@ -327,6 +327,50 @@ export class PostgresRepository implements Repository {
       net: Number(row.net),
       rounds: Number(row.rounds),
     }));
+  }
+
+  async listAnnouncements(limit: number): Promise<Announcement[]> {
+    const res = await this.pool.query<{
+      id: string;
+      title: string;
+      content: string;
+      kind: string;
+      created_at: Date;
+    }>(
+      `select id, title, content, kind, created_at
+         from announcements
+        order by created_at desc
+        limit $1`,
+      [Math.min(Math.max(1, limit), 50)],
+    );
+    return res.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      kind: row.kind as Announcement['kind'],
+      createdAt: new Date(row.created_at).getTime(),
+    }));
+  }
+
+  async createAnnouncement(input: {
+    title: string;
+    content: string;
+    kind: Announcement['kind'];
+  }): Promise<Announcement> {
+    const id = randomUUID();
+    const res = await this.pool.query<{ created_at: Date }>(
+      `insert into announcements (id, title, content, kind)
+       values ($1, $2, $3, $4)
+       returning created_at`,
+      [id, input.title, input.content, input.kind],
+    );
+    const created = res.rows[0]?.created_at;
+    return { id, ...input, createdAt: created ? new Date(created).getTime() : Date.now() };
+  }
+
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    const res = await this.pool.query('delete from announcements where id = $1', [id]);
+    return (res.rowCount ?? 0) > 0;
   }
 
   async close(): Promise<void> {

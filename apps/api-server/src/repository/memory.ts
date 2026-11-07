@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Currency, Settlement } from '@cc/protocol';
+import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { periodKeyFor } from '../tasks';
 import type {
   AuthUser,
@@ -29,6 +29,7 @@ export class MemoryRepository implements Repository {
   private readonly records: GameRecordView[] = [];
   private readonly taskCells = new Map<string, TaskCell>();
   private readonly daily = new Map<string, { net: number; rounds: number }>();
+  private readonly announcements: Announcement[] = [];
   private readonly initialCoins: number;
 
   constructor(initialCoins: number) {
@@ -164,6 +165,30 @@ export class MemoryRepository implements Repository {
       .filter((row) => row.net > 0)
       .sort((a, b) => b.net - a.net)
       .slice(0, limit);
+  }
+
+  async listAnnouncements(limit: number): Promise<Announcement[]> {
+    return [...this.announcements]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, Math.min(Math.max(1, limit), 50));
+  }
+
+  async createAnnouncement(input: {
+    title: string;
+    content: string;
+    kind: Announcement['kind'];
+  }): Promise<Announcement> {
+    const row: Announcement = { id: randomUUID(), ...input, createdAt: Date.now() };
+    this.announcements.unshift(row);
+    if (this.announcements.length > 200) this.announcements.length = 200;
+    return row;
+  }
+
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    const index = this.announcements.findIndex((item) => item.id === id);
+    if (index < 0) return false;
+    this.announcements.splice(index, 1);
+    return true;
   }
 
   async close(): Promise<void> {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BASE_PATH } from '../api';
+import { api, BASE_PATH } from '../api';
+import type { Announcement } from '@cc/protocol';
 
 interface RoomRow {
   roomId: string;
@@ -43,6 +44,9 @@ export function AdminPanel() {
   const [input, setInput] = useState('');
   const [data, setData] = useState<OverviewData | null>(null);
   const [events, setEvents] = useState<AdminEventRow[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [draft, setDraft] = useState({ title: '', content: '', kind: 'notice' as Announcement['kind'] });
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -63,6 +67,10 @@ export function AdminPanel() {
           setEvents(eventBody.events ?? []);
         }
         setError(null);
+        void api
+          .announcements()
+          .then((result) => setAnnouncements(result.announcements ?? []))
+          .catch(() => undefined);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败');
         setData(null);
@@ -81,6 +89,38 @@ export function AdminPanel() {
     const timer = window.setInterval(() => void load(token), 8000);
     return () => window.clearInterval(timer);
   }, [token, load]);
+
+  const publish = async (): Promise<void> => {
+    if (!draft.title.trim() || !draft.content.trim()) {
+      setError('请填写公告标题和内容');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.adminCreateAnnouncement(token, draft);
+      setDraft({ title: '', content: '', kind: 'notice' });
+      const fresh = await api.announcements();
+      setAnnouncements(fresh.announcements ?? []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发布失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (id: string): Promise<void> => {
+    setBusy(true);
+    try {
+      await api.adminDeleteAnnouncement(token, id);
+      setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除失败');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (!token) {
     return (
@@ -196,6 +236,74 @@ export function AdminPanel() {
                   <tr>
                     <td colSpan={5} className="hint">
                       暂无房间
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="admin__section">
+            <h2>公告管理</h2>
+            <div className="admin__announce">
+              <select
+                value={draft.kind}
+                onChange={(event) =>
+                  setDraft((prev) => ({ ...prev, kind: event.target.value as Announcement['kind'] }))
+                }
+              >
+                <option value="notice">公告</option>
+                <option value="event">活动</option>
+                <option value="maintenance">维护</option>
+              </select>
+              <input
+                value={draft.title}
+                placeholder="标题（1–40 字）"
+                onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
+              />
+              <textarea
+                value={draft.content}
+                placeholder="内容（1–300 字），会展示在主页公告栏与公告列表"
+                rows={2}
+                onChange={(event) => setDraft((prev) => ({ ...prev, content: event.target.value }))}
+              />
+              <button type="button" className="primary" disabled={busy} onClick={() => void publish()}>
+                {busy ? '处理中…' : '发布公告'}
+              </button>
+            </div>
+            <table className="admin__table">
+              <thead>
+                <tr>
+                  <th>类型</th>
+                  <th>标题</th>
+                  <th>内容</th>
+                  <th>时间</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {announcements.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.kind === 'event' ? '活动' : item.kind === 'maintenance' ? '维护' : '公告'}</td>
+                    <td>{item.title}</td>
+                    <td className="admin__announce-content">{item.content}</td>
+                    <td>{new Date(item.createdAt).toLocaleString('zh-CN', { hour12: false })}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin__del"
+                        disabled={busy}
+                        onClick={() => void remove(item.id)}
+                      >
+                        删除
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {announcements.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="hint">
+                      暂无公告，发布一条试试
                     </td>
                   </tr>
                 )}

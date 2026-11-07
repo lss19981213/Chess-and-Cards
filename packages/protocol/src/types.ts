@@ -21,6 +21,15 @@ export interface GameMeta {
   persistent?: boolean;
 }
 
+/** 运营公告 */
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  kind: 'notice' | 'event' | 'maintenance';
+  createdAt: number;
+}
+
 export type RoomStatus = 'waiting' | 'playing' | 'settled' | 'closed';
 
 /** 房间内玩家的公开视图，快照会下发给同房间所有人。 */
