@@ -31,3 +31,14 @@ export function recentEvents(limit = 60): AdminEvent[] {
   const safe = Math.min(Math.max(1, limit), MAX_EVENTS);
   return buffer.slice(-safe).reverse();
 }
+
+let lastSettlementAt = 0;
+
+/** 结算心跳：证明常驻牌局仍在推进（不计入事件流） */
+export function markSettlement(): void {
+  lastSettlementAt = Date.now();
+}
+
+export function getLastSettlementAt(): number {
+  return lastSettlementAt;
+}

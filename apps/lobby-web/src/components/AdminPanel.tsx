@@ -22,6 +22,7 @@ interface AdminEventRow {
 
 interface OverviewData {
   dayKey: string;
+  lastSettlementAt: number;
   summary: {
     rooms: number;
     platformRooms: number;
@@ -113,7 +114,12 @@ export function AdminPanel() {
     <div className="admin">
       <header className="admin__head">
         <h1>运营后台</h1>
-        <span className="hint">{data?.dayKey ?? ''} · 每 8 秒自动刷新</span>
+        <span className="hint">
+          {data?.dayKey ?? ''} · 每 8 秒自动刷新
+          {data?.lastSettlementAt
+            ? ` · 最近结算 ${Math.max(0, Math.round((Date.now() - data.lastSettlementAt) / 1000))} 秒前`
+            : ' · 等待首次结算'}
+        </span>
         <button type="button" className="ghost" onClick={() => void load(token)}>
           刷新
         </button>
@@ -213,7 +219,9 @@ export function AdminPanel() {
                   )}
                 </div>
               ))}
-              {events.length === 0 && <p className="hint">暂无事件，等待新的请求或结算</p>}
+              {events.length === 0 && (
+                <p className="hint">暂无关键事件（登录、真人结算、异常），牌局仍在按节奏运行</p>
+              )}
             </div>
           </section>
 

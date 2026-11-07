@@ -3,7 +3,7 @@ import { signToken, verifyToken, type TokenPayload } from '@cc/auth';
 import type { GameMeta, Settlement } from '@cc/protocol';
 import { config } from './config';
 import { createLogger } from './logger';
-import { recordEvent, recentEvents } from './events';
+import { getLastSettlementAt, markSettlement, recordEvent, recentEvents } from './events';
 import { MemoryRepository } from './repository/memory';
 import { PostgresRepository } from './repository/postgres';
 import type { Repository } from './repository/types';
@@ -131,7 +131,6 @@ const EVENT_PATHS = new Set([
   '/api/login',
   '/api/tasks/claim',
   '/api/assistant/chat',
-  '/api/admin/overview',
 ]);
 
   // 登录防爆破：IP 维度 10 次 / 10 分钟，账号维度 5 次 / 10 分钟
@@ -446,6 +445,7 @@ const EVENT_PATHS = new Set([
 
     return {
       dayKey,
+      lastSettlementAt: getLastSettlementAt(),
       summary: {
         rooms: rooms.length,
         platformRooms,
@@ -540,6 +540,7 @@ const EVENT_PATHS = new Set([
       return reply.status(400).send({ error: '结算数据格式错误' });
     }
     const result = await repo.applySettlement(settlement);
+    markSettlement();
     const detail = {
       settlementId: settlement.settlementId,
       gameId: settlement.gameId,
