@@ -20,7 +20,7 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
 
   return (
-    <div className="lobby">
+    <div className="lobby" style={{ ['--lobby-bg' as string]: `url(${HERO_BG})` }}>
       <header className="topbar">
         <div className="brand brand--sm">
           <span className="brand__mark">♠</span>

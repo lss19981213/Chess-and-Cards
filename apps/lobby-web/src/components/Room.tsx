@@ -66,6 +66,12 @@ export function Room({
           <Gomoku
             snapshot={snapshot}
             status={room.status}
+            myId={myId}
+            players={room.players.map((p) => ({
+              playerId: p.playerId,
+              nickname: p.nickname,
+              seat: p.seat,
+            }))}
             onPlace={(x, y) => dispatch('place', { x, y })}
           />
         );
