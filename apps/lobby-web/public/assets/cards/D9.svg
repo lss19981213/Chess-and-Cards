@@ -6,10 +6,10 @@
   </defs>
   <rect x="1.5" y="1.5" width="93" height="131" rx="7.5" fill="url(#paper)" stroke="#c2c8d8" stroke-width="1.4"/>
   <rect x="4.5" y="4.5" width="87" height="125" rx="5.5" fill="none" stroke="#cf3140" stroke-opacity="0.13"/>
-  <text x="10" y="27" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="20" fill="#cf3140">9</text>
-  <path d="M50 4l40 46-40 46L10 50Z" transform="translate(10,31) scale(0.105)" fill="#cf3140"/>
-  <path d="M50 4l40 46-40 46L10 50Z" transform="translate(25,44) scale(0.48)" fill="#cf3140" opacity="0.9"/>
+  <text x="9" y="26" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="19" fill="#cf3140">9</text>
+  <path d="M50 4l40 46-40 46L10 50Z" transform="translate(9.5,30) scale(0.1)" fill="#cf3140"/>
+  <path d="M50 4l40 46-40 46L10 50Z" transform="translate(22,40) scale(0.54)" fill="#cf3140" opacity="0.92"/>
   <g transform="rotate(180 48 67)">
-    <text x="10" y="27" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="20" fill="#cf3140">9</text>
-    <path d="M50 4l40 46-40 46L10 50Z" transform="translate(10,31) scale(0.105)" fill="#cf3140"/>
+    <text x="9" y="26" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="19" fill="#cf3140">9</text>
+    <path d="M50 4l40 46-40 46L10 50Z" transform="translate(9.5,30) scale(0.1)" fill="#cf3140"/>
   </g></svg>

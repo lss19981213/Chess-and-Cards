@@ -29,12 +29,12 @@ function face(rankText, suit) {
     `
   <rect x="1.5" y="1.5" width="93" height="131" rx="7.5" fill="url(#paper)" stroke="#c2c8d8" stroke-width="1.4"/>
   <rect x="4.5" y="4.5" width="87" height="125" rx="5.5" fill="none" stroke="${color}" stroke-opacity="0.13"/>
-  <text x="10" y="27" font-family="${FONT}" font-weight="700" font-size="20" fill="${color}">${rankText}</text>
-  <path d="${sp}" transform="translate(10,31) scale(0.105)" fill="${color}"/>
-  <path d="${sp}" transform="translate(25,44) scale(0.48)" fill="${color}" opacity="0.9"/>
+  <text x="9" y="26" font-family="${FONT}" font-weight="700" font-size="19" fill="${color}">${rankText}</text>
+  <path d="${sp}" transform="translate(9.5,30) scale(0.1)" fill="${color}"/>
+  <path d="${sp}" transform="translate(22,40) scale(0.54)" fill="${color}" opacity="0.92"/>
   <g transform="rotate(180 48 67)">
-    <text x="10" y="27" font-family="${FONT}" font-weight="700" font-size="20" fill="${color}">${rankText}</text>
-    <path d="${sp}" transform="translate(10,31) scale(0.105)" fill="${color}"/>
+    <text x="9" y="26" font-family="${FONT}" font-weight="700" font-size="19" fill="${color}">${rankText}</text>
+    <path d="${sp}" transform="translate(9.5,30) scale(0.1)" fill="${color}"/>
   </g>`,
     `<defs>
     <linearGradient id="paper" x1="0" y1="0" x2="0.25" y2="1">
