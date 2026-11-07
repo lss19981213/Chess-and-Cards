@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type LeaderboardEntry } from '../api';
+import { Chip } from './Chip';
 
 interface Props {
   myUserId: string | null;
@@ -53,7 +54,9 @@ export function LeaderboardModal({ myUserId, onClose }: Props) {
               <span className="rank-list__no">{entry.rank}</span>
               <span className="rank-list__name">{entry.nickname}</span>
               {entry.title && <span className="rank-list__title">{entry.title}</span>}
-              <span className="rank-list__bal">{entry.balance.toLocaleString()}</span>
+              <span className="rank-list__bal">
+                <Chip size={14} /> {entry.balance.toLocaleString()}
+              </span>
             </li>
           ))}
         </ul>

@@ -1,4 +1,5 @@
 import { cardLabel, isRedCard, type CardView } from './cards';
+import { Chip } from '../components/Chip';
 
 interface TexasPlayer {
   playerId: string;
@@ -54,8 +55,8 @@ export function Texas({ snapshot, myId, status, onAction }: Props) {
     <div className="texas">
       <div className="texas__head">
         <span className="badge badge--playing">{data.phaseLabel}</span>
-        <span className="texas__pot">
-          底池 <strong>{data.pot}</strong>
+        <span className="texas__pot pot-chip">
+          底池 <Chip size={15} /> <strong>{data.pot}</strong>
         </span>
         <span className="texas__meta">
           当前注 {data.currentBet} · 我的投入 {data.myTotalBet}

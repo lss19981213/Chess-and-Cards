@@ -17,5 +17,6 @@ Thumbs.db
 .cache/
 .turbo/
 tmp/
+generated-images/
 deploy.tar.gz
 deploy.tar

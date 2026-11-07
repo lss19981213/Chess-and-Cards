@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Chip } from '../components/Chip';
 
 interface TuiCard {
   id: string;
@@ -64,8 +65,8 @@ export function Tuizhuanzi({ snapshot, myId, status, onBet }: Props) {
           {phase === 'bet' ? '押注中' : '已开牌'}
         </span>
         {phase === 'bet' && <span className="tui__timer">{remain}s</span>}
-        <span className="tui__pot">
-          底池 <strong>{data.players.reduce((sum, p) => sum + (p.bet ?? 0), 0)}</strong>
+        <span className="tui__pot pot-chip">
+          底池 <Chip size={15} /> <strong>{data.players.reduce((sum, p) => sum + (p.bet ?? 0), 0)}</strong>
         </span>
       </div>
 
@@ -126,7 +127,7 @@ export function Tuizhuanzi({ snapshot, myId, status, onBet }: Props) {
                     disabled={!canBet}
                     onClick={() => onBet(amount)}
                   >
-                    {amount}
+                    <Chip size={14} /> {amount}
                   </button>
                 ))}
               </div>

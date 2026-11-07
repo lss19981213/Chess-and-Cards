@@ -1,6 +1,7 @@
 import type { RoomView, Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
+import { Chip } from './Chip';
 import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
 import { Texas } from '../games/Texas';
@@ -109,6 +110,7 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
       {settlement && (
         <div className={`settle-bar ${myDelta > 0 ? 'is-win' : myDelta < 0 ? 'is-lose' : ''}`}>
           本局结算：
+          <Chip size={18} />
           <strong>{myDelta > 0 ? `+${myDelta}` : myDelta}</strong>
           <span>筹码，5 秒后自动回到准备状态</span>
         </div>

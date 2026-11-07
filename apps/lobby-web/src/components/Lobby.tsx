@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { GameMeta } from '@cc/protocol';
 import type { User } from '../api';
 import { audio } from '../audio';
+import { GAME_ART, HERO_BG } from '../assets';
+import { Chip } from './Chip';
 
 interface Props {
   user: User | null;
@@ -51,7 +53,7 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
                 任务
               </button>
               <div className="wallet">
-                <span>筹码</span>
+                <Chip size={20} />
                 <strong>{user.balance.toLocaleString()}</strong>
               </div>
               <div className="user-chip">{user.nickname.slice(0, 1)}</div>
@@ -69,9 +71,12 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
       </header>
 
       <main className="lobby__main">
-        <section className="hero">
-          <h2>随便逛逛，想玩再登录</h2>
-          <p>五款棋牌游戏随时开局，虚拟筹码记分，不影响真实生活。</p>
+        <section className="hero" style={{ backgroundImage: `linear-gradient(100deg, rgba(6,9,18,0.94) 28%, rgba(6,9,18,0.55) 60%, rgba(6,9,18,0.18)), url(${HERO_BG})` }}>
+          <div className="hero__body">
+            <span className="hero__eyebrow">♠ CHESS &amp; CARDS CLUB</span>
+            <h2>随手一局，牌桌见真章</h2>
+            <p>五款棋牌随时开局，虚拟筹码记分排名，不伤真实生活。</p>
+          </div>
         </section>
 
         <div className="section-title">
@@ -90,15 +95,25 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
                 onEnter(game);
               }}
             >
-              <span className="game-card__icon">{game.icon}</span>
-              <span className="game-card__name">{game.name}</span>
-              <span className="game-card__desc">{game.description}</span>
-              <span className="game-card__tags">
-                {game.tags.map((tag) => (
-                  <em key={tag}>{tag}</em>
-                ))}
+              <span className="game-card__media">
+                {GAME_ART[game.gameId] ? (
+                  <img src={GAME_ART[game.gameId]} alt={game.name} loading="lazy" draggable={false} />
+                ) : (
+                  <span className="game-card__icon">{game.icon}</span>
+                )}
               </span>
-              <span className="game-card__cta">{user ? '快速开始 →' : '登录后开始 →'}</span>
+              <span className="game-card__body">
+                <span className="game-card__name">{game.name}</span>
+                <span className="game-card__desc">{game.description}</span>
+                <span className="game-card__meta">
+                  <span className="game-card__tags">
+                    {game.tags.map((tag) => (
+                      <em key={tag}>{tag}</em>
+                    ))}
+                  </span>
+                  <span className="game-card__cta">{user ? '快速开始 →' : '登录后开始 →'}</span>
+                </span>
+              </span>
             </button>
           ))}
           {games.length === 0 && <p className="empty">暂无可用游戏，请确认游戏服已启动。</p>}

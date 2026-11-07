@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, type TaskView } from '../api';
+import { Chip } from './Chip';
 
 interface Props {
   onBalanceChange: (balance: number) => void;
@@ -63,7 +64,9 @@ export function TasksModal({ onBalanceChange, onClose }: Props) {
                 <div className="task-list__main">
                   <div className="task-list__title">
                     <strong>{task.name}</strong>
-                    <span className="task-list__reward">+{task.reward}</span>
+                    <span className="task-list__reward">
+                      <Chip size={13} /> +{task.reward}
+                    </span>
                   </div>
                   <p>{task.description}</p>
                   <div className="progress">
