@@ -7,6 +7,10 @@ create table if not exists users (
   created_at    timestamptz not null default now()
 );
 
+-- 老库升级：补齐账号体系字段
+alter table users add column if not exists username text;
+alter table users add column if not exists password_hash text;
+
 -- 账号体系：用户名唯一（历史游客数据 username 为空，不参与唯一约束）
 create unique index if not exists users_username_uniq on users (username) where username is not null;
 alter table users drop constraint if exists users_nickname_key;
