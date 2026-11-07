@@ -65,6 +65,13 @@ export interface JoinRoomPayload {
   roomId?: string;
 }
 
+/** 最近一局的走势标记 */
+export interface TrendMark {
+  round: number;
+  text: string;
+  tone: 'red' | 'blue' | 'green' | 'neutral';
+}
+
 /** 房间列表项，用于选台 */
 export interface RoomSummary {
   roomId: string;
@@ -83,6 +90,8 @@ export interface RoomSummary {
   persistent: boolean;
   /** 已开局且不可再加入 */
   joinable: boolean;
+  /** 最近 3 把走势，常驻台专用 */
+  recent: TrendMark[];
 }
 
 export interface IntentPayload {

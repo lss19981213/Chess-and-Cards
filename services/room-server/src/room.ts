@@ -9,6 +9,7 @@ import {
   type RoomView,
   type RoomSummary,
   type Settlement,
+  type TrendMark,
 } from '@cc/protocol';
 import type { GameIntent, GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import type { RoomServerConfig } from './config';
@@ -251,6 +252,51 @@ export class GameRoom {
     };
   }
 
+  /** 把各玩法不同的历史结构归一化成 3 个走势标记 */
+  private recentTrend(): TrendMark[] {
+    if (!this.persistent) return [];
+    let history: Array<Record<string, unknown>> = [];
+    try {
+      const snap = this.plugin.getSnapshot(this.ctx, null) as {
+        history?: Array<Record<string, unknown>>;
+      };
+      history = Array.isArray(snap?.history) ? snap.history : [];
+    } catch {
+      return [];
+    }
+
+    return history.slice(-3).map((row) => {
+      const round = Number(row.round ?? 0);
+      const gameId = this.plugin.meta.gameId;
+
+      if (gameId === 'baccarat') {
+        const outcome = String(row.outcome ?? '');
+        return {
+          round,
+          text: outcome === 'player' ? '闲' : outcome === 'banker' ? '庄' : '和',
+          tone: (outcome === 'player' ? 'blue' : outcome === 'banker' ? 'red' : 'green') as TrendMark['tone'],
+        };
+      }
+      if (gameId === 'dice') {
+        if (row.triple === true) return { round, text: '豹', tone: 'green' as const };
+        return {
+          round,
+          text: row.big === true ? '大' : '小',
+          tone: (row.big === true ? 'red' : 'blue') as TrendMark['tone'],
+        };
+      }
+
+      const winners = Array.isArray(row.winningDoors) ? (row.winningDoors as string[]) : [];
+      const label: Record<string, string> = { heaven: '天', earth: '地', human: '人' };
+      if (winners.length === 0) return { round, text: '庄', tone: 'neutral' as const };
+      return {
+        round,
+        text: winners.map((door) => label[door] ?? '').join(''),
+        tone: 'green' as const,
+      };
+    });
+  }
+
   /** 供选台列表使用 */
   summary(): RoomSummary {
     const seats = [...this.seats.values()];
@@ -271,6 +317,7 @@ export class GameRoom {
       status: this.status === 'closed' ? 'settled' : this.status,
       persistent: this.persistent,
       joinable: this.isJoinable || this.persistent,
+      recent: this.recentTrend(),
     };
   }
 

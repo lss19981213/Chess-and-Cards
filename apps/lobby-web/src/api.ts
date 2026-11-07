@@ -110,6 +110,7 @@ export const api = {
         status: 'waiting' | 'playing' | 'settled';
         persistent: boolean;
         joinable: boolean;
+        recent: Array<{ round: number; text: string; tone: 'red' | 'blue' | 'green' | 'neutral' }>;
       }>;
     }>(`/api/rooms?gameId=${encodeURIComponent(gameId)}`),
 

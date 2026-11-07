@@ -4,6 +4,12 @@ import { api } from '../api';
 import { audio } from '../audio';
 import { GAME_ART } from '../assets';
 
+interface TrendMark {
+  round: number;
+  text: string;
+  tone: 'red' | 'blue' | 'green' | 'neutral';
+}
+
 interface RoomItem {
   roomId: string;
   roomName: string;
@@ -13,6 +19,7 @@ interface RoomItem {
   status: 'waiting' | 'playing' | 'settled';
   persistent: boolean;
   joinable: boolean;
+  recent: TrendMark[];
 }
 
 interface Props {
@@ -84,7 +91,13 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
         </div>
 
         <div className="room-grid">
-          {rooms.map((room) => (
+          {rooms.map((room) => {
+            const marks = (room.recent ?? []).slice(-3);
+            const padded: Array<TrendMark | null> = [
+              ...Array<TrendMark | null>(Math.max(0, 3 - marks.length)).fill(null),
+              ...marks,
+            ];
+            return (
             <button
               key={room.roomId}
               type="button"
@@ -110,9 +123,32 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
                   {STATUS_TEXT[room.status] ?? room.status}
                 </span>
               </div>
+              {room.persistent && (
+                <div className="room-tile__trend">
+                  <span className="room-tile__trend-label">近 3 把</span>
+                  <div className="room-tile__marks">
+                    {padded.map((mark, index) =>
+                      mark ? (
+                        <span
+                          key={`${mark.round}-${index}`}
+                          className={`trend-mark is-${mark.tone} ${index === 2 ? 'is-latest' : ''}`}
+                          title={`第 ${mark.round} 局`}
+                        >
+                          {mark.text}
+                        </span>
+                      ) : (
+                        <span key={`empty-${index}`} className="trend-mark is-empty">
+                          ·
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="room-tile__cta">{room.joinable ? '进入牌桌 →' : '已满 / 已开局'}</div>
             </button>
-          ))}
+            );
+          })}
 
           {!isLive && (
             <button
