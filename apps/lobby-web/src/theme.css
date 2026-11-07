@@ -587,6 +587,57 @@ body {
   padding: 6px 10px;
 }
 
+/* 带走势面板的纵向牌桌（21点 / 斗牛）在横屏下改为两列：牌桌左、走势右 */
+.dice-stage:has(> .history),
+.dice-stage:has(> aside) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 122px;
+  gap: 6px 10px;
+  align-items: start;
+}
+
+.dice-stage:has(> .history) > .history,
+.dice-stage:has(> aside) > aside {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+}
+
+.dice-stage:has(> .history) > *:not(.history):not(aside),
+.dice-stage:has(> aside) > *:not(.history):not(aside) {
+  grid-column: 1;
+  min-width: 0;
+}
+
+/* 牌面按横屏高度收缩 */
+.bj-row .card,
+.niuniu-row .card {
+  width: 54px;
+  height: 76px;
+}
+
+.bj-row .card img,
+.niuniu-row .card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.bj-row__tag,
+.niuniu-row__tag {
+  font-size: 10.5px;
+}
+
+.bj-row__points,
+.niuniu-row__points {
+  font-size: 13px;
+}
+
+.dice-stage__cards {
+  gap: 6px;
+}
+
 /* ---------- 弹窗 ---------- */
 .modal {
   max-width: min(480px, 94vw);
