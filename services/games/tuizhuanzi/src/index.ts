@@ -72,6 +72,8 @@ interface State {
   results: RoundResult[];
   history: HistoryItem[];
   roundNo: number;
+  /** 连续命中次数，用于牌桌内的手感反馈 */
+  streaks: Map<string, number>;
 }
 
 function emptyHand(): DoorHand {
@@ -88,6 +90,7 @@ function emptyState(): State {
     results: [],
     history: [],
     roundNo: 0,
+    streaks: new Map(),
   };
 }
 
@@ -130,6 +133,7 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     this.state.banker = takeHand();
     this.state.bets = new Map();
     this.state.results = [];
+    // streaks 跨局保留
     this.state.phase = 'bet';
     this.state.phaseEndsAt = Date.now() + BET_MS;
     this.state.roundNo = ctx.config.round;
@@ -197,6 +201,9 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
       }
       if (delta === 0 && hits.length === 0) continue;
 
+      const streak = delta > 0 ? (this.state.streaks.get(playerId) ?? 0) + 1 : 0;
+      this.state.streaks.set(playerId, streak);
+
       const nickname = ctx.getPlayer(playerId)?.nickname ?? '玩家';
       results.push({ playerId, nickname, delta, detail: hits.join(' ') || '未命中' });
       if (delta !== 0) {
@@ -260,6 +267,7 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
         human: doorView('human'),
       },
       myBet: myBet ?? { heaven: 0, earth: 0, human: 0 },
+      myStreak: viewerId ? (this.state.streaks.get(viewerId) ?? 0) : 0,
       results: this.state.results,
       history: this.state.history,
       limits: { min: MIN_BET, max: MAX_BET, total: MAX_TOTAL },

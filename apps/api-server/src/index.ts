@@ -361,6 +361,13 @@ async function start(): Promise<void> {
     };
   });
 
+  app.get('/api/leaderboard/daily', async (req) => {
+    const limit = Math.min(Math.max(Number((req.query as { limit?: string }).limit ?? 10) || 10, 1), 50);
+    const rows = await repo.dailyWinners(limit);
+    const dayKey = periodKeyFor('daily');
+    return { dayKey, entries: rows };
+  });
+
   app.post('/api/assistant/chat', async (req) => {
     const claims = authHeader(req);
     const state = assistantLimiter.check(claims.sub);

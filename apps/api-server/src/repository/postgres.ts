@@ -6,6 +6,7 @@ import { periodKeyFor } from '../tasks';
 import type {
   AuthUser,
   GameRecordView,
+  DailyWinnerRow,
   LeaderboardRow,
   RegisterInput,
   RegisterResult,
@@ -294,6 +295,36 @@ export class PostgresRepository implements Repository {
       userId: row.user_id,
       nickname: row.nickname,
       balance: Number(row.balance),
+    }));
+  }
+
+  async dailyWinners(limit: number): Promise<DailyWinnerRow[]> {
+    const res = await this.pool.query<{
+      user_id: string;
+      nickname: string;
+      net: string;
+      rounds: string;
+    }>(
+      `select l.user_id,
+              u.nickname,
+              sum(l.delta)::bigint as net,
+              count(*)::int as rounds
+         from ledger l
+         join users u on u.id = l.user_id
+        where l.currency = 'coin'
+          and l.biz_type = 'game_settle'
+          and l.created_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')
+        group by l.user_id, u.nickname
+       having sum(l.delta) > 0
+        order by net desc
+        limit $1`,
+      [limit],
+    );
+    return res.rows.map((row) => ({
+      userId: row.user_id,
+      nickname: row.nickname,
+      net: Number(row.net),
+      rounds: Number(row.rounds),
     }));
   }
 

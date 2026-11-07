@@ -3,6 +3,7 @@ import type { Currency, Settlement } from '@cc/protocol';
 import { periodKeyFor } from '../tasks';
 import type {
   AuthUser,
+  DailyWinnerRow,
   GameRecordView,
   LeaderboardRow,
   RegisterInput,
@@ -27,6 +28,7 @@ export class MemoryRepository implements Repository {
   private readonly appliedKeys = new Set<string>();
   private readonly records: GameRecordView[] = [];
   private readonly taskCells = new Map<string, TaskCell>();
+  private readonly daily = new Map<string, { net: number; rounds: number }>();
   private readonly initialCoins: number;
 
   constructor(initialCoins: number) {
@@ -78,6 +80,11 @@ export class MemoryRepository implements Repository {
       this.balances.set(entry.playerId, current + entry.delta);
       this.bumpCell(entry.playerId, 'daily_play', dayKey, 1);
       if (entry.delta > 0) this.bumpCell(entry.playerId, 'daily_win', dayKey, 1);
+
+      const stat = this.daily.get(entry.playerId) ?? { net: 0, rounds: 0 };
+      stat.net += entry.delta;
+      stat.rounds += 1;
+      this.daily.set(entry.playerId, stat);
     }
     for (const key of keys) this.appliedKeys.add(key);
 
@@ -143,6 +150,19 @@ export class MemoryRepository implements Repository {
         balance,
       }))
       .sort((a, b) => b.balance - a.balance)
+      .slice(0, limit);
+  }
+
+  async dailyWinners(limit: number): Promise<DailyWinnerRow[]> {
+    return [...this.daily.entries()]
+      .map(([userId, stat]) => ({
+        userId,
+        nickname: this.users.get(userId)?.nickname ?? '未知玩家',
+        net: stat.net,
+        rounds: stat.rounds,
+      }))
+      .filter((row) => row.net > 0)
+      .sort((a, b) => b.net - a.net)
       .slice(0, limit);
   }
 

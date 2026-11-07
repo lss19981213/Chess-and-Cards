@@ -68,6 +68,8 @@ interface State {
   results: RoundResult[];
   history: HistoryItem[];
   roundNo: number;
+  /** 连续命中次数 */
+  streaks: Map<string, number>;
 }
 
 function emptyState(): State {
@@ -79,6 +81,7 @@ function emptyState(): State {
     results: [],
     history: [],
     roundNo: 0,
+    streaks: new Map(),
   };
 }
 
@@ -145,6 +148,8 @@ export class DicePlugin extends BaseGamePlugin {
       phaseEndsAt: Date.now() + BET_MS,
       dice: rollDice(`${ctx.config.seed}:${ctx.config.round}`),
       roundNo: ctx.config.round,
+      // 连胜跨局保留
+      streaks: this.state.streaks,
     };
   }
 
@@ -209,6 +214,9 @@ export class DicePlugin extends BaseGamePlugin {
       }
       if (delta === 0 && hits.length === 0) continue;
 
+      const streak = delta > 0 ? (this.state.streaks.get(playerId) ?? 0) + 1 : 0;
+      this.state.streaks.set(playerId, streak);
+
       const nickname = ctx.getPlayer(playerId)?.nickname ?? '玩家';
       results.push({ playerId, nickname, delta, detail: hits.join(' ') || '未命中' });
       if (delta !== 0) {
@@ -246,6 +254,7 @@ export class DicePlugin extends BaseGamePlugin {
       triple: revealed ? triple : false,
       big: revealed && !triple ? sum >= 11 : null,
       myBet: viewerId ? this.state.bets.get(viewerId) ?? {} : {},
+      myStreak: viewerId ? (this.state.streaks.get(viewerId) ?? 0) : 0,
       results: this.state.results,
       history: this.state.history,
       odds: {

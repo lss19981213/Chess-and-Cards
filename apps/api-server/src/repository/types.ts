@@ -41,6 +41,15 @@ export interface LeaderboardRow {
   balance: number;
 }
 
+export interface DailyWinnerRow {
+  userId: string;
+  nickname: string;
+  /** 今日净收益 */
+  net: number;
+  /** 今日结算局数 */
+  rounds: number;
+}
+
 export interface RegisterInput {
   username: string;
   passwordHash: string;
@@ -65,5 +74,7 @@ export interface Repository {
   /** 标记已领取，返回 false 表示此前已领取过 */
   claimTask(userId: string, taskKey: string, periodKey: string): Promise<boolean>;
   leaderboard(limit: number): Promise<LeaderboardRow[]>;
+  /** 今日净收益榜（按结算流水聚合） */
+  dailyWinners(limit: number): Promise<DailyWinnerRow[]>;
   close(): Promise<void>;
 }

@@ -15,6 +15,7 @@ interface TuiSnapshot {
   banker: { points: number | null; cards: Array<{ id: string; rank: number }> };
   doors: { heaven: DoorView; earth: DoorView; human: DoorView };
   myBet: { heaven: number; earth: number; human: number };
+  myStreak: number;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{
     round: number;
@@ -88,6 +89,7 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
             {data.phase === 'bet' ? `下注中 · ${left}s` : '已封盘'}
           </span>
           {totals > 0 && <span className="lobby-game__mine">我押了 {totals}</span>}
+          {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
         </div>
 
         <div className="banker-box">

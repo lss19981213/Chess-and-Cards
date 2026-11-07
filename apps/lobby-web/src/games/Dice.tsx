@@ -10,6 +10,7 @@ interface DiceSnapshot {
   triple: boolean;
   big: boolean | null;
   myBet: Record<string, number>;
+  myStreak: number;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{ round: number; dice: number[]; sum: number; triple: boolean; big: boolean }>;
   odds: { big: number; small: number; odd: number; even: number; triple: number; sums: Record<string, number> };
@@ -119,6 +120,7 @@ export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
             {data.phase === 'bet' ? `下注中 · ${left}s` : '已封盘'}
           </span>
           {betting > 0 && <span className="lobby-game__mine">我押了 {betting}</span>}
+          {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
         </div>
 
         <div className="dice-stage">

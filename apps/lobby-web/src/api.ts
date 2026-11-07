@@ -97,6 +97,12 @@ export const api = {
       body: JSON.stringify({ key }),
     }),
 
+  dailyWinners: (limit = 10) =>
+    request<{
+      dayKey: string;
+      entries: Array<{ userId: string; nickname: string; net: number; rounds: number }>;
+    }>(`/api/leaderboard/daily?limit=${limit}`),
+
   assistantChat: (message: string, history: Array<{ role: string; content: string }>) =>
     request<{ reply: string; granted: number; balance: number; fallback?: boolean }>('/api/assistant/chat', {
       method: 'POST',
