@@ -387,21 +387,23 @@ async function start(): Promise<void> {
 
     assistantLimiter.fail(claims.sub);
 
-    const raw = assistantReady()
-      ? await askAssistant([...history, { role: 'user', content: message }])
-      : null;
-
     const balance = await repo.getBalance(claims.sub, 'coin');
+
+    const raw = assistantReady()
+      ? await askAssistant([...history, { role: 'user', content: message }], balance)
+      : null;
 
     if (!raw) {
       return { reply: fallbackReply(message), granted: 0, balance, fallback: true };
     }
 
     const { text, grant } = splitGrant(raw);
+    // 只有玩家真的在求助时，才进入发放判定，避免模型在普通问答里误加标记
+    const wantsHelp = /(筹码|救济|输光|没钱|破产|给点|送点|借点|补助|帮帮我)/.test(message);
     let granted = 0;
     let note = '';
 
-    if (grant) {
+    if (grant && wantsHelp) {
       if (balance >= GRANT_MAX_BALANCE) {
         note = '\n\n（牌友，你筹码还厚实，机会留给真断粮的兄弟吧～）';
       } else {

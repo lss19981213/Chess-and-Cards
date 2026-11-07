@@ -31,6 +31,7 @@ const SYSTEM_PROMPT = `你是「牌桌小助手」，一个棋牌娱乐大厅里
 - 同意发放时，必须在回复最后单独一行写 ${GRANT_MARKER}，不要解释这个标记。
 - 玩家筹码充足、或今天已经领过，就幽默地婉拒，并提示去做任务或找机器人练手。
 - 绝不要承诺超过 ${GRANT_AMOUNT} 的金额，也不要答应无限量发放。
+- 只在玩家明确表达缺筹码、请求接济时才加标记；普通提问（问规则、问任务）一律不要加。
 
 【平台事实，必须严格依据，不得编造】
 - 注册：右上角「登录 / 注册」。账号 4-20 位字母、数字或下划线；密码 6-32 位；需输入图形验证码，看不清可点图片刷新。
@@ -58,7 +59,7 @@ export function assistantReady(): boolean {
 }
 
 /** 调用智谱 GLM，返回原始文本；失败返回 null */
-export async function askAssistant(history: ChatMessage[]): Promise<string | null> {
+export async function askAssistant(history: ChatMessage[], balance: number): Promise<string | null> {
   if (!assistantReady()) return null;
 
   const controller = new AbortController();
@@ -72,7 +73,18 @@ export async function askAssistant(history: ChatMessage[]): Promise<string | nul
       },
       body: JSON.stringify({
         model: config.zhipu.model,
-        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'system',
+            content:
+              `当前这位玩家持有 ${balance} 筹码。` +
+              (balance < GRANT_MAX_BALANCE
+                ? '已低于救济门槛，如果他在求助可以同意发放。'
+                : '高于救济门槛，请不要发放救济。'),
+          },
+          ...history,
+        ],
         temperature: 0.7,
         max_tokens: 320,
         stream: false,
