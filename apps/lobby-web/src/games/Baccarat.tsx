@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useState, useMemo } from 'react';
 import { chipArt } from '../chips';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 
@@ -69,8 +69,22 @@ function Hand({ side, revealed }: { side: SideView; revealed: boolean }) {
   );
 }
 
-export function Baccarat({ snapshot, myId: _myId, status, balance, onBet, onClear }: Props) {
+export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as BacSnapshot | undefined;
+  // 真人优先展示，其后按输赢排序，避免机器人结果被真人挤掉
+  const rankedResults = useMemo(() => {
+    const list = [...(data?.results ?? [])];
+    list.sort((a, b) => {
+      const aBot = a.playerId.startsWith('ambient:');
+      const bBot = b.playerId.startsWith('ambient:');
+      if (aBot !== bBot) return aBot ? 1 : -1;
+      return b.delta - a.delta;
+    });
+    const mine = list.filter((row) => row.playerId === myId);
+    const rest = list.filter((row) => row.playerId !== myId);
+    return [...mine, ...rest].slice(0, 12);
+  }, [data?.results, myId]);
+
   const [amount, setAmount] = useState(100);
   const [now, setNow] = useState(Date.now());
   const [deadline, setDeadline] = useState(0);
@@ -220,9 +234,14 @@ export function Baccarat({ snapshot, myId: _myId, status, balance, onBet, onClea
 
         {data.results.length > 0 && (
           <div className="lobby-results">
-            {data.results.slice(0, 4).map((row) => (
-              <span key={row.playerId} className={row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'}>
-                {row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+            {rankedResults.map((row) => (
+              <span
+                key={row.playerId}
+                className={`${row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'} ${
+                  row.playerId === myId ? 'is-me' : ''
+                }`}
+              >
+                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
               </span>
             ))}
           </div>

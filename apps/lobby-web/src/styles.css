@@ -4752,10 +4752,23 @@ button.secondary:hover:not(:disabled) {
 
 .lobby-results {
   display: flex;
-  gap: 12px;
+  gap: 6px 12px;
   justify-content: center;
+  align-content: flex-start;
   flex-wrap: wrap;
+  max-height: 76px;
+  overflow-y: auto;
   font-size: 12px;
+  padding: 2px 6px;
+}
+
+/* 自己的输赢单独高亮 */
+.lobby-results .is-me {
+  font-weight: 700;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: rgba(229, 181, 103, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(229, 181, 103, 0.42);
 }
 
 /* 百家乐 */
@@ -5982,4 +5995,210 @@ button.secondary:hover:not(:disabled) {
     padding: 5px 9px;
     font-size: 12px;
   }
+}
+
+/* 排行榜：深色鎏金质感 */
+.rank-modal {
+  width: min(560px, 94vw);
+  border: 1px solid rgba(229, 181, 103, 0.26);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(229, 181, 103, 0.12), transparent 62%),
+    linear-gradient(165deg, rgba(38, 32, 24, 0.97), rgba(16, 15, 14, 0.99));
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.rank-modal__head {
+  align-items: flex-start;
+}
+
+.rank-modal__heading {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 6px;
+  background: linear-gradient(180deg, #ffe6ad 0%, #e0b45f 55%, #a97b2c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.rank-modal__sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(226, 213, 186, 0.62);
+}
+
+.rank-modal__mine {
+  margin: 2px 0 12px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(229, 181, 103, 0.2);
+  background: rgba(229, 181, 103, 0.08);
+  font-size: 12px;
+  color: rgba(233, 222, 198, 0.82);
+}
+
+.rank-modal__mine b {
+  color: #f0cd85;
+}
+
+.rank-modal__foot {
+  margin: 14px 0 0;
+  font-size: 11px;
+  text-align: center;
+  color: rgba(226, 213, 186, 0.45);
+}
+
+.rank-board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rank-board__row {
+  display: grid;
+  grid-template-columns: 30px 34px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.035);
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.rank-board__row:hover {
+  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(229, 181, 103, 0.28);
+}
+
+.rank-board__row.is-me {
+  border-color: rgba(229, 181, 103, 0.55);
+  background: rgba(229, 181, 103, 0.12);
+  box-shadow:
+    0 0 0 1px rgba(229, 181, 103, 0.18),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.rank-board__medal {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #f3e7cd;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.rank-board__row.is-top1 .rank-board__medal {
+  background: linear-gradient(160deg, #ffe9a8, #d9a53c 60%, #a2711d);
+  color: #3a2708;
+  border-color: rgba(255, 233, 168, 0.7);
+  box-shadow: 0 0 12px rgba(229, 181, 103, 0.45);
+}
+
+.rank-board__row.is-top2 .rank-board__medal {
+  background: linear-gradient(160deg, #f4f6fa, #b9c2cf 60%, #8a94a3);
+  color: #23262b;
+  border-color: rgba(240, 244, 250, 0.55);
+}
+
+.rank-board__row.is-top3 .rank-board__medal {
+  background: linear-gradient(160deg, #f0c39a, #c08247 60%, #8c5a2c);
+  color: #35200c;
+  border-color: rgba(240, 195, 154, 0.5);
+}
+
+.rank-board__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2a2419;
+  background: linear-gradient(150deg, #f2dfb4, #c9a25e);
+}
+
+.rank-board__name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rank-board__name b {
+  font-size: 14px;
+  color: #f0e7d3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-board__name em {
+  font-style: normal;
+  font-size: 11px;
+  color: rgba(229, 181, 103, 0.8);
+}
+
+.rank-board__bal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f3d79a;
+}
+
+.rank-board__reward {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1f1a10;
+  background: linear-gradient(150deg, #ffe6ad, #e0b45f);
+  box-shadow: 0 4px 12px rgba(229, 181, 103, 0.3);
+}
+
+/* 21 点 */
+.bj-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.bj-row__tag {
+  font-size: 12px;
+  color: rgba(226, 213, 186, 0.6);
+  min-width: 44px;
+}
+
+.bj-row__points {
+  font-size: 20px;
+  color: #f0cd85;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bj-row__points em {
+  font-style: normal;
+  font-size: 12px;
+}
+
+.bj-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
 }

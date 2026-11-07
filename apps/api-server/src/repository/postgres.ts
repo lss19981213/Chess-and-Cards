@@ -4,10 +4,12 @@ import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { SCHEMA_SQL } from '../schema';
 import { periodKeyFor } from '../tasks';
 import { InsufficientFundsError } from './types';
+import { LEADERBOARD_SIZE, rewardForRank } from '../leaderboard';
 import type {
   AuthUser,
   BetAdjustment,
   GameRecordView,
+  LeaderboardSnapshotRow,
   DailyWinnerRow,
   LeaderboardRow,
   RegisterInput,
@@ -437,6 +439,63 @@ export class PostgresRepository implements Repository {
       userId: row.user_id,
       nickname: row.nickname,
       balance: Number(row.balance),
+    }));
+  }
+
+  async leaderboardRank(userId: string): Promise<number | null> {
+    const res = await this.pool.query<{ rnk: string }>(
+      `select rnk
+         from (
+           select w.user_id,
+                  row_number() over (order by w.balance desc, u.created_at asc) as rnk
+             from wallets w
+             join users u on u.id = w.user_id
+            where w.currency = 'coin'
+         ) t
+        where t.user_id = $1`,
+      [userId],
+    );
+    return res.rows[0] ? Number(res.rows[0].rnk) : null;
+  }
+
+  async settleDailyLeaderboard(dayKey: string): Promise<number> {
+    const rows = await this.leaderboard(LEADERBOARD_SIZE);
+    let total = 0;
+    for (const [index, row] of rows.entries()) {
+      const reward = rewardForRank(index + 1);
+      if (reward <= 0) continue;
+      const balance = await this.credit(row.userId, reward, 'leaderboard_daily', `${dayKey}:${index + 1}`);
+      await this.pool.query(
+        `insert into leaderboard_daily_snapshots (period_key, user_id, nickname, rank, balance, reward)
+         values ($1, $2, $3, $4, $5, $6)
+         on conflict (period_key, user_id) do nothing`,
+        [dayKey, row.userId, row.nickname, index + 1, balance, reward],
+      );
+      total += reward;
+    }
+    return total;
+  }
+
+  async listDailySnapshot(dayKey: string): Promise<LeaderboardSnapshotRow[]> {
+    const res = await this.pool.query<{
+      user_id: string;
+      nickname: string;
+      rank: number;
+      balance: string;
+      reward: number;
+    }>(
+      `select user_id, nickname, rank, balance, reward
+         from leaderboard_daily_snapshots
+        where period_key = $1
+        order by rank asc`,
+      [dayKey],
+    );
+    return res.rows.map((row) => ({
+      userId: row.user_id,
+      nickname: row.nickname,
+      rank: row.rank,
+      balance: Number(row.balance),
+      reward: row.reward,
     }));
   }
 

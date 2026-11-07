@@ -76,4 +76,19 @@ create index if not exists announcements_created_idx on announcements (created_a
 update wallets set balance = 0 where balance < 0;
 alter table wallets drop constraint if exists wallets_balance_nonneg;
 alter table wallets add constraint wallets_balance_nonneg check (balance >= 0);
+
+-- 每日排行榜结算快照：0 点按当天排名发奖后留档，用于展示上期榜单与奖励
+create table if not exists leaderboard_daily_snapshots (
+  period_key text    not null,
+  user_id    text    not null,
+  nickname   text    not null,
+  rank       integer not null,
+  balance    bigint  not null,
+  reward     integer not null default 0,
+  created_at timestamptz not null default now(),
+  primary key (period_key, user_id)
+);
+
+create index if not exists leaderboard_daily_snapshots_idx
+  on leaderboard_daily_snapshots (period_key, rank);
 `;

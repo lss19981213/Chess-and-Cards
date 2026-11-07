@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { periodKeyFor } from '../tasks';
 import { InsufficientFundsError } from './types';
+import { LEADERBOARD_SIZE, rewardForRank } from '../leaderboard';
 import type {
   BetAdjustment,
   AuthUser,
+  LeaderboardSnapshotRow,
   DailyWinnerRow,
   GameRecordView,
   LeaderboardRow,
@@ -36,6 +38,8 @@ export class MemoryRepository implements Repository {
   private readonly taskCells = new Map<string, TaskCell>();
   private readonly daily = new Map<string, { net: number; rounds: number }>();
   private readonly announcements: Announcement[] = [];
+  /** 每日排行榜结算快照：dayKey -> 行 */
+  private readonly snapshots = new Map<string, LeaderboardSnapshotRow[]>();
   private readonly initialCoins: number;
 
   constructor(initialCoins: number) {
@@ -202,6 +206,37 @@ export class MemoryRepository implements Repository {
       }))
       .sort((a, b) => b.balance - a.balance)
       .slice(0, limit);
+  }
+
+  async leaderboardRank(userId: string): Promise<number | null> {
+    const rows = await this.leaderboard(Number.MAX_SAFE_INTEGER);
+    const index = rows.findIndex((row) => row.userId === userId);
+    return index >= 0 ? index + 1 : null;
+  }
+
+  async settleDailyLeaderboard(dayKey: string): Promise<number> {
+    const rows = await this.leaderboard(LEADERBOARD_SIZE);
+    const snapshot: LeaderboardSnapshotRow[] = [];
+    let total = 0;
+    for (const [index, row] of rows.entries()) {
+      const reward = rewardForRank(index + 1);
+      if (reward <= 0) continue;
+      const balance = await this.credit(row.userId, reward, 'leaderboard_daily', `${dayKey}:${index + 1}`);
+      snapshot.push({
+        userId: row.userId,
+        nickname: row.nickname,
+        rank: index + 1,
+        balance,
+        reward,
+      });
+      total += reward;
+    }
+    this.snapshots.set(dayKey, snapshot);
+    return total;
+  }
+
+  async listDailySnapshot(dayKey: string): Promise<LeaderboardSnapshotRow[]> {
+    return this.snapshots.get(dayKey) ?? [];
   }
 
   async dailyWinners(limit: number): Promise<DailyWinnerRow[]> {

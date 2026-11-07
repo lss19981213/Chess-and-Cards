@@ -1,18 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 134" width="96" height="134"><defs>
-    <linearGradient id="paper2" x1="0" y1="0" x2="0.25" y2="1">
-      <stop offset="0" stop-color="#fffdf7"/>
-      <stop offset="1" stop-color="#ece6d6"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 168" width="120" height="168"><defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e8ecf4"/>
     </linearGradient>
   </defs>
-  <rect x="1.5" y="1.5" width="93" height="131" rx="7.5" fill="url(#paper2)" stroke="#c2c8d8" stroke-width="1.4"/>
-  <rect x="4.5" y="4.5" width="87" height="125" rx="5.5" fill="none" stroke="#c9a253" stroke-opacity="0.45"/>
-  <text x="10" y="27" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="20" fill="#cf3140">K</text>
-  <path d="M50 4l40 46-40 46L10 50Z" transform="translate(10,31) scale(0.105)" fill="#cf3140"/>
-  <circle cx="48" cy="67" r="26" fill="none" stroke="#c9a253" stroke-opacity="0.55" stroke-width="1.2"/>
-  <circle cx="48" cy="67" r="21" fill="#cf3140" fill-opacity="0.06"/>
-  <text x="48" y="79" text-anchor="middle" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="34" fill="#cf3140">K</text>
-  <path d="M50 4l40 46-40 46L10 50Z" transform="translate(35,100) scale(0.26)" fill="#cf3140" opacity="0.85"/>
-  <g transform="rotate(180 48 67)">
-    <text x="10" y="27" font-family="Georgia,'Times New Roman',serif" font-weight="700" font-size="20" fill="#cf3140">K</text>
-    <path d="M50 4l40 46-40 46L10 50Z" transform="translate(10,31) scale(0.105)" fill="#cf3140"/>
-  </g></svg>
+  <rect x="2" y="2" width="116" height="164" rx="13" fill="url(#paper)" stroke="#141a26" stroke-width="2.4"/>
+  <rect x="7" y="7" width="106" height="154" rx="9" fill="none" stroke="#141a26" stroke-opacity="0.15" stroke-width="1.2"/><g fill="#c21430">
+    <text x="14" y="37" font-family="Georgia,'Times New Roman',serif" font-size="29" font-weight="700">K</text>
+    <text x="15" y="62" font-family="'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2','DejaVu Sans',serif" font-size="24">♦</text>
+  </g>
+  <text x="60" y="103" text-anchor="middle" font-family="'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2','DejaVu Sans',serif" font-size="78" fill="#c21430">♦</text>
+  <g transform="rotate(180 60 84)"><g fill="#c21430">
+    <text x="14" y="37" font-family="Georgia,'Times New Roman',serif" font-size="29" font-weight="700">K</text>
+    <text x="15" y="62" font-family="'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2','DejaVu Sans',serif" font-size="24">♦</text>
+  </g></g></svg>

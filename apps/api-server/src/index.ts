@@ -8,6 +8,7 @@ import { MemoryRepository } from './repository/memory';
 import { PostgresRepository } from './repository/postgres';
 import { InsufficientFundsError } from './repository/types';
 import type { Repository } from './repository/types';
+import { LEADERBOARD_SIZE, beijingDayKey, rewardForRank } from './leaderboard';
 import {
   AttemptLimiter,
   PASSWORD_MAX,
@@ -372,17 +373,15 @@ const EVENT_PATHS = new Set([
   });
 
   app.get('/api/leaderboard', async (req) => {
-    const query = req.query as { limit?: string };
-    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 100);
-    const rows = await repo.leaderboard(limit);
+    // 榜单只展示前 10 名
+    const rows = await repo.leaderboard(LEADERBOARD_SIZE);
 
     let myRank: number | null = null;
     let myUserId: string | null = null;
     try {
       const claims = authHeader(req);
       myUserId = claims.sub;
-      const index = rows.findIndex((row) => row.userId === claims.sub);
-      myRank = index >= 0 ? index + 1 : null;
+      myRank = await repo.leaderboardRank(claims.sub);
     } catch {
       /* 未登录也允许查看排行榜 */
     }
@@ -393,11 +392,24 @@ const EVENT_PATHS = new Set([
         userId: row.userId,
         nickname: row.nickname,
         balance: row.balance,
+        reward: rewardForRank(index + 1),
         title: titleFor(index + 1),
       })),
       myRank,
       myUserId,
     };
+  });
+
+  /** 最近一期的排行榜结算快照（每日 0 点结算并发奖） */
+  app.get('/api/leaderboard/rewards', async () => {
+    const today = beijingDayKey();
+    let dayKey = today;
+    let entries = await repo.listDailySnapshot(today);
+    if (entries.length === 0) {
+      dayKey = beijingDayKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+      entries = await repo.listDailySnapshot(dayKey);
+    }
+    return { dayKey, entries };
   });
 
   app.get('/api/leaderboard/daily', async (req) => {
@@ -647,6 +659,24 @@ const EVENT_PATHS = new Set([
 
   await app.listen({ port: config.port, host: config.host });
   apiLog.info('HTTP 服务已启动', { host: config.host, port: config.port });
+
+  // 每日 0 点结算排行榜并发奖。发奖走 credit 的幂等键，重复触发不会重复发放。
+  let settledDay = '';
+  const settleDaily = async (): Promise<void> => {
+    const dayKey = beijingDayKey();
+    if (settledDay === dayKey) return;
+    settledDay = dayKey;
+    const total = await repo.settleDailyLeaderboard(dayKey);
+    apiLog.info('每日排行榜结算完成', { dayKey, total });
+  };
+  const settleTimer = setInterval(() => {
+    void settleDaily().catch((error: unknown) => {
+      settledDay = '';
+      apiLog.error('每日排行榜结算失败', { error: (error as Error).message });
+    });
+  }, 30_000);
+  settleTimer.unref?.();
+  void settleDaily().catch(() => undefined);
 
   const shutdown = async (): Promise<void> => {
     console.log('[api] 正在关闭...');

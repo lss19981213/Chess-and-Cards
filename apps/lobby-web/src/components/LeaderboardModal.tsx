@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type LeaderboardEntry } from '../api';
+import { api, type LeaderboardEntry, type LeaderboardRewardRow } from '../api';
 import { Chip } from './Chip';
 
 interface Props {
@@ -7,33 +7,44 @@ interface Props {
   onClose: () => void;
 }
 
-interface DailyRow {
-  userId: string;
-  nickname: string;
-  net: number;
-  rounds: number;
+type Tab = 'total' | 'reward';
+
+/** 前十名的称号，与大厅侧口径一致 */
+const RANK_TITLES = ['赌神', '赌圣', '赌侠', '赌王', '赌将', '豪侠', '名手', '高手', '老手', '新星'];
+
+function titleOf(rank: number): string {
+  return RANK_TITLES[rank - 1] ?? '座上客';
 }
 
-type Tab = 'total' | 'daily';
+function Avatar({ nickname }: { nickname: string }) {
+  return <span className="rank-board__avatar">{nickname.slice(0, 1) || '客'}</span>;
+}
 
 export function LeaderboardModal({ myUserId, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('total');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [daily, setDaily] = useState<DailyRow[]>([]);
+  const [rewards, setRewards] = useState<LeaderboardRewardRow[]>([]);
+  const [rewardDay, setRewardDay] = useState('');
+  const [myRank, setMyRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
 
     const task =
       tab === 'total'
-        ? api.leaderboard(50).then((data) => {
-            if (!cancelled) setEntries(data.entries);
+        ? api.leaderboard().then((data) => {
+            if (cancelled) return;
+            setEntries(data.entries);
+            setMyRank(data.myRank);
           })
-        : api.dailyWinners(20).then((data) => {
-            if (!cancelled) setDaily(data.entries);
+        : api.leaderboardRewards().then((data) => {
+            if (cancelled) return;
+            setRewards(data.entries);
+            setRewardDay(data.dayKey);
           });
 
     task
@@ -49,11 +60,35 @@ export function LeaderboardModal({ myUserId, onClose }: Props) {
     };
   }, [tab]);
 
+  const rows =
+    tab === 'total'
+      ? entries.map((row) => ({
+          key: row.userId,
+          rank: row.rank,
+          userId: row.userId,
+          nickname: row.nickname,
+          balance: row.balance,
+          title: row.title || titleOf(row.rank),
+          reward: row.reward,
+        }))
+      : rewards.map((row) => ({
+          key: row.userId,
+          rank: row.rank,
+          userId: row.userId,
+          nickname: row.nickname,
+          balance: row.balance,
+          title: titleOf(row.rank),
+          reward: row.reward,
+        }));
+
   return (
     <div className="modal-mask" onClick={onClose} role="presentation">
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal__head">
-          <h2>排行榜</h2>
+      <div className="modal rank-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal__head rank-modal__head">
+          <div>
+            <h2 className="rank-modal__heading">财 富 榜</h2>
+            <p className="rank-modal__sub">每日 0 点结算 · 前 10 名按名次发放筹码奖励</p>
+          </div>
           <button type="button" className="ghost" onClick={onClose}>
             关闭
           </button>
@@ -69,65 +104,59 @@ export function LeaderboardModal({ myUserId, onClose }: Props) {
           </button>
           <button
             type="button"
-            className={tab === 'daily' ? 'is-active' : ''}
-            onClick={() => setTab('daily')}
+            className={tab === 'reward' ? 'is-active' : ''}
+            onClick={() => setTab('reward')}
           >
-            今日红榜
+            上期奖励
           </button>
         </div>
+
+        {tab === 'total' && myRank !== null && (
+          <div className="rank-modal__mine">
+            我的名次 <b>第 {myRank} 名</b>
+            {myRank > 10 && <span>（进入前 10 可获每日奖励）</span>}
+          </div>
+        )}
+        {tab === 'reward' && rewardDay && (
+          <div className="rank-modal__mine">
+            {rewardDay} 结算 · 奖励已发放
+          </div>
+        )}
 
         {error && <p className="form-error">{error}</p>}
         {loading && <p className="hint">加载中…</p>}
 
-        {tab === 'total' && (
-          <ul className="rank-list">
-            {entries.map((entry) => (
-              <li
-                key={entry.userId}
-                className={`${entry.rank <= 3 ? `rank-list--top${entry.rank}` : ''} ${
-                  entry.userId === myUserId ? 'is-me' : ''
-                }`}
-              >
-                <span className="rank-list__no">{entry.rank}</span>
-                <span className="rank-list__name">{entry.nickname}</span>
-                {entry.title && <span className="rank-list__title">{entry.title}</span>}
-                <span className="rank-list__bal">
-                  <Chip size={14} /> {entry.balance.toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ul>
+        {!loading && rows.length === 0 && (
+          <p className="empty">{tab === 'total' ? '暂无数据' : '还没有结算记录，等待今日 0 点'}</p>
         )}
 
-        {tab === 'daily' && (
-          <ul className="rank-list">
-            {daily.map((row, index) => (
-              <li
-                key={row.userId}
-                className={`${index < 3 ? `rank-list--top${index + 1}` : ''} ${
-                  row.userId === myUserId ? 'is-me' : ''
-                }`}
-              >
-                <span className="rank-list__no">{index + 1}</span>
-                <span className="rank-list__name">{row.nickname}</span>
-                <span className="rank-list__sub">{row.rounds} 局</span>
-                <span className="rank-list__bal up">
-                  +{row.net.toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ol className="rank-board">
+          {rows.map((row) => (
+            <li
+              key={row.key}
+              className={`rank-board__row${row.rank <= 3 ? ` is-top${row.rank}` : ''}${
+                row.userId === myUserId ? ' is-me' : ''
+              }`}
+            >
+              <span className="rank-board__medal">{row.rank}</span>
+              <Avatar nickname={row.nickname} />
+              <span className="rank-board__name">
+                <b>{row.nickname}</b>
+                <em>{row.title}</em>
+              </span>
+              <span className="rank-board__bal">
+                <Chip size={15} />
+                {row.balance.toLocaleString()}
+              </span>
+              {row.reward > 0 && <span className="rank-board__reward">+{row.reward}</span>}
+            </li>
+          ))}
+        </ol>
 
-        {tab === 'total' && entries.length === 0 && !loading && <p className="empty">暂无数据</p>}
-        {tab === 'daily' && daily.length === 0 && !loading && (
-          <p className="empty">今天还没有人盈利，来当第一个</p>
-        )}
-
-        <p className="auth__hint">
+        <p className="rank-modal__foot">
           {tab === 'total'
-            ? '前 10 名依次获得赌神、赌圣、赌侠等称号。'
-            : '按今日结算净收益排序，每日 0 点重置（北京时间）。'}
+            ? '榜单每 30 秒刷新一次，0 点结算后按名次发放奖励。'
+            : '上期奖励为每日 0 点结算时的榜单快照，奖励已直接发放到对应账户。'}
         </p>
       </div>
     </div>

@@ -34,6 +34,16 @@ export interface LeaderboardEntry {
   nickname: string;
   balance: number;
   title: string;
+  reward: number;
+}
+
+/** 每日 0 点结算的排行榜快照 */
+export interface LeaderboardRewardRow {
+  userId: string;
+  nickname: string;
+  rank: number;
+  balance: number;
+  reward: number;
 }
 
 const TOKEN_KEY = 'cc.token';
@@ -144,8 +154,11 @@ export const api = {
       body: JSON.stringify({ message, history }),
     }),
 
-  leaderboard: (limit = 50) =>
+  leaderboard: () =>
     request<{ entries: LeaderboardEntry[]; myRank: number | null; myUserId: string | null }>(
-      `/api/leaderboard?limit=${limit}`,
+      '/api/leaderboard',
     ),
+
+  leaderboardRewards: () =>
+    request<{ dayKey: string; entries: LeaderboardRewardRow[] }>('/api/leaderboard/rewards'),
 };

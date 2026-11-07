@@ -57,6 +57,15 @@ export interface LeaderboardRow {
   balance: number;
 }
 
+/** 每日排行榜结算快照的一行 */
+export interface LeaderboardSnapshotRow {
+  userId: string;
+  nickname: string;
+  rank: number;
+  balance: number;
+  reward: number;
+}
+
 export interface DailyWinnerRow {
   userId: string;
   nickname: string;
@@ -97,6 +106,12 @@ export interface Repository {
   /** 标记已领取，返回 false 表示此前已领取过 */
   claimTask(userId: string, taskKey: string, periodKey: string): Promise<boolean>;
   leaderboard(limit: number): Promise<LeaderboardRow[]>;
+  /** 查询某人在总榜的名次，不在榜返回 null */
+  leaderboardRank(userId: string): Promise<number | null>;
+  /** 每日 0 点结算：按当前余额取前 N 名发奖并留档，返回发放的筹码总额 */
+  settleDailyLeaderboard(dayKey: string): Promise<number>;
+  /** 读取某期排行榜结算快照 */
+  listDailySnapshot(dayKey: string): Promise<LeaderboardSnapshotRow[]>;
   /** 今日净收益榜（按结算流水聚合） */
   dailyWinners(limit: number): Promise<DailyWinnerRow[]>;
   listAnnouncements(limit: number): Promise<Announcement[]>;

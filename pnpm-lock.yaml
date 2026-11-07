@@ -90,6 +90,24 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/protocol
 
+  services/games/blackjack:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
+  services/games/chess:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
   services/games/dice:
     dependencies:
       '@cc/game-sdk':
@@ -108,6 +126,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/protocol
 
+  services/games/goldenflower:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
   services/games/gomoku:
     dependencies:
       '@cc/game-sdk':
@@ -117,7 +144,25 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/protocol
 
+  services/games/niuniu:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
   services/games/paodekuai:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
+  services/games/stud:
     dependencies:
       '@cc/game-sdk':
         specifier: workspace:*
@@ -144,6 +189,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/protocol
 
+  services/games/xiangqi:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
   services/room-server:
     dependencies:
       '@cc/auth':
@@ -152,27 +206,45 @@ importers:
       '@cc/game-baccarat':
         specifier: workspace:*
         version: link:../games/baccarat
+      '@cc/game-blackjack':
+        specifier: workspace:*
+        version: link:../games/blackjack
+      '@cc/game-chess':
+        specifier: workspace:*
+        version: link:../games/chess
       '@cc/game-dice':
         specifier: workspace:*
         version: link:../games/dice
       '@cc/game-doudizhu':
         specifier: workspace:*
         version: link:../games/doudizhu
+      '@cc/game-goldenflower':
+        specifier: workspace:*
+        version: link:../games/goldenflower
       '@cc/game-gomoku':
         specifier: workspace:*
         version: link:../games/gomoku
+      '@cc/game-niuniu':
+        specifier: workspace:*
+        version: link:../games/niuniu
       '@cc/game-paodekuai':
         specifier: workspace:*
         version: link:../games/paodekuai
       '@cc/game-sdk':
         specifier: workspace:*
         version: link:../../packages/game-sdk
+      '@cc/game-stud':
+        specifier: workspace:*
+        version: link:../games/stud
       '@cc/game-texas':
         specifier: workspace:*
         version: link:../games/texas
       '@cc/game-tuizhuanzi':
         specifier: workspace:*
         version: link:../games/tuizhuanzi
+      '@cc/game-xiangqi':
+        specifier: workspace:*
+        version: link:../games/xiangqi
       '@cc/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

@@ -8,9 +8,11 @@ import { CoinBurst } from './CoinBurst';
 import { RulesModal } from './RulesModal';
 import { SettlePanel, type ResultRow } from './SettlePanel';
 import { Baccarat } from '../games/Baccarat';
+import { Blackjack } from '../games/Blackjack';
 import { CardTable } from '../games/CardTable';
 import { Dice } from '../games/Dice';
 import { Gomoku } from '../games/Gomoku';
+import { Niuniu } from '../games/Niuniu';
 import { Texas } from '../games/Texas';
 import { Tuizhuanzi } from '../games/Tuizhuanzi';
 
@@ -45,6 +47,8 @@ const GAME_TITLE: Record<string, string> = {
   texas: '德州扑克',
   dice: '骰宝',
   baccarat: '百家乐',
+  niuniu: '斗牛',
+  blackjack: '21点',
 };
 
 export function Room({
@@ -167,6 +171,29 @@ export function Room({
             balance={balance}
             onBet={(area, amount) => dispatch('bet', { area, amount })}
             onClear={(area) => dispatch('clear', area ? { area } : {})}
+          />
+        );
+      case 'niuniu':
+        return (
+          <Niuniu
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            balance={balance}
+            onBet={(area, amount) => dispatch('bet', { area, amount })}
+            onClear={(area) => dispatch('clear', area ? { area } : {})}
+          />
+        );
+      case 'blackjack':
+        return (
+          <Blackjack
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            balance={balance}
+            onBet={(area, amount) => dispatch('bet', { area, amount })}
+            onClear={(area) => dispatch('clear', area ? { area } : {})}
+            onAction={(cmd) => dispatch(cmd, {})}
           />
         );
       case 'texas':
