@@ -6,12 +6,12 @@ import { BaseGamePlugin } from '@cc/game-sdk';
  * 三颗骰子猜大小（平台庄家版）
  * - 可押：大 / 小 / 单 / 双 / 豹子 / 具体和值（4-17）
  * - 开豹子时大小单双和值和全部通杀，只赔豹子（1:24）
- * - 常驻运行：每 60 秒一局（30 秒下注 + 6 秒开牌 + 24 秒展示）
+ * - 常驻运行：每 12 秒一局（5 秒下注 + 4 秒开牌 + 3 秒间隔）
  */
 
-const BET_MS = 30_000;
-const REVEAL_MS = 6_000;
-const IDLE_MS = 24_000;
+const BET_MS = 5_000;
+const REVEAL_MS = 4_000;
+const IDLE_MS = 3_000;
 
 const MIN_BET = 10;
 const MAX_BET = 2000;
