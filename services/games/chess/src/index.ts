@@ -111,7 +111,8 @@ function isAttacked(board: Array<Piece | null>, sq: Square, by: Color): boolean 
   for (const [df, dr] of SLIDES.r!) {
     let f = sq.f + df;
     let r = sq.r + dr;
-    while (true) {
+    // 必须有边界：at() 越界返回 null，无限循环会把进程拖死
+    while (f >= 0 && f <= 7 && r >= 0 && r <= 7) {
       const piece = at(board, f, r);
       if (piece) {
         if (piece.color === by && (piece.type === 'q' || piece.type === 'r')) return true;
@@ -124,7 +125,7 @@ function isAttacked(board: Array<Piece | null>, sq: Square, by: Color): boolean 
   for (const [df, dr] of SLIDES.b!) {
     let f = sq.f + df;
     let r = sq.r + dr;
-    while (true) {
+    while (f >= 0 && f <= 7 && r >= 0 && r <= 7) {
       const piece = at(board, f, r);
       if (piece) {
         if (piece.color === by && (piece.type === 'q' || piece.type === 'b')) return true;
