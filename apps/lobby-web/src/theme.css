@@ -302,3 +302,249 @@ body {
   background: linear-gradient(90deg, #f6d08a, #d9a53c);
   box-shadow: 0 0 10px rgba(232, 189, 106, 0.5);
 }
+
+/* ==================================================================
+   移动端横屏形态：全局按手机横屏（约 844×390）量级设计，
+   桌面端同样渲染为紧凑横屏布局。
+   ================================================================== */
+
+/* ---------- 大厅顶栏 ---------- */
+.app-top {
+  height: 48px;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+.app-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
+.app-top__id strong {
+  font-size: 13px;
+}
+
+.app-top__id small {
+  font-size: 9.5px;
+}
+
+.app-top__wallet {
+  padding: 4px 12px;
+}
+
+.app-top__wallet strong {
+  font-size: 14px;
+}
+
+.app-top__tools .icon-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+}
+
+/* ---------- 公告 ---------- */
+.notice-bar {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+
+/* ---------- 大厅区块 ---------- */
+.app-section {
+  gap: 8px;
+}
+
+.live-card {
+  height: 104px;
+  border-radius: 12px;
+}
+
+.live-card__body {
+  left: 10px;
+  right: 10px;
+  bottom: 7px;
+  gap: 1px;
+}
+
+.live-card__body strong {
+  font-size: 14px;
+}
+
+.live-card__body small {
+  font-size: 10px;
+}
+
+.live-card__cta {
+  font-size: 10.5px;
+  margin-top: 2px;
+}
+
+.live-card__badge {
+  font-size: 9px;
+  padding: 2px 7px;
+  right: 7px;
+  top: 7px;
+}
+
+.mini-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mini-card {
+  padding: 7px 4px;
+  gap: 3px;
+  border-radius: 12px;
+}
+
+.mini-card__thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  font-size: 18px;
+}
+
+.mini-card strong {
+  font-size: 11.5px;
+}
+
+.mini-card small {
+  font-size: 9.5px;
+}
+
+.app-section__title h2 {
+  font-size: 14px;
+}
+
+.app-section__head > span {
+  font-size: 10px;
+}
+
+.app-footnote {
+  font-size: 9.5px;
+  margin-bottom: 58px;
+}
+
+/* ---------- 底部导航 ---------- */
+.app-tabbar {
+  bottom: 5px;
+  padding: 3px;
+  border-radius: 14px;
+  width: min(460px, calc(100% - 16px));
+}
+
+.app-tabbar button {
+  padding: 3px 0;
+  font-size: 9.5px;
+  border-radius: 9px;
+}
+
+.app-tabbar button span {
+  font-size: 15px;
+}
+
+/* ---------- 牌桌通用 ---------- */
+.room .topbar {
+  height: 44px;
+}
+
+.stage {
+  min-height: 0;
+  height: calc(100dvh - 44px);
+  overflow: hidden;
+}
+
+.lobby-game {
+  grid-template-columns: minmax(0, 1fr) 148px;
+  gap: 10px;
+}
+
+/* ---------- 棋盘自适应 ---------- */
+.boardgame {
+  gap: 6px;
+  padding: 4px;
+}
+
+.boardgame__bar {
+  font-size: 11px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.boardgame__board {
+  height: calc(100dvh - 92px);
+  max-height: 430px;
+  width: auto;
+  margin: 0 auto;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.boardgame__cell {
+  width: 100%;
+  height: 100%;
+}
+
+.boardgame__piece {
+  font-size: clamp(13px, 3.6dvh, 26px);
+}
+
+.boardgame--xiangqi .boardgame__piece {
+  font-size: clamp(11px, 3.1dvh, 22px);
+}
+
+.boardgame__cell.is-target::after {
+  width: 10px;
+  height: 10px;
+}
+
+/* ---------- 骰宝 ---------- */
+.dice-stage__tray {
+  padding: 8px 14px;
+  gap: 10px;
+  border-radius: 12px;
+}
+
+.dice-zones {
+  gap: 6px;
+}
+
+/* ---------- 弹窗 ---------- */
+.modal {
+  max-width: min(480px, 94vw);
+}
+
+/* ---------- 横屏媒体查询兜底：超矮视口进一步压缩 ---------- */
+@media (max-height: 460px) {
+  .app-top {
+    height: 42px;
+  }
+
+  .app-avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .room .topbar {
+    height: 40px;
+  }
+
+  .stage {
+    height: calc(100dvh - 40px);
+  }
+
+  .live-card {
+    height: 92px;
+  }
+
+  .boardgame__board {
+    height: calc(100dvh - 80px);
+    max-height: 380px;
+  }
+
+  .lobby-game {
+    grid-template-columns: minmax(0, 1fr) 128px;
+  }
+}
+

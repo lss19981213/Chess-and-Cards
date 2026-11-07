@@ -128,7 +128,14 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
         </span>
       </div>
 
-      <div className="boardgame__board" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      <div
+        className="boardgame__board"
+        style={{
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gridTemplateRows: `repeat(${rows}, 1fr)`,
+          aspectRatio: `${cols} / ${rows}`,
+        }}
+      >
         {cells.map(({ x, y }) => {
           const item = data.board.find((cell) => {
             const pos = cellOf(cell);
