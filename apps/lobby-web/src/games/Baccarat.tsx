@@ -228,7 +228,7 @@ export function Baccarat({ snapshot, myId: _myId, status, onBet, onClear }: Prop
 
       <aside className="history">
         <div className="history__title">走势</div>
-        <div className="history__legend">
+        <div className="history__legend history__legend--dice">
           <span>局</span>
           <span>闲</span>
           <span>庄</span>

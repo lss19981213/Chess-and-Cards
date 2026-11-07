@@ -180,7 +180,9 @@ export class BaccaratPlugin extends BaseGamePlugin {
       playerPoints: totalPoints(playerCards),
       bankerPoints: totalPoints(bankerCards),
       roundNo: ctx.config.round,
+      // 连胜与走势都要跨局保留，否则每局开始就把历史清空
       streaks: this.state.streaks,
+      history: this.state.history,
     };
     this.planBotBets(ctx);
   }

@@ -4962,7 +4962,8 @@ button.secondary:hover:not(:disabled) {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.history__row--dice {
+.history__row--dice,
+.history__legend--dice {
   grid-template-columns: 26px 1.6fr 0.8fr 0.9fr;
 }
 
