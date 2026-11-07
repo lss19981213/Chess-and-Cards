@@ -11,14 +11,6 @@ interface Props {
   onLeaderboard: () => void;
 }
 
-const PLAYER_LABEL: Record<string, string> = {
-  '2': '双人',
-  '3': '三人',
-  '4': '四人',
-  '5': '多人',
-  '6': '多人',
-};
-
 export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLeaderboard }: Props) {
   return (
     <div className="lobby">
@@ -76,7 +68,6 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
                 {game.tags.map((tag) => (
                   <em key={tag}>{tag}</em>
                 ))}
-                <em>{PLAYER_LABEL[String(game.maxPlayers)] ?? `${game.minPlayers}-${game.maxPlayers} 人`}</em>
               </span>
               <span className="game-card__cta">{user ? '快速开始 →' : '登录后开始 →'}</span>
             </button>
