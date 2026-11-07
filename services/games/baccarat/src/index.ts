@@ -101,6 +101,8 @@ export class BaccaratPlugin extends BaseGamePlugin {
     minPlayers: 1,
     maxPlayers: 5,
     tags: ['牌类', '常驻', '下注'],
+    category: 'live',
+    persistent: true,
     icon: '🃏',
   };
 

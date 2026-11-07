@@ -132,6 +132,8 @@ export class DicePlugin extends BaseGamePlugin {
     minPlayers: 1,
     maxPlayers: 5,
     tags: ['骰子', '常驻', '下注'],
+    category: 'live',
+    persistent: true,
     icon: '🎲',
   };
 

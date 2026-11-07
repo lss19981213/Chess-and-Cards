@@ -97,6 +97,22 @@ export const api = {
       body: JSON.stringify({ key }),
     }),
 
+  rooms: (gameId: string) =>
+    request<{
+      rooms: Array<{
+        roomId: string;
+        gameId: string;
+        roomName: string;
+        hostId: string | null;
+        hostName: string;
+        players: number;
+        maxPlayers: number;
+        status: 'waiting' | 'playing' | 'settled';
+        persistent: boolean;
+        joinable: boolean;
+      }>;
+    }>(`/api/rooms?gameId=${encodeURIComponent(gameId)}`),
+
   dailyWinners: (limit = 10) =>
     request<{
       dayKey: string;

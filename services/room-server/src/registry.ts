@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { GameMeta, Settlement } from '@cc/protocol';
+import type { GameMeta, RoomSummary, Settlement } from '@cc/protocol';
 import { AppError, ErrorCode } from '@cc/protocol';
 import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
@@ -78,6 +78,38 @@ export class RoomManager {
       room = new GameRoom(randomUUID(), plugin, mode, maxPlayers, this.deps);
       this.rooms.set(room.id, room);
     }
+    room.join(player, socket);
+    return room;
+  }
+
+  /** 选台列表：常驻台在前，玩家房按人数排列 */
+  listPublic(gameId?: string): RoomSummary[] {
+    return this.list(gameId)
+      .map((room) => room.summary())
+      .filter((room) => room.status !== 'settled')
+      .sort((a, b) => {
+        if (a.persistent !== b.persistent) return a.persistent ? -1 : 1;
+        if (a.joinable !== b.joinable) return a.joinable ? -1 : 1;
+        return b.players - a.players;
+      });
+  }
+
+  /** 玩家主动开一间新房 */
+  createRoom(
+    gameId: string,
+    mode: string,
+    maxPlayers: number,
+    player: { playerId: string; nickname: string },
+    socket: WebSocket,
+  ): GameRoom {
+    const factory = this.factories.get(gameId);
+    if (!factory) throw new AppError(ErrorCode.BadRequest, `游戏不存在或未部署: ${gameId}`);
+    const meta = this.metas.get(gameId);
+    if (meta?.persistent) {
+      throw new AppError(ErrorCode.IllegalAction, '该玩法由平台坐庄，不能自行建房');
+    }
+    const room = new GameRoom(randomUUID(), factory(), mode, maxPlayers, this.deps);
+    this.rooms.set(room.id, room);
     room.join(player, socket);
     return room;
   }

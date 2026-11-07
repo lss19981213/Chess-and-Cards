@@ -7,6 +7,7 @@ import {
   type PlayerView,
   type RoomStatus,
   type RoomView,
+  type RoomSummary,
   type Settlement,
 } from '@cc/protocol';
 import type { GameIntent, GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
@@ -175,6 +176,25 @@ export class GameRoom {
       maxPlayers: this.maxPlayers,
       players: this.playerViews(),
       hostId: this.hostId,
+    };
+  }
+
+  /** 供选台列表使用 */
+  summary(): RoomSummary {
+    const host = [...this.seats.values()].find((seat) => seat.playerId === this.hostId);
+    return {
+      roomId: this.id,
+      gameId: this.plugin.meta.gameId,
+      roomName: this.persistent
+        ? `平台台 · ${this.plugin.meta.name}`
+        : `${host?.nickname ?? '玩家'}的${this.plugin.meta.name}`,
+      hostId: this.hostId,
+      hostName: this.persistent ? '平台庄' : (host?.nickname ?? '玩家'),
+      players: this.seats.size,
+      maxPlayers: this.maxPlayers,
+      status: this.status === 'closed' ? 'settled' : this.status,
+      persistent: this.persistent,
+      joinable: this.isJoinable || this.persistent,
     };
   }
 

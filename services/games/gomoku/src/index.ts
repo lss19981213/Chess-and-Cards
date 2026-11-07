@@ -63,6 +63,7 @@ export class GomokuPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: 'builtin:gomoku',
     tags: ['棋类', '双人', '休闲'],
+    category: 'board',
   };
 
   override readonly commands: readonly string[] = ['place'];

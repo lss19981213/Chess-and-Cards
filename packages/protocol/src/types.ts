@@ -15,6 +15,10 @@ export interface GameMeta {
   /** 客户端资源地址（微前端 iframe / 动态模块） */
   clientBundle: string;
   tags: string[];
+  /** 大厅分类：board 棋类 / table 牌桌 / live 极速下注 */
+  category?: 'board' | 'table' | 'live';
+  /** 平台坐庄的常驻玩法：只能加入平台开好的台，玩家不能建房 */
+  persistent?: boolean;
 }
 
 export type RoomStatus = 'waiting' | 'playing' | 'settled' | 'closed';

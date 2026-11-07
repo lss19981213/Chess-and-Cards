@@ -15,6 +15,12 @@ interface Props {
   onLeaderboard: () => void;
 }
 
+const CATEGORIES = [
+  { key: 'board', title: '棋类对弈', desc: '一对一，纯技术' },
+  { key: 'table', title: '牌桌对战', desc: '多人竞技，凭牌技取胜' },
+  { key: 'live', title: '极速下注', desc: '平台坐庄，每分钟一局' },
+] as const;
+
 export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLeaderboard }: Props) {
   const [musicOn, setMusicOn] = useState(audio.musicOn);
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
@@ -88,43 +94,55 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
           </div>
         </section>
 
-        <div className="section-title">
-          <h2>全部游戏</h2>
-          <span>{games.length} 款可玩</span>
-        </div>
-
-        <div className="game-grid">
-          {games.map((game) => (
-            <button
-              key={game.gameId}
-              type="button"
-              className="game-card"
-              onClick={() => {
-                audio.play('click');
-                onEnter(game);
-              }}
-            >
-              <span className="game-card__media">
-                {GAME_ART[game.gameId] ? (
-                  <img src={GAME_ART[game.gameId]} alt={game.name} loading="lazy" draggable={false} />
-                ) : (
-                  <span className="game-card__icon">{game.icon}</span>
-                )}
-                <span className="game-card__cta">{user ? '开始 →' : '登录玩 →'}</span>
-              </span>
-              <span className="game-card__body">
-                <span className="game-card__name">{game.name}</span>
-                <span className="game-card__desc">{game.description}</span>
-                <span className="game-card__tags">
-                  {game.tags.map((tag) => (
-                    <em key={tag}>{tag}</em>
-                  ))}
+        {CATEGORIES.map((category) => {
+          const list = games.filter((game) => (game.category ?? 'table') === category.key);
+          if (list.length === 0) return null;
+          return (
+            <section key={category.key} className="game-section">
+              <div className="section-title">
+                <h2>{category.title}</h2>
+                <span>
+                  {category.desc} · {list.length} 款
                 </span>
-              </span>
-            </button>
-          ))}
-          {games.length === 0 && <p className="empty">暂无可用游戏，请确认游戏服已启动。</p>}
-        </div>
+              </div>
+
+              <div className="game-grid">
+                {list.map((game) => (
+                  <button
+                    key={game.gameId}
+                    type="button"
+                    className={`game-card ${game.persistent ? 'is-live' : ''}`}
+                    onClick={() => {
+                      audio.play('click');
+                      onEnter(game);
+                    }}
+                  >
+                    <span className="game-card__media">
+                      {GAME_ART[game.gameId] ? (
+                        <img src={GAME_ART[game.gameId]} alt={game.name} loading="lazy" draggable={false} />
+                      ) : (
+                        <span className="game-card__icon">{game.icon}</span>
+                      )}
+                      {game.persistent && <em className="game-card__live">平台庄</em>}
+                      <span className="game-card__cta">{user ? '选台 →' : '登录玩 →'}</span>
+                    </span>
+                    <span className="game-card__body">
+                      <span className="game-card__name">{game.name}</span>
+                      <span className="game-card__desc">{game.description}</span>
+                      <span className="game-card__tags">
+                        {game.tags.map((tag) => (
+                          <em key={tag}>{tag}</em>
+                        ))}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+
+        {games.length === 0 && <p className="empty">暂无可用游戏，请确认游戏服已启动。</p>}
 
         {!user && (
           <p className="lobby__footnote">

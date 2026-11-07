@@ -111,6 +111,8 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     minPlayers: 1,
     maxPlayers: 5,
     tags: ['牌九', '常驻', '下注'],
+    category: 'live',
+    persistent: true,
     icon: '🀄',
   };
 

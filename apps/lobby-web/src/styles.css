@@ -2590,12 +2590,13 @@ button.secondary:hover:not(:disabled) {
 
 .emote-bar {
   position: absolute;
-  right: 16px;
-  bottom: 108px;
+  left: 16px;
+  top: 10px;
   display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: 6px;
+  grid-template-columns: repeat(3, auto);
+  gap: 5px;
   z-index: 12;
+  max-width: 260px;
 }
 
 .emote-bar button {
@@ -2623,7 +2624,185 @@ button.secondary:hover:not(:disabled) {
   grid-template-columns: minmax(0, 1fr) 186px;
   gap: 16px;
   width: 100%;
-  align-items: start;
+  align-items: stretch;
+}
+
+/* ===== 大厅分类 ===== */
+
+.game-section {
+  margin-bottom: 8px;
+}
+
+.game-section .section-title {
+  margin-top: 4px;
+}
+
+.game-card__live {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: #1a1405;
+  background: linear-gradient(160deg, #ffd875, #f0b429);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+
+/* ===== 选台 ===== */
+
+.back-btn {
+  width: auto;
+  padding: 6px 14px;
+  font-size: 13px;
+  margin-right: 10px;
+}
+
+.rooms-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.rooms-hero {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: 150px;
+  display: flex;
+  align-items: flex-end;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 22px;
+}
+
+.rooms-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(6, 9, 18, 0.94) 26%, rgba(6, 9, 18, 0.5) 62%, rgba(6, 9, 18, 0.15));
+}
+
+.rooms-hero__body {
+  position: relative;
+  z-index: 1;
+  padding: 22px 26px;
+}
+
+.rooms-hero__body h2 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  letter-spacing: 1px;
+}
+
+.rooms-hero__body p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 14px;
+}
+
+.room-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 16px 14px;
+  border-radius: 16px;
+  text-align: left;
+  background: linear-gradient(165deg, rgba(30, 39, 63, 0.9), rgba(13, 18, 31, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 400;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.room-tile:hover:not(:disabled) {
+  transform: translateY(-4px);
+  border-color: rgba(240, 180, 41, 0.42);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+
+.room-tile.is-locked {
+  opacity: 0.5;
+}
+
+.room-tile.is-platform {
+  border-color: rgba(240, 180, 41, 0.42);
+  background: linear-gradient(165deg, rgba(58, 44, 20, 0.85), rgba(18, 16, 10, 0.95));
+}
+
+.room-tile__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-tile__name {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-tile__badge {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #1a1405;
+  background: linear-gradient(160deg, #ffd875, #f0b429);
+  flex-shrink: 0;
+}
+
+.room-tile__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.room-tile__meta .is-open {
+  color: var(--green);
+}
+
+.room-tile__cta {
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.room-tile--new {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.02);
+  min-height: 132px;
+  gap: 5px;
+}
+
+.room-tile__plus {
+  font-size: 26px;
+  color: var(--gold);
+  line-height: 1;
+}
+
+@media (max-width: 900px) {
+  .room-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
 }
 
 .lobby-game__main {
@@ -3077,7 +3256,10 @@ button.secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.07);
   height: 100%;
-  max-height: 520px;
+  max-height: min(520px, calc(100vh - 260px));
+  position: relative;
+  z-index: 8;
+  overflow: hidden;
 }
 
 .history__title {
@@ -3111,8 +3293,10 @@ button.secondary:hover:not(:disabled) {
   flex-direction: column;
   gap: 3px;
   overflow-y: auto;
-  max-height: 460px;
+  min-height: 0;
+  flex: 1;
   padding-right: 2px;
+  scrollbar-width: thin;
 }
 
 .history__row {

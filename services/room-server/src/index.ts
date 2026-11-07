@@ -76,7 +76,7 @@ const httpServer = createServer((req, res) => {
   if (url.pathname === '/rooms') {
     const gameId = url.searchParams.get('gameId') ?? undefined;
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ rooms: manager.list(gameId).map((r) => r.view()) }));
+    res.end(JSON.stringify({ rooms: manager.listPublic(gameId) }));
     return;
   }
 
@@ -173,13 +173,27 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       const gameId = asString(payload.gameId, 'gameId');
       const mode = typeof payload.mode === 'string' ? payload.mode : 'casual';
       const maxPlayers = typeof payload.maxPlayers === 'number' ? payload.maxPlayers : 2;
-      const room = manager.joinOrCreate(
-        gameId,
-        mode,
-        maxPlayers,
-        { playerId: session.playerId, nickname: session.nickname ?? '玩家' },
-        session.ws,
-      );
+      const roomId = typeof payload.roomId === 'string' ? payload.roomId : undefined;
+      const create = payload.create === true;
+      const player = { playerId: session.playerId, nickname: session.nickname ?? '玩家' };
+
+      let room;
+      if (roomId) {
+        const target = manager.get(roomId);
+        if (!target || target.isClosed) {
+          throw new AppError(ErrorCode.RoomNotFound, '房间不存在或已解散');
+        }
+        if (!target.isJoinable && !target.isPersistent) {
+          throw new AppError(ErrorCode.RoomFull, '该房间已开局或已满员');
+        }
+        target.join(player, session.ws);
+        room = target;
+      } else if (create) {
+        room = manager.createRoom(gameId, mode, maxPlayers, player, session.ws);
+      } else {
+        room = manager.joinOrCreate(gameId, mode, maxPlayers, player, session.ws);
+      }
+
       session.roomId = room.id;
       send(session.ws, ServerMsg.RoomView, { room: room.view() });
       return;

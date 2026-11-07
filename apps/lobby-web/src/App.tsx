@@ -12,6 +12,7 @@ import { audio } from './audio';
 import { GameSocket } from './ws';
 import { Assistant } from './components/Assistant';
 import { AuthModal } from './components/AuthModal';
+import { GameRooms } from './components/GameRooms';
 import { Lobby } from './components/Lobby';
 import { LeaderboardModal } from './components/LeaderboardModal';
 import { Room } from './components/Room';
@@ -34,6 +35,8 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<SnapshotEnvelope | null>(null);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
   const [emotes, setEmotes] = useState<EmotePayload[]>([]);
+  const [selectedGame, setSelectedGame] = useState<GameMeta | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
@@ -119,19 +122,10 @@ export default function App() {
     socket.on(ServerMsg.Error, (data) => {
       const payload = data as { message?: string };
       setToast(payload.message ?? '操作失败');
+      setJoinError(payload.message ?? '操作失败');
     });
 
     socket.connect();
-
-    const pending = pendingJoinRef.current;
-    if (pending) {
-      pendingJoinRef.current = null;
-      socket.send(ClientMsg.JoinRoom, {
-        gameId: pending.gameId,
-        mode: 'casual',
-        maxPlayers: pending.maxPlayers,
-      });
-    }
 
     return () => {
       socket.close();
@@ -139,13 +133,16 @@ export default function App() {
     };
   }, [user?.id]);
 
-  const joinGame = useCallback((game: GameMeta) => {
+  const joinGame = useCallback((game: GameMeta, roomId: string | null, create: boolean) => {
     setSettlement(null);
     setSnapshot(null);
+    setJoinError(null);
     socketRef.current?.send(ClientMsg.JoinRoom, {
       gameId: game.gameId,
       mode: 'casual',
       maxPlayers: game.maxPlayers,
+      ...(roomId ? { roomId } : {}),
+      ...(create ? { create: true } : {}),
     });
   }, []);
 
@@ -156,15 +153,30 @@ export default function App() {
         setAuthOpen(true);
         return;
       }
-      joinGame(game);
+      setSelectedGame(game);
+      setJoinError(null);
     },
-    [user, joinGame],
+    [user],
+  );
+
+  const handleJoinRoom = useCallback(
+    (roomId: string | null, create: boolean) => {
+      if (!selectedGame) return;
+      joinGame(selectedGame, roomId, create);
+    },
+    [selectedGame, joinGame],
   );
 
   const handleAuthSuccess = useCallback((token: string, nextUser: User) => {
     setToken(token);
     setUser(nextUser);
     setAuthOpen(false);
+    // 登录前点了某款游戏，登录后直接进入选台
+    const pending = pendingJoinRef.current;
+    if (pending) {
+      pendingJoinRef.current = null;
+      setSelectedGame(pending);
+    }
   }, []);
 
   const handleLeave = useCallback(() => {
@@ -229,6 +241,16 @@ export default function App() {
           onAddBot={handleAddBot}
           emotes={emotes}
           onEmote={handleEmote}
+        />
+      ) : selectedGame && user ? (
+        <GameRooms
+          game={selectedGame}
+          onBack={() => {
+            setSelectedGame(null);
+            setJoinError(null);
+          }}
+          onJoin={handleJoinRoom}
+          joinError={joinError}
         />
       ) : (
         <Lobby

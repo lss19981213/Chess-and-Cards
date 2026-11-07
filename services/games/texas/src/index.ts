@@ -91,6 +91,7 @@ export class TexasPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: 'builtin:texas',
     tags: ['牌类', '多人', '竞技'],
+    category: 'table',
   };
 
   override readonly commands: readonly string[] = ['fold', 'check', 'call', 'raise'];

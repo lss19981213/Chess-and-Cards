@@ -61,6 +61,24 @@ export interface JoinRoomPayload {
   gameId: string;
   mode?: string;
   maxPlayers?: number;
+  /** 指定房间号则加入该房间，否则自动匹配 */
+  roomId?: string;
+}
+
+/** 房间列表项，用于选台 */
+export interface RoomSummary {
+  roomId: string;
+  gameId: string;
+  roomName: string;
+  hostId: string | null;
+  hostName: string;
+  players: number;
+  maxPlayers: number;
+  status: 'waiting' | 'playing' | 'settled';
+  /** 平台坐庄的常驻台，玩家不可创建也不可关闭 */
+  persistent: boolean;
+  /** 已开局且不可再加入 */
+  joinable: boolean;
 }
 
 export interface IntentPayload {

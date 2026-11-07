@@ -68,6 +68,7 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: 'builtin:paodekuai',
     tags: ['牌类', '三人', '快节奏'],
+    category: 'table',
   };
 
   override readonly commands: readonly string[] = ['play', 'pass'];

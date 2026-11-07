@@ -65,6 +65,7 @@ export class DoudizhuPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: 'builtin:doudizhu',
     tags: ['牌类', '三人', '热门'],
+    category: 'table',
   };
 
   override readonly commands: readonly string[] = ['play', 'pass'];
