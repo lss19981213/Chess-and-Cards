@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 
 /**
- * 牌桌舞台：以「自己坐在桌边」的视角还原真实牌桌。
- * 对手环绕椭圆桌分布，桌心是底池/出牌区，手牌立在桌沿。
+ * 顶级横屏移动端牌桌舞台：
+ * 采用 16:9 ~ 21:9 横屏人机工程学比例，真实还原贵宾厅环桌视角。
  */
 
 interface Slot {
@@ -10,30 +10,30 @@ interface Slot {
   y: number;
 }
 
-/** 按对手数量预设座位方位（百分比，桌子坐标系） */
+/** 适应横屏更宽视野的对手座位方位预设（百分比） */
 const SLOTS: Record<number, Slot[]> = {
-  1: [{ x: 50, y: 6 }],
+  1: [{ x: 50, y: 8 }],
   2: [
-    { x: 17, y: 14 },
-    { x: 83, y: 14 },
+    { x: 18, y: 16 },
+    { x: 82, y: 16 },
   ],
   3: [
-    { x: 8, y: 40 },
-    { x: 50, y: 5 },
-    { x: 92, y: 40 },
+    { x: 10, y: 38 },
+    { x: 50, y: 7 },
+    { x: 90, y: 38 },
   ],
   4: [
-    { x: 50, y: 5 },
-    { x: 8, y: 32 },
-    { x: 92, y: 32 },
-    { x: 50, y: 66 },
+    { x: 12, y: 32 },
+    { x: 38, y: 7 },
+    { x: 62, y: 7 },
+    { x: 88, y: 32 },
   ],
   5: [
-    { x: 50, y: 4 },
-    { x: 8, y: 22 },
-    { x: 92, y: 22 },
-    { x: 12, y: 62 },
-    { x: 88, y: 62 },
+    { x: 8, y: 44 },
+    { x: 26, y: 10 },
+    { x: 74, y: 10 },
+    { x: 92, y: 44 },
+    { x: 50, y: 6 },
   ],
 };
 
@@ -41,33 +41,36 @@ export interface StageSeat {
   key: string;
   node: ReactNode;
   active?: boolean;
-  /** 已出完牌/已弃牌，弱化显示 */
   dim?: boolean;
 }
 
 interface Props {
   seats: StageSeat[];
-  /** 桌心内容：底池、上一手牌 */
   center?: ReactNode;
-  /** 桌沿底部：手牌与操作 */
   bottom?: ReactNode;
-  /** 桌面中央水印文字 */
   watermark?: string;
   className?: string;
 }
 
 export function TableStage({ seats, center, bottom, watermark, className = '' }: Props) {
   const count = Math.min(Math.max(seats.length, 1), 5);
-  const slots = SLOTS[count] ?? SLOTS[5]!;
+  const slots = SLOTS[count] ?? SLOTS[count] ?? SLOTS[3]!;
 
   return (
-    <div className={`stage ${className}`}>
-      <div className="stage__felt">
-        <div className="stage__felt-ring" />
-        {watermark && <span className="stage__watermark">{watermark}</span>}
-        <div className="stage__center">{center}</div>
+    <div className={`stage stage--landscape ${className}`}>
+      {/* 真实木纹与跑道金边外沿 */}
+      <div className="stage__rail">
+        {/* 深海天鹅绒翡翠呢面 */}
+        <div className="stage__felt">
+          {/* 金色内嵌跑道纹线 */}
+          <div className="stage__felt-ring" />
+          <div className="stage__spotlight" />
+          {watermark && <span className="stage__watermark">{watermark}</span>}
+          <div className="stage__center">{center}</div>
+        </div>
       </div>
 
+      {/* 环桌对手座位 */}
       {seats.map((seat, index) => {
         const slot = slots[index] ?? slots[slots.length - 1]!;
         return (
@@ -81,12 +84,13 @@ export function TableStage({ seats, center, bottom, watermark, className = '' }:
         );
       })}
 
+      {/* 玩家手牌与右下拇指操作区 */}
       {bottom && <div className="stage__bottom">{bottom}</div>}
     </div>
   );
 }
 
-/** 对手座位卡：头像、昵称、状态、剩余牌 */
+/** 奢华对手座位卡：带金属流光环、状态徽章、倒计时呼吸圈 */
 export function SeatPanel({
   nickname,
   initial,
@@ -105,11 +109,17 @@ export function SeatPanel({
   isBot?: boolean;
 }) {
   return (
-    <div className={`seat ${active ? 'is-turn' : ''}`}>
-      <div className={`seat__avatar ${isBot ? 'is-bot' : ''}`}>{initial}</div>
+    <div className={`seat seat--luxury ${active ? 'is-turn' : ''}`}>
+      <div className="seat__avatar-box">
+        {active && <div className="seat__turn-glow" />}
+        <div className={`seat__avatar ${isBot ? 'is-bot' : ''}`}>
+          <span>{initial}</span>
+          {isBot && <span className="seat__bot-tag">AI</span>}
+        </div>
+      </div>
       <div className="seat__body">
         <div className="seat__name">
-          <span>{nickname}</span>
+          <span className="seat__nickname">{nickname}</span>
           {badge}
         </div>
         <div className="seat__meta">{meta}</div>

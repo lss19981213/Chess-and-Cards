@@ -35,10 +35,10 @@ interface Props {
 }
 
 const STATUS_TEXT: Record<string, string> = {
-  waiting: '等待玩家',
-  playing: '对局中',
-  settled: '本局结算',
-  closed: '已关闭',
+  waiting: '等待就绪',
+  playing: '对决中',
+  settled: '开奖结算',
+  closed: '房间关闭',
 };
 
 const GAME_TITLE: Record<string, string> = {
@@ -77,6 +77,8 @@ export function Room({
 
   const [dismissedKey, setDismissedKey] = useState('');
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [emoteOpen, setEmoteOpen] = useState(false);
+  const [playersDrawerOpen, setPlayersDrawerOpen] = useState(false);
 
   // 结果有两个来源：对战类用结算单，常驻类直接用快照里的本局明细
   const liveResults = (
@@ -101,19 +103,22 @@ export function Room({
       playerId: row.playerId,
       nickname: row.nickname,
       delta: row.delta,
-      isBot: false,
     }));
-  }, [settlement, room.players, liveResults]);
+  }, [settlement, liveResults, room.players]);
 
-  const resultKey = settlement?.settlementId ?? `${room.roomId}:${room.round}`;
-  const showPanel = resultRows.length > 0 && dismissedKey !== resultKey;
+  const resultKey = settlement
+    ? `settle-${room.round}`
+    : liveResults && liveResults.length > 0
+      ? `live-${room.round}`
+      : '';
 
-  /** 统一派发指令，并按动作类型播放音效 */
-  const dispatch = (cmd: string, payload: Record<string, unknown> = {}): void => {
-    if (cmd === 'play' || cmd === 'place') audio.play('play');
-    else if (cmd === 'pass') audio.play('pass');
-    else if (cmd === 'bet' || cmd === 'raise' || cmd === 'call') audio.play('bet');
-    else audio.play('click');
+  const showPanel =
+    resultKey !== '' &&
+    resultKey !== dismissedKey &&
+    resultRows.length > 0 &&
+    (room.status === 'settled' || !persistent);
+
+  const dispatch = (cmd: string, payload: Record<string, unknown> = {}) => {
     onIntent(cmd, payload);
   };
 
@@ -125,11 +130,7 @@ export function Room({
             snapshot={snapshot}
             status={room.status}
             myId={myId}
-            players={room.players.map((p) => ({
-              playerId: p.playerId,
-              nickname: p.nickname,
-              seat: p.seat,
-            }))}
+            players={room.players}
             onPlace={(x, y) => dispatch('place', { x, y })}
           />
         );
@@ -143,7 +144,7 @@ export function Room({
             status={room.status}
             round={room.round}
             onPlay={(cards) => dispatch('play', { cards })}
-            onPass={() => dispatch('pass', {})}
+            onPass={() => dispatch('pass')}
           />
         );
       case 'tuizhuanzi':
@@ -235,37 +236,55 @@ export function Room({
           />
         );
       default:
-        return <div className="game-fallback">该游戏的客户端尚未接入</div>;
+        return <div className="game-fallback">该游戏客户端正在接入中…</div>;
     }
   };
 
   return (
-    <div className="room">
-      <header className="topbar">
-        <button type="button" className="ghost" onClick={onLeave}>
-          ← 返回大厅
-        </button>
-        <div className="room__title">
-          <h1>{GAME_TITLE[room.gameId] ?? room.gameId}</h1>
-          <span className={`badge badge--${room.status}`}>{STATUS_TEXT[room.status] ?? room.status}</span>
+    <div className="room room--luxury">
+      {/* 极简流光牌桌顶栏 */}
+      <header className="room-topbar">
+        <div className="room-topbar__left">
+          <button type="button" className="room-leave-btn" onClick={onLeave}>
+            <span>‹</span> 退出
+          </button>
+          <div className="room-info-pill">
+            <strong>{GAME_TITLE[room.gameId] ?? room.gameId}</strong>
+            <span className="room-no">#{room.roomId.slice(0, 6)}</span>
+            <span className={`room-status-dot is-${room.status}`} />
+            <span className="room-status-label">{STATUS_TEXT[room.status] ?? room.status}</span>
+          </div>
         </div>
-        <div className="room__meta">
-          <span className="room__roomno">
-            房间 {room.roomId.slice(0, 8)} · 第 {room.round} 局
-          </span>
-          <button type="button" className="ghost rules-trigger" onClick={() => setRulesOpen(true)}>
+
+        <div className="room-topbar__center">
+          <span className="round-badge">第 <strong>{room.round}</strong> 局</span>
+        </div>
+
+        <div className="room-topbar__right">
+          <button
+            type="button"
+            className="room-players-btn"
+            onClick={() => setPlayersDrawerOpen(!playersDrawerOpen)}
+            title="查看本桌玩家"
+          >
+            👥 {room.players.length}/{room.maxPlayers}
+          </button>
+
+          <button type="button" className="room-rules-btn" onClick={() => setRulesOpen(true)}>
             ? 规则
           </button>
-          <span className="wallet wallet--sm">
-            <Chip size={17} />
+
+          <div className="room-wallet-badge">
+            <Chip size={18} />
             <strong>{balance.toLocaleString()}</strong>
-          </span>
+          </div>
         </div>
       </header>
 
       {rulesOpen && <RulesModal gameId={room.gameId} onClose={() => setRulesOpen(false)} />}
       {settlement && myDelta > 0 && <CoinBurst key={`${room.roomId}-${room.round}`} />}
 
+      {/* 胜利/局结弹窗 */}
       {showPanel && (
         <SettlePanel
           gameId={room.gameId}
@@ -276,26 +295,27 @@ export function Room({
           persistent={persistent}
           onContinue={() => {
             setDismissedKey(resultKey);
-            // 服务端会把这次准备预约到结算结束，回到等待态即自动开局
             onReady(true);
           }}
           onClose={() => setDismissedKey(resultKey)}
         />
       )}
 
-      <main className={`room__main ${room.round > 0 ? 'is-stage' : ''}`}>
+      {/* 牌桌主体核心 */}
+      <main className="room-viewport">
         <section
-          className="room__board"
+          className="room-stage-container"
           style={
             room.round === 0 && GAME_ART[room.gameId]
               ? {
-                  backgroundImage: `linear-gradient(rgba(6,12,11,0.78), rgba(6,12,11,0.9)), url(${GAME_ART[room.gameId]})`,
+                  backgroundImage: `radial-gradient(ellipse at center, rgba(10,35,28,0.85) 0%, rgba(6,12,18,0.96) 80%), url(${GAME_ART[room.gameId]})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                 }
               : undefined
           }
         >
+          {/* 表情弹幕/气泡层 */}
           <div className="emote-stage">
             {emotes.map((emote) => (
               <div key={emote.at} className="emote-bubble">
@@ -305,85 +325,144 @@ export function Room({
             ))}
           </div>
 
+          {/* 渲染游戏牌桌 */}
           {renderGame()}
 
+          {/* 等待开局专属悬浮就绪控制台（沉浸式牌桌中心，彻底取代旧侧栏） */}
+          {room.status === 'waiting' && !persistent && (
+            <div className="table-waiting-overlay">
+              <div className="waiting-card">
+                <div className="waiting-card__title">
+                  <span className="sparkle">✦</span>
+                  <h3>等待各位牌友准备就绪</h3>
+                  <span className="sparkle">✦</span>
+                </div>
+
+                <div className="waiting-players-row">
+                  {room.players.map((p) => (
+                    <div key={p.playerId} className={`waiting-player-avatar ${p.ready ? 'is-ready' : ''}`}>
+                      <div className="avatar-disc">
+                        {p.nickname.slice(0, 1)}
+                        {p.ready && <span className="ready-badge">✓</span>}
+                      </div>
+                      <span className="avatar-name">{p.nickname}</span>
+                    </div>
+                  ))}
+                  {Array.from({ length: Math.max(0, room.maxPlayers - room.players.length) }).map((_, idx) => (
+                    <div key={`empty-${idx}`} className="waiting-player-avatar is-empty">
+                      <div className="avatar-disc empty-disc">
+                        {isHost ? (
+                          <button
+                            type="button"
+                            className="btn-add-bot-circle"
+                            onClick={onAddBot}
+                            title="添加AI机器人入座"
+                          >
+                            +AI
+                          </button>
+                        ) : (
+                          '...'
+                        )}
+                      </div>
+                      <span className="avatar-name">待加入</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="waiting-actions-row">
+                  <button
+                    type="button"
+                    className={`btn-ready-action ${me?.ready ? 'is-cancel' : 'is-ready'}`}
+                    onClick={() => {
+                      audio.play('click');
+                      onReady(!me?.ready);
+                    }}
+                  >
+                    <span>{me?.ready ? '取消准备' : '✦ 立即准备 ✦'}</span>
+                    <em className="btn-light" />
+                  </button>
+
+                  {isHost && room.players.length < room.maxPlayers && (
+                    <button
+                      type="button"
+                      className="btn-bot-quick"
+                      onClick={() => {
+                        audio.play('click');
+                        onAddBot();
+                      }}
+                    >
+                      🤖 添加AI陪玩
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 局内快捷表情按钮与抽屉 */}
           {room.status === 'playing' && (
-            <div className="emote-bar">
-              {EMOTES.map((emote) => (
-                <button
-                  key={emote.key}
-                  type="button"
-                  onClick={() => {
-                    audio.play('click');
-                    onEmote(emote.key);
-                  }}
-                >
-                  {emote.text}
-                </button>
-              ))}
+            <div className="table-emote-trigger-container">
+              <button
+                type="button"
+                className={`emote-trigger-btn ${emoteOpen ? 'is-open' : ''}`}
+                onClick={() => setEmoteOpen(!emoteOpen)}
+                title="快捷互动表情"
+              >
+                💬
+              </button>
+              {emoteOpen && (
+                <div className="floating-emote-bar">
+                  {EMOTES.map((emote) => (
+                    <button
+                      key={emote.key}
+                      type="button"
+                      className="emote-pill"
+                      onClick={() => {
+                        audio.play('click');
+                        onEmote(emote.key);
+                        setEmoteOpen(false);
+                      }}
+                    >
+                      {emote.text}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>
 
-        <aside className="room__side">
-          <div className="panel">
-            <h2>玩家</h2>
-            <ul className="player-list">
-              {room.players.map((player) => (
-                <li key={player.playerId} className={player.playerId === myId ? 'is-me' : ''}>
-                  <span className={`player-list__avatar ${player.isBot ? 'is-bot' : ''}`}>
-                    {player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
+        {/* 侧滑玩家抽屉（可折叠） */}
+        {playersDrawerOpen && (
+          <aside className="room-players-drawer">
+            <div className="drawer-header">
+              <h4>本桌牌友 ({room.players.length}/{room.maxPlayers})</h4>
+              <button type="button" className="drawer-close" onClick={() => setPlayersDrawerOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <ul className="drawer-player-list">
+              {room.players.map((p) => (
+                <li key={p.playerId} className={`drawer-player-item ${p.playerId === myId ? 'is-me' : ''}`}>
+                  <span className={`drawer-avatar ${p.isBot ? 'is-bot' : ''}`}>
+                    {p.nickname.slice(0, 1)}
                   </span>
-                  <span className="player-list__name">
-                    {player.nickname}
-                    {room.hostId === player.playerId && <em>房主</em>}
-                    {player.isBot && <em className="bot-tag">AI</em>}
+                  <div className="drawer-meta">
+                    <span className="drawer-name">
+                      {p.nickname}
+                      {p.playerId === room.hostId && <em className="tag-host">房主</em>}
+                      {p.isBot && <em className="tag-bot">AI</em>}
+                    </span>
+                    <span className="drawer-score">积分: {p.score}</span>
+                  </div>
+                  <span className={`drawer-status ${p.ready ? 'is-ready' : ''}`}>
+                    {p.ready ? '已准备' : '等待中'}
                   </span>
-                  <span className={`player-list__state ${player.online ? '' : 'offline'}`}>
-                    {player.online ? (player.ready ? '已准备' : '未准备') : '离线'}
-                  </span>
-                  <span className="player-list__score">{player.score}</span>
                 </li>
               ))}
-              {room.players.length === 0 && <li className="empty">等待玩家加入…</li>}
             </ul>
-          </div>
-
-          <div className="panel">
-            <h2>操作</h2>
-            {room.status === 'waiting' ? (
-              <button
-                type="button"
-                className={me?.ready ? 'secondary' : 'primary'}
-                onClick={() => {
-                  audio.play('click');
-                  onReady(!me?.ready);
-                }}
-              >
-                {me?.ready ? '取消准备' : '准备'}
-              </button>
-            ) : (
-              <p className="hint">{room.status === 'playing' ? '对局进行中' : '请等待本局结算完成'}</p>
-            )}
-            {isHost && room.status === 'waiting' && room.players.length < room.maxPlayers && (
-              <button
-                type="button"
-                className="secondary bot-btn"
-                onClick={() => {
-                  audio.play('click');
-                  onAddBot();
-                }}
-              >
-                + 添加机器人陪玩
-              </button>
-            )}
-            {isHost && room.players.length < room.maxPlayers && (
-              <p className="hint">
-                还差 {room.maxPlayers - room.players.length} 人，等待其他玩家加入…
-              </p>
-            )}
-          </div>
-        </aside>
+          </aside>
+        )}
       </main>
     </div>
   );

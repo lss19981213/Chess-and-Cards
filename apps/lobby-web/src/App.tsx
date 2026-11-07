@@ -28,6 +28,40 @@ export interface SnapshotEnvelope {
   snapshot: Record<string, unknown>;
 }
 
+function PortraitPrompt() {
+  const [dismissed, setDismissed] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const portrait = window.innerHeight > window.innerWidth && window.innerWidth < 900;
+      setIsPortrait(portrait);
+    };
+    check();
+    window.addEventListener('resize', check);
+    window.addEventListener('orientationchange', check);
+    return () => {
+      window.removeEventListener('resize', check);
+      window.removeEventListener('orientationchange', check);
+    };
+  }, []);
+
+  if (!isPortrait || dismissed) return null;
+
+  return (
+    <div className="portrait-notice-bar" role="alert">
+      <div className="rotate-phone-icon">📱↻</div>
+      <div className="portrait-notice-text">
+        <strong>建议横屏游玩</strong>
+        <small>将设备横置可享受宽幅沉浸式殿堂牌桌视效</small>
+      </div>
+      <button type="button" className="portrait-notice-close" onClick={() => setDismissed(true)}>
+        知道了
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -232,15 +266,17 @@ export default function App() {
 
   if (booting) {
     return (
-      <div className="boot">
-        <div className="spinner" />
-        <p>正在进入大厅…</p>
+      <div className="boot luxury-boot">
+        <div className="spinner luxury-spinner" />
+        <p className="luxury-boot-text">✦ 尊贵牌友 · 正在进入巅峰娱乐殿堂 ✦</p>
       </div>
     );
   }
 
   return (
     <>
+      <PortraitPrompt />
+
       {room && user ? (
         <Room
           room={room}
@@ -286,7 +322,7 @@ export default function App() {
       )}
       {rankOpen && <LeaderboardModal myUserId={user?.id ?? null} onClose={() => setRankOpen(false)} />}
       {!room && user && <Assistant onBalanceChange={handleBalanceChange} />}
-      {toast && <div className="toast">{toast}</div>}
+      {toast && <div className="toast luxury-toast">{toast}</div>}
     </>
   );
 }

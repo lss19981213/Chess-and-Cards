@@ -28,6 +28,12 @@ const GAME_NAME: Record<string, string> = {
   texas: '德州扑克',
   dice: '骰宝',
   baccarat: '百家乐',
+  niuniu: '斗牛',
+  blackjack: '21点',
+  stud: '梭哈',
+  goldenflower: '翻金花',
+  chess: '国际象棋',
+  xiangqi: '中国象棋',
 };
 
 export function SettlePanel({
@@ -42,73 +48,93 @@ export function SettlePanel({
 }: Props) {
   const mine = rows.find((row) => row.playerId === myId);
   const delta = mine?.delta ?? 0;
-  const ranked = [...rows].sort((a, b) => b.delta - a.delta);
-  const rank = ranked.findIndex((row) => row.playerId === myId) + 1;
-  const total = ranked.length;
+  const isWin = delta > 0;
+  const isLose = delta < 0;
 
-  const result =
-    delta > 0 ? '本局胜出' : delta < 0 ? '本局失利' : total > 1 && rank === 1 ? '平局' : '本局结束';
+  const ranked = [...rows].sort((a, b) => b.delta - a.delta);
+
+  const titleText = isWin ? '旗开得胜 · 大吉大利' : isLose ? '局结失利 · 虽败犹荣' : '本局平局 · 势均力敌';
 
   return (
-    <aside className={`settle-panel ${delta > 0 ? 'is-win' : delta < 0 ? 'is-lose' : ''}`}>
-      <div className="settle-panel__head">
-        <span>
-          {GAME_NAME[gameId] ?? gameId} · 第 {round} 局
-        </span>
-        {persistent && (
-          <button type="button" className="settle-panel__close" onClick={onClose} title="收起">
-            ×
-          </button>
+    <div className="settle-mask">
+      <div className={`settle-dialog ${isWin ? 'is-win' : isLose ? 'is-lose' : 'is-draw'}`}>
+        {/* 胜利金芒放射背景 */}
+        {isWin && (
+          <div className="settle-sunburst">
+            <div className="sunburst-rays" />
+          </div>
         )}
-      </div>
 
-      <div className="settle-panel__result">{result}</div>
-
-      <div className="settle-panel__delta">
-        <Chip size={22} />
-        <strong>{delta > 0 ? `+${delta}` : delta}</strong>
-      </div>
-
-      <div className="settle-panel__stats">
-        <div>
-          <span>当前筹码</span>
-          <strong>{balance.toLocaleString()}</strong>
+        <div className="settle-dialog__head">
+          <div className="settle-crown-icon">{isWin ? '👑' : isLose ? '🛡️' : '⚖️'}</div>
+          <h2 className="settle-title">{titleText}</h2>
+          <span className="settle-sub">
+            {GAME_NAME[gameId] ?? gameId} · 第 {round} 局结算
+          </span>
         </div>
-        <div>
-          <span>本局名次</span>
-          <strong>
-            {rank}/{total}
+
+        {/* 玩家自身净盈亏焦点展台 */}
+        <div className="settle-my-delta">
+          <span className="delta-label">本局收益</span>
+          <strong className={`delta-amount ${delta > 0 ? 'is-pos' : delta < 0 ? 'is-neg' : ''}`}>
+            {delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString()}
           </strong>
+          <div className="settle-balance-row">
+            <span>当前余额：</span>
+            <Chip size={16} />
+            <em>{balance.toLocaleString()}</em>
+          </div>
+        </div>
+
+        {/* 全桌结算明细榜单 */}
+        <div className="settle-scoreboard">
+          <div className="scoreboard-title">全桌对局结算</div>
+          <div className="scoreboard-list">
+            {ranked.map((row, idx) => {
+              const rowIsMe = row.playerId === myId;
+              return (
+                <div key={row.playerId} className={`scoreboard-row ${rowIsMe ? 'is-me' : ''}`}>
+                  <span className={`rank-tag rank-${idx + 1}`}>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}</span>
+                  <span className="player-col">
+                    <strong>{row.nickname}</strong>
+                    {row.isBot && <em className="tag-ai">AI</em>}
+                    {rowIsMe && <em className="tag-self">我</em>}
+                  </span>
+                  <span className={`score-col ${row.delta > 0 ? 'is-pos' : row.delta < 0 ? 'is-neg' : ''}`}>
+                    {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 底部操作区 */}
+        <div className="settle-actions">
+          {!persistent && (
+            <button
+              type="button"
+              className="luxury-btn luxury-btn--gold"
+              onClick={() => {
+                audio.play('click');
+                onContinue();
+              }}
+            >
+              ✦ 再来一局 (准备) ✦
+            </button>
+          )}
+          <button
+            type="button"
+            className="luxury-btn luxury-btn--outline"
+            onClick={() => {
+              audio.play('click');
+              onClose();
+            }}
+          >
+            {persistent ? '查看牌面' : '关闭面板'}
+          </button>
         </div>
       </div>
-
-      <ul className="settle-panel__list">
-        {ranked.map((row, index) => (
-          <li key={row.playerId} className={row.playerId === myId ? 'is-me' : ''}>
-            <span className="settle-panel__no">{index + 1}</span>
-            <span className="settle-panel__name">
-              {row.nickname}
-              {row.isBot && <em className="bot-tag">AI</em>}
-            </span>
-            <span className={row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'}>
-              {row.delta > 0 ? `+${row.delta}` : row.delta}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      {!persistent && (
-        <button
-          type="button"
-          className="primary settle-panel__btn"
-          onClick={() => {
-            audio.play('click');
-            onContinue();
-          }}
-        >
-          继续
-        </button>
-      )}
-    </aside>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Announcement, GameMeta } from '@cc/protocol';
 import { api, type User } from '../api';
 import { audio } from '../audio';
@@ -15,10 +15,14 @@ interface Props {
   onLeaderboard: () => void;
 }
 
-const MINI_CATEGORIES = [
-  { key: 'board', title: '棋类对弈', desc: '一对一，纯技术' },
-  { key: 'table', title: '牌桌对战', desc: '多人竞技，凭牌技取胜' },
-] as const;
+type CategoryTab = 'all' | 'live' | 'table' | 'board';
+
+const TABS: Array<{ key: CategoryTab; label: string; icon: string }> = [
+  { key: 'all', label: '全部热门', icon: '🔥' },
+  { key: 'live', label: '百人坐庄', icon: '🎰' },
+  { key: 'table', label: '经典牌桌', icon: '♠️' },
+  { key: 'board', label: '棋艺对弈', icon: '♟️' },
+];
 
 const KIND_LABEL: Record<Announcement['kind'], string> = {
   notice: '公告',
@@ -27,6 +31,7 @@ const KIND_LABEL: Record<Announcement['kind'], string> = {
 };
 
 export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLeaderboard }: Props) {
+  const [activeTab, setActiveTab] = useState<CategoryTab>('all');
   const [musicOn, setMusicOn] = useState(audio.musicOn);
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
   const [trackName, setTrackName] = useState(audio.trackName);
@@ -46,11 +51,23 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
     return () => window.clearInterval(timer);
   }, []);
 
-  const liveGames = games.filter((game) => game.persistent === true || game.category === 'live');
-  const ticker =
-    announcements.length > 0
-      ? announcements.map((item) => `${item.title}｜${item.content}`).join('　　✦　　')
-      : '欢迎来到棋牌娱乐大厅，虚拟筹码仅供娱乐记分，不可提现';
+  const ticker = useMemo(() => {
+    if (announcements.length > 0) {
+      return announcements.map((item) => `${item.title}：${item.content}`).join('　　✦　　');
+    }
+    return '尊贵牌友欢迎光临，虚拟筹码仅供娱乐竞技，公平可信·畅享巅峰对决';
+  }, [announcements]);
+
+  const filteredGames = useMemo(() => {
+    if (activeTab === 'all') return games;
+    if (activeTab === 'live') {
+      return games.filter((g) => g.persistent === true || g.category === 'live');
+    }
+    if (activeTab === 'board') {
+      return games.filter((g) => g.category === 'board');
+    }
+    return games.filter((g) => (g.category ?? 'table') === 'table' && g.persistent !== true);
+  }, [games, activeTab]);
 
   const enter = (game: GameMeta) => {
     audio.play('click');
@@ -58,198 +75,293 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
   };
 
   return (
-    <div className="lobby" style={{ ['--lobby-bg' as string]: `url(${HERO_BG})` }}>
+    <div className="lobby lobby--luxury" style={{ ['--lobby-bg' as string]: `url(${HERO_BG})` }}>
+      {/* 奢华流光顶部导航 */}
       <header className="app-top">
-        <div className="app-top__user">
-          <span className="app-avatar">{user ? user.nickname.slice(0, 1) : '游'}</span>
-          <span className="app-top__id">
-            <strong>{user?.nickname ?? '游客'}</strong>
-            <small>{user ? `ID ${user.id.slice(0, 6)}` : '未登录'}</small>
-          </span>
+        <div className="app-top__left">
+          <div
+            className="app-top__user"
+            onClick={() => (user ? setProfileOpen(true) : onLogin())}
+            role="button"
+            tabIndex={0}
+            title={user ? '查看个人中心' : '点击登录'}
+          >
+            <div className="app-avatar-wrapper">
+              <span className="app-avatar">{user ? user.nickname.slice(0, 1) : '游'}</span>
+              <span className="app-avatar-badge">{user ? 'VIP' : 'GUEST'}</span>
+            </div>
+            <div className="app-top__id">
+              <div className="app-top__name-row">
+                <strong>{user?.nickname ?? '游客身份'}</strong>
+                {!user && <span className="login-pill">点此登录</span>}
+              </div>
+              <small>{user ? `ID: ${user.id.slice(0, 8)}` : '尚未登录账号'}</small>
+            </div>
+          </div>
+
+          {/* 筹码钱包 */}
+          <div
+            className="app-top__wallet"
+            onClick={onTasks}
+            role="button"
+            tabIndex={0}
+            title="筹码钱包 · 点击领取福利"
+          >
+            <div className="wallet-chip-icon">
+              <Chip size={22} />
+            </div>
+            <div className="wallet-amount">
+              <span className="wallet-label">筹码余额</span>
+              <strong>{user ? user.balance.toLocaleString() : '—'}</strong>
+            </div>
+            <span className="wallet-plus" title="每日福利">+</span>
+          </div>
         </div>
 
-        <div className="app-top__wallet">
-          <Chip size={18} />
-          <strong>{user ? user.balance.toLocaleString() : '—'}</strong>
+        {/* 顶部中央微胶囊跑马灯 */}
+        <div className="app-top__marquee" onClick={() => setNoticeOpen(true)} role="button" tabIndex={0}>
+          <span className="marquee-icon">📢</span>
+          <div className="marquee-viewport">
+            <span className="marquee-text">{ticker}</span>
+          </div>
+          <span className="marquee-arrow">›</span>
         </div>
 
+        {/* 顶部右侧系统控制 */}
         <div className="app-top__tools">
           <button
             type="button"
-            className={`icon-btn ${musicOn ? '' : 'is-off'}`}
+            className={`tool-btn ${musicOn ? 'is-active' : ''}`}
             title={musicOn ? '关闭背景音乐' : '开启背景音乐'}
             onClick={() => setMusicOn(audio.toggleMusic())}
           >
-            {musicOn ? '🎵' : '🎼'}
+            <span className="tool-btn__icon">{musicOn ? '🎵' : '🎼'}</span>
           </button>
           <button
             type="button"
-            className={`icon-btn ${sfxOn ? '' : 'is-off'}`}
+            className={`tool-btn ${sfxOn ? 'is-active' : ''}`}
             title={sfxOn ? '关闭音效' : '开启音效'}
             onClick={() => setSfxOn(audio.toggleSfx())}
           >
-            {sfxOn ? '🔊' : '🔇'}
+            <span className="tool-btn__icon">{sfxOn ? '🔊' : '🔇'}</span>
           </button>
           <button
             type="button"
-            className="icon-btn"
-            title={`切换音乐（当前：${trackName}）`}
+            className="tool-btn tool-btn--track"
+            title={`切歌（当前：${trackName}）`}
             onClick={() => setTrackName(audio.nextTrack())}
           >
-            ⏭
+            <span className="tool-btn__icon">⏭</span>
           </button>
         </div>
       </header>
 
-      <button type="button" className="notice-bar" onClick={() => setNoticeOpen(true)}>
-        <span className="notice-bar__icon">📢</span>
-        <span className="notice-bar__viewport">
-          <span className="notice-bar__ticker">{ticker}</span>
-        </span>
-        <span className="notice-bar__more">更多 ›</span>
-      </button>
+      {/* 主展台区域：横屏画卷式体验 */}
+      <main className="app-main app-main--showcase">
+        {/* 分类切换胶囊栏 */}
+        <div className="category-capsule-bar">
+          <div className="category-capsules">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                className={`category-capsule ${activeTab === tab.key ? 'is-active' : ''}`}
+                onClick={() => {
+                  audio.play('click');
+                  setActiveTab(tab.key);
+                }}
+              >
+                <span className="capsule-icon">{tab.icon}</span>
+                <span className="capsule-label">{tab.label}</span>
+                {activeTab === tab.key && <span className="capsule-glow" />}
+              </button>
+            ))}
+          </div>
+          <div className="category-counter">
+            共 <strong>{filteredGames.length}</strong> 款经典游戏
+          </div>
+        </div>
 
-      <main className="app-main">
-        {liveGames.length > 0 && (
-          <section className="app-section app-section--live">
-            <div className="app-section__head">
-              <div className="app-section__title">
-                <em />
-                <h2>平台坐庄</h2>
-              </div>
-              <span>每 38 秒一局 · 多台同时进行</span>
-            </div>
-            <div className="live-grid">
-              {liveGames.map((game) => (
-                <button
-                  key={game.gameId}
-                  type="button"
-                  className="live-card"
-                  style={
-                    GAME_ART[game.gameId]
-                      ? { backgroundImage: `url(${GAME_ART[game.gameId]})` }
-                      : undefined
-                  }
-                  onClick={() => enter(game)}
-                >
-                  {/* 区块标题已说明坐庄类型，卡片不再重复标签 */}
-                  <span className="live-card__body">
-                    <span className="live-card__icon">{game.icon}</span>
-                    <strong>{game.name}</strong>
-                    <small>{game.description}</small>
-                    <span className="live-card__cta">{user ? '选台' : '登录开玩'}</span>
+        {/* 核心横向游戏画卷展示 */}
+        <div className="games-carousel-track">
+          {filteredGames.map((game) => {
+            const isLive = game.persistent === true || game.category === 'live';
+            const isBoard = game.category === 'board';
+            const artUrl = GAME_ART[game.gameId];
+
+            return (
+              <div
+                key={game.gameId}
+                className={`showcase-card ${isLive ? 'is-live' : isBoard ? 'is-board' : 'is-table'}`}
+                style={artUrl ? { ['--card-art' as string]: `url(${artUrl})` } : undefined}
+                onClick={() => enter(game)}
+                role="button"
+                tabIndex={0}
+              >
+                {/* 装饰高光与边框 */}
+                <div className="showcase-card__rim" />
+                <div className="showcase-card__shimmer" />
+
+                {/* 顶部标签 */}
+                <div className="showcase-card__top">
+                  <span className={`game-badge ${isLive ? 'badge--live' : isBoard ? 'badge--board' : 'badge--table'}`}>
+                    {isLive ? '🎰 平台坐庄' : isBoard ? '♟️ 纯粹技术' : '♠️ 多人竞技'}
                   </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {MINI_CATEGORIES.map((category) => {
-          const list = games.filter((game) => (game.category ?? 'table') === category.key);
-          if (list.length === 0) return null;
-          return (
-            <section key={category.key} className="app-section">
-              <div className="app-section__head">
-                <div className="app-section__title">
-                  <em />
-                  <h2>{category.title}</h2>
+                  <span className="game-players-badge">
+                    {isLive ? '极速轮转' : `${game.minPlayers}-${game.maxPlayers}人桌`}
+                  </span>
                 </div>
-                <span>{category.desc}</span>
-              </div>
-              <div className="mini-grid">
-                {list.map((game) => (
-                  <button key={game.gameId} type="button" className="mini-card" onClick={() => enter(game)}>
-                    <span className="mini-card__thumb">
-                      {GAME_ART[game.gameId] ? (
-                        <img src={GAME_ART[game.gameId]} alt={game.name} loading="lazy" draggable={false} />
-                      ) : (
-                        <span>{game.icon}</span>
-                      )}
-                    </span>
-                    <strong>{game.name}</strong>
-                    <small>
-                      {game.minPlayers}-{game.maxPlayers} 人
-                    </small>
-                  </button>
-                ))}
-              </div>
-            </section>
-          );
-        })}
 
-        {games.length === 0 && <p className="empty">暂无可用游戏，请确认游戏服已启动。</p>}
+                {/* 卡片封面背景 */}
+                <div className="showcase-card__poster">
+                  {artUrl ? (
+                    <img src={artUrl} alt={game.name} loading="lazy" draggable={false} />
+                  ) : (
+                    <div className="showcase-card__fallback-icon">{game.icon}</div>
+                  )}
+                  <div className="showcase-card__poster-gradient" />
+                </div>
 
-        <p className="app-footnote">虚拟筹码不可提现、不可转让，仅用于记分娱乐。</p>
+                {/* 卡片底部内容 */}
+                <div className="showcase-card__content">
+                  <div className="showcase-card__header">
+                    <span className="showcase-card__icon">{game.icon}</span>
+                    <h3 className="showcase-card__title">{game.name}</h3>
+                  </div>
+                  <p className="showcase-card__desc">{game.description}</p>
+                  
+                  <div className="showcase-card__action">
+                    <button type="button" className="btn-enter-table">
+                      <span>{user ? '进入选台' : '一键开玩'}</span>
+                      <em className="btn-shine" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {filteredGames.length === 0 && (
+            <div className="empty-showcase">
+              <div className="empty-icon">🎴</div>
+              <p>暂无此类游戏，请确认游戏服已正常启动</p>
+            </div>
+          )}
+        </div>
       </main>
 
-      <nav className="app-tabbar">
-        <button type="button" className="is-active">
-          <span>🎮</span>大厅
-        </button>
-        <button type="button" onClick={onTasks}>
-          <span>🎁</span>任务
-        </button>
-        <button type="button" onClick={onLeaderboard}>
-          <span>🏆</span>排行
-        </button>
-        <button type="button" onClick={() => (user ? setProfileOpen(true) : onLogin())}>
-          <span>👤</span>我的
-        </button>
-      </nav>
+      {/* 底部悬浮奢华快捷坞 (Floating Luxury Dock) */}
+      <footer className="floating-dock">
+        <div className="floating-dock__inner">
+          <button
+            type="button"
+            className="dock-item is-active"
+            onClick={() => setActiveTab('all')}
+          >
+            <span className="dock-icon">🏰</span>
+            <span className="dock-label">大厅展台</span>
+          </button>
+          <button type="button" className="dock-item" onClick={onTasks}>
+            <span className="dock-icon">🎁</span>
+            <span className="dock-label">每日福利</span>
+            <span className="dock-badge">领</span>
+          </button>
+          <button type="button" className="dock-item" onClick={onLeaderboard}>
+            <span className="dock-icon">🏆</span>
+            <span className="dock-label">至尊榜单</span>
+          </button>
+          <button
+            type="button"
+            className="dock-item"
+            onClick={() => (user ? setProfileOpen(true) : onLogin())}
+          >
+            <span className="dock-icon">👤</span>
+            <span className="dock-label">{user ? '个人资产' : '立即登录'}</span>
+          </button>
+        </div>
+        <div className="floating-dock__tip">
+          <span>虚拟筹码仅供娱乐记分 · 严禁任何形式的资金流通</span>
+        </div>
+      </footer>
 
+      {/* 公告弹窗 */}
       {noticeOpen && (
         <div className="modal-mask" onClick={() => setNoticeOpen(false)} role="presentation">
-          <div className="modal app-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="modal luxury-modal app-modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal__head">
-              <h2>公告</h2>
-              <button type="button" className="ghost" onClick={() => setNoticeOpen(false)}>
-                关闭
+              <div className="modal__title-group">
+                <span className="modal-ornament">✦</span>
+                <h2>官方公告</h2>
+              </div>
+              <button type="button" className="luxury-close-btn" onClick={() => setNoticeOpen(false)}>
+                ✕
               </button>
             </div>
             <div className="notice-list">
               {announcements.map((item) => (
                 <div key={item.id} className={`notice-item is-${item.kind}`}>
                   <div className="notice-item__head">
-                    <em>{KIND_LABEL[item.kind]}</em>
+                    <em className="notice-kind-tag">{KIND_LABEL[item.kind]}</em>
                     <strong>{item.title}</strong>
                     <span>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
                   </div>
                   <p>{item.content}</p>
                 </div>
               ))}
-              {announcements.length === 0 && <p className="hint">暂无公告</p>}
+              {announcements.length === 0 && <p className="hint">暂无最新公告</p>}
             </div>
           </div>
         </div>
       )}
 
+      {/* 个人中心弹窗 */}
       {profileOpen && user && (
         <div className="modal-mask" onClick={() => setProfileOpen(false)} role="presentation">
-          <div className="modal app-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="modal luxury-modal app-modal profile-modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal__head">
-              <h2>我的</h2>
-              <button type="button" className="ghost" onClick={() => setProfileOpen(false)}>
-                关闭
+              <div className="modal__title-group">
+                <span className="modal-ornament">✦</span>
+                <h2>个人资产档案</h2>
+              </div>
+              <button type="button" className="luxury-close-btn" onClick={() => setProfileOpen(false)}>
+                ✕
               </button>
             </div>
             <div className="profile-box">
-              <span className="app-avatar app-avatar--lg">{user.nickname.slice(0, 1)}</span>
-              <strong>{user.nickname}</strong>
-              <div className="profile-box__balance">
-                <Chip size={18} />
-                {user.balance.toLocaleString()}
+              <div className="profile-hero">
+                <div className="profile-avatar-outer">
+                  <span className="app-avatar app-avatar--lg">{user.nickname.slice(0, 1)}</span>
+                  <span className="profile-rank-crown">👑</span>
+                </div>
+                <div className="profile-info">
+                  <strong>{user.nickname}</strong>
+                  <span className="profile-id-tag">UID: {user.id}</span>
+                </div>
               </div>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setProfileOpen(false);
-                  onLogout();
-                }}
-              >
-                退出登录
-              </button>
+
+              <div className="profile-box__balance-card">
+                <span className="card-sub">当前可用娱乐筹码</span>
+                <div className="card-val">
+                  <Chip size={26} />
+                  <strong>{user.balance.toLocaleString()}</strong>
+                </div>
+              </div>
+
+              <div className="profile-actions">
+                <button type="button" className="luxury-btn luxury-btn--gold" onClick={onTasks}>
+                  前往任务领取救济金
+                </button>
+                <button
+                  type="button"
+                  className="luxury-btn luxury-btn--outline"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    onLogout();
+                  }}
+                >
+                  退出当前账号
+                </button>
+              </div>
             </div>
           </div>
         </div>

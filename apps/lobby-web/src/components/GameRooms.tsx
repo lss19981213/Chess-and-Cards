@@ -30,9 +30,9 @@ interface Props {
 }
 
 const STATUS_TEXT: Record<string, string> = {
-  waiting: '等待加入',
-  playing: '对局中',
-  settled: '结算中',
+  waiting: '空闲可加入',
+  playing: '激战正酣',
+  settled: '开奖结算中',
 };
 
 export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
@@ -60,121 +60,167 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
     return () => window.clearInterval(timer);
   }, [load]);
 
+  const handleQuickJoin = () => {
+    audio.play('click');
+    onJoin(null, false);
+  };
+
+  const handleCreate = () => {
+    audio.play('click');
+    onJoin(null, true);
+  };
+
+  const handleSelectRoom = (roomId: string) => {
+    audio.play('click');
+    onJoin(roomId, false);
+  };
+
   return (
-    <div className="lobby">
-      <header className="topbar">
-        <div className="brand brand--sm">
-          <button type="button" className="ghost back-btn" onClick={onBack}>
-            ← 大厅
-          </button>
-          <h1>{game.name}</h1>
+    <div className="rooms-stage lobby--luxury">
+      {/* 极简流光顶栏 */}
+      <header className="app-top rooms-topbar">
+        <button type="button" className="luxury-back-btn" onClick={onBack}>
+          <span className="back-arrow">‹</span>
+          <span>返回大厅</span>
+        </button>
+        <div className="rooms-title-bar">
+          <span className="rooms-title-icon">{game.icon}</span>
+          <h2>{game.name}</h2>
+          <span className="rooms-title-sub">
+            {isLive ? '平台坐庄 · 极速轮播' : `${game.minPlayers}-${game.maxPlayers}人经典桌`}
+          </span>
         </div>
-        <span className="rooms-hint">
-          {isLive ? '平台坐庄 · 多台同时进行' : `${game.minPlayers}-${game.maxPlayers} 人一桌`}
-        </span>
+        <div className="rooms-top-actions">
+          <button type="button" className="luxury-btn luxury-btn--gold-sm" onClick={handleQuickJoin}>
+            ⚡ 极速入座
+          </button>
+        </div>
       </header>
 
-      <main className="lobby__main">
-        <section className="rooms-hero" style={{ backgroundImage: `url(${GAME_ART[game.gameId] ?? ''})` }}>
-          <div className="rooms-hero__body">
-            <h2>{game.name}</h2>
+      {/* 主体横向分栏 */}
+      <main className="rooms-layout">
+        {/* 左侧游戏海报名片 */}
+        <aside
+          className="rooms-poster-card"
+          style={GAME_ART[game.gameId] ? { backgroundImage: `url(${GAME_ART[game.gameId]})` } : undefined}
+        >
+          <div className="poster-card__overlay" />
+          <div className="poster-card__content">
+            <span className="poster-tag">{isLive ? '🎰 平台轮流开局' : '♠️ 多人博弈'}</span>
+            <h3>{game.name}</h3>
             <p>{game.description}</p>
+            <div className="poster-stats">
+              <div className="stat-item">
+                <span className="stat-label">当前活跃台</span>
+                <strong className="stat-val">{rooms.length}</strong>
+              </div>
+              <div className="stat-item">
+                <span className="stat-label">单桌上限</span>
+                <strong className="stat-val">{game.maxPlayers}人</strong>
+              </div>
+            </div>
+            {!isLive && (
+              <button type="button" className="btn-create-room" onClick={handleCreate}>
+                + 创建专属房间
+              </button>
+            )}
           </div>
-        </section>
+        </aside>
 
-        {joinError && <p className="form-error">{joinError}</p>}
-        {error && <p className="form-error">{error}</p>}
+        {/* 右侧房间选择画卷 */}
+        <section className="rooms-selector-panel">
+          {joinError && <div className="luxury-alert is-error">{joinError}</div>}
+          {error && <div className="luxury-alert is-error">{error}</div>}
 
-        <div className="section-title">
-          <h2>{isLive ? '平台台子' : '可加入的房间'}</h2>
-          {!loading && <span>{rooms.length} 个</span>}
-        </div>
+          <div className="rooms-grid-header">
+            <span className="rooms-count-hint">
+              实时桌台列表 · <strong>{rooms.length}</strong> 台已开放
+            </span>
+            <button type="button" className="refresh-pill" onClick={() => void load()}>
+              ↻ 刷新
+            </button>
+          </div>
 
-        <div className="room-grid">
-          {rooms.map((room) => {
-            const marks = (room.recent ?? []).slice(-3);
-            const padded: Array<TrendMark | null> = [
-              ...Array<TrendMark | null>(Math.max(0, 3 - marks.length)).fill(null),
-              ...marks,
-            ];
-            return (
-            <button
-              key={room.roomId}
-              type="button"
-              className={`room-tile ${room.persistent ? 'is-platform' : ''} ${
-                room.joinable ? '' : 'is-locked'
-              }`}
-              disabled={!room.joinable}
-              onClick={() => {
-                audio.play('click');
-                onJoin(room.roomId, false);
-              }}
-            >
-              <div className="room-tile__head">
-                <span className="room-tile__name">{room.roomName}</span>
-                {room.persistent && <em className="room-tile__badge">平台庄</em>}
-              </div>
-              <div className="room-tile__meta">
-                <span className="room-tile__online">
-                  <em />
-                  在线 {room.players}/{room.maxPlayers}
-                </span>
-                <span className={room.status === 'waiting' ? 'is-open' : ''}>
-                  {STATUS_TEXT[room.status] ?? room.status}
-                </span>
-              </div>
-              {room.persistent && (
-                <div className="room-tile__trend">
-                  <span className="room-tile__trend-label">近 3 把</span>
-                  <div className="room-tile__marks">
-                    {padded.map((mark, index) =>
-                      mark ? (
-                        <span
-                          key={`${mark.round}-${index}`}
-                          className={`trend-mark is-${mark.tone} ${index === 2 ? 'is-latest' : ''}`}
-                          title={`第 ${mark.round} 局`}
-                        >
-                          {mark.text}
-                        </span>
-                      ) : (
-                        <span key={`empty-${index}`} className="trend-mark is-empty">
-                          ·
-                        </span>
-                      ),
+          <div className="rooms-table-grid">
+            {rooms.map((room) => {
+              const marks = (room.recent ?? []).slice(-4);
+              return (
+                <div
+                  key={room.roomId}
+                  className={`room-table-card ${room.status === 'playing' ? 'is-playing' : 'is-waiting'} ${!room.joinable ? 'is-full' : ''}`}
+                  onClick={() => room.joinable && handleSelectRoom(room.roomId)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="room-card__header">
+                    <div className="room-card__id">
+                      <span className="table-badge">桌</span>
+                      <strong>{room.roomName || room.roomId.slice(0, 6)}</strong>
+                    </div>
+                    <span className={`status-pill is-${room.status}`}>
+                      {STATUS_TEXT[room.status] ?? room.status}
+                    </span>
+                  </div>
+
+                  {/* 中间拟真桌面缩影 */}
+                  <div className="room-card__felt">
+                    <div className="felt-ring-mini" />
+                    <div className="felt-host-info">
+                      <span className="host-icon">{room.persistent ? '👑' : '👤'}</span>
+                      <span className="host-name">{room.hostName || '系统坐庄'}</span>
+                    </div>
+
+                    {/* 近期走势路单小彩灯 */}
+                    {marks.length > 0 && (
+                      <div className="trend-dots-row">
+                        {marks.map((m, idx) => (
+                          <span
+                            key={idx}
+                            className={`trend-dot tone--${m.tone}`}
+                            title={`第${m.round}局：${m.text}`}
+                          >
+                            {m.text.slice(0, 1)}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
+
+                  <div className="room-card__footer">
+                    <div className="occupancy-info">
+                      <span className="occupancy-icon">👥</span>
+                      <span>
+                        {room.players}/{room.maxPlayers}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`btn-table-join ${room.joinable ? 'is-ready' : 'is-disabled'}`}
+                      disabled={!room.joinable}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (room.joinable) handleSelectRoom(room.roomId);
+                      }}
+                    >
+                      {room.joinable ? '立即入座' : '已满员'}
+                    </button>
+                  </div>
                 </div>
-              )}
-              <div className="room-tile__cta">{room.joinable ? '进入牌桌' : '已满 / 已开局'}</div>
-            </button>
-            );
-          })}
+              );
+            })}
 
-          {!isLive && (
-            <button
-              type="button"
-              className="room-tile room-tile--new"
-              onClick={() => {
-                audio.play('click');
-                onJoin(null, true);
-              }}
-            >
-              <div className="room-tile__plus">+</div>
-              <div className="room-tile__name">创建新房间</div>
-              <div className="room-tile__meta">你将成为房主</div>
-            </button>
-          )}
-
-          {rooms.length === 0 && !loading && isLive && (
-            <p className="empty">平台台子正在准备，稍后刷新</p>
-          )}
-        </div>
-
-        {isLive && (
-          <p className="lobby__footnote">
-            该玩法由平台坐庄，每 38 秒一局（下注 30 秒、开牌 5 秒），多台同时进行；台子接近满员时系统会自动加开新台。
-          </p>
-        )}
+            {rooms.length === 0 && !loading && (
+              <div className="rooms-empty-state">
+                <div className="empty-felt-icon">🪑</div>
+                <h4>当前暂无空闲桌台</h4>
+                <p>您可以极速匹配，或创建属于您自己的房间邀请好友</p>
+                <button type="button" className="luxury-btn luxury-btn--gold" onClick={handleQuickJoin}>
+                  ⚡ 立即创建并入座
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
       </main>
     </div>
   );
