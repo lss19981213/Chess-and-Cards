@@ -2538,6 +2538,217 @@ button.secondary:hover:not(:disabled) {
   gap: 7px;
 }
 
+/* ===== 快捷喊话 ===== */
+
+.emote-stage {
+  position: absolute;
+  right: 18px;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.emote-bubble {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(10, 16, 28, 0.94);
+  border: 1px solid rgba(240, 180, 41, 0.3);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+  animation: emote-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+  max-width: 260px;
+}
+
+.emote-bubble__who {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.emote-bubble__text {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@keyframes emote-in {
+  from {
+    opacity: 0;
+    transform: translateX(26px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.emote-bar {
+  position: absolute;
+  right: 16px;
+  bottom: 108px;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 6px;
+  z-index: 12;
+}
+
+.emote-bar button {
+  width: auto;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.emote-bar button:hover {
+  color: var(--gold);
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.1);
+}
+
+/* ===== 结算战绩 ===== */
+
+.settle-mask {
+  z-index: 80;
+}
+
+.settle-modal {
+  width: min(420px, 100%);
+  text-align: center;
+  gap: 13px;
+}
+
+.settle-modal__game {
+  font-size: 11.5px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+
+.settle-modal__head h2 {
+  margin: 7px 0 0;
+  font-size: 22px;
+  letter-spacing: 2px;
+}
+
+.settle-modal.is-win .settle-modal__head h2 {
+  color: var(--green);
+}
+
+.settle-modal.is-lose .settle-modal__head h2 {
+  color: var(--red);
+}
+
+.settle-modal__delta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.settle-modal__delta strong {
+  font-size: 34px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+.settle-modal.is-win .settle-modal__delta strong {
+  color: var(--green);
+  text-shadow: 0 0 26px rgba(62, 207, 142, 0.4);
+}
+
+.settle-modal.is-lose .settle-modal__delta strong {
+  color: var(--red);
+}
+
+.settle-modal__stats {
+  display: flex;
+  gap: 10px;
+}
+
+.settle-modal__stats > div {
+  flex: 1;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settle-modal__stats span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.settle-modal__stats strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settle-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 216px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.settle-modal__list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+}
+
+.settle-modal__list li.is-me {
+  border: 1px solid rgba(240, 180, 41, 0.4);
+  background: var(--gold-dim);
+}
+
+.settle-modal__no {
+  width: 20px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.settle-modal__name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settle-modal__btn {
+  width: 100% !important;
+  padding: 12px 0 !important;
+  font-size: 14px !important;
+}
+
 .chip-stack {
   display: flex;
   flex-direction: column-reverse;

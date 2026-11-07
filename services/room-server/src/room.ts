@@ -66,6 +66,7 @@ export class GameRoom {
   private settledThisRound = false;
   private tickTimer: NodeJS.Timeout | null = null;
   private closed = false;
+  private emoteTimes = new Map<string, number[]>();
 
   constructor(id: string, plugin: GamePlugin, mode: string, maxPlayers: number, deps: RoomDeps) {
     this.id = id;
@@ -406,9 +407,34 @@ export class GameRoom {
   private resetRound(): void {
     if (this.closed) return;
     this.status = 'waiting';
-    for (const seat of this.seats.values()) seat.ready = false;
+    // 机器人没有客户端，结算后自动重新准备，否则只能陪玩一局
+    for (const seat of this.seats.values()) seat.ready = seat.isBot;
     this.broadcastView();
     this.dirty = true;
+    this.tryStart();
+  }
+
+  /** 快捷喊话：白名单文本 + 频率限制，广播给房间内所有人 */
+  sendEmote(playerId: string, key: string, text: string): void {
+    const seat = this.seats.get(playerId);
+    if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+    if (this.closed) return;
+
+    const now = Date.now();
+    const recent = (this.emoteTimes.get(playerId) ?? []).filter((t) => now - t < 10_000);
+    if (recent.length >= 6) {
+      throw new AppError(ErrorCode.RateLimited, '喊话太频繁，歇一下');
+    }
+    recent.push(now);
+    this.emoteTimes.set(playerId, recent);
+
+    this.ctx.broadcast(ServerMsg.Emote, {
+      playerId,
+      nickname: seat.nickname,
+      key,
+      text,
+      at: now,
+    });
   }
 
   private checkEnoughPlayers(): void {

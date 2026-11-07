@@ -1,9 +1,11 @@
-import type { RoomView, Settlement } from '@cc/protocol';
+import { useEffect, useState } from 'react';
+import { EMOTES, type EmotePayload, type RoomView, type Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
 import { GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
+import { SettlementModal } from './SettlementModal';
 import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
 import { Texas } from '../games/Texas';
@@ -19,6 +21,8 @@ interface Props {
   onLeave: () => void;
   onIntent: (cmd: string, payload: Record<string, unknown>) => void;
   onAddBot: () => void;
+  emotes: EmotePayload[];
+  onEmote: (key: string) => void;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -46,10 +50,34 @@ export function Room({
   onLeave,
   onIntent,
   onAddBot,
+  emotes,
+  onEmote,
 }: Props) {
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
+
+  const [settleOpen, setSettleOpen] = useState(false);
+  /** 点了「继续」，等回到等待态就自动准备，实现连续对局 */
+  const [wantReady, setWantReady] = useState(false);
+
+  useEffect(() => {
+    if (wantReady && room.status === 'waiting') {
+      onReady(true);
+      setWantReady(false);
+    }
+  }, [wantReady, room.status, onReady]);
+
+  // 每局结算弹出战绩，8 秒后自动收起，避免打断连续对局
+  useEffect(() => {
+    if (!settlement) {
+      setSettleOpen(false);
+      return;
+    }
+    setSettleOpen(true);
+    const timer = window.setTimeout(() => setSettleOpen(false), 8000);
+    return () => window.clearTimeout(timer);
+  }, [settlement?.settlementId]);
 
   /** 统一派发指令，并按动作类型播放音效 */
   const dispatch = (cmd: string, payload: Record<string, unknown> = {}): void => {
@@ -135,6 +163,19 @@ export function Room({
 
       {settlement && myDelta > 0 && <CoinBurst key={`${room.roomId}-${room.round}`} />}
 
+      {settleOpen && settlement && (
+        <SettlementModal
+          settlement={settlement}
+          myId={myId}
+          balance={balance}
+          players={room.players}
+          onClose={() => {
+            setSettleOpen(false);
+            setWantReady(true);
+          }}
+        />
+      )}
+
       {settlement && (
         <div className={`settle-bar ${myDelta > 0 ? 'is-win' : myDelta < 0 ? 'is-lose' : ''}`}>
           本局结算：
@@ -157,7 +198,33 @@ export function Room({
               : undefined
           }
         >
+          <div className="emote-stage">
+            {emotes.map((emote) => (
+              <div key={emote.at} className="emote-bubble">
+                <span className="emote-bubble__who">{emote.nickname}</span>
+                <span className="emote-bubble__text">{emote.text}</span>
+              </div>
+            ))}
+          </div>
+
           {renderGame()}
+
+          {room.status === 'playing' && (
+            <div className="emote-bar">
+              {EMOTES.map((emote) => (
+                <button
+                  key={emote.key}
+                  type="button"
+                  onClick={() => {
+                    audio.play('click');
+                    onEmote(emote.key);
+                  }}
+                >
+                  {emote.text}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <aside className="room__side">

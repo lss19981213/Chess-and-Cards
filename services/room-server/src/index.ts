@@ -5,6 +5,7 @@ import { verifyToken } from '@cc/auth';
 import {
   AppError,
   ClientMsg,
+  EMOTES,
   ErrorCode,
   RateLimiter,
   ServerMsg,
@@ -219,6 +220,15 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       const nickname =
         free[Math.floor(Math.random() * free.length)] ?? `机器人${room.view().players.length + 1}`;
       room.addBot(`bot:${randomUUID()}`, `🤖 ${nickname}`);
+      return;
+    }
+
+    case ClientMsg.Emote: {
+      const room = requireRoom(session);
+      const key = asString(payload.key, 'key');
+      const emote = EMOTES.find((item) => item.key === key);
+      if (!emote) throw new AppError(ErrorCode.BadRequest, '无效的喊话');
+      room.sendEmote(session.playerId, emote.key, emote.text);
       return;
     }
 

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClientMsg, ServerMsg, type GameMeta, type RoomView, type Settlement } from '@cc/protocol';
+import {
+  ClientMsg,
+  ServerMsg,
+  type EmotePayload,
+  type GameMeta,
+  type RoomView,
+  type Settlement,
+} from '@cc/protocol';
 import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
 import { GameSocket } from './ws';
@@ -26,6 +33,7 @@ export default function App() {
   const [room, setRoom] = useState<RoomView | null>(null);
   const [snapshot, setSnapshot] = useState<SnapshotEnvelope | null>(null);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
+  const [emotes, setEmotes] = useState<EmotePayload[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
@@ -100,6 +108,14 @@ export default function App() {
       }, 600);
     });
 
+    socket.on(ServerMsg.Emote, (data) => {
+      const emote = data as EmotePayload;
+      setEmotes((prev) => [...prev.slice(-3), emote]);
+      window.setTimeout(() => {
+        setEmotes((prev) => prev.filter((item) => item.at !== emote.at));
+      }, 3400);
+    });
+
     socket.on(ServerMsg.Error, (data) => {
       const payload = data as { message?: string };
       setToast(payload.message ?? '操作失败');
@@ -171,6 +187,10 @@ export default function App() {
     socketRef.current?.send(ClientMsg.AddBot, {});
   }, []);
 
+  const handleEmote = useCallback((key: string) => {
+    socketRef.current?.send(ClientMsg.Emote, { key });
+  }, []);
+
   const handleLogout = useCallback(() => {
     socketRef.current?.close();
     socketRef.current = null;
@@ -207,6 +227,8 @@ export default function App() {
           onLeave={handleLeave}
           onIntent={handleIntent}
           onAddBot={handleAddBot}
+          emotes={emotes}
+          onEmote={handleEmote}
         />
       ) : (
         <Lobby

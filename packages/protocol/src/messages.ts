@@ -13,6 +13,8 @@ export const ClientMsg = {
   Ping: 'client:ping',
   /** 房主添加一个机器人陪玩 */
   AddBot: 'client:add_bot',
+  /** 快捷喊话 */
+  Emote: 'client:emote',
 } as const;
 
 export type ClientMsgType = (typeof ClientMsg)[keyof typeof ClientMsg];
@@ -24,6 +26,8 @@ export const ServerMsg = {
   Settlement: 'server:settlement',
   Error: 'server:error',
   Pong: 'server:pong',
+  /** 广播的快捷喊话 */
+  Emote: 'server:emote',
 } as const;
 
 export type ServerMsgType = (typeof ServerMsg)[keyof typeof ServerMsg];
@@ -97,3 +101,22 @@ export interface ErrorPayload {
   message: string;
   requestType?: string;
 }
+
+export interface EmotePayload {
+  playerId: string;
+  nickname: string;
+  /** 表情标识，如 'good' | 'hurry' */
+  key: string;
+  text: string;
+  at: number;
+}
+
+/** 允许的喊话内容，服务端白名单校验，避免自由文本带来的风险 */
+export const EMOTES: ReadonlyArray<{ key: string; text: string }> = [
+  { key: 'hurry', text: '快点吧～' },
+  { key: 'good', text: '好牌！' },
+  { key: 'nice', text: '打得漂亮' },
+  { key: 'lucky', text: '运气不错' },
+  { key: 'again', text: '再来一局' },
+  { key: 'oops', text: '手滑了…' },
+];
