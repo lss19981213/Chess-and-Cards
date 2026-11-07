@@ -2353,12 +2353,27 @@ button.secondary:hover:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
+}
+
+.hand-actions button {
+  width: 122px;
+  padding: 11px 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
 }
 
 .hand-actions .turn-hint {
   margin-right: 0;
+  white-space: nowrap;
+  min-width: 96px;
+  text-align: left;
+}
+
+.hand__card {
+  box-shadow: 0 7px 16px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 .room__meta {
