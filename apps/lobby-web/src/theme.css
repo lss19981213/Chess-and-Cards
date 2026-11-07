@@ -620,6 +620,20 @@ button.secondary {
   font-size: 12.5px;
 }
 
+/* 只允许一个填充金主行动，第二个金按钮降为描边 */
+.showdown__actions button.primary ~ button.primary {
+  background: transparent;
+  border: 1px solid rgba(216, 162, 74, 0.6);
+  color: #f3d489;
+  box-shadow: none;
+}
+
+/* 弃牌是危险操作，用朱砂描边区分 */
+.showdown__actions > button:first-child {
+  color: #e0918a;
+  border: 1px solid rgba(210, 77, 67, 0.35);
+}
+
 .showdown__actions .raise-group {
   flex: 1 1 100%;
   display: flex;
