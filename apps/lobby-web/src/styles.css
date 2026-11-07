@@ -2301,13 +2301,26 @@ button.secondary:hover:not(:disabled) {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  perspective: 1000px;
-  padding: 14px 4px 4px;
-  min-height: 88px;
+  perspective: 1100px;
+  padding: 34px 4px 6px;
+  min-height: 112px;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
+  overflow: visible;
+}
+
+@media (max-width: 760px) {
+  .hand__card {
+    min-width: 34px;
+    height: 50px;
+    font-size: 12px;
+    margin-left: -8px;
+  }
+
+  .hand--texas .hand__card {
+    min-width: 50px;
+    height: 68px;
+    font-size: 16px;
+  }
 }
 
 .hand__card {
