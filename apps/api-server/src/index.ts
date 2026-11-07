@@ -547,12 +547,16 @@ const EVENT_PATHS = new Set([
       entries: settlement.entries.length,
       result,
     };
-    if (result === 'duplicate') {
-      apiLog.warn('重复结算上报', detail);
-      recordEvent('warn', 'settle', `重复结算 ${settlement.gameId} 第 ${settlement.round} 局`, detail);
-    } else {
-      apiLog.info('结算入账', detail);
-      recordEvent('info', 'settle', `${settlement.gameId} 第 ${settlement.round} 局结算入账`, detail);
+
+    // 纯氛围局（无真人流水）每几十秒一次，不进后台事件流以免刷屏
+    if (settlement.entries.length > 0) {
+      if (result === 'duplicate') {
+        apiLog.warn('重复结算上报', detail);
+        recordEvent('warn', 'settle', `重复结算 ${settlement.gameId} 第 ${settlement.round} 局`, detail);
+      } else {
+        apiLog.info('结算入账', detail);
+        recordEvent('info', 'settle', `${settlement.gameId} 第 ${settlement.round} 局结算入账`, detail);
+      }
     }
     return { result };
   });

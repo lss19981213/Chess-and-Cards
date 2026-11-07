@@ -160,7 +160,8 @@ export class PostgresRepository implements Repository {
       );
 
       await client.query('COMMIT');
-      return applied > 0 ? 'applied' : 'duplicate';
+      // 无真人流水的结算单（纯氛围机器人局）只记战报，不判为重复
+      return applied > 0 || settlement.entries.length === 0 ? 'applied' : 'duplicate';
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
