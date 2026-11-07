@@ -1,6 +1,7 @@
 import type { RoomView, Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
+import { CHIP_IMG } from '../assets';
 import { Chip } from './Chip';
 import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
@@ -117,7 +118,10 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
       )}
 
       <main className="room__main">
-        <section className="room__board">{renderGame()}</section>
+        <section className="room__board">
+          <div className="room__board-wash" aria-hidden style={{ backgroundImage: `url(${CHIP_IMG})` }} />
+          {renderGame()}
+        </section>
 
         <aside className="room__side">
           <div className="panel">

@@ -214,7 +214,10 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       if (room.view().hostId !== session.playerId) {
         throw new AppError(ErrorCode.IllegalAction, '只有房主可以添加机器人');
       }
-      const nickname = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] ?? '机器人';
+      const used = new Set(room.view().players.map((p) => p.nickname));
+      const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
+      const nickname =
+        free[Math.floor(Math.random() * free.length)] ?? `机器人${room.view().players.length + 1}`;
       room.addBot(`bot:${randomUUID()}`, `🤖 ${nickname}`);
       return;
     }
