@@ -1,0 +1,24 @@
+{
+  "name": "chess-and-cards",
+  "version": "0.1.0",
+  "private": true,
+  "description": "可插拔棋牌娱乐大厅平台",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:api": "pnpm --filter @cc/api-server dev",
+    "dev:room": "pnpm --filter @cc/room-server dev",
+    "dev:web": "pnpm --filter @cc/lobby-web dev",
+    "build": "pnpm -r --filter=./packages/* build && pnpm -r --filter=./apps/* --filter=./services/* build",
+    "typecheck": "tsc -b --pretty",
+    "clean": "pnpm -r exec rimraf dist node_modules/.cache"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
