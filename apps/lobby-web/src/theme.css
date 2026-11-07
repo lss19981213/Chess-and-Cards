@@ -1,0 +1,304 @@
+/**
+ * 腾讯棋牌风格主题层：深色鎏金、玻璃质感、强可点区。
+ * 在 styles.css 之后加载，只做视觉覆盖，不改布局结构。
+ */
+:root {
+  --gold: #e8bd6a;
+  --gold-bright: #ffd98a;
+  --gold-deep: #b8862e;
+  --bg-deep: #0a1018;
+  --danger: #d8453c;
+  --ok: #3fbf7f;
+}
+
+body {
+  background:
+    radial-gradient(120% 70% at 50% -10%, #1a2536 0%, #0a1018 62%) fixed;
+  color: #ece4d4;
+}
+
+/* ---------- 玩家信息栏 ---------- */
+.app-top {
+  height: 66px;
+  background: linear-gradient(180deg, rgba(15, 21, 34, 0.97), rgba(8, 12, 20, 0.94));
+  border-bottom: 1px solid rgba(232, 189, 106, 0.2);
+  backdrop-filter: blur(14px);
+}
+
+.app-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 2px solid rgba(232, 189, 106, 0.55);
+  background: linear-gradient(150deg, #f2dfb4, #c9a25e);
+  color: #2a2419;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(232, 189, 106, 0.25);
+}
+
+.app-top__id strong {
+  font-size: 14.5px;
+  color: #f4e9cf;
+}
+
+.app-top__wallet {
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: linear-gradient(150deg, rgba(232, 189, 106, 0.24), rgba(232, 189, 106, 0.08));
+  border: 1px solid rgba(232, 189, 106, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.app-top__wallet strong {
+  font-size: 16px;
+  color: var(--gold-bright);
+  letter-spacing: 0.5px;
+}
+
+.app-top__tools .icon-btn {
+  border-radius: 10px;
+  color: rgba(236, 228, 212, 0.75);
+}
+
+/* ---------- 公告条 ---------- */
+.notice-bar {
+  border-radius: 14px;
+  background: linear-gradient(150deg, rgba(232, 189, 106, 0.12), rgba(232, 189, 106, 0.04));
+  border: 1px solid rgba(232, 189, 106, 0.18);
+}
+
+/* ---------- 分组标题 ---------- */
+.app-section__title h2 {
+  font-size: 17px;
+  color: #f4e9cf;
+  letter-spacing: 2px;
+}
+
+.app-section__title em {
+  width: 4px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffe6ad, #d9a53c);
+  box-shadow: 0 0 10px rgba(232, 189, 106, 0.45);
+}
+
+/* ---------- 平台庄卡片 ---------- */
+.live-card {
+  border-radius: 20px;
+  border: 1px solid rgba(232, 189, 106, 0.32);
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.live-card::after {
+  background: linear-gradient(180deg, rgba(6, 9, 18, 0.04) 0%, rgba(6, 9, 18, 0.42) 45%, rgba(6, 9, 18, 0.94) 100%);
+}
+
+.live-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(255, 217, 138, 0.75);
+  box-shadow:
+    0 22px 46px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(232, 189, 106, 0.35),
+    0 0 26px rgba(232, 189, 106, 0.22);
+}
+
+.live-card__badge {
+  background: linear-gradient(150deg, #ffe6ad, #e0b45f);
+  color: #2a1f08;
+  box-shadow: 0 4px 12px rgba(232, 189, 106, 0.4);
+}
+
+.live-card__body strong {
+  font-size: 18px;
+  color: #fff3da;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.live-card__cta {
+  color: var(--gold-bright);
+}
+
+/* ---------- 小卡片 ---------- */
+.mini-card {
+  border-radius: 18px;
+  background: linear-gradient(165deg, rgba(32, 42, 66, 0.85), rgba(12, 18, 30, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+}
+
+.mini-card:hover {
+  border-color: rgba(232, 189, 106, 0.55);
+  box-shadow:
+    0 16px 30px rgba(0, 0, 0, 0.42),
+    0 0 20px rgba(232, 189, 106, 0.16);
+}
+
+.mini-card__thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  border: 1px solid rgba(232, 189, 106, 0.3);
+  background: rgba(232, 189, 106, 0.08);
+}
+
+.mini-card strong {
+  color: #f0e6d0;
+}
+
+/* ---------- 底部导航 ---------- */
+.app-tabbar {
+  background: rgba(12, 17, 28, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(232, 189, 106, 0.22);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.app-tabbar button.is-active {
+  background: linear-gradient(150deg, rgba(232, 189, 106, 0.26), rgba(232, 189, 106, 0.1));
+  color: var(--gold-bright);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ---------- 通用按钮 ---------- */
+.primary {
+  background: linear-gradient(180deg, #f6d08a, #d9a53c);
+  color: #2b1e07;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  box-shadow:
+    0 6px 16px rgba(217, 165, 60, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  color: #e9dfc9;
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: rgba(232, 189, 106, 0.5);
+}
+
+.ghost {
+  border-radius: 10px;
+  color: rgba(236, 228, 212, 0.82);
+}
+
+/* ---------- 牌桌顶栏 ---------- */
+.room .topbar {
+  border-bottom: 1px solid rgba(232, 189, 106, 0.16);
+}
+
+.room__title h1 {
+  color: #f4e9cf;
+  letter-spacing: 2px;
+}
+
+.wallet--sm {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(232, 189, 106, 0.14);
+  border: 1px solid rgba(232, 189, 106, 0.35);
+}
+
+.wallet--sm strong {
+  color: var(--gold-bright);
+}
+
+/* ---------- 筹码选择 ---------- */
+.chip-btn {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chip-btn.is-active {
+  border-color: rgba(255, 217, 138, 0.8);
+  box-shadow:
+    0 0 0 2px rgba(232, 189, 106, 0.35),
+    0 0 16px rgba(232, 189, 106, 0.35);
+}
+
+/* ---------- 下注区 ---------- */
+.dice-zone {
+  border-radius: 14px;
+  border: 1px solid rgba(232, 189, 106, 0.22);
+  background: linear-gradient(165deg, rgba(36, 46, 68, 0.7), rgba(14, 20, 32, 0.85));
+}
+
+.dice-zone:hover:not(:disabled) {
+  border-color: rgba(255, 217, 138, 0.6);
+  transform: translateY(-2px);
+}
+
+.dice-zone.is-bet {
+  background: linear-gradient(165deg, rgba(232, 189, 106, 0.3), rgba(232, 189, 106, 0.12));
+  border-color: rgba(255, 217, 138, 0.7);
+}
+
+.dice-zone:disabled {
+  opacity: 0.55;
+}
+
+/* ---------- 底池 ---------- */
+.pot-display__value strong {
+  color: var(--gold-bright);
+  font-size: 20px;
+}
+
+.pot-display__label {
+  color: rgba(236, 228, 212, 0.65);
+}
+
+/* ---------- 结果与结算 ---------- */
+.reveal-list {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.reveal-row {
+  border-radius: 10px;
+}
+
+.up {
+  color: #6ee7a0;
+}
+
+.down {
+  color: #ef8a80;
+}
+
+/* ---------- 弹窗 ---------- */
+.modal {
+  border-radius: 20px;
+  border: 1px solid rgba(232, 189, 106, 0.24);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.modal__head h2 {
+  color: #f4e9cf;
+}
+
+/* ---------- 倒计时 ---------- */
+.dice-stage__timer-bar {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dice-stage__timer-bar i {
+  background: linear-gradient(90deg, #f6d08a, #d9a53c);
+  box-shadow: 0 0 10px rgba(232, 189, 106, 0.5);
+}
