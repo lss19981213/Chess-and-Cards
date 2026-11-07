@@ -150,7 +150,7 @@ function texasPrompt(snapshot: Record<string, unknown>): string {
     `公共牌：${community.length > 0 ? community.map(name).join(' ') : '暂无'}\n` +
     `底池 ${pot}，你需要跟注 ${toCall}。\n` +
     `可选动作：fold（弃牌）、check（过牌，仅在无需跟注时）、call（跟注）、raise（加注 100）。\n` +
-    `只返回 JSON：{"action":"call"}`
+    `只返回 JSON：{"action":"${toCall > 0 ? 'call' : 'check'}"}`
   );
 }
 
@@ -200,7 +200,10 @@ export async function askBotLlm(room: GameRoom, botId: string): Promise<GameInte
   if (room.gameId === 'texas') {
     const action = String(parsed.action ?? '');
     if (['fold', 'check', 'call', 'raise'].includes(action)) {
-      return { cmd: action, payload: {} };
+      // 无需跟注时不能 call（会让机器人卡死在当前轮），纠正为过牌
+      const toCall = Number(snapshot.toCall ?? 0);
+      const cmd = action === 'call' && toCall <= 0 ? 'check' : action;
+      return { cmd, payload: {} };
     }
     return null;
   }
