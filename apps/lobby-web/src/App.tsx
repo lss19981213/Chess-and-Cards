@@ -11,13 +11,16 @@ import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
 import { GameSocket } from './ws';
 import { AdminPanel } from './components/AdminPanel';
-import { Assistant } from './components/Assistant';
-import { AuthModal } from './components/AuthModal';
+import { AssistantView } from './components/AssistantView';
+import { AuthView } from './components/AuthView';
 import { GameRooms } from './components/GameRooms';
+import { LeaderboardView } from './components/LeaderboardView';
 import { Lobby } from './components/Lobby';
-import { LeaderboardModal } from './components/LeaderboardModal';
+import { NoticesView } from './components/NoticesView';
+import { ProfileView } from './components/ProfileView';
 import { Room } from './components/Room';
-import { TasksModal } from './components/TasksModal';
+import { RulesView } from './components/RulesView';
+import { TasksView } from './components/TasksView';
 
 export interface SnapshotEnvelope {
   roomId: string;
@@ -27,6 +30,18 @@ export interface SnapshotEnvelope {
   seq: number;
   snapshot: Record<string, unknown>;
 }
+
+export type AppView =
+  | 'lobby'
+  | 'game_rooms'
+  | 'room'
+  | 'tasks'
+  | 'leaderboard'
+  | 'profile'
+  | 'notices'
+  | 'assistant'
+  | 'rules'
+  | 'auth';
 
 function PortraitPrompt() {
   const [dismissed, setDismissed] = useState(false);
@@ -53,7 +68,7 @@ function PortraitPrompt() {
       <div className="rotate-phone-icon">📱↻</div>
       <div className="portrait-notice-text">
         <strong>建议横屏游玩</strong>
-        <small>将设备横置可享受宽幅沉浸式殿堂牌桌视效</small>
+        <small>旋转横置设备体验最佳黄金 16:9 画幅视效</small>
       </div>
       <button type="button" className="portrait-notice-close" onClick={() => setDismissed(true)}>
         知道了
@@ -73,9 +88,9 @@ export default function App() {
   const [selectedGame, setSelectedGame] = useState<GameMeta | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [authOpen, setAuthOpen] = useState(false);
-  const [tasksOpen, setTasksOpen] = useState(false);
-  const [rankOpen, setRankOpen] = useState(false);
+
+  // 全屏视图状态流转 (彻底消除弹窗)
+  const [view, setView] = useState<AppView>('lobby');
 
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
@@ -110,7 +125,6 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  // 浏览器要求音频必须在用户手势后启动
   useEffect(() => {
     const handler = (): void => audio.unlock();
     window.addEventListener('pointerdown', handler, { once: true });
@@ -128,6 +142,7 @@ export default function App() {
     socket.on(ServerMsg.RoomView, (data) => {
       const payload = data as { room: RoomView };
       setRoom(payload.room);
+      setView('room');
       socket.setRoomRef({ roomId: payload.room.roomId, playerId: userIdRef.current ?? '' });
     });
 
@@ -135,7 +150,6 @@ export default function App() {
       setSnapshot(data as SnapshotEnvelope);
     });
 
-    // 下注/撤注后服务端即时推送最新余额，不必等到局末结算
     socket.on(ServerMsg.Wallet, (data) => {
       const payload = data as { balance?: number };
       if (Number.isFinite(payload.balance)) {
@@ -193,11 +207,12 @@ export default function App() {
     (game: GameMeta) => {
       if (!user) {
         pendingJoinRef.current = game;
-        setAuthOpen(true);
+        setView('auth');
         return;
       }
       setSelectedGame(game);
       setJoinError(null);
+      setView('game_rooms');
     },
     [user],
   );
@@ -213,21 +228,23 @@ export default function App() {
   const handleAuthSuccess = useCallback((token: string, nextUser: User) => {
     setToken(token);
     setUser(nextUser);
-    setAuthOpen(false);
-    // 登录前点了某款游戏，登录后直接进入选台
     const pending = pendingJoinRef.current;
     if (pending) {
       pendingJoinRef.current = null;
       setSelectedGame(pending);
+      setView('game_rooms');
+    } else {
+      setView('lobby');
     }
   }, []);
 
-  const handleLeave = useCallback(() => {
+  const handleLeaveRoom = useCallback(() => {
     socketRef.current?.send(ClientMsg.LeaveRoom, {});
     socketRef.current?.setRoomRef(null);
     setRoom(null);
     setSnapshot(null);
     setSettlement(null);
+    setView('lobby');
   }, []);
 
   const handleReady = useCallback((ready: boolean) => {
@@ -254,6 +271,7 @@ export default function App() {
     setRoom(null);
     setSnapshot(null);
     setSettlement(null);
+    setView('lobby');
   }, []);
 
   const handleBalanceChange = useCallback((balance: number) => {
@@ -273,11 +291,10 @@ export default function App() {
     );
   }
 
-  return (
-    <>
-      <PortraitPrompt />
-
-      {room && user ? (
+  // 渲染当前全屏主视图
+  const renderCurrentView = () => {
+    if (view === 'room' && room && user) {
+      return (
         <Room
           room={room}
           snapshot={snapshot}
@@ -285,44 +302,96 @@ export default function App() {
           myId={user.id}
           balance={user.balance}
           onReady={handleReady}
-          onLeave={handleLeave}
+          onLeave={handleLeaveRoom}
           onIntent={handleIntent}
           onAddBot={handleAddBot}
           emotes={emotes}
           onEmote={handleEmote}
           persistent={games.find((g) => g.gameId === room.gameId)?.persistent === true}
         />
-      ) : selectedGame && user ? (
+      );
+    }
+
+    if (view === 'game_rooms' && selectedGame) {
+      return (
         <GameRooms
           game={selectedGame}
           onBack={() => {
             setSelectedGame(null);
             setJoinError(null);
+            setView('lobby');
           }}
           onJoin={handleJoinRoom}
           joinError={joinError}
         />
-      ) : (
-        <Lobby
-          user={user}
-          games={games}
-          onEnter={handleEnter}
-          onLogin={() => setAuthOpen(true)}
-          onLogout={handleLogout}
-          onTasks={() => setTasksOpen(true)}
-          onLeaderboard={() => setRankOpen(true)}
-        />
-      )}
+      );
+    }
 
-      {authOpen && (
-        <AuthModal onSuccess={handleAuthSuccess} onClose={() => setAuthOpen(false)} />
-      )}
-      {tasksOpen && (
-        <TasksModal onBalanceChange={handleBalanceChange} onClose={() => setTasksOpen(false)} />
-      )}
-      {rankOpen && <LeaderboardModal myUserId={user?.id ?? null} onClose={() => setRankOpen(false)} />}
-      {!room && user && <Assistant onBalanceChange={handleBalanceChange} />}
+    if (view === 'tasks') {
+      return <TasksView onBalanceChange={handleBalanceChange} onBack={() => setView('lobby')} />;
+    }
+
+    if (view === 'leaderboard') {
+      return <LeaderboardView myUserId={user?.id ?? null} onBack={() => setView('lobby')} />;
+    }
+
+    if (view === 'profile' && user) {
+      return (
+        <ProfileView
+          user={user}
+          onLogout={handleLogout}
+          onGoTasks={() => setView('tasks')}
+          onBack={() => setView('lobby')}
+        />
+      );
+    }
+
+    if (view === 'notices') {
+      return <NoticesView onBack={() => setView('lobby')} />;
+    }
+
+    if (view === 'assistant') {
+      return <AssistantView onBalanceChange={handleBalanceChange} onBack={() => setView('lobby')} />;
+    }
+
+    if (view === 'rules') {
+      return (
+        <RulesView
+          initialGameId={selectedGame?.gameId ?? 'doudizhu'}
+          onBack={() => setView(selectedGame ? 'game_rooms' : 'lobby')}
+        />
+      );
+    }
+
+    if (view === 'auth') {
+      return <AuthView onSuccess={handleAuthSuccess} onBack={() => setView('lobby')} />;
+    }
+
+    // 默认展示大厅
+    return (
+      <Lobby
+        user={user}
+        games={games}
+        onEnter={handleEnter}
+        onLogin={() => setView('auth')}
+        onTasks={() => setView('tasks')}
+        onLeaderboard={() => setView('leaderboard')}
+        onProfile={() => (user ? setView('profile') : setView('auth'))}
+        onNotices={() => setView('notices')}
+        onAssistant={() => setView('assistant')}
+        onRules={() => setView('rules')}
+      />
+    );
+  };
+
+  return (
+    <div className="landscape-app-root">
+      <PortraitPrompt />
+      {/* 核心横屏舞台 */}
+      <div className="landscape-stage-container">
+        {renderCurrentView()}
+      </div>
       {toast && <div className="toast luxury-toast">{toast}</div>}
-    </>
+    </div>
   );
 }

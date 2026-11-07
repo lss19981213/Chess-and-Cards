@@ -1,16 +1,13 @@
 /**
- * 殿堂级横屏移动端设计系统 —— 「至尊曜金俱乐部 (Grand Royal Obsidian & Liquid Gold)」
+ * 殿堂级横屏移动端设计系统 —— 「至尊曜金俱乐部 (Grand Royal Obsidian & Liquid Gold 2.0)」
  *
- * 视口规范：专为移动端横屏 (16:9 / 19.5:9 / 21:9) 沉浸式游戏体验打造
- * 色彩矩阵：
- *   - 曜石深空：#07090e ~ #0d121c (深邃抗疲劳暗黑背景，微网格星光)
- *   - 翡翠台呢：#07241a ~ #0e3b2c (皇家俱乐部丝绒台呢，中心柔和聚光)
- *   - 胡桃名木：#22160d ~ #3a2516 (天然胡桃木边缘质感，带金色内嵌跑道)
- *   - 皇室液态金：#fff2c6 ~ #f3cf7a ~ #b88628 (香槟金高光渐变，带动态扫光)
- *   - 琉璃拟态：rgba(13, 18, 29, 0.82) (backdrop-filter: blur(20px))
+ * 核心升级：
+ *   1. 彻底移除底部导航栏，大厅视野纵向满幅展开
+ *   2. 彻底取消弹窗，全屏页面流转 (Lobby -> View)，平滑无缝
+ *   3. 无论切换到任何子页面，左上角恒定高光「‹ 返回大厅」按钮
+ *   4. 全套手绘精细矢量 SVG 图标 + 顶级金属流光拟物按键
+ *   5. 视口锁定：完美适配 16:9 / 19.5:9 / 21:9 移动端横屏
  */
-
-/* ================= 1. 全局基座与视口锁定 ================= */
 
 :root {
   --gold-glow: rgba(243, 207, 122, 0.45);
@@ -24,6 +21,8 @@
   --text-muted: #8e9bb3;
   --felt-green: radial-gradient(ellipse at 50% 45%, #0e3d2e 0%, #08261c 65%, #04140e 100%);
 }
+
+/* ================= 1. 全局视口锁定与横屏容器 ================= */
 
 html, body, #root {
   width: 100vw;
@@ -42,9 +41,29 @@ html, body, #root {
   color: var(--text-primary);
 }
 
-/* 优雅平滑数值数字 */
-button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row {
-  font-variant-numeric: tabular-nums;
+.landscape-app-root {
+  width: 100vw;
+  height: 100dvh;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #07090e;
+}
+
+.landscape-stage-container {
+  width: 100vw;
+  height: 100dvh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 精细矢量图标通用 */
+.ico-svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 /* ================= 2. 竖屏提示悬浮条 ================= */
@@ -104,7 +123,131 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   cursor: pointer;
 }
 
-/* ================= 3. 沉浸式奢华大厅 (Lobby) ================= */
+/* ================= 3. 全屏视图通用基础架构 (Full-Screen View) ================= */
+
+.full-screen-view {
+  width: 100vw;
+  height: 100dvh;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse at 50% -20%, rgba(196, 148, 50, 0.18) 0%, transparent 60%),
+    radial-gradient(circle at 10% 90%, rgba(14, 61, 46, 0.25) 0%, transparent 50%),
+    radial-gradient(circle at 90% 85%, rgba(18, 38, 77, 0.25) 0%, transparent 50%),
+    #07090e;
+  overflow: hidden;
+  z-index: 50;
+  animation: viewFadeIn 0.25s cubic-bezier(0.2, 0.9, 0.4, 1);
+}
+
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 顶部统一返回条 (42px) */
+.view-topbar {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(20, 26, 38, 0.95) 0%, rgba(11, 15, 23, 0.9) 100%);
+  border-bottom: 1px solid rgba(243, 207, 122, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  backdrop-filter: blur(16px);
+}
+
+/* 恒定位于左上角的至尊返回大厅按钮 */
+.view-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px 5px 10px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(243, 207, 122, 0.22) 0%, rgba(196, 148, 50, 0.1) 100%);
+  border: 1px solid rgba(243, 207, 122, 0.55);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.18s ease;
+}
+
+.view-back-btn:hover {
+  background: var(--gold-btn-gradient);
+  color: #1a1204;
+  box-shadow: 0 4px 14px rgba(216, 159, 42, 0.45);
+  transform: translateY(-1px);
+}
+
+.view-back-btn:active {
+  transform: scale(0.96);
+}
+
+.view-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-title h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 0.5px;
+}
+
+.view-sub {
+  font-size: 11px;
+  color: #8c96ab;
+}
+
+.view-topbar__placeholder {
+  width: 80px;
+}
+
+.view-tabs-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.view-tab-btn {
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #c4d0e6;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-tab-btn.is-active {
+  background: var(--gold-btn-gradient);
+  border-color: var(--gold-btn-border);
+  color: #1a1204;
+}
+
+.view-main {
+  flex: 1;
+  display: flex;
+  padding: 12px max(18px, env(safe-area-inset-right)) 12px max(18px, env(safe-area-inset-left));
+  overflow: hidden;
+  gap: 16px;
+}
+
+/* ================= 4. 大厅 (Lobby) 奢华顶栏与画卷 ================= */
 
 .lobby--luxury {
   width: 100vw;
@@ -112,17 +255,12 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   display: flex;
   flex-direction: column;
   position: relative;
-  background:
-    radial-gradient(ellipse at 50% -20%, rgba(196, 148, 50, 0.18) 0%, transparent 60%),
-    radial-gradient(circle at 10% 90%, rgba(14, 61, 46, 0.25) 0%, transparent 50%),
-    radial-gradient(circle at 90% 85%, rgba(18, 38, 77, 0.25) 0%, transparent 50%),
-    #07090e;
   background-size: cover;
   background-position: center;
   overflow: hidden;
 }
 
-/* 顶部流光导航条 (44px) */
+/* 大厅顶栏 (44px) */
 .app-top {
   height: 44px;
   min-height: 44px;
@@ -130,7 +268,7 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(180deg, rgba(20, 26, 38, 0.95) 0%, rgba(11, 15, 23, 0.88) 100%);
+  background: linear-gradient(180deg, rgba(20, 26, 38, 0.95) 0%, rgba(11, 15, 23, 0.9) 100%);
   border-bottom: 1px solid rgba(243, 207, 122, 0.22);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   z-index: 100;
@@ -140,10 +278,9 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
 .app-top__left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
-/* 头像外圈呼吸金环 */
 .app-top__user {
   display: flex;
   align-items: center;
@@ -224,7 +361,7 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   color: #8c96ab;
 }
 
-/* 筹码钱包胶囊 */
+/* 钱包 */
 .app-top__wallet {
   display: flex;
   align-items: center;
@@ -241,13 +378,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
 .app-top__wallet:active {
   transform: scale(0.96);
   border-color: #f3cf7a;
-}
-
-.wallet-chip-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .wallet-amount {
@@ -285,7 +415,7 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   margin-left: 2px;
 }
 
-/* 顶部微型跑马灯公告 */
+/* 顶部跑马灯微胶囊 */
 .app-top__marquee {
   display: flex;
   align-items: center;
@@ -295,7 +425,7 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   border-radius: 14px;
   background: rgba(14, 20, 31, 0.65);
   border: 1px solid rgba(243, 207, 122, 0.18);
-  max-width: 320px;
+  max-width: 260px;
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -305,14 +435,10 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   border-color: rgba(243, 207, 122, 0.4);
 }
 
-.marquee-icon {
-  font-size: 12px;
-}
-
 .marquee-viewport {
   overflow: hidden;
   white-space: nowrap;
-  width: 240px;
+  width: 190px;
   position: relative;
 }
 
@@ -333,16 +459,60 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   color: #8c96ab;
 }
 
-/* 顶部右侧系统按键 */
+/* 顶栏系统功能按钮群 */
 .app-top__tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.top-feature-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(26, 34, 52, 0.7);
+  border: 1px solid rgba(243, 207, 122, 0.25);
+  color: #e2e8f5;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.top-feature-btn:hover {
+  background: rgba(243, 207, 122, 0.15);
+  border-color: rgba(243, 207, 122, 0.6);
+  color: #f7d78a;
+}
+
+.top-feature-btn:active {
+  transform: scale(0.94);
+}
+
+.feature-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e5484d;
+  box-shadow: 0 0 6px #e5484d;
+}
+
+.tool-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 0 2px;
 }
 
 .tool-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
   background: rgba(26, 34, 52, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -364,27 +534,16 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   box-shadow: 0 0 10px rgba(243, 207, 122, 0.2);
 }
 
-.tool-btn__icon {
-  font-size: 13px;
+/* 大厅主展台：纵向彻底拉伸 */
+.app-main--pure {
+  padding-bottom: 12px !important;
 }
 
-/* ================= 4. 大厅主展台与画卷轮播 ================= */
-
-.app-main--showcase {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 8px max(18px, env(safe-area-inset-right)) 56px max(18px, env(safe-area-inset-left));
-  overflow: hidden;
-  position: relative;
-}
-
-/* 分类切换胶囊栏 */
 .category-capsule-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .category-capsules {
@@ -394,7 +553,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
 }
 
 .category-capsule {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -422,10 +580,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   transform: translateY(-1px);
 }
 
-.capsule-icon {
-  font-size: 13px;
-}
-
 .category-counter {
   font-size: 11px;
   color: #8c96ab;
@@ -435,14 +589,14 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   color: #f3cf7a;
 }
 
-/* 横向画卷式游戏轨道 (Horizontal Carousel Track) */
+/* 游戏画卷轨道 */
 .games-carousel-track {
   flex: 1;
   display: flex;
   gap: 14px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 6px 14px 6px;
+  padding: 4px 6px 10px 6px;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
@@ -451,22 +605,15 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   height: 4px;
 }
 
-.games-carousel-track::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 2px;
-}
-
 .games-carousel-track::-webkit-scrollbar-thumb {
   background: rgba(243, 207, 122, 0.3);
   border-radius: 2px;
 }
 
-/* 3D 浮雕奢华游戏卡片 (Showcase Card) */
 .showcase-card {
   position: relative;
   flex: 0 0 215px;
   height: 100%;
-  max-height: calc(100dvh - 128px);
   border-radius: 16px;
   overflow: hidden;
   scroll-snap-align: start;
@@ -488,23 +635,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
 
 .showcase-card:active {
   transform: scale(0.98);
-}
-
-/* 扫光动效 */
-.showcase-card__shimmer {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 60%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
-  transform: skewX(-20deg);
-  pointer-events: none;
-  transition: left 0.6s ease;
-}
-
-.showcase-card:hover .showcase-card__shimmer {
-  left: 180%;
 }
 
 .showcase-card__top {
@@ -553,7 +683,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
-/* 海报背景层 */
 .showcase-card__poster {
   position: absolute;
   inset: 0;
@@ -584,19 +713,8 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   padding: 14px 12px 12px 12px;
 }
 
-.showcase-card__header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.showcase-card__icon {
-  font-size: 18px;
-}
-
 .showcase-card__title {
-  margin: 0;
+  margin: 0 0 4px 0;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.5px;
@@ -648,89 +766,1027 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   100% { left: 160%; }
 }
 
-/* ================= 5. 底部悬浮奢华快捷坞 (Floating Dock) ================= */
+/* ================= 5. 福利任务全屏视图 (TasksView) ================= */
 
-.floating-dock {
-  position: fixed;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
+.tasks-layout {
+  gap: 16px;
+}
+
+.tasks-hero-card {
+  flex: 0 0 240px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #182032 0%, #0d121c 100%);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  padding: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  z-index: 100;
+  text-align: center;
+  justify-content: center;
 }
 
-.floating-dock__inner {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 28px;
-  background: rgba(14, 20, 31, 0.88);
-  border: 1px solid rgba(243, 207, 122, 0.35);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75), 0 0 15px rgba(243, 207, 122, 0.15);
-  backdrop-filter: blur(20px);
+.hero-gift-icon {
+  margin-bottom: 12px;
+  filter: drop-shadow(0 0 16px rgba(243, 207, 122, 0.4));
 }
 
-.dock-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  background: transparent;
-  border: none;
-  color: #9aa7bf;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.dock-item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.dock-item.is-active {
+.tasks-hero-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 800;
   color: #f7d78a;
-  background: rgba(243, 207, 122, 0.16);
-  border: 1px solid rgba(243, 207, 122, 0.4);
 }
 
-.dock-icon {
-  font-size: 15px;
+.tasks-hero-card p {
+  margin: 0 0 16px 0;
+  font-size: 11.5px;
+  color: #a4b0c7;
+  line-height: 1.5;
 }
 
-.dock-label {
-  font-size: 12px;
+.tasks-hero-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(243, 207, 122, 0.15);
+  border: 1px solid rgba(243, 207, 122, 0.35);
+  color: #f7d78a;
+  font-size: 11px;
+}
+
+.tasks-content-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.task-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-row-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(243, 207, 122, 0.2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.task-row-card.is-ready {
+  border-color: rgba(243, 207, 122, 0.6);
+  background: rgba(243, 207, 122, 0.08);
+  box-shadow: 0 0 15px rgba(243, 207, 122, 0.2);
+}
+
+.task-row__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-row__icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(243, 207, 122, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-row__info h4 {
+  margin: 0 0 2px 0;
+  font-size: 14px;
+  color: #fff;
+}
+
+.task-row__info p {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  color: #8c96ab;
+}
+
+.task-row__progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-track {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--gold-btn-gradient);
+}
+
+.progress-num {
+  font-size: 10px;
+  color: #f7d78a;
   font-weight: 700;
 }
 
-.dock-badge {
-  position: absolute;
-  top: 1px;
-  right: 6px;
-  width: 14px;
-  height: 14px;
+.task-row__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.task-reward-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(243, 207, 122, 0.2);
+}
+
+.task-reward-pill strong {
+  font-size: 13px;
+  color: #f7d78a;
+}
+
+.btn-claim {
+  padding: 6px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-claim.is-active {
+  background: var(--gold-btn-gradient);
+  color: #1a1204;
+  box-shadow: 0 2px 10px rgba(216, 159, 42, 0.4);
+}
+
+.btn-claim.is-locked {
+  background: rgba(255, 255, 255, 0.08);
+  color: #8c96ab;
+  cursor: not-allowed;
+}
+
+.btn-claim.is-done {
+  background: rgba(62, 207, 142, 0.15);
+  color: #3ecf8e;
+  cursor: not-allowed;
+}
+
+/* ================= 6. 名人堂全屏视图 (LeaderboardView) ================= */
+
+.rank-layout {
+  gap: 16px;
+}
+
+.rank-podium-card {
+  flex: 0 0 240px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #182032 0%, #0d121c 100%);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.podium-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.podium-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #f7d78a;
+}
+
+.podium-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.podium-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.podium-slot.slot--1 {
+  background: rgba(243, 207, 122, 0.15);
+  border-color: rgba(243, 207, 122, 0.4);
+}
+
+.podium-avatar {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: #d82b2b;
+  background: radial-gradient(circle at 35% 30%, #fff0b8, #c49432);
+  color: #1a1204;
+  font-weight: 800;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.podium-name {
+  font-size: 12px;
   color: #fff;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.podium-title-tag {
   font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(243, 207, 122, 0.25);
+  color: #f7d78a;
+}
+
+.podium-chips {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #f7d78a;
+}
+
+.my-rank-status-bar {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(243, 207, 122, 0.12);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+  font-size: 11.5px;
+  color: #e2e8f5;
+  text-align: center;
+}
+
+.my-rank-status-bar strong {
+  color: #f7d78a;
+}
+
+.rank-table-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.rank-table-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rank-item-card {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rank-item-card.is-me {
+  background: rgba(243, 207, 122, 0.12);
+  border-color: rgba(243, 207, 122, 0.35);
+}
+
+.rank-index-col {
+  width: 32px;
+}
+
+.rank-badge-num {
+  font-size: 13px;
+  font-weight: 800;
+  color: #8c96ab;
+}
+
+.rank-item-card.is-top1 .rank-badge-num { color: #f7d78a; }
+.rank-item-card.is-top2 .rank-badge-num { color: #c0c0c0; }
+.rank-item-card.is-top3 .rank-badge-num { color: #cd7f32; }
+
+.rank-user-col {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-avatar-mini {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #2a344a;
+  color: #e2e8f5;
+  font-size: 11px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.floating-dock__tip {
-  font-size: 9.5px;
-  color: rgba(142, 155, 179, 0.6);
-  letter-spacing: 0.5px;
+.rank-title-col {
+  width: 90px;
 }
 
-/* ================= 6. 房间选台展厅 (GameRooms) ================= */
+.title-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(243, 207, 122, 0.15);
+  color: #f7d78a;
+  border: 0.5px solid rgba(243, 207, 122, 0.35);
+}
+
+.rank-balance-col {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100px;
+  justify-content: flex-end;
+}
+
+.rank-balance-col strong {
+  font-size: 13.5px;
+  color: #f7d78a;
+}
+
+/* ================= 7. 贵宾通行证全屏视图 (AuthView) ================= */
+
+.auth-layout {
+  gap: 16px;
+}
+
+.auth-hero-card {
+  flex: 0 0 260px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #182032 0%, #0d121c 100%);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-hero-logo {
+  margin-bottom: 12px;
+}
+
+.auth-hero-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #f7d78a;
+}
+
+.auth-hero-card p {
+  margin: 0 0 16px 0;
+  font-size: 11.5px;
+  color: #a4b0c7;
+  line-height: 1.5;
+}
+
+.auth-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #e2e8f5;
+}
+
+.auth-form-card {
+  flex: 1;
+  border-radius: 16px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(243, 207, 122, 0.25);
+  padding: 16px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.auth-tab-btn {
+  padding: 6px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #a4b0c7;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-tab-btn.is-active {
+  background: var(--gold-btn-gradient);
+  border-color: var(--gold-btn-border);
+  color: #1a1204;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 11.5px;
+  color: #a4b0c7;
+  margin-bottom: 4px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(10, 14, 22, 0.7);
+  border: 1px solid rgba(243, 207, 122, 0.25);
+  color: #fff;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #f7d78a;
+  box-shadow: 0 0 10px rgba(243, 207, 122, 0.3);
+}
+
+.captcha-row {
+  display: flex;
+  gap: 10px;
+}
+
+.captcha-box {
+  width: 130px;
+  height: 36px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-auth-submit {
+  margin-top: 10px;
+  padding: 10px 0;
+  font-size: 14px;
+  border-radius: 12px;
+}
+
+/* ================= 8. 玩法规则全屏视图 (RulesView) ================= */
+
+.rules-layout {
+  gap: 16px;
+}
+
+.rules-nav-panel {
+  flex: 0 0 180px;
+  border-radius: 16px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(243, 207, 122, 0.25);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.rules-nav-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #8c96ab;
+  margin-bottom: 8px;
+}
+
+.rules-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.rules-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #c4d0e6;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rules-nav-item.is-active {
+  background: var(--gold-btn-gradient);
+  border-color: var(--gold-btn-border);
+  color: #1a1204;
+}
+
+.rules-doc-panel {
+  flex: 1;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(243, 207, 122, 0.2);
+  padding: 18px 24px;
+}
+
+.doc-header h3 {
+  margin: 0 0 6px 0;
+  font-size: 20px;
+  color: #f7d78a;
+}
+
+.doc-intro {
+  margin: 0 0 16px 0;
+  font-size: 12px;
+  color: #a4b0c7;
+  line-height: 1.6;
+}
+
+.doc-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.doc-section-card {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-section-card h4 {
+  margin: 0 0 8px 0;
+  font-size: 13.5px;
+  color: #f7d78a;
+}
+
+.doc-section-card ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #d1d9e6;
+  line-height: 1.6;
+}
+
+/* ================= 9. 智能助手全屏视图 (AssistantView) ================= */
+
+.assistant-layout {
+  gap: 16px;
+}
+
+.assistant-hero-card {
+  flex: 0 0 240px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #182032 0%, #0d121c 100%);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.assistant-bot-icon {
+  margin-bottom: 10px;
+}
+
+.assistant-hero-card h3 {
+  margin: 0 0 6px 0;
+  font-size: 18px;
+  color: #f7d78a;
+}
+
+.assistant-hero-card p {
+  margin: 0 0 14px 0;
+  font-size: 11.5px;
+  color: #a4b0c7;
+  line-height: 1.5;
+}
+
+.quick-asks-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8c96ab;
+  margin-bottom: 8px;
+}
+
+.quick-asks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-ask-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(243, 207, 122, 0.1);
+  border: 1px solid rgba(243, 207, 122, 0.25);
+  color: #e2e8f5;
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.quick-ask-pill:hover {
+  background: rgba(243, 207, 122, 0.25);
+  border-color: #f7d78a;
+}
+
+.assistant-chat-panel {
+  flex: 1;
+  border-radius: 16px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(243, 207, 122, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-bubble-row {
+  display: flex;
+  gap: 10px;
+  max-width: 80%;
+}
+
+.chat-bubble-row.is-assistant {
+  align-self: flex-start;
+}
+
+.chat-bubble-row.is-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.bubble-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2a344a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.bubble-content {
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.chat-bubble-row.is-assistant .bubble-content {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f2f5fd;
+}
+
+.chat-bubble-row.is-user .bubble-content {
+  background: var(--gold-btn-gradient);
+  color: #1a1204;
+  font-weight: 600;
+}
+
+.bubble-content p {
+  margin: 0;
+}
+
+.granted-notice {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(243, 207, 122, 0.25);
+  color: #f7d78a;
+  font-weight: 700;
+}
+
+.chat-input-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(10, 14, 22, 0.9);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chat-input-bar input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 13px;
+}
+
+.btn-send-chat {
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--gold-btn-gradient);
+  border: none;
+  color: #1a1204;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ================= 10. 个人中心全屏视图 (ProfileView) ================= */
+
+.profile-layout {
+  gap: 16px;
+}
+
+.profile-badge-card {
+  flex: 0 0 240px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #182032 0%, #0d121c 100%);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.vip-crown-badge {
+  margin-bottom: 8px;
+}
+
+.profile-large-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe9a6 0%, #c49432 70%, #754f0a 100%);
+  color: #1a1204;
+  font-size: 26px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px #f7d78a, 0 6px 18px rgba(0, 0, 0, 0.7);
+  margin-bottom: 8px;
+}
+
+.profile-badge-card h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: #fff;
+}
+
+.profile-uid-pill {
+  font-size: 10px;
+  color: #8c96ab;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  margin-bottom: 12px;
+}
+
+.profile-status-tags {
+  display: flex;
+  gap: 6px;
+}
+
+.tag-gold-vip {
+  font-size: 9.5px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(243, 207, 122, 0.2);
+  color: #f7d78a;
+  border: 0.5px solid rgba(243, 207, 122, 0.5);
+}
+
+.tag-certified {
+  font-size: 9.5px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(62, 207, 142, 0.2);
+  color: #3ecf8e;
+  border: 0.5px solid rgba(62, 207, 142, 0.5);
+}
+
+.profile-detail-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.asset-hero-box {
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: rgba(243, 207, 122, 0.08);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+}
+
+.asset-hero-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a4b0c7;
+  margin-bottom: 6px;
+}
+
+.asset-hero-val {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.asset-hero-val strong {
+  font-size: 32px;
+  font-weight: 900;
+  color: #f7d78a;
+}
+
+.asset-footnote {
+  margin: 6px 0 0 0;
+  font-size: 10px;
+  color: #8c96ab;
+}
+
+.profile-action-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.action-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-card:hover {
+  background: rgba(243, 207, 122, 0.1);
+  border-color: rgba(243, 207, 122, 0.35);
+}
+
+.action-card__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(243, 207, 122, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-card__text {
+  flex: 1;
+}
+
+.action-card__text strong {
+  display: block;
+  font-size: 13.5px;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.action-card__text p {
+  margin: 0;
+  font-size: 11px;
+  color: #8c96ab;
+}
+
+.action-arrow {
+  font-size: 18px;
+  color: #8c96ab;
+}
+
+.btn-logout-luxury {
+  width: 100%;
+  padding: 10px 0;
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.15);
+  border: 1px solid rgba(229, 72, 77, 0.4);
+  color: #ff9999;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ================= 11. 公告全屏视图 (NoticesView) ================= */
+
+.notices-layout {
+  padding-right: 8px;
+}
+
+.notices-scroll-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.notice-card-view {
+  padding: 16px 20px;
+  border-radius: 14px;
+  background: rgba(18, 24, 38, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notice-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.kind-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.kind-badge.badge--notice { background: rgba(243, 207, 122, 0.2); color: #f7d78a; }
+.kind-badge.badge--event { background: rgba(229, 72, 77, 0.2); color: #ff9999; }
+.kind-badge.badge--maintenance { background: rgba(96, 165, 250, 0.2); color: #93c5fd; }
+
+.notice-card__head h3 {
+  margin: 0;
+  font-size: 14.5px;
+  color: #fff;
+  flex: 1;
+}
+
+.notice-card__head time {
+  font-size: 11px;
+  color: #8c96ab;
+}
+
+.notice-card__content {
+  margin: 0;
+  font-size: 12.5px;
+  color: #c4d0e6;
+  line-height: 1.6;
+}
+
+
+/* ================= 12. 选台展厅 (GameRooms) ================= */
 
 .rooms-stage {
   width: 100vw;
@@ -741,27 +1797,36 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
 }
 
 .rooms-topbar {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: linear-gradient(180deg, rgba(20, 26, 38, 0.95) 0%, rgba(11, 15, 23, 0.9) 100%);
+  border-bottom: 1px solid rgba(243, 207, 122, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  backdrop-filter: blur(16px);
 }
 
 .luxury-back-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
+  gap: 6px;
+  padding: 5px 14px 5px 10px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #e2e8f5;
-  font-size: 12px;
-  font-weight: 700;
+  background: linear-gradient(180deg, rgba(243, 207, 122, 0.22) 0%, rgba(196, 148, 50, 0.1) 100%);
+  border: 1px solid rgba(243, 207, 122, 0.55);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
   cursor: pointer;
 }
 
-.back-arrow {
-  font-size: 16px;
+.luxury-back-btn:hover {
+  background: var(--gold-btn-gradient);
+  color: #1a1204;
 }
 
 .rooms-title-bar {
@@ -797,16 +1862,14 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   cursor: pointer;
 }
 
-/* 选台主体分栏 */
 .rooms-layout {
   flex: 1;
   display: flex;
   gap: 16px;
-  padding: 12px max(18px, env(safe-area-inset-right)) 14px max(18px, env(safe-area-inset-left));
+  padding: 12px max(18px, env(safe-area-inset-right)) 12px max(18px, env(safe-area-inset-left));
   overflow: hidden;
 }
 
-/* 左侧游戏精美立绘名片 */
 .rooms-poster-card {
   position: relative;
   flex: 0 0 240px;
@@ -897,7 +1960,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   color: #1a1204;
 }
 
-/* 右侧房间选择展台 */
 .rooms-selector-panel {
   flex: 1;
   display: flex;
@@ -1091,7 +2153,7 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   cursor: not-allowed;
 }
 
-/* ================= 7. 顶级横屏游戏牌桌 (Room & TableStage) ================= */
+/* ================= 13. 游戏牌桌视界 (Room & TableStage) ================= */
 
 .room--luxury {
   width: 100vw;
@@ -1103,7 +2165,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   position: relative;
 }
 
-/* 牌桌极简顶栏 (38px) */
 .room-topbar {
   height: 38px;
   min-height: 38px;
@@ -1126,15 +2187,20 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
 .room-leave-btn {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px 10px;
+  gap: 4px;
+  padding: 3px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #c4d0e6;
-  font-size: 11.5px;
-  font-weight: 700;
+  background: linear-gradient(180deg, rgba(243, 207, 122, 0.22) 0%, rgba(196, 148, 50, 0.1) 100%);
+  border: 1px solid rgba(243, 207, 122, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
   cursor: pointer;
+}
+
+.room-leave-btn:hover {
+  background: var(--gold-btn-gradient);
+  color: #1a1204;
 }
 
 .room-info-pill {
@@ -1212,7 +2278,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   color: #f7d78a;
 }
 
-/* 牌桌视口区域 */
 .room-viewport {
   flex: 1;
   position: relative;
@@ -1229,7 +2294,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   overflow: hidden;
 }
 
-/* 牌桌舞台 (TableStage) */
 .stage--landscape {
   width: 100%;
   height: 100%;
@@ -1240,7 +2304,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   overflow: hidden;
 }
 
-/* 牌桌木质包边与金色跑道外框 */
 .stage__rail {
   width: 95%;
   height: 92%;
@@ -1258,7 +2321,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   position: relative;
 }
 
-/* 翡翠绿天鹅绒台呢 */
 .stage__felt {
   width: 100%;
   height: 100%;
@@ -1300,7 +2362,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   justify-content: center;
 }
 
-/* 环桌对手座位 */
 .stage__seat {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -1404,7 +2465,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   color: #f7d78a;
 }
 
-/* 玩家手牌与操作底边栏 (Thumb Zone) */
 .stage__bottom {
   position: absolute;
   bottom: 6px;
@@ -1416,13 +2476,10 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   align-items: center;
 }
 
-/* 手牌弹起动效 */
 .card-item.is-selected {
   transform: translateY(-18px) !important;
   filter: drop-shadow(0 0 8px rgba(243, 207, 122, 0.8));
 }
-
-/* ================= 8. 等待阶段牌桌中心悬浮控制台 ================= */
 
 .table-waiting-overlay {
   position: absolute;
@@ -1584,7 +2641,7 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   cursor: pointer;
 }
 
-/* ================= 9. 至尊结算弹窗 (SettlePanel) ================= */
+/* ================= 14. 结算面板 (SettlePanel) ================= */
 
 .settle-mask {
   position: fixed;
@@ -1617,7 +2674,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   to { transform: scale(1); opacity: 1; }
 }
 
-/* 胜利放射金光 */
 .settle-sunburst {
   position: absolute;
   top: -120px;
@@ -1805,99 +2861,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   color: #d1d9e6;
 }
 
-/* ================= 10. 通用奢华磨砂弹窗 (Modals) ================= */
-
-.luxury-modal {
-  background: linear-gradient(180deg, #131a28 0%, #0c101a 100%) !important;
-  border: 1.5px solid rgba(243, 207, 122, 0.35) !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85) !important;
-  border-radius: 20px !important;
-}
-
-.modal__title-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.modal-ornament {
-  color: #f7d78a;
-  font-size: 14px;
-}
-
-.luxury-close-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #a4b0c7;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-/* 个人资产卡片 */
-.profile-hero {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.profile-avatar-outer {
-  position: relative;
-}
-
-.profile-rank-crown {
-  position: absolute;
-  top: -8px;
-  right: -4px;
-  font-size: 16px;
-}
-
-.profile-id-tag {
-  font-size: 11px;
-  color: #8c96ab;
-}
-
-.profile-box__balance-card {
-  padding: 14px;
-  border-radius: 14px;
-  background: rgba(243, 207, 122, 0.08);
-  border: 1px solid rgba(243, 207, 122, 0.25);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-
-.card-sub {
-  font-size: 11px;
-  color: #a4b0c7;
-}
-
-.card-val {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.card-val strong {
-  font-size: 24px;
-  font-weight: 900;
-  color: #f7d78a;
-}
-
-.profile-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* ================= 11. 快捷表情与抽屉 ================= */
-
 .table-emote-trigger-container {
   position: absolute;
   bottom: 14px;
@@ -1944,7 +2907,6 @@ button, .wallet-amount, .app-top__wallet, .stat-val, .card-val, .scoreboard-row 
   cursor: pointer;
 }
 
-/* 侧滑玩家抽屉 */
 .room-players-drawer {
   position: absolute;
   top: 0;
