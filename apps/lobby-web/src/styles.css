@@ -2376,6 +2376,214 @@ button.secondary:hover:not(:disabled) {
   box-shadow: 0 7px 16px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
+/* 底池 */
+
+.pot-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.pot-display__label {
+  font-size: 10.5px;
+  letter-spacing: 3px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pot-display__value {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pot-display__value strong {
+  font-size: 26px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 22px rgba(240, 180, 41, 0.55);
+}
+
+.pot-display__timer {
+  font-size: 12px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.pot-display__meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.pot-display--inline {
+  margin-top: 6px;
+  gap: 3px;
+}
+
+/* 开牌结果 */
+
+.reveal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 268px;
+}
+
+.reveal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 13px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 12.5px;
+  backdrop-filter: blur(4px);
+}
+
+.reveal-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reveal-row__pt {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* 我的区域 */
+
+.my-lane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.my-lane__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.my-lane__name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.my-lane__points {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.my-lane__bet {
+  color: var(--muted);
+}
+
+/* 押注行 */
+
+.bet-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bet-row__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.bet-row button {
+  width: 102px;
+  padding: 10px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 13.5px;
+}
+
+/* 推筒子牌 */
+
+.tui-cards {
+  display: flex;
+  gap: 4px;
+}
+
+.tui-card {
+  border-radius: 6px;
+  background: #f7f9ff;
+  color: #171b26;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.tui-card--sm {
+  width: 26px;
+  height: 35px;
+  font-size: 14px;
+}
+
+.tui-card--lg {
+  width: 48px;
+  height: 64px;
+  font-size: 24px;
+  box-shadow: 0 9px 20px rgba(0, 0, 0, 0.55);
+}
+
+.tui-card--back {
+  background: repeating-linear-gradient(45deg, #22304d, #22304d 5px, #2f4166 5px, #2f4166 10px);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* 德州中央 */
+
+.texas-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.texas-center__phase {
+  font-size: 10.5px;
+  letter-spacing: 3px;
+  color: var(--gold);
+}
+
+.texas-center__board {
+  display: flex;
+  gap: 6px;
+}
+
+.mini-cards {
+  display: flex;
+  gap: 3px;
+}
+
+.hand--texas {
+  gap: 8px;
+}
+
+.hand--texas .hand__card {
+  min-width: 62px;
+  height: 84px;
+  font-size: 19px;
+  margin-left: 0;
+}
+
+.hand--texas .hand__card:first-child {
+  margin-left: 0;
+}
+
 .room__meta {
   display: flex;
   align-items: center;
