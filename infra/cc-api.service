@@ -1,0 +1,17 @@
+[Unit]
+Description=Chess & Cards Lobby API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/chess-and-cards/apps/api-server
+EnvironmentFile=/opt/chess-and-cards/.env
+ExecStart=/bin/bash -lc 'exec pnpm exec tsx src/index.ts'
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
