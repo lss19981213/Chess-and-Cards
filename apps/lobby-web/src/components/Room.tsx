@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { EMOTES, type EmotePayload, type RoomView, type Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
 import { GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
-import { SettlePanel } from './SettlePanel';
+import { SettlePanel, type ResultRow } from './SettlePanel';
 import { Baccarat } from '../games/Baccarat';
 import { CardTable } from '../games/CardTable';
 import { Dice } from '../games/Dice';
@@ -64,19 +64,37 @@ export function Room({
   const isHost = room.hostId === myId;
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
 
-  const [settleOpen, setSettleOpen] = useState(false);
+  const [dismissedKey, setDismissedKey] = useState('');
 
-  // 结算结果显示在左侧：常驻玩法 8 秒自动收起，对战类保留到玩家点「继续」
-  useEffect(() => {
-    if (!settlement) {
-      setSettleOpen(false);
-      return;
+  // 结果有两个来源：对战类用结算单，常驻类直接用快照里的本局明细
+  const liveResults = (
+    snapshot?.snapshot as
+      | { results?: Array<{ playerId: string; nickname: string; delta: number }> }
+      | undefined
+  )?.results;
+
+  const resultRows: ResultRow[] = useMemo(() => {
+    if (settlement?.entries.length) {
+      return settlement.entries.map((entry) => {
+        const player = room.players.find((p) => p.playerId === entry.playerId);
+        return {
+          playerId: entry.playerId,
+          nickname: player?.nickname ?? '玩家',
+          delta: entry.delta,
+          isBot: player?.isBot,
+        };
+      });
     }
-    setSettleOpen(true);
-    if (!persistent) return;
-    const timer = window.setTimeout(() => setSettleOpen(false), 8000);
-    return () => window.clearTimeout(timer);
-  }, [settlement?.settlementId, persistent]);
+    return (liveResults ?? []).map((row) => ({
+      playerId: row.playerId,
+      nickname: row.nickname,
+      delta: row.delta,
+      isBot: false,
+    }));
+  }, [settlement, room.players, liveResults]);
+
+  const resultKey = settlement?.settlementId ?? `${room.roomId}:${room.round}`;
+  const showPanel = resultRows.length > 0 && dismissedKey !== resultKey;
 
   /** 统一派发指令，并按动作类型播放音效 */
   const dispatch = (cmd: string, payload: Record<string, unknown> = {}): void => {
@@ -180,19 +198,20 @@ export function Room({
 
       {settlement && myDelta > 0 && <CoinBurst key={`${room.roomId}-${room.round}`} />}
 
-      {settleOpen && settlement && (
+      {showPanel && (
         <SettlePanel
-          settlement={settlement}
+          gameId={room.gameId}
+          round={room.round}
+          rows={resultRows}
           myId={myId}
           balance={balance}
-          players={room.players}
           persistent={persistent}
           onContinue={() => {
-            setSettleOpen(false);
+            setDismissedKey(resultKey);
             // 服务端会把这次准备预约到结算结束，回到等待态即自动开局
             onReady(true);
           }}
-          onClose={() => setSettleOpen(false)}
+          onClose={() => setDismissedKey(resultKey)}
         />
       )}
 

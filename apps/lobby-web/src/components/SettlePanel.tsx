@@ -1,19 +1,20 @@
-import type { Settlement } from '@cc/protocol';
 import { audio } from '../audio';
 import { Chip } from './Chip';
 
-interface PlayerInfo {
+export interface ResultRow {
   playerId: string;
   nickname: string;
-  isBot: boolean;
+  delta: number;
+  isBot?: boolean;
 }
 
 interface Props {
-  settlement: Settlement;
+  gameId: string;
+  round: number;
+  rows: ResultRow[];
   myId: string;
   balance: number;
-  players: PlayerInfo[];
-  /** 常驻玩法不显示「继续」，由平台自动接下一局 */
+  /** 平台坐庄的常驻玩法不显示「继续」，由平台自动接下一局 */
   persistent: boolean;
   onContinue: () => void;
   onClose: () => void;
@@ -30,24 +31,20 @@ const GAME_NAME: Record<string, string> = {
 };
 
 export function SettlePanel({
-  settlement,
+  gameId,
+  round,
+  rows,
   myId,
   balance,
-  players,
   persistent,
   onContinue,
   onClose,
 }: Props) {
-  const mine = settlement.entries.find((entry) => entry.playerId === myId);
+  const mine = rows.find((row) => row.playerId === myId);
   const delta = mine?.delta ?? 0;
-  const ranked = [...settlement.entries].sort((a, b) => b.delta - a.delta);
-  const rank = ranked.findIndex((entry) => entry.playerId === myId) + 1;
+  const ranked = [...rows].sort((a, b) => b.delta - a.delta);
+  const rank = ranked.findIndex((row) => row.playerId === myId) + 1;
   const total = ranked.length;
-
-  const nameOf = (playerId: string): string =>
-    players.find((player) => player.playerId === playerId)?.nickname ?? '玩家';
-  const isBot = (playerId: string): boolean =>
-    players.find((player) => player.playerId === playerId)?.isBot === true;
 
   const result =
     delta > 0 ? '本局胜出' : delta < 0 ? '本局失利' : total > 1 && rank === 1 ? '平局' : '本局结束';
@@ -56,11 +53,13 @@ export function SettlePanel({
     <aside className={`settle-panel ${delta > 0 ? 'is-win' : delta < 0 ? 'is-lose' : ''}`}>
       <div className="settle-panel__head">
         <span>
-          {GAME_NAME[settlement.gameId] ?? settlement.gameId} · 第 {settlement.round} 局
+          {GAME_NAME[gameId] ?? gameId} · 第 {round} 局
         </span>
-        <button type="button" className="settle-panel__close" onClick={onClose} title="收起">
-          ×
-        </button>
+        {persistent && (
+          <button type="button" className="settle-panel__close" onClick={onClose} title="收起">
+            ×
+          </button>
+        )}
       </div>
 
       <div className="settle-panel__result">{result}</div>
@@ -84,15 +83,15 @@ export function SettlePanel({
       </div>
 
       <ul className="settle-panel__list">
-        {ranked.map((entry, index) => (
-          <li key={entry.playerId} className={entry.playerId === myId ? 'is-me' : ''}>
+        {ranked.map((row, index) => (
+          <li key={row.playerId} className={row.playerId === myId ? 'is-me' : ''}>
             <span className="settle-panel__no">{index + 1}</span>
             <span className="settle-panel__name">
-              {nameOf(entry.playerId)}
-              {isBot(entry.playerId) && <em className="bot-tag">AI</em>}
+              {row.nickname}
+              {row.isBot && <em className="bot-tag">AI</em>}
             </span>
-            <span className={entry.delta > 0 ? 'up' : entry.delta < 0 ? 'down' : 'muted'}>
-              {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
+            <span className={row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'}>
+              {row.delta > 0 ? `+${row.delta}` : row.delta}
             </span>
           </li>
         ))}
