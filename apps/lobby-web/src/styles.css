@@ -3447,6 +3447,124 @@ button.secondary:hover:not(:disabled) {
   .admin__stats strong {
     font-size: 18px;
   }
+
+  /* 下注类再压一档，保证 390 高的一屏放得下 */
+  .lobby-game {
+    max-height: 100%;
+  }
+
+  .lobby-game__main {
+    overflow: hidden;
+  }
+
+  .banker-box {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    max-width: none;
+  }
+
+  .banker-box__label {
+    font-size: 9.5px;
+    letter-spacing: 2px;
+  }
+
+  .banker-box .tui-cards {
+    gap: 2px;
+  }
+
+  .banker-box .tui-card--md {
+    width: 20px;
+    height: 28px;
+  }
+
+  .banker-box__points {
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .door {
+    padding: 5px 3px;
+  }
+
+  .door__label {
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  .door .tui-card--md {
+    width: 24px;
+    height: 32px;
+  }
+
+  .door__points {
+    font-size: 9.5px;
+  }
+
+  .bet-controls {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .bet-controls__chips {
+    gap: 6px;
+  }
+
+  .bet-controls__custom {
+    gap: 6px;
+  }
+
+  .bet-controls__custom input {
+    width: 74px;
+  }
+
+  .dice-stage__tray {
+    padding: 5px 10px;
+  }
+
+  .die {
+    width: 38px;
+    height: 38px;
+  }
+
+  .die__pip {
+    width: 7px;
+    height: 7px;
+    margin: -3.5px 0 0 -3.5px;
+  }
+
+  .dice-zone {
+    padding: 4px 2px;
+  }
+
+  .dice-zone__label {
+    font-size: 12.5px;
+  }
+
+  .bac-side {
+    padding: 5px 4px;
+  }
+
+  .bac-side__label {
+    font-size: 12.5px;
+  }
+
+  .pcard--lg {
+    min-width: 30px;
+    height: 43px;
+  }
+
+  .bac-zone {
+    padding: 5px 3px;
+  }
+
+  .bac-zone__label {
+    font-size: 14px;
+  }
 }
 
 .admin__section h2 {
