@@ -1,5 +1,6 @@
 import type { RoomView, Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
+import { audio } from '../audio';
 import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
 import { Texas } from '../games/Texas';
@@ -35,6 +36,15 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
   const isHost = room.hostId === myId;
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
 
+  /** 统一派发指令，并按动作类型播放音效 */
+  const dispatch = (cmd: string, payload: Record<string, unknown> = {}): void => {
+    if (cmd === 'play' || cmd === 'place') audio.play('play');
+    else if (cmd === 'pass') audio.play('pass');
+    else if (cmd === 'bet' || cmd === 'raise' || cmd === 'call') audio.play('bet');
+    else audio.play('click');
+    onIntent(cmd, payload);
+  };
+
   const renderGame = () => {
     switch (room.gameId) {
       case 'gomoku':
@@ -42,7 +52,7 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
           <Gomoku
             snapshot={snapshot}
             status={room.status}
-            onPlace={(x, y) => onIntent('place', { x, y })}
+            onPlace={(x, y) => dispatch('place', { x, y })}
           />
         );
       case 'doudizhu':
@@ -53,8 +63,8 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
-            onPlay={(cards) => onIntent('play', { cards })}
-            onPass={() => onIntent('pass', {})}
+            onPlay={(cards) => dispatch('play', { cards })}
+            onPass={() => dispatch('pass', {})}
           />
         );
       case 'tuizhuanzi':
@@ -63,7 +73,7 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
-            onBet={(amount) => onIntent('bet', { amount })}
+            onBet={(amount) => dispatch('bet', { amount })}
           />
         );
       case 'texas':
@@ -72,7 +82,7 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
-            onAction={(cmd) => onIntent(cmd, {})}
+            onAction={(cmd) => dispatch(cmd, {})}
           />
         );
       default:
@@ -133,7 +143,10 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
               <button
                 type="button"
                 className={me?.ready ? 'secondary' : 'primary'}
-                onClick={() => onReady(!me?.ready)}
+                onClick={() => {
+                  audio.play('click');
+                  onReady(!me?.ready);
+                }}
               >
                 {me?.ready ? '取消准备' : '准备'}
               </button>

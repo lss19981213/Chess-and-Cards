@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientMsg, ServerMsg, type GameMeta, type RoomView, type Settlement } from '@cc/protocol';
 import { api, getToken, setToken, type User } from './api';
+import { audio } from './audio';
 import { GameSocket } from './ws';
 import { AuthModal } from './components/AuthModal';
 import { Lobby } from './components/Lobby';
@@ -62,6 +63,13 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  // 浏览器要求音频必须在用户手势后启动
+  useEffect(() => {
+    const handler = (): void => audio.unlock();
+    window.addEventListener('pointerdown', handler, { once: true });
+    return () => window.removeEventListener('pointerdown', handler);
+  }, []);
+
   useEffect(() => {
     const token = getToken();
     if (!user || !token) return;
@@ -83,6 +91,9 @@ export default function App() {
     socket.on(ServerMsg.Settlement, (data) => {
       const payload = data as { settlement: Settlement };
       setSettlement(payload.settlement);
+      const mine = payload.settlement.entries.find((entry) => entry.playerId === userIdRef.current);
+      if (mine && mine.delta > 0) audio.play('win');
+      else if (mine && mine.delta < 0) audio.play('lose');
       window.setTimeout(() => {
         void api.me().then(({ user: me }) => setUser(me)).catch(() => undefined);
       }, 600);

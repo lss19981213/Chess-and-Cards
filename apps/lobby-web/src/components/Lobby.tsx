@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { GameMeta } from '@cc/protocol';
 import type { User } from '../api';
+import { audio } from '../audio';
 
 interface Props {
   user: User | null;
@@ -12,6 +14,9 @@ interface Props {
 }
 
 export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLeaderboard }: Props) {
+  const [musicOn, setMusicOn] = useState(audio.musicOn);
+  const [sfxOn, setSfxOn] = useState(audio.sfxOn);
+
   return (
     <div className="lobby">
       <header className="topbar">
@@ -21,6 +26,22 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
         </div>
 
         <div className="topbar__right">
+          <button
+            type="button"
+            className={`icon-btn ${musicOn ? '' : 'is-off'}`}
+            title={musicOn ? '关闭背景音乐' : '开启背景音乐'}
+            onClick={() => setMusicOn(audio.toggleMusic())}
+          >
+            {musicOn ? '🎵' : '🎼'}
+          </button>
+          <button
+            type="button"
+            className={`icon-btn ${sfxOn ? '' : 'is-off'}`}
+            title={sfxOn ? '关闭音效' : '开启音效'}
+            onClick={() => setSfxOn(audio.toggleSfx())}
+          >
+            {sfxOn ? '🔊' : '🔇'}
+          </button>
           <button type="button" className="ghost" onClick={onLeaderboard}>
             排行榜
           </button>
@@ -60,7 +81,15 @@ export function Lobby({ user, games, onEnter, onLogin, onLogout, onTasks, onLead
 
         <div className="game-grid">
           {games.map((game) => (
-            <button key={game.gameId} type="button" className="game-card" onClick={() => onEnter(game)}>
+            <button
+              key={game.gameId}
+              type="button"
+              className="game-card"
+              onClick={() => {
+                audio.play('click');
+                onEnter(game);
+              }}
+            >
               <span className="game-card__icon">{game.icon}</span>
               <span className="game-card__name">{game.name}</span>
               <span className="game-card__desc">{game.description}</span>
