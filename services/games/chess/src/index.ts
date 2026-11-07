@@ -357,6 +357,7 @@ export class ChessPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: '',
     tags: ['棋类', '双人', '竞技'],
+    category: 'board',
   };
 
   override readonly commands = ['move'] as const;

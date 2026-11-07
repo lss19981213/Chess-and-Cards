@@ -206,6 +206,19 @@ function inCheck(board: Array<Piece | null>, color: Color): boolean {
   return isAttacked(board, king, color === 'r' ? 'b' : 'r');
 }
 
+/** 将帅对脸：两王同列且中间无子，属非法局面 */
+function kingsFacing(board: Array<Piece | null>): boolean {
+  const red = kingSquare(board, 'r');
+  const black = kingSquare(board, 'b');
+  if (!red || !black || red.c !== black.c) return false;
+  const min = Math.min(red.r, black.r);
+  const max = Math.max(red.r, black.r);
+  for (let r = min + 1; r < max; r += 1) {
+    if (board[r * COLS + red.c]) return false;
+  }
+  return true;
+}
+
 function pseudoMoves(state: State, from: Square): Move[] {
   const piece = state.board[idx(from)];
   if (!piece) return [];
@@ -355,7 +368,8 @@ function isLegal(state: State, move: Move): boolean {
   if (!piece) return false;
   board[idx(move.to)] = piece;
   board[idx(move.from)] = null;
-  return !inCheck(board, piece.color);
+  if (inCheck(board, piece.color)) return false;
+  return !kingsFacing(board);
 }
 
 function legalMoves(state: State, color: Color): Move[] {
@@ -394,6 +408,7 @@ export class XiangqiPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: '',
     tags: ['棋类', '双人', '竞技'],
+    category: 'board',
   };
 
   override readonly commands = ['move'] as const;

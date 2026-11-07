@@ -37,7 +37,8 @@ interface RoundResult {
 
 interface HistoryItem {
   round: number;
-  playerPoints: number;
+  /** 每位玩家各自的最终点数（各人牌不同） */
+  points: Record<string, number>;
   dealerPoints: number;
   outcome: string;
 }
@@ -255,6 +256,15 @@ export class BlackjackPlugin extends BaseGamePlugin {
         }
       }
       if (changed) ctx.markDirty();
+
+      // 所有真人手牌都已停牌或爆牌时不必干等计时器，直接开结
+      const pendingHuman = [...this.state.hands.entries()].some(
+        ([pid, hand]) => !hand.done && ctx.getPlayer(pid)?.isBot !== true,
+      );
+      if (!pendingHuman) {
+        this.settle(ctx);
+        return;
+      }
     }
 
     if (now < this.state.phaseEndsAt) return;
@@ -363,11 +373,13 @@ export class BlackjackPlugin extends BaseGamePlugin {
 
     this.state.dealer = dealerCards;
     this.state.results = results;
+    const points: Record<string, number> = {};
+    for (const [pid, hand] of this.state.hands) points[pid] = pointsOf(hand.cards);
     this.state.history = [
       ...this.state.history,
       {
         round: this.state.roundNo,
-        playerPoints: pointsOf(this.state.hands.values().next().value?.cards ?? []),
+        points,
         dealerPoints,
         outcome: dealerPoints > 21 ? '庄爆' : dealerPoints === 21 ? '庄21' : `庄${dealerPoints}`,
       },
@@ -428,7 +440,12 @@ export class BlackjackPlugin extends BaseGamePlugin {
       myBet: viewerId ? this.state.bets.get(viewerId) ?? {} : {},
       zoneTotals: this.zoneTotals(),
       results: this.state.results,
-      history: this.state.history,
+      history: this.state.history.map((item) => ({
+        round: item.round,
+        playerPoints: viewerId ? item.points[viewerId] ?? null : null,
+        dealerPoints: item.dealerPoints,
+        outcome: item.outcome,
+      })),
       limits: { min: MIN_BET, max: MAX_BET, total: MAX_TOTAL },
       areas: AREAS.map((area) => ({ area, label: AREA_LABEL[area], odds: AREA_ODDS[area] })),
       players: ctx.players

@@ -65,6 +65,7 @@ export class StudPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: '',
     tags: ['牌类', '多人', '竞技'],
+    category: 'table',
   };
 
   override readonly commands = ['fold', 'check', 'call', 'raise'] as const;

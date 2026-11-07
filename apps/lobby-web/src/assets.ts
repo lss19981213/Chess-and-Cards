@@ -12,6 +12,12 @@ export const GAME_ART: Record<string, string> = {
   texas: asset('game-texas.jpg'),
   dice: asset('game-dice.jpg'),
   baccarat: asset('game-baccarat.jpg'),
+  niuniu: asset('game-niuniu.jpg'),
+  blackjack: asset('game-blackjack.jpg'),
+  stud: asset('game-stud.jpg'),
+  goldenflower: asset('game-goldenflower.jpg'),
+  chess: asset('game-chess.jpg'),
+  xiangqi: asset('game-xiangqi.jpg'),
 };
 
 export const HERO_BG = asset('hero-table.jpg');

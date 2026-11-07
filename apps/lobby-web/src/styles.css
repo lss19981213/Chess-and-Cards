@@ -6276,6 +6276,37 @@ button.secondary:hover:not(:disabled) {
   color: #d8402f;
 }
 
+@media (max-width: 720px) {
+  .boardgame__cell {
+    width: 33px;
+    height: 33px;
+  }
+  .boardgame__piece {
+    font-size: 22px;
+  }
+  .boardgame--xiangqi .boardgame__piece {
+    font-size: 18px;
+  }
+  .boardgame__cell.is-target::after {
+    width: 12px;
+    height: 12px;
+  }
+  .boardgame__bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .showdown__seat {
+    min-width: 104px;
+  }
+  .showdown__actions {
+    gap: 8px;
+  }
+  .showdown__actions .raise-group input {
+    width: 74px;
+  }
+}
+
 /* 梭哈 / 翻金花 */
 .showdown {
   display: flex;
