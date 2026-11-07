@@ -2827,6 +2827,628 @@ button.secondary:hover:not(:disabled) {
   text-align: right;
 }
 
+/* ============================================================
+   横屏 / 矮屏适配：手机横过来、桌面小窗都按这套压缩
+   条件用高度而不是宽度，因为横屏手机宽 800+ 但只有 360~430 高
+   ============================================================ */
+@media (max-height: 560px) {
+  /* ---- 大厅 ---- */
+  .app-top {
+    height: 46px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .app-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    font-size: 12px;
+  }
+
+  .app-top__id small {
+    display: none;
+  }
+
+  .app-top__wallet {
+    padding: 4px 10px;
+  }
+
+  .app-top__wallet strong {
+    font-size: 12.5px;
+  }
+
+  .notice-bar {
+    margin-top: 8px;
+    padding: 6px 12px;
+  }
+
+  .notice-bar__ticker {
+    font-size: 11px;
+  }
+
+  .lobby {
+    padding-bottom: 58px;
+  }
+
+  .app-main {
+    padding: 10px 12px 12px;
+    gap: 12px;
+  }
+
+  .app-section__head {
+    margin-bottom: 6px;
+  }
+
+  .app-section__title h2 {
+    font-size: 14px;
+  }
+
+  .app-section__head > span {
+    font-size: 10.5px;
+  }
+
+  .live-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-flow: row;
+    overflow: visible;
+    gap: 8px;
+  }
+
+  .live-card {
+    height: 118px;
+    border-radius: 12px;
+  }
+
+  .live-card__badge {
+    right: 7px;
+    top: 7px;
+    font-size: 9.5px;
+    padding: 2px 8px;
+  }
+
+  .live-card__body {
+    left: 10px;
+    right: 10px;
+    bottom: 8px;
+    gap: 1px;
+  }
+
+  .live-card__icon {
+    font-size: 15px;
+  }
+
+  .live-card__body strong {
+    font-size: 14px;
+  }
+
+  .live-card__body small {
+    display: none;
+  }
+
+  .live-card__cta {
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .mini-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .mini-card {
+    padding: 8px 4px;
+    gap: 3px;
+    border-radius: 12px;
+  }
+
+  .mini-card__thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    font-size: 17px;
+  }
+
+  .mini-card strong {
+    font-size: 11.5px;
+  }
+
+  .mini-card small {
+    font-size: 9.5px;
+  }
+
+  .app-footnote {
+    display: none;
+  }
+
+  .app-tabbar {
+    width: min(400px, calc(100% - 20px));
+    bottom: 6px;
+    padding: 4px;
+    border-radius: 14px;
+  }
+
+  .app-tabbar button {
+    padding: 3px 0;
+    font-size: 10px;
+    border-radius: 10px;
+  }
+
+  .app-tabbar button span {
+    font-size: 14px;
+  }
+
+  /* ---- 选台 ---- */
+  .rooms-hero {
+    min-height: 82px;
+    margin-bottom: 12px;
+    border-radius: 14px;
+  }
+
+  .rooms-hero__body {
+    padding: 10px 16px;
+  }
+
+  .rooms-hero__body h2 {
+    font-size: 17px;
+    margin-bottom: 2px;
+  }
+
+  .rooms-hero__body p {
+    font-size: 11.5px;
+  }
+
+  .back-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .rooms-hint {
+    font-size: 11px;
+  }
+
+  .lobby__main {
+    padding: 12px 12px 40px;
+  }
+
+  .room-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 9px;
+  }
+
+  .room-tile {
+    padding: 10px 12px;
+    gap: 5px;
+    border-radius: 12px;
+  }
+
+  .room-tile__name {
+    font-size: 13.5px;
+  }
+
+  .room-tile__cta {
+    font-size: 11.5px;
+    margin-top: 1px;
+  }
+
+  .room-tile__meta {
+    font-size: 11px;
+  }
+
+  .trend-mark {
+    min-width: 20px;
+    height: 18px;
+    font-size: 10px;
+  }
+
+  .lobby__footnote {
+    display: none;
+  }
+
+  /* ---- 牌桌通用 ---- */
+  .room {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .room__head,
+  .room__title {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .room__main {
+    padding: 6px 10px 8px;
+    gap: 10px;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 200px;
+  }
+
+  .room__main.is-stage {
+    align-items: stretch;
+  }
+
+  .room__board {
+    flex: 1;
+    min-height: 0;
+    padding: 4px 10px 6px;
+    border-radius: 14px;
+  }
+
+  .room__side {
+    gap: 8px;
+    overflow-y: auto;
+    max-height: 100%;
+  }
+
+  .stage {
+    min-height: 0;
+    flex: 1;
+    height: 100%;
+    padding: 0;
+  }
+
+  .stage__felt {
+    width: min(58%, 520px);
+    top: 40%;
+    aspect-ratio: 21 / 9;
+  }
+
+  .stage__center {
+    top: 38%;
+  }
+
+  .stage__watermark {
+    font-size: 30px;
+  }
+
+  .stage__seat {
+    transform: scale(0.74);
+  }
+
+  .stage__bottom {
+    margin-top: auto;
+    padding-bottom: 0;
+  }
+
+  .hand {
+    padding: 16px 4px 2px;
+    min-height: 74px;
+  }
+
+  .hand__card {
+    min-width: 34px;
+    height: 48px;
+    margin-left: -8px;
+    border-radius: 5px;
+  }
+
+  .hand--texas .hand__card {
+    min-width: 52px;
+    height: 74px;
+  }
+
+  .hand-actions {
+    padding: 0 8px 2px;
+    gap: 8px;
+  }
+
+  .hand-actions button {
+    padding: 7px 12px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+
+  .turn-hint {
+    display: none;
+  }
+
+  .raise-group input {
+    width: 66px;
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  .board--stage {
+    width: min(66vh, 280px);
+  }
+
+  /* ---- 下注类 ---- */
+  .lobby-game {
+    grid-template-columns: minmax(0, 1fr) 148px;
+    gap: 10px;
+  }
+
+  .lobby-game__main {
+    gap: 7px;
+  }
+
+  .lobby-game__bar {
+    padding-bottom: 7px;
+    font-size: 11.5px;
+    gap: 10px;
+  }
+
+  .streak-badge {
+    font-size: 10.5px;
+    padding: 2px 8px;
+  }
+
+  .banker-box {
+    padding: 6px 8px;
+    gap: 3px;
+    border-radius: 12px;
+  }
+
+  .banker-box__label {
+    font-size: 9.5px;
+  }
+
+  .banker-box__points {
+    font-size: 11.5px;
+  }
+
+  .doors {
+    gap: 8px;
+  }
+
+  .door {
+    padding: 7px 4px;
+    gap: 3px;
+    border-radius: 12px;
+  }
+
+  .door__label {
+    font-size: 15px;
+    letter-spacing: 2px;
+  }
+
+  .door__points {
+    font-size: 10.5px;
+  }
+
+  .door__bet,
+  .door__pool,
+  .dice-zone__bet,
+  .bac-zone__bet {
+    font-size: 10px;
+    padding: 1px 7px;
+  }
+
+  .tui-card--md {
+    width: 28px;
+    height: 38px;
+  }
+
+  .dice-stage {
+    gap: 5px;
+  }
+
+  .dice-stage__tray {
+    padding: 7px 14px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .die {
+    width: 44px;
+    height: 44px;
+    border-radius: 9px;
+  }
+
+  .die__pip {
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+  }
+
+  .die__q {
+    font-size: 18px;
+  }
+
+  .dice-stage__sum strong {
+    font-size: 20px;
+  }
+
+  .dice-zones {
+    gap: 6px;
+  }
+
+  .dice-zone {
+    padding: 6px 2px;
+    border-radius: 10px;
+  }
+
+  .dice-zone__label {
+    font-size: 14px;
+  }
+
+  .dice-zone__odds {
+    font-size: 9.5px;
+  }
+
+  .dice-sums {
+    gap: 4px;
+  }
+
+  .dice-sum {
+    padding: 4px 1px;
+    border-radius: 8px;
+  }
+
+  .dice-sum strong {
+    font-size: 12px;
+  }
+
+  .dice-sum span {
+    font-size: 8.5px;
+  }
+
+  .bac-table {
+    gap: 8px;
+  }
+
+  .bac-side {
+    padding: 7px 6px;
+    gap: 4px;
+    border-radius: 12px;
+  }
+
+  .bac-side__label {
+    font-size: 14px;
+  }
+
+  .bac-hand__cards {
+    gap: 3px;
+  }
+
+  .pcard--lg {
+    min-width: 36px;
+    height: 52px;
+  }
+
+  .bac-zone {
+    padding: 7px 4px;
+    border-radius: 12px;
+  }
+
+  .bac-zone__label {
+    font-size: 16px;
+  }
+
+  .bac-vs {
+    min-width: 44px;
+  }
+
+  .bet-controls {
+    gap: 5px;
+  }
+
+  .chip-btn {
+    font-size: 9.5px;
+    padding: 2px 4px;
+  }
+
+  .chip-btn img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .bet-controls__custom input {
+    width: 84px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .bet-controls__hint {
+    display: none;
+  }
+
+  .clear-bet-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  .lobby-results {
+    font-size: 11px;
+    gap: 8px;
+  }
+
+  /* 走势面板压窄，保证不遮挡 */
+  .history {
+    max-height: 100%;
+    padding: 8px 6px;
+    gap: 4px;
+    border-radius: 12px;
+  }
+
+  .history__title {
+    font-size: 10.5px;
+  }
+
+  .history__legend,
+  .history__row {
+    grid-template-columns: 20px 1fr 1fr 1fr 1fr;
+    font-size: 10px;
+  }
+
+  .history__row--dice {
+    grid-template-columns: 20px 1.5fr 0.8fr 0.8fr;
+  }
+
+  .history__list {
+    max-height: none;
+  }
+
+  /* 矮屏没有空间放喊话，收起 */
+  .emote-bar {
+    display: none;
+  }
+
+  /* 结算面板压缩并可滚动 */
+  .settle-panel {
+    width: 172px;
+    padding: 9px;
+    gap: 6px;
+    max-height: calc(100vh - 20px);
+  }
+
+  .settle-panel__result {
+    font-size: 14px;
+  }
+
+  .settle-panel__delta {
+    padding: 6px 0;
+  }
+
+  .settle-panel__delta strong {
+    font-size: 19px;
+  }
+
+  .settle-panel__stats strong {
+    font-size: 12px;
+  }
+
+  .settle-panel__list li {
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  /* 弹窗在矮屏必须能滚动 */
+  .modal-mask {
+    padding: 8px;
+  }
+
+  .modal {
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+    padding: 16px 18px;
+  }
+
+  .modal__head h2 {
+    font-size: 16px;
+  }
+
+  .admin {
+    padding: 12px 12px 40px;
+    gap: 12px;
+  }
+
+  .admin__stats {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+  }
+
+  .admin__stats > div {
+    padding: 10px;
+  }
+
+  .admin__stats strong {
+    font-size: 18px;
+  }
+}
+
 .admin__section h2 {
   font-size: 15px;
   margin: 0 0 10px;
