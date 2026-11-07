@@ -20,3 +20,6 @@ tmp/
 generated-images/
 deploy.tar.gz
 deploy.tar
+/*.png
+/*.jpg
+.playwright-cli/
