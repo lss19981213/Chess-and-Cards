@@ -142,6 +142,83 @@ export class GomokuPlugin extends BaseGamePlugin {
     };
   }
 
+  override getCurrentActor(ctx: RoomContext): string | null {
+    if (this.state.winner !== 0) return null;
+    return ctx.players.find((p) => (p.seat === 0 ? BLACK : WHITE) === this.state.turn)?.playerId ?? null;
+  }
+
+  override botIntent(ctx: RoomContext, playerId: string): GameIntent | null {
+    if (this.state.winner !== 0) return null;
+    const player = ctx.getPlayer(playerId);
+    if (!player) return null;
+    const side = player.seat === 0 ? BLACK : WHITE;
+    if (side !== this.state.turn) return null;
+
+    const spot = this.pickMove(side);
+    return spot ? { cmd: 'place', payload: spot } : null;
+  }
+
+  /** 简单启发式：兼顾自己连子与封堵对手 */
+  private pickMove(side: number): { x: number; y: number } | null {
+    const opponent = side === BLACK ? WHITE : BLACK;
+    let best: { x: number; y: number; score: number } | null = null;
+
+    for (let y = 0; y < SIZE; y += 1) {
+      for (let x = 0; x < SIZE; x += 1) {
+        if (this.state.cells[y * SIZE + x] !== 0) continue;
+        if (!this.hasNeighbor(x, y)) continue;
+        const score = this.evalPoint(x, y, side, opponent);
+        if (!best || score > best.score) best = { x, y, score };
+      }
+    }
+
+    if (best) return { x: best.x, y: best.y };
+
+    const center = Math.floor(SIZE / 2);
+    if (this.state.cells[center * SIZE + center] === 0) return { x: center, y: center };
+    return null;
+  }
+
+  private hasNeighbor(x: number, y: number): boolean {
+    for (let dy = -2; dy <= 2; dy += 1) {
+      for (let dx = -2; dx <= 2; dx += 1) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && this.state.cells[ny * SIZE + nx] !== 0) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private evalPoint(x: number, y: number, side: number, opponent: number): number {
+    let score = 0;
+    for (const [dx, dy] of DIRECTIONS) {
+      let own = 1;
+      let block = 1;
+      for (const sign of [1, -1] as const) {
+        let nx = x + dx * sign;
+        let ny = y + dy * sign;
+        while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && this.state.cells[ny * SIZE + nx] === side) {
+          own += 1;
+          nx += dx * sign;
+          ny += dy * sign;
+        }
+        nx = x + dx * sign;
+        ny = y + dy * sign;
+        while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && this.state.cells[ny * SIZE + nx] === opponent) {
+          block += 1;
+          nx += dx * sign;
+          ny += dy * sign;
+        }
+      }
+      score += 8 ** own + 7.5 ** block;
+    }
+    return score;
+  }
+
   private settleWin(ctx: RoomContext, winnerId: string): void {
     const entries: SettlementEntry[] = ctx.players.map((p) => ({
       playerId: p.playerId,

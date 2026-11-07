@@ -166,6 +166,10 @@ export default function App() {
     socketRef.current?.send(ClientMsg.Intent, { cmd, payload });
   }, []);
 
+  const handleAddBot = useCallback(() => {
+    socketRef.current?.send(ClientMsg.AddBot, {});
+  }, []);
+
   const handleLogout = useCallback(() => {
     socketRef.current?.close();
     socketRef.current = null;
@@ -200,6 +204,7 @@ export default function App() {
           onReady={handleReady}
           onLeave={handleLeave}
           onIntent={handleIntent}
+          onAddBot={handleAddBot}
         />
       ) : (
         <Lobby

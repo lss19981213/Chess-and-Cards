@@ -27,6 +27,8 @@ export interface PlayerView {
   ready: boolean;
   online: boolean;
   score: number;
+  /** 是否为机器人陪玩 */
+  isBot: boolean;
 }
 
 /** 游戏快照：结构由各游戏插件自定义，客户端按 gameId 分发渲染。 */

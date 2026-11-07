@@ -17,4 +17,12 @@ export abstract class BaseGamePlugin implements GamePlugin {
   onDestroy(_ctx: RoomContext): void {}
 
   abstract getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot;
+
+  getCurrentActor(_ctx: RoomContext): string | null {
+    return null;
+  }
+
+  botIntent(_ctx: RoomContext, _playerId: string): GameIntent | null {
+    return null;
+  }
 }

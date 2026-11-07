@@ -29,6 +29,8 @@ interface State {
   hands: Map<string, Card[]>;
   points: Map<string, number>;
   deadline: number;
+  /** 押注阶段开始时间，用于给机器人留出思考延迟 */
+  startAt: number;
   results: RoundResult[];
   settled: boolean;
 }
@@ -41,6 +43,7 @@ function emptyState(): State {
     hands: new Map(),
     points: new Map(),
     deadline: 0,
+    startAt: 0,
     results: [],
     settled: false,
   };
@@ -72,6 +75,7 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
     this.state = emptyState();
     this.state.bankerId = players[0]?.playerId ?? null;
+    this.state.startAt = Date.now();
     this.state.deadline = Date.now() + BET_TIMEOUT_MS;
     ctx.markDirty();
     // 只有庄家一人时无法比牌，直接结束本局
@@ -97,6 +101,23 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
 
   override onTick(ctx: RoomContext): void {
     if (this.state.phase !== 'bet' || this.state.settled) return;
+
+    // 机器人押注：给一点思考延迟，避免瞬间开牌
+    if (Date.now() - this.state.startAt >= 1200) {
+      let changed = false;
+      for (const player of ctx.players) {
+        if (!player.isBot || player.playerId === this.state.bankerId) continue;
+        if (this.state.bets.has(player.playerId)) continue;
+        this.state.bets.set(player.playerId, DEFAULT_BET);
+        changed = true;
+      }
+      if (changed) ctx.markDirty();
+      if (this.allBetsPlaced(ctx)) {
+        this.reveal(ctx);
+        return;
+      }
+    }
+
     if (Date.now() < this.state.deadline) return;
 
     for (const player of ctx.players) {

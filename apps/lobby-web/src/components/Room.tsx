@@ -14,6 +14,7 @@ interface Props {
   onReady: (ready: boolean) => void;
   onLeave: () => void;
   onIntent: (cmd: string, payload: Record<string, unknown>) => void;
+  onAddBot: () => void;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -31,7 +32,7 @@ const GAME_TITLE: Record<string, string> = {
   texas: '德州扑克',
 };
 
-export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onIntent }: Props) {
+export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onIntent, onAddBot }: Props) {
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
@@ -122,10 +123,13 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
             <ul className="player-list">
               {room.players.map((player) => (
                 <li key={player.playerId} className={player.playerId === myId ? 'is-me' : ''}>
-                  <span className="player-list__avatar">{player.nickname.slice(0, 1)}</span>
+                  <span className={`player-list__avatar ${player.isBot ? 'is-bot' : ''}`}>
+                    {player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
+                  </span>
                   <span className="player-list__name">
                     {player.nickname}
                     {room.hostId === player.playerId && <em>房主</em>}
+                    {player.isBot && <em className="bot-tag">AI</em>}
                   </span>
                   <span className={`player-list__state ${player.online ? '' : 'offline'}`}>
                     {player.online ? (player.ready ? '已准备' : '未准备') : '离线'}
@@ -152,6 +156,18 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
               </button>
             ) : (
               <p className="hint">{room.status === 'playing' ? '对局进行中' : '请等待本局结算完成'}</p>
+            )}
+            {isHost && room.status === 'waiting' && room.players.length < room.maxPlayers && (
+              <button
+                type="button"
+                className="secondary bot-btn"
+                onClick={() => {
+                  audio.play('click');
+                  onAddBot();
+                }}
+              >
+                + 添加机器人陪玩
+              </button>
             )}
             {isHost && room.players.length < room.maxPlayers && (
               <p className="hint">

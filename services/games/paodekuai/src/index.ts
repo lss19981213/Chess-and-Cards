@@ -188,6 +188,59 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
     };
   }
 
+  override getCurrentActor(): string | null {
+    return this.state.settled ? null : this.state.turn;
+  }
+
+  override botIntent(ctx: RoomContext, playerId: string): GameIntent | null {
+    if (this.state.settled || this.state.turn !== playerId) return null;
+
+    const hand = this.state.hands.get(playerId) ?? [];
+    if (hand.length === 0) return null;
+
+    const prev = this.state.lastCombo;
+    const isLead = !prev || this.state.lastPlayerId === playerId;
+
+    if (isLead) {
+      const smallest = [...hand].sort((a, b) => a.rank - b.rank)[0];
+      return smallest ? { cmd: 'play', payload: { cards: [smallest.id] } } : null;
+    }
+
+    const byRank = new Map<number, Card[]>();
+    for (const card of hand) {
+      const list = byRank.get(card.rank) ?? [];
+      list.push(card);
+      byRank.set(card.rank, list);
+    }
+    const ranks = [...byRank.keys()].sort((a, b) => a - b);
+
+    const valid = (cards: Card[]): Card[] | null => {
+      const combo = parseCombo(cards, PAODEKUAI_RULES);
+      return combo && canBeat(combo, prev) ? cards : null;
+    };
+
+    if (prev.kind === 'single' || prev.kind === 'pair' || prev.kind === 'triple') {
+      const need = prev.kind === 'single' ? 1 : prev.kind === 'pair' ? 2 : 3;
+      for (const rank of ranks) {
+        if (rank <= prev.main) continue;
+        const cards = byRank.get(rank) ?? [];
+        if (cards.length < need) continue;
+        const picked = valid(cards.slice(0, need));
+        if (picked) return { cmd: 'play', payload: { cards: picked.map((card) => card.id) } };
+      }
+    }
+
+    for (const rank of ranks) {
+      const cards = byRank.get(rank) ?? [];
+      if (cards.length !== 4) continue;
+      if (prev.kind === 'bomb' && rank <= prev.main) continue;
+      const picked = valid(cards);
+      if (picked) return { cmd: 'play', payload: { cards: picked.map((card) => card.id) } };
+    }
+
+    return { cmd: 'pass', payload: {} };
+  }
+
   private settleWin(ctx: RoomContext, winnerId: string): void {
     if (this.state.settled) return;
     this.state.settled = true;

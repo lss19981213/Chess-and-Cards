@@ -9,7 +9,7 @@ import {
   type RoomView,
   type Settlement,
 } from '@cc/protocol';
-import type { GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
+import type { GameIntent, GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import type { RoomServerConfig } from './config';
 
 const TICK_MS = 200;
@@ -23,6 +23,7 @@ interface Seat {
   score: number;
   socket: WebSocket | null;
   graceTimer: NodeJS.Timeout | null;
+  isBot: boolean;
 }
 
 export interface RoomDeps {
@@ -159,6 +160,7 @@ export class GameRoom {
       score: 0,
       socket,
       graceTimer: null,
+      isBot: false,
     };
     this.seats.set(player.playerId, seat);
     if (this.hostId === null) this.hostId = player.playerId;
@@ -168,11 +170,89 @@ export class GameRoom {
       nickname: seat.nickname,
       seat: seat.seat,
       connected: true,
+      isBot: false,
     });
 
     this.broadcastView();
     this.dirty = true;
     this.tryStart();
+  }
+
+  /** 添加机器人陪玩：入座即准备，由外部驱动器代其行动 */
+  addBot(playerId: string, nickname: string): void {
+    if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
+    if (this.seats.has(playerId)) return;
+    if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '对局进行中，无法添加机器人');
+    if (this.seats.size >= this.maxPlayers) throw new AppError(ErrorCode.RoomFull, '房间人数已满');
+
+    const seat: Seat = {
+      playerId,
+      nickname,
+      seat: this.nextSeatIndex(),
+      ready: true,
+      score: 0,
+      socket: null,
+      graceTimer: null,
+      isBot: true,
+    };
+    this.seats.set(playerId, seat);
+    if (this.hostId === null) this.hostId = playerId;
+
+    this.plugin.onPlayerJoin(this.ctx, {
+      playerId,
+      nickname,
+      seat: seat.seat,
+      connected: true,
+      isBot: true,
+    });
+
+    this.broadcastView();
+    this.dirty = true;
+    this.tryStart();
+  }
+
+  /** 当前行动的玩家，非对局中返回 null */
+  currentActor(): string | null {
+    if (this.closed || this.status !== 'playing') return null;
+    try {
+      return this.plugin.getCurrentActor?.(this.ctx) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  isBot(playerId: string): boolean {
+    return this.seats.get(playerId)?.isBot === true;
+  }
+
+  /** 用规则 AI 代机器人行动，返回是否成功提交 */
+  actAsBot(playerId: string): boolean {
+    if (!this.isBot(playerId)) return false;
+    try {
+      const intent = this.plugin.botIntent?.(this.ctx, playerId) ?? null;
+      if (!intent) return false;
+      this.handleIntent(playerId, intent.cmd, intent.payload);
+      return true;
+    } catch (error) {
+      console.warn(`[room ${this.id}] 机器人行动失败`, (error as Error).message);
+      return false;
+    }
+  }
+
+  /** 提交外部决策器（大模型）给出的机器人指令，合法性由容器统一校验 */
+  applyBotIntent(playerId: string, intent: GameIntent): void {
+    if (!this.isBot(playerId)) throw new AppError(ErrorCode.IllegalAction, '非机器人玩家');
+    this.handleIntent(playerId, intent.cmd, intent.payload);
+  }
+
+  /** 供外部决策器（含大模型）读取局面 */
+  snapshotFor(playerId: string): Record<string, unknown> | null {
+    if (!this.seats.has(playerId)) return null;
+    try {
+      return this.plugin.getSnapshot(this.ctx, playerId);
+    } catch {
+      return null;
+    }
   }
 
   /** 断线重连：复用原座位，保留分数与角色 */
@@ -336,6 +416,11 @@ export class GameRoom {
       this.destroy();
       return;
     }
+    // 真人全部离开后，纯机器人房间没有存在意义
+    if (![...this.seats.values()].some((seat) => !seat.isBot)) {
+      this.destroy();
+      return;
+    }
     if (this.status === 'playing' && this.seats.size < this.plugin.meta.minPlayers) {
       // 人数不足，中止本局（不计输赢）
       this.status = 'waiting';
@@ -380,7 +465,8 @@ export class GameRoom {
         playerId: s.playerId,
         nickname: s.nickname,
         seat: s.seat,
-        connected: s.socket !== null,
+        connected: s.socket !== null || s.isBot,
+        isBot: s.isBot,
       }));
   }
 
@@ -392,8 +478,9 @@ export class GameRoom {
         nickname: s.nickname,
         seat: s.seat,
         ready: s.ready,
-        online: s.socket !== null,
+        online: s.socket !== null || s.isBot,
         score: s.score,
+        isBot: s.isBot,
       }));
   }
 

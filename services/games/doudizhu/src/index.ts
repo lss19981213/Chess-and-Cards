@@ -196,6 +196,77 @@ export class DoudizhuPlugin extends BaseGamePlugin {
     };
   }
 
+  override getCurrentActor(): string | null {
+    return this.state.settled ? null : this.state.turn;
+  }
+
+  override botIntent(ctx: RoomContext, playerId: string): GameIntent | null {
+    if (this.state.settled || this.state.turn !== playerId) return null;
+
+    const hand = this.state.hands.get(playerId) ?? [];
+    if (hand.length === 0) return null;
+
+    const prev = this.state.lastCombo;
+    const isLead = !prev || this.state.lastPlayerId === playerId;
+
+    if (isLead) {
+      const smallest = [...hand].sort((a, b) => a.rank - b.rank)[0];
+      return smallest ? { cmd: 'play', payload: { cards: [smallest.id] } } : null;
+    }
+
+    const picked = this.findBeating(hand, prev);
+    if (picked) return { cmd: 'play', payload: { cards: picked.map((card) => card.id) } };
+    return { cmd: 'pass', payload: {} };
+  }
+
+  /** 规则 AI：能跟则跟最小的，跟不上就过 */
+  private findBeating(hand: Card[], prev: Combo): Card[] | null {
+    const byRank = new Map<number, Card[]>();
+    for (const card of hand) {
+      const list = byRank.get(card.rank) ?? [];
+      list.push(card);
+      byRank.set(card.rank, list);
+    }
+    const ranks = [...byRank.keys()].sort((a, b) => a - b);
+
+    const valid = (cards: Card[]): Card[] | null => {
+      const combo = parseCombo(cards, DOUDIZHU_RULES);
+      return combo && canBeat(combo, prev) ? cards : null;
+    };
+
+    if (prev.kind === 'single' || prev.kind === 'pair' || prev.kind === 'triple') {
+      const need = prev.kind === 'single' ? 1 : prev.kind === 'pair' ? 2 : 3;
+      for (const rank of ranks) {
+        if (rank <= prev.main) continue;
+        const cards = byRank.get(rank) ?? [];
+        if (cards.length < need) continue;
+        const picked = valid(cards.slice(0, need));
+        if (picked) return picked;
+      }
+    }
+
+    return this.findBomb(byRank, ranks, prev);
+  }
+
+  private findBomb(byRank: Map<number, Card[]>, ranks: number[], prev: Combo): Card[] | null {
+    if (prev.kind === 'rocket') return null;
+
+    for (const rank of ranks) {
+      const cards = byRank.get(rank) ?? [];
+      if (cards.length !== 4) continue;
+      if (prev.kind === 'bomb' && rank <= prev.main) continue;
+      const combo = parseCombo(cards, DOUDIZHU_RULES);
+      if (combo && canBeat(combo, prev)) return cards;
+    }
+
+    const jokers = [...(byRank.get(16) ?? []), ...(byRank.get(17) ?? [])];
+    if (jokers.length === 2) {
+      const combo = parseCombo(jokers, DOUDIZHU_RULES);
+      if (combo && canBeat(combo, prev)) return jokers;
+    }
+    return null;
+  }
+
   private settleWin(ctx: RoomContext, winnerId: string): void {
     if (this.state.settled) return;
     this.state.settled = true;

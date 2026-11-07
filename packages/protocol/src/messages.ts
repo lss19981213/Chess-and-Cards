@@ -11,6 +11,8 @@ export const ClientMsg = {
   Intent: 'client:intent',
   Reconnect: 'client:reconnect',
   Ping: 'client:ping',
+  /** 房主添加一个机器人陪玩 */
+  AddBot: 'client:add_bot',
 } as const;
 
 export type ClientMsgType = (typeof ClientMsg)[keyof typeof ClientMsg];

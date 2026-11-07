@@ -20,12 +20,13 @@ function assert(condition: unknown, message: string): void {
   }
 }
 
-function makePlayers(count: number): PlayerContext[] {
+function makePlayers(count: number, botFrom = count): PlayerContext[] {
   return Array.from({ length: count }, (_, index) => ({
     playerId: `p${index + 1}`,
     nickname: `玩家${index + 1}`,
     seat: index,
     connected: true,
+    isBot: index >= botFrom,
   }));
 }
 
@@ -192,11 +193,80 @@ function testGomokuStillWorks(): void {
   assert(settled[0]?.winners[0] === 'p1', '先连成五子者胜');
 }
 
+function testBotPlaysGomoku(): void {
+  console.log('\n[机器人：五子棋]');
+  const players = makePlayers(2, 0); // 全部机器人，验证 AI 能自我对弈
+  const plugin = new GomokuPlugin();
+  const { ctx, settled } = makeCtx(players);
+  plugin.onRoundStart(ctx);
+
+  let steps = 0;
+  let lastMove: { x: number; y: number } | null = null;
+  while (settled.length === 0 && steps < 60) {
+    const actor = plugin.getCurrentActor?.(ctx) ?? null;
+    if (!actor) break;
+    const intent = plugin.botIntent?.(ctx, actor) ?? null;
+    if (!intent) break;
+    plugin.onIntent(ctx, actor, intent);
+    lastMove = { x: Number(intent.payload.x), y: Number(intent.payload.y) };
+    steps += 1;
+  }
+
+  assert(steps > 0, `机器人完成 ${steps} 手落子`);
+  assert(lastMove !== null && lastMove.x >= 0 && lastMove.y >= 0, '落点在棋盘范围内');
+  assert(settled.length === 1 || steps >= 20, '机器人可持续对弈');
+}
+
+function testBotPlaysDoudizhu(): void {
+  console.log('\n[机器人：斗地主]');
+  const players = makePlayers(3, 1); // 1 真人 + 2 机器人
+  const plugin = new DoudizhuPlugin();
+  const { ctx, settled } = makeCtx(players);
+  plugin.onRoundStart(ctx);
+
+  let steps = 0;
+  while (settled.length === 0 && steps < 500) {
+    const actor = plugin.getCurrentActor?.(ctx) ?? null;
+    if (!actor) break;
+    const intent = plugin.botIntent?.(ctx, actor) ?? null;
+    if (!intent) break;
+    plugin.onIntent(ctx, actor, intent);
+    steps += 1;
+  }
+
+  assert(settled.length === 1, `机器人打完一整局斗地主（${steps} 步）`);
+  assert(sumDelta(settled[0]) === 0, '机器人对局结算零和');
+}
+
+function testBotPlaysTexas(): void {
+  console.log('\n[机器人：德州]');
+  const players = makePlayers(3, 1);
+  const plugin = new TexasPlugin();
+  const { ctx, settled } = makeCtx(players);
+  plugin.onRoundStart(ctx);
+
+  let steps = 0;
+  while (settled.length === 0 && steps < 80) {
+    const actor = plugin.getCurrentActor?.(ctx) ?? null;
+    if (!actor) break;
+    const intent = plugin.botIntent?.(ctx, actor) ?? null;
+    if (!intent) break;
+    plugin.onIntent(ctx, actor, intent);
+    steps += 1;
+  }
+
+  assert(settled.length === 1, `机器人完成德州一局（${steps} 步）`);
+  assert(sumDelta(settled[0]) === 0, '德州机器人结算零和');
+}
+
 testTuizhuanzi();
 testPaodekuai();
 testDoudizhu();
 testTexas();
 testGomokuStillWorks();
+testBotPlaysGomoku();
+testBotPlaysDoudizhu();
+testBotPlaysTexas();
 
 console.log('');
 if (failures > 0) {

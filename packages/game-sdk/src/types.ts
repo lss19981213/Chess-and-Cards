@@ -8,6 +8,7 @@ export interface PlayerContext {
   nickname: string;
   seat: number;
   connected: boolean;
+  isBot: boolean;
 }
 
 export interface RoomConfig {
@@ -71,6 +72,12 @@ export interface GamePlugin {
 
   /** 返回给指定观察者的快照，viewerId 为 null 表示观战/大厅预览 */
   getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot;
+
+  /** 当前应当行动的玩家（用于驱动机器人），无回合概念时返回 null */
+  getCurrentActor?(ctx: RoomContext): string | null;
+
+  /** 规则 AI 兜底决策，返回 null 表示无法行动 */
+  botIntent?(ctx: RoomContext, playerId: string): GameIntent | null;
 }
 
 export type GamePluginFactory = () => GamePlugin;

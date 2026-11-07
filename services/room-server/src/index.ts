@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { verifyToken } from '@cc/auth';
@@ -11,6 +12,7 @@ import {
   isPlainObject,
   type Envelope,
 } from '@cc/protocol';
+import { BOT_NAMES, driveBot } from './bot';
 import { config } from './config';
 import { RoomManager } from './registry';
 import { createSettlementReporter } from './settlement';
@@ -207,6 +209,16 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       return;
     }
 
+    case ClientMsg.AddBot: {
+      const room = requireRoom(session);
+      if (room.view().hostId !== session.playerId) {
+        throw new AppError(ErrorCode.IllegalAction, '只有房主可以添加机器人');
+      }
+      const nickname = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)] ?? '机器人';
+      room.addBot(`bot:${randomUUID()}`, `🤖 ${nickname}`);
+      return;
+    }
+
     case ClientMsg.LeaveRoom: {
       if (!session.roomId) return;
       manager.get(session.roomId)?.leave(session.playerId);
@@ -225,6 +237,23 @@ function requireRoom(session: Session) {
   if (!room) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
   return room;
 }
+
+/** 机器人驱动器：轮询各房间，命中机器人回合则触发决策 */
+const botInFlight = new Map<string, string>();
+
+const botTicker = setInterval(() => {
+  if (!config.bot.enabled) return;
+  for (const room of manager.list()) {
+    const actor = room.currentActor();
+    if (!actor || !room.isBot(actor)) continue;
+    if (botInFlight.has(room.id)) continue;
+    botInFlight.set(room.id, actor);
+    void driveBot(room, actor)
+      .catch((error: unknown) => console.error('[bot] 驱动异常', error))
+      .finally(() => botInFlight.delete(room.id));
+  }
+}, 300);
+botTicker.unref?.();
 
 const heartbeat = setInterval(() => {
   for (const client of wss.clients) {
@@ -247,6 +276,7 @@ httpServer.listen(config.port, () => {
 function shutdown(): void {
   console.log('[room-server] 正在关闭...');
   clearInterval(heartbeat);
+  clearInterval(botTicker);
   manager.shutdown();
   wss.close();
   httpServer.close(() => process.exit(0));

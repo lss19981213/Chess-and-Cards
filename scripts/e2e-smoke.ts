@@ -225,6 +225,43 @@ async function gomokuFlow(): Promise<void> {
   assert(sorted, '排行榜按筹码降序');
 }
 
+async function botFlow(): Promise<void> {
+  console.log('\n[4/4] 机器人陪玩');
+  const user = await register('botuser', '人机测试');
+  const client = new TestClient(user.token);
+  await client.opened;
+  await client.waitFor('server:hello');
+
+  client.send('client:join_room', { gameId: 'doudizhu', maxPlayers: 3 });
+  const room = await client.waitFor('server:room_view');
+
+  client.send('client:ready', { ready: true });
+  // 两名机器人入座（入座即准备）后应自动开局
+  client.send('client:add_bot', {});
+  await sleep(500);
+  client.send('client:add_bot', {});
+
+  let botCount = 0;
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline && botCount < 2) {
+    const view = await client.waitFor('server:room_view', 1500).catch(() => null);
+    if (!view) continue;
+    const players = view.room.players as Array<{ isBot: boolean }>;
+    botCount = players.filter((p) => p.isBot).length;
+  }
+  assert(botCount === 2, `两名机器人已入座（${botCount}）`);
+
+  const started = await client.waitFor('server:snapshot', 10000);
+  assert(started.status === 'playing', '机器人入座后自动开局');
+
+  // 机器人由服务端驱动，等待它完成行动
+  await sleep(6000);
+  const after = await client.waitFor('server:snapshot', 10000);
+  assert(Boolean(after.snapshot), '机器人已在对局中行动');
+
+  client.close();
+}
+
 async function multiGameSmoke(): Promise<void> {
   console.log('\n[附加] 多游戏可加载性');
   const res = await fetch(`${API}/api/games`);
@@ -237,6 +274,7 @@ async function multiGameSmoke(): Promise<void> {
 
 async function main(): Promise<void> {
   await gomokuFlow();
+  await botFlow();
   await multiGameSmoke();
   console.log('\n全部通过 ✓');
 }
