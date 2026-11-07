@@ -111,8 +111,12 @@ export function CardTable({ variant, snapshot, myId, status, onPlay, onPass }: P
               <span>{comboLabel(data.lastCombo.kind)}</span>
             </div>
             <div className="center-play__cards">
-              {data.lastCombo.cards.map((card) => (
-                <div key={card.id} className={`pcard pcard--sm ${isRedCard(card) ? 'is-red' : ''}`}>
+              {data.lastCombo.cards.map((card, index) => (
+                <div
+                  key={card.id}
+                  className={`pcard pcard--sm ${isRedCard(card) ? 'is-red' : ''}`}
+                  style={{ ['--i' as string]: index }}
+                >
                   <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
                 </div>
               ))}

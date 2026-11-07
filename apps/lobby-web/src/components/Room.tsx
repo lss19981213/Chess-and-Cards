@@ -3,6 +3,7 @@ import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
 import { GAME_ART } from '../assets';
 import { Chip } from './Chip';
+import { CoinBurst } from './CoinBurst';
 import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
 import { Texas } from '../games/Texas';
@@ -130,6 +131,8 @@ export function Room({
           </span>
         </div>
       </header>
+
+      {settlement && myDelta > 0 && <CoinBurst key={`${room.roomId}-${room.round}`} />}
 
       {settlement && (
         <div className={`settle-bar ${myDelta > 0 ? 'is-win' : myDelta < 0 ? 'is-lose' : ''}`}>

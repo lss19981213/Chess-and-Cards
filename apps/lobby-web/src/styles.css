@@ -2212,6 +2212,68 @@ button.secondary:hover:not(:disabled) {
   gap: 5px;
 }
 
+.center-play__cards .pcard {
+  animation: slam-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+@keyframes slam-in {
+  0% {
+    transform: translateY(-46px) scale(1.18) rotate(-4deg);
+    opacity: 0;
+  }
+  62% {
+    transform: translateY(3px) scale(0.97) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 结算金币爆散 */
+
+.coin-burst {
+  position: fixed;
+  left: 50%;
+  top: 40%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 70;
+}
+
+.coin-burst span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #ffeab0 0%, #f0b429 48%, #9b6c0a 100%);
+  box-shadow: 0 0 10px rgba(240, 180, 41, 0.65), inset 0 -1px 1px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  animation: coin-fly 1.15s cubic-bezier(0.15, 0.75, 0.3, 1) forwards;
+  animation-delay: var(--delay);
+}
+
+@keyframes coin-fly {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(0) scale(0.5);
+  }
+  18% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(1);
+  }
+}
+
 .center-hint {
   font-size: 12.5px;
   color: rgba(255, 255, 255, 0.42);
@@ -2316,15 +2378,14 @@ button.secondary:hover:not(:disabled) {
 }
 
 .cardbacks__item {
-  width: 12px;
-  height: 19px;
+  width: 14px;
+  height: 20px;
   border-radius: 3px;
-  background: repeating-linear-gradient(45deg, #22304d, #22304d 3px, #2f4166 3px, #2f4166 6px);
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
   transform: rotate(var(--r, 0deg));
   transform-origin: bottom center;
-  margin-left: -6px;
+  margin-left: -7px;
 }
 
 .cardbacks__item:first-child {
@@ -2362,8 +2423,8 @@ button.secondary:hover:not(:disabled) {
   justify-content: center;
   align-items: flex-end;
   perspective: 1100px;
-  padding: 34px 4px 6px;
-  min-height: 112px;
+  padding: 42px 4px 6px;
+  min-height: 128px;
   max-width: 100%;
   overflow: visible;
 }
@@ -2384,8 +2445,8 @@ button.secondary:hover:not(:disabled) {
 }
 
 .hand__card {
-  min-width: 46px;
-  height: 66px;
+  min-width: 52px;
+  height: 72px;
   margin-left: -5px;
   transform: rotateX(14deg);
   transform-origin: bottom center;
@@ -2622,15 +2683,13 @@ button.secondary:hover:not(:disabled) {
 }
 
 .tui-card--sm {
-  width: 26px;
-  height: 35px;
-  font-size: 14px;
+  width: 27px;
+  height: 38px;
 }
 
 .tui-card--lg {
-  width: 48px;
-  height: 64px;
-  font-size: 24px;
+  width: 50px;
+  height: 70px;
   box-shadow: 0 9px 20px rgba(0, 0, 0, 0.55);
 }
 
@@ -2669,8 +2728,8 @@ button.secondary:hover:not(:disabled) {
 }
 
 .hand--texas .hand__card {
-  min-width: 62px;
-  height: 84px;
+  min-width: 76px;
+  height: 106px;
   font-size: 19px;
   margin-left: 0;
 }
