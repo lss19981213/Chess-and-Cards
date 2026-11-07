@@ -291,6 +291,12 @@ export class BaccaratPlugin extends BaseGamePlugin {
 
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {
     const revealed = this.state.phase !== 'bet';
+    const zoneTotals: Record<string, number> = {};
+    for (const bet of this.state.bets.values()) {
+      zoneTotals.player = (zoneTotals.player ?? 0) + bet.player;
+      zoneTotals.banker = (zoneTotals.banker ?? 0) + bet.banker;
+      zoneTotals.tie = (zoneTotals.tie ?? 0) + bet.tie;
+    }
     const myBet = viewerId ? this.state.bets.get(viewerId) ?? null : null;
 
     const mapCards = (cards: Card[]) =>
@@ -310,6 +316,7 @@ export class BaccaratPlugin extends BaseGamePlugin {
       },
       outcome: revealed ? this.state.outcome : null,
       myBet: myBet ?? { player: 0, banker: 0, tie: 0 },
+      zoneTotals,
       myStreak: viewerId ? (this.state.streaks.get(viewerId) ?? 0) : 0,
       results: this.state.results,
       history: this.state.history,

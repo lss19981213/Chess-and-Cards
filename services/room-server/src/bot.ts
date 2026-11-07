@@ -1,6 +1,9 @@
 import type { GameIntent } from '@cc/game-sdk';
 import { config } from './config';
 import type { GameRoom } from './room';
+import { createLogger } from './logger';
+
+const log = createLogger('bot');
 
 /**
  * 机器人决策器：
@@ -50,13 +53,13 @@ async function askModel(system: string, user: string): Promise<string | null> {
       signal: controller.signal,
     });
     if (!res.ok) {
-      console.warn('[bot] 模型调用失败', res.status);
+      log.warn('模型调用失败，回退规则 AI', { status: res.status });
       return null;
     }
     const body = (await res.json()) as ChatResponse;
     return body.choices?.[0]?.message?.content ?? null;
   } catch (error) {
-    console.warn('[bot] 模型调用异常', (error as Error).message);
+    log.warn('模型调用异常，回退规则 AI', { error: (error as Error).message });
     return null;
   } finally {
     clearTimeout(timer);
@@ -222,7 +225,7 @@ export async function driveBot(room: GameRoom, botId: string): Promise<boolean> 
       room.applyBotIntent(botId, llmIntent);
       return true;
     } catch (error) {
-      console.warn('[bot] 模型动作非法，回退规则 AI', (error as Error).message);
+      log.warn('模型输出动作非法，回退规则 AI', { error: (error as Error).message });
     }
   }
 

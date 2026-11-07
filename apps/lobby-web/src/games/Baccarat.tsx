@@ -15,6 +15,7 @@ interface BacSnapshot {
   banker: SideView;
   outcome: 'player' | 'banker' | 'tie' | null;
   myBet: { player: number; banker: number; tie: number };
+  zoneTotals: Record<string, number>;
   myStreak: number;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{ round: number; playerPoints: number; bankerPoints: number; outcome: string }>;
@@ -133,6 +134,11 @@ export function Baccarat({ snapshot, myId: _myId, status, onBet }: Props) {
               >
                 <span className="bac-zone__label">{zone.label}</span>
                 <span className="bac-zone__odds">{zone.odds}</span>
+                {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
+                  <span className="bac-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
+                    共押 {data.zoneTotals[zone.key]}
+                  </span>
+                )}
                 {bet > 0 && (
                   <span className="bac-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />

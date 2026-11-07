@@ -271,6 +271,12 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
 
     const myBet = viewerId ? this.state.bets.get(viewerId) ?? null : null;
 
+    // 各门累计下注（含场内机器人），用于展示「别人也在下注」
+    const doorTotals: Record<DoorKey, number> = { heaven: 0, earth: 0, human: 0 };
+    for (const bet of this.state.bets.values()) {
+      for (const door of DOORS) doorTotals[door] += bet[door];
+    }
+
     return {
       phase: this.state.phase,
       round: this.state.roundNo,
@@ -286,15 +292,19 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
         human: doorView('human'),
       },
       myBet: myBet ?? { heaven: 0, earth: 0, human: 0 },
+      doorTotals,
       myStreak: viewerId ? (this.state.streaks.get(viewerId) ?? 0) : 0,
       results: this.state.results,
       history: this.state.history,
       limits: { min: MIN_BET, max: MAX_BET, total: MAX_TOTAL },
-      players: ctx.players.map((p: PlayerContext) => ({
-        playerId: p.playerId,
-        nickname: p.nickname,
-        isBot: p.isBot,
-      })),
+      // 机器人明细不下发，减少快照体积
+      players: ctx.players
+        .filter((p: PlayerContext) => !p.isBot)
+        .map((p: PlayerContext) => ({
+          playerId: p.playerId,
+          nickname: p.nickname,
+          isBot: p.isBot,
+        })),
     };
   }
 

@@ -12,6 +12,9 @@ import {
 } from '@cc/protocol';
 import type { GameIntent, GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import type { RoomServerConfig } from './config';
+import { createLogger } from './logger';
+
+const roomLog = createLogger('room');
 
 const TICK_MS = 200;
 const SETTLE_RESET_MS = 5_000;
@@ -80,6 +83,7 @@ export class GameRoom {
   private tickTimer: NodeJS.Timeout | null = null;
   private closed = false;
   private readonly persistent: boolean;
+  private platformNo = 0;
   private emoteTimes = new Map<string, number[]>();
   /** 结算展示期间预约的准备意愿 */
   private pendingReady = new Map<string, boolean>();
@@ -129,7 +133,7 @@ export class GameRoom {
       settle: (input: SettlementInput) => self.handleSettle(input),
       beginRound: () => self.beginRound(),
       log: (message: string, extra?: Record<string, unknown>) => {
-        console.log(`[room ${self.id}] ${message}`, extra ?? '');
+        roomLog.debug(message, { roomId: self.id, ...extra });
       },
     };
 
@@ -152,16 +156,42 @@ export class GameRoom {
     return this.persistent ? PLATFORM_CAPACITY : this.maxPlayers;
   }
 
-  /** 补足场内氛围玩家，让人少的时候也热闹 */
+  setPlatformNo(no: number): void {
+    this.platformNo = no;
+  }
+
+  /** 补足/回收场内氛围玩家：真人少时热闹，真人多时让出容量 */
   private ensureAmbient(): void {
     if (!this.persistent || this.closed) return;
-    const total = this.seats.size;
-    if (total >= AMBIENT_MIN) return;
 
-    const want = AMBIENT_MIN + Math.floor(Math.random() * (AMBIENT_MAX - AMBIENT_MIN + 1));
-    for (let i = total; i < want; i += 1) {
+    const seats = [...this.seats.values()];
+    const humans = seats.filter((seat) => !seat.isBot).length;
+    const ambient = seats.filter((seat) => seat.playerId.startsWith('ambient:'));
+
+    const desired =
+      humans < 10
+        ? AMBIENT_MIN + Math.floor(Math.random() * (AMBIENT_MAX - AMBIENT_MIN + 1))
+        : Math.min(this.capacity, humans + 8);
+
+    if (this.seats.size > desired) {
+      for (const seat of ambient) {
+        if (this.seats.size <= desired) break;
+        this.seats.delete(seat.playerId);
+      }
+      this.dirty = true;
+      return;
+    }
+    if (this.seats.size >= desired) return;
+
+    const used = new Set([...this.seats.values()].map((seat) => seat.nickname));
+    for (let i = this.seats.size; i < desired; i += 1) {
+      const base = AMBIENT_NAMES[Math.floor(Math.random() * AMBIENT_NAMES.length)] ?? '牌友';
+      let nickname = base;
+      let suffix = 2;
+      while (used.has(nickname)) nickname = `${base}${suffix++}`;
+      used.add(nickname);
+
       const playerId = `ambient:${randomUUID()}`;
-      const nickname = AMBIENT_NAMES[Math.floor(Math.random() * AMBIENT_NAMES.length)] ?? '牌友';
       this.seats.set(playerId, {
         playerId,
         nickname,
@@ -228,7 +258,7 @@ export class GameRoom {
       roomId: this.id,
       gameId: this.plugin.meta.gameId,
       roomName: this.persistent
-        ? `平台台 · ${this.plugin.meta.name}`
+        ? `${this.plugin.meta.name} · ${this.platformNo || 1} 号台`
         : `${host?.nickname ?? '玩家'}的${this.plugin.meta.name}`,
       hostId: this.hostId,
       hostName: this.persistent ? '平台庄' : (host?.nickname ?? '玩家'),

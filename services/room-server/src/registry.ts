@@ -5,12 +5,15 @@ import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
 import { GameRoom, PLATFORM_CAPACITY, type RoomDeps } from './room';
 import type { RoomServerConfig } from './config';
+import { createLogger } from './logger';
 
 /** 平台房初始数量与弹性上限 */
 const PLATFORM_ROOMS_INITIAL = 3;
 const PLATFORM_ROOMS_MAX = 12;
 /** 三间平均使用率达到该比例就扩容 */
 const PLATFORM_SCALE_RATIO = 0.85;
+
+const scaleLog = createLogger('scale');
 
 export { PLATFORM_ROOMS_INITIAL };
 
@@ -139,9 +142,11 @@ export class RoomManager {
   createPlatform(gameId: string): GameRoom | null {
     const factory = this.factories.get(gameId);
     if (!factory) return null;
+    const no = this.list(gameId).filter((r) => r.isPersistent).length + 1;
     const room = new GameRoom(randomUUID(), factory(), 'classic', PLATFORM_CAPACITY, this.deps, {
       persistent: true,
     });
+    room.setPlatformNo(no);
     this.rooms.set(room.id, room);
     return room;
   }
@@ -169,9 +174,12 @@ export class RoomManager {
     if (!platforms.every((room) => room.playerCount >= threshold)) return;
     const room = this.createPlatform(gameId);
     if (room) {
-      console.info(
-        `[scale] ${gameId} 平台台已达 ${platforms.length} 间且接近满员，自动加开 1 间（共 ${platforms.length + 1}）`,
-      );
+      scaleLog.info('平台台接近满员，自动加开新台', {
+        gameId,
+        before: platforms.length,
+        after: platforms.length + 1,
+        roomId: room.id,
+      });
     }
   }
 

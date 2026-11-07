@@ -63,7 +63,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
           <h1>{game.name}</h1>
         </div>
         <span className="rooms-hint">
-          {isLive ? '平台坐庄 · 全场共用一张台' : `${game.minPlayers}-${game.maxPlayers} 人一桌`}
+          {isLive ? '平台坐庄 · 多台同时进行' : `${game.minPlayers}-${game.maxPlayers} 人一桌`}
         </span>
       </header>
 
@@ -136,7 +136,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
 
         {isLive && (
           <p className="lobby__footnote">
-            该玩法由平台坐庄，每分钟一局，所有玩家共用同一张台，无需等待人数。
+            该玩法由平台坐庄，每分钟一局，多台同时进行；台子接近满员时系统会自动加开新台。
           </p>
         )}
       </main>

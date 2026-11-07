@@ -10,6 +10,7 @@ interface DiceSnapshot {
   triple: boolean;
   big: boolean | null;
   myBet: Record<string, number>;
+  zoneTotals: Record<string, number>;
   myStreak: number;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{ round: number; dice: number[]; sum: number; triple: boolean; big: boolean }>;
@@ -156,6 +157,11 @@ export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
               >
                 <span className="dice-zone__label">{zone.label}</span>
                 <span className="dice-zone__odds">1:{zone.odds}</span>
+                {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
+                  <span className="dice-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
+                    共押 {data.zoneTotals[zone.key]}
+                  </span>
+                )}
                 {bet > 0 && (
                   <span className="dice-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />

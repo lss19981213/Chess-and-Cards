@@ -15,6 +15,7 @@ interface TuiSnapshot {
   banker: { points: number | null; cards: Array<{ id: string; rank: number }> };
   doors: { heaven: DoorView; earth: DoorView; human: DoorView };
   myBet: { heaven: number; earth: number; human: number };
+  doorTotals: { heaven: number; earth: number; human: number };
   myStreak: number;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{
@@ -118,10 +119,16 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
                 <span className="door__points">
                   {revealed && door.points !== null ? `${door.points} 点` : '待开牌'}
                 </span>
+                {(data.doorTotals?.[key] ?? 0) > 0 && (
+                  <span className="door__pool" key={`pool-${data.doorTotals[key]}`}>
+                    <img src={chipArt(data.doorTotals[key])} alt="" />
+                    共押 {data.doorTotals[key]}
+                  </span>
+                )}
                 {bet > 0 && (
                   <span className="door__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
-                    {bet}
+                    我 {bet}
                   </span>
                 )}
               </button>

@@ -1,5 +1,8 @@
 import type { Settlement } from '@cc/protocol';
 import type { RoomServerConfig } from './config';
+import { createLogger } from './logger';
+
+const log = createLogger('settle');
 
 /**
  * 结算上报大厅服务。
@@ -21,13 +24,17 @@ export function createSettlementReporter(config: RoomServerConfig): (settlement:
           });
           if (res.ok) return;
           const text = await res.text();
-          console.error(`[settle] 上报失败 ${res.status}: ${text}`, settlement.settlementId);
+          log.error('结算上报被拒', { status: res.status, body: text.slice(0, 200), settlementId: settlement.settlementId });
         } catch (error) {
-          console.error(`[settle] 上报异常（第 ${attempt} 次）`, error);
+          log.warn('结算上报异常，准备重试', { attempt, error: (error as Error).message, settlementId: settlement.settlementId });
         }
         await new Promise((r) => setTimeout(r, 300 * attempt));
       }
-      console.error('[settle] 结算最终上报失败，需人工补偿', settlement.settlementId);
+      log.error('结算最终上报失败，需人工补偿', {
+      settlementId: settlement.settlementId,
+      roomId: settlement.roomId,
+      gameId: settlement.gameId,
+    });
     })();
   };
 }

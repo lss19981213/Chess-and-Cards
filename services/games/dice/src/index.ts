@@ -261,6 +261,12 @@ export class DicePlugin extends BaseGamePlugin {
 
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {
     const revealed = this.state.phase !== 'bet';
+    const zoneTotals: Record<string, number> = {};
+    for (const bet of this.state.bets.values()) {
+      for (const [key, value] of Object.entries(bet)) {
+        zoneTotals[key] = (zoneTotals[key] ?? 0) + (value ?? 0);
+      }
+    }
     const sum = this.state.dice.reduce((a, b) => a + b, 0);
     const triple = this.state.dice[0] === this.state.dice[1] && this.state.dice[1] === this.state.dice[2];
 
@@ -273,6 +279,7 @@ export class DicePlugin extends BaseGamePlugin {
       triple: revealed ? triple : false,
       big: revealed && !triple ? sum >= 11 : null,
       myBet: viewerId ? this.state.bets.get(viewerId) ?? {} : {},
+      zoneTotals,
       myStreak: viewerId ? (this.state.streaks.get(viewerId) ?? 0) : 0,
       results: this.state.results,
       history: this.state.history,
