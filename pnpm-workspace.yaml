@@ -11,3 +11,5 @@ allowBuilds:
 
 onlyBuiltDependencies:
   - esbuild
+  - ssh2
+  - cpu-features
