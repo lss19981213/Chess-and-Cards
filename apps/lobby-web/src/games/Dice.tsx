@@ -24,6 +24,7 @@ interface Props {
   myId: string;
   status: string;
   onBet: (area: string, amount: number) => void;
+  onClear: (area?: string) => void;
 }
 
 const PRESET = [10, 50, 100, 500, 1000];
@@ -82,7 +83,7 @@ function Die({ value, rolling }: { value: number; rolling: boolean }) {
   );
 }
 
-export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
+export function Dice({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
   const data = snapshot as unknown as DiceSnapshot | undefined;
   const [amount, setAmount] = useState(100);
   const [now, setNow] = useState(Date.now());
@@ -172,6 +173,26 @@ export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
                   <span className="dice-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
                     {bet}
+                    {canBet && (
+                      <span
+                        className="bet-cancel"
+                        role="button"
+                        tabIndex={0}
+                        title="取消该区下注"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onClear(zone.key);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.stopPropagation();
+                            onClear(zone.key);
+                          }
+                        }}
+                      >
+                        ×
+                      </span>
+                    )}
                   </span>
                 )}
               </button>
@@ -212,6 +233,11 @@ export function Dice({ snapshot, myId: _myId, status, onBet }: Props) {
               </button>
             ))}
           </div>
+          {canBet && betting > 0 && (
+            <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
+              清空下注
+            </button>
+          )}
           <div className="bet-controls__custom">
             <span>自定义</span>
             <input

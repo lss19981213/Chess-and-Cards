@@ -58,6 +58,15 @@ interface State {
   history: HistoryItem[];
   roundNo: number;
   streaks: Map<string, number>;
+  botPlans: BotPlan[];
+}
+
+interface BotPlan {
+  playerId: string;
+  area: string;
+  amount: number;
+  at: number;
+  done: boolean;
 }
 
 /** 牌面点数：A=1，10/J/Q/K=0，其余按面值 */
@@ -85,12 +94,13 @@ function emptyState(): State {
     history: [],
     roundNo: 0,
     streaks: new Map(),
+    botPlans: [],
   };
 }
 
 export class BaccaratPlugin extends BaseGamePlugin {
   override readonly apiVersion = 1;
-  override readonly commands = ['bet'] as const;
+  override readonly commands = ['bet', 'clear'] as const;
 
   override readonly meta: GameMeta = {
     gameId: 'baccarat',
@@ -172,27 +182,48 @@ export class BaccaratPlugin extends BaseGamePlugin {
       roundNo: ctx.config.round,
       streaks: this.state.streaks,
     };
-    this.seedBotBets(ctx);
+    this.planBotBets(ctx);
   }
 
-  /** 场内机器人气氛下注 */
-  private seedBotBets(ctx: RoomContext): void {
+  /** 机器人下注计划：分散到整个下注期，模拟玩家陆续进场 */
+  private planBotBets(ctx: RoomContext): void {
+    const now = Date.now();
     const areas: Area[] = ['player', 'banker', 'tie'];
     const amounts = [10, 20, 50, 100, 200];
+    const plans: BotPlan[] = [];
     for (const bot of ctx.players) {
       if (!bot.isBot) continue;
       if (Math.random() > 0.6) continue;
-      const area = areas[Math.floor(Math.random() * areas.length)]!;
-      const amount = amounts[Math.floor(Math.random() * amounts.length)]!;
-      const bet = this.state.bets.get(bot.playerId) ?? { player: 0, banker: 0, tie: 0 };
-      bet[area] += amount;
-      this.state.bets.set(bot.playerId, bet);
+      const count = Math.random() < 0.28 ? 2 : 1;
+      for (let i = 0; i < count; i += 1) {
+        plans.push({
+          playerId: bot.playerId,
+          area: areas[Math.floor(Math.random() * areas.length)]!,
+          amount: amounts[Math.floor(Math.random() * amounts.length)]!,
+          at: now + 600 + Math.random() * (BET_MS - 4600),
+          done: false,
+        });
+      }
     }
+    this.state.botPlans = plans;
   }
 
   override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
-    if (intent.cmd !== 'bet') throw new Error(`不支持的操作: ${intent.cmd}`);
     if (this.state.phase !== 'bet') throw new Error('本局已封盘，等下一局吧');
+
+    // 撤注：传 area 只清该区，不传则清空全部
+    if (intent.cmd === 'clear') {
+      const area = String(intent.payload?.area ?? '');
+      if (area) {
+        const bet = this.state.bets.get(playerId);
+        if (bet) bet[area as Area] = 0;
+      } else {
+        this.state.bets.delete(playerId);
+      }
+      ctx.markDirty();
+      return;
+    }
+    if (intent.cmd !== 'bet') throw new Error(`不支持的操作: ${intent.cmd}`);
 
     const area = String(intent.payload?.area ?? '') as Area;
     if (!['player', 'banker', 'tie'].includes(area)) throw new Error('只能押闲、庄或和');
@@ -212,6 +243,21 @@ export class BaccaratPlugin extends BaseGamePlugin {
 
   override onTick(ctx: RoomContext): void {
     const now = Date.now();
+
+    // 到下点的机器人下注逐条落账，共押金额随时间增长
+    if (this.state.phase === 'bet') {
+      let changed = false;
+      for (const plan of this.state.botPlans) {
+        if (plan.done || plan.at > now) continue;
+        plan.done = true;
+        const bet = this.state.bets.get(plan.playerId) ?? { player: 0, banker: 0, tie: 0 };
+        bet[plan.area as Area] += plan.amount;
+        this.state.bets.set(plan.playerId, bet);
+        changed = true;
+      }
+      if (changed) ctx.markDirty();
+    }
+
     if (now < this.state.phaseEndsAt) return;
 
     if (this.state.phase === 'bet') {

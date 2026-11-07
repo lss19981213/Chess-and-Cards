@@ -74,6 +74,16 @@ interface State {
   roundNo: number;
   /** 连续命中次数，用于牌桌内的手感反馈 */
   streaks: Map<string, number>;
+  /** 机器人按时间陆续下注的计划 */
+  botPlans: BotPlan[];
+}
+
+interface BotPlan {
+  playerId: string;
+  door: DoorKey;
+  amount: number;
+  at: number;
+  done: boolean;
 }
 
 function emptyHand(): DoorHand {
@@ -91,6 +101,7 @@ function emptyState(): State {
     history: [],
     roundNo: 0,
     streaks: new Map(),
+    botPlans: [],
   };
 }
 
@@ -100,7 +111,7 @@ function pointsOf(cards: Card[]): number {
 
 export class TuizhuanziPlugin extends BaseGamePlugin {
   override readonly apiVersion = 1;
-  override readonly commands = ['bet'] as const;
+  override readonly commands = ['bet', 'clear'] as const;
 
   override readonly meta: GameMeta = {
     gameId: 'tuizhuanzi',
@@ -139,27 +150,50 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     this.state.phase = 'bet';
     this.state.phaseEndsAt = Date.now() + BET_MS;
     this.state.roundNo = ctx.config.round;
-    this.seedBotBets(ctx);
+    this.planBotBets(ctx);
   }
 
-  /** 场内机器人气氛下注：只影响展示，不写账本 */
-  private seedBotBets(ctx: RoomContext): void {
-    const areas: DoorKey[] = ['heaven', 'earth', 'human'];
+  /** 机器人下注计划：分散到整个下注期，模拟玩家陆续进场 */
+  private planBotBets(ctx: RoomContext): void {
+    const now = Date.now();
+    const doors: DoorKey[] = ['heaven', 'earth', 'human'];
     const amounts = [10, 20, 50, 100, 200, 500];
+    const plans: BotPlan[] = [];
+
     for (const bot of ctx.players) {
       if (!bot.isBot) continue;
       if (Math.random() > 0.62) continue;
-      const area = areas[Math.floor(Math.random() * areas.length)]!;
-      const amount = amounts[Math.floor(Math.random() * amounts.length)]!;
-      const bet = this.state.bets.get(bot.playerId) ?? { heaven: 0, earth: 0, human: 0 };
-      bet[area] += amount;
-      this.state.bets.set(bot.playerId, bet);
+      const count = Math.random() < 0.28 ? 2 : 1;
+      for (let i = 0; i < count; i += 1) {
+        plans.push({
+          playerId: bot.playerId,
+          door: doors[Math.floor(Math.random() * doors.length)]!,
+          amount: amounts[Math.floor(Math.random() * amounts.length)]!,
+          // 开局 0.6 秒后开始，到倒数 4 秒结束
+          at: now + 600 + Math.random() * (BET_MS - 4600),
+          done: false,
+        });
+      }
     }
+    this.state.botPlans = plans;
   }
 
   override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
-    if (intent.cmd !== 'bet') throw new Error(`不支持的操作: ${intent.cmd}`);
     if (this.state.phase !== 'bet') throw new Error('本局已停止下注，等下一局吧');
+
+    // 撤注：传 area 只清该门，不传则清空全部
+    if (intent.cmd === 'clear') {
+      const area = String(intent.payload?.area ?? '') as DoorKey;
+      if (area && DOORS.includes(area)) {
+        const bet = this.state.bets.get(playerId);
+        if (bet) bet[area] = 0;
+      } else {
+        this.state.bets.delete(playerId);
+      }
+      ctx.markDirty();
+      return;
+    }
+    if (intent.cmd !== 'bet') throw new Error(`不支持的操作: ${intent.cmd}`);
 
     const area = String(intent.payload?.area ?? '');
     if (!DOORS.includes(area as DoorKey)) throw new Error('只能押天、地、人三门');
@@ -179,6 +213,21 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
 
   override onTick(ctx: RoomContext): void {
     const now = Date.now();
+
+    // 到下点的机器人下注逐条落账，共押金额随时间增长
+    if (this.state.phase === 'bet') {
+      let changed = false;
+      for (const plan of this.state.botPlans) {
+        if (plan.done || plan.at > now) continue;
+        plan.done = true;
+        const bet = this.state.bets.get(plan.playerId) ?? { heaven: 0, earth: 0, human: 0 };
+        bet[plan.door] += plan.amount;
+        this.state.bets.set(plan.playerId, bet);
+        changed = true;
+      }
+      if (changed) ctx.markDirty();
+    }
+
     if (now < this.state.phaseEndsAt) return;
 
     if (this.state.phase === 'bet') {

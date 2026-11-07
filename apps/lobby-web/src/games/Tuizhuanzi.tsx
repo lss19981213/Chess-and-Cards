@@ -35,6 +35,7 @@ interface Props {
   myId: string;
   status: string;
   onBet: (area: string, amount: number) => void;
+  onClear: (area?: string) => void;
 }
 
 const DOOR_KEYS = ['heaven', 'earth', 'human'] as const;
@@ -54,7 +55,7 @@ function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: numbe
   );
 }
 
-export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
+export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet, onClear }: Props) {
   const data = snapshot as unknown as TuiSnapshot | undefined;
   const [amount, setAmount] = useState(100);
   const [now, setNow] = useState(Date.now());
@@ -135,6 +136,26 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
                   <span className="door__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
                     我 {bet}
+                    {canBet && (
+                      <span
+                        className="bet-cancel"
+                        role="button"
+                        tabIndex={0}
+                        title="取消该区下注"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onClear(key);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.stopPropagation();
+                            onClear(key);
+                          }
+                        }}
+                      >
+                        ×
+                      </span>
+                    )}
                   </span>
                 )}
               </button>
@@ -156,6 +177,11 @@ export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
               </button>
             ))}
           </div>
+          {canBet && totals > 0 && (
+            <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
+              清空下注
+            </button>
+          )}
           <div className="bet-controls__custom">
             <span>自定义</span>
             <input

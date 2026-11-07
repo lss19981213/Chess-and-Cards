@@ -141,6 +141,7 @@ export function Room({
             myId={myId}
             status={room.status}
             onBet={(area, amount) => dispatch('bet', { area, amount })}
+            onClear={(area) => dispatch('clear', area ? { area } : {})}
           />
         );
       case 'dice':
@@ -150,6 +151,7 @@ export function Room({
             myId={myId}
             status={room.status}
             onBet={(area, amount) => dispatch('bet', { area, amount })}
+            onClear={(area) => dispatch('clear', area ? { area } : {})}
           />
         );
       case 'baccarat':
@@ -159,6 +161,7 @@ export function Room({
             myId={myId}
             status={room.status}
             onBet={(area, amount) => dispatch('bet', { area, amount })}
+            onClear={(area) => dispatch('clear', area ? { area } : {})}
           />
         );
       case 'texas':
