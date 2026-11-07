@@ -16,7 +16,7 @@ interface BlackjackSnapshot {
   myBet: Record<string, number>;
   zoneTotals: Record<string, number>;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
-  history: Array<{ round: number; playerPoints: number; dealerPoints: number; outcome: string }>;
+  history: Array<{ round: number; playerPoints: number | null; dealerPoints: number; outcome: string }>;
   limits: { min: number; max: number; total: number };
   areas: Array<{ area: string; label: string; odds: number }>;
 }
@@ -242,7 +242,7 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
           {[...data.history].reverse().map((item) => (
             <div key={item.round} className="history__row history__row--dice">
               <span className="history__no">{item.round}</span>
-              <span className="history__dice">{item.playerPoints}</span>
+              <span className="history__dice">{item.playerPoints ?? '—'}</span>
               <span className="history__banker">{item.dealerPoints}</span>
               <span className="is-big">{item.outcome}</span>
             </div>
