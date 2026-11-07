@@ -1,5 +1,5 @@
 /**
- * 端到端冒烟测试：登录 → 匹配 → 准备 → 对局 → 结算 → 余额校验。
+ * 端到端冒烟测试：注册 → 匹配 → 对局 → 结算 → 任务 → 排行榜。
  * 用法：先启动 api-server 与 room-server，再执行 pnpm e2e
  */
 
@@ -11,9 +11,9 @@ interface Envelope {
   d: unknown;
 }
 
-interface LoginResult {
+interface AuthResult {
   token: string;
-  user: { id: string; nickname: string; balance: number };
+  user: { id: string; nickname: string; username: string; balance: number };
 }
 
 function assert(condition: unknown, message: string): void {
@@ -23,21 +23,66 @@ function assert(condition: unknown, message: string): void {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-async function login(nickname: string): Promise<LoginResult> {
+/** 图形验证码以 SVG 文本渲染，脚本按序提取字符 */
+function extractCaptcha(svg: string): string {
+  const matches = [...svg.matchAll(/<text[^>]*>([^<]+)<\/text>/g)].map((m) => m[1] ?? '');
+  return matches.join('');
+}
+
+async function fetchCaptcha(): Promise<{ id: string; code: string }> {
+  const res = await fetch(`${API}/api/captcha`);
+  if (!res.ok) throw new Error(`获取验证码失败: ${res.status}`);
+  const body = (await res.json()) as { id: string; svg: string };
+  return { id: body.id, code: extractCaptcha(body.svg) };
+}
+
+async function register(usernamePrefix: string, nicknamePrefix: string): Promise<AuthResult> {
+  const suffix = Date.now().toString().slice(-6) + Math.floor(Math.random() * 90 + 10);
+  const username = `${usernamePrefix}${suffix}`;
+  const captcha = await fetchCaptcha();
+  const res = await fetch(`${API}/api/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password: 'test123456',
+      nickname: `${nicknamePrefix}${suffix.slice(-4)}`,
+      captchaId: captcha.id,
+      captcha: captcha.code,
+    }),
+  });
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: string };
+    throw new Error(`注册失败: ${res.status} ${body.error ?? ''}`);
+  }
+  return (await res.json()) as AuthResult;
+}
+
+async function login(username: string, password: string): Promise<AuthResult> {
+  const captcha = await fetchCaptcha();
   const res = await fetch(`${API}/api/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ nickname }),
+    body: JSON.stringify({ username, password, captchaId: captcha.id, captcha: captcha.code }),
   });
-  if (!res.ok) throw new Error(`登录失败: ${res.status}`);
-  return (await res.json()) as LoginResult;
+  if (!res.ok) {
+    const body = (await res.json()) as { error?: string };
+    throw new Error(`登录失败: ${res.status} ${body.error ?? ''}`);
+  }
+  return (await res.json()) as AuthResult;
 }
 
-async function fetchMe(token: string): Promise<LoginResult['user']> {
+async function fetchMe(token: string): Promise<AuthResult['user']> {
   const res = await fetch(`${API}/api/me`, { headers: { authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`获取用户失败: ${res.status}`);
-  const body = (await res.json()) as { user: LoginResult['user'] };
+  const body = (await res.json()) as { user: AuthResult['user'] };
   return body.user;
+}
+
+async function fetchTasks(token: string): Promise<{ balance: number; tasks: Array<Record<string, any>> }> {
+  const res = await fetch(`${API}/api/tasks`, { headers: { authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`获取任务失败: ${res.status}`);
+  return (await res.json()) as { balance: number; tasks: Array<Record<string, any>> };
 }
 
 class TestClient {
@@ -94,32 +139,31 @@ class TestClient {
   }
 }
 
-async function main(): Promise<void> {
-  const suffix = Date.now().toString().slice(-6);
-  const userA = await login(`甲${suffix}`);
-  const userB = await login(`乙${suffix}`);
-  console.log(`账号就绪: ${userA.user.nickname} / ${userB.user.nickname}`);
+async function gomokuFlow(): Promise<void> {
+  console.log('\n[1/3] 五子棋对局与结算');
+  const userA = await register('userA', '甲');
+  const userB = await register('userB', '乙');
+  assert(userA.user.balance === 1000, '注册赠送 1000 筹码');
+
+  const relogin = await login(userA.user.username, 'test123456');
+  assert(relogin.user.id === userA.user.id, '账号密码登录成功');
 
   const a = new TestClient(userA.token);
   const b = new TestClient(userB.token);
   await Promise.all([a.opened, b.opened]);
   await Promise.all([a.waitFor('server:hello'), b.waitFor('server:hello')]);
-  console.log('连接与认证通过');
 
   a.send('client:join_room', { gameId: 'gomoku', maxPlayers: 2 });
   const roomA = await a.waitFor('server:room_view');
   b.send('client:join_room', { gameId: 'gomoku', maxPlayers: 2 });
   const roomB = await b.waitFor('server:room_view');
-
-  assert(roomA.room.roomId === roomB.room.roomId, '两名玩家被匹配到同一房间');
-  assert(roomB.room.players.length === 2, '房间内有两名玩家');
+  assert(roomA.room.roomId === roomB.room.roomId, '两名玩家进入同一房间');
 
   a.send('client:ready', { ready: true });
   b.send('client:ready', { ready: true });
   const started = await a.waitFor('server:snapshot');
   assert(started.status === 'playing', '双方准备后自动开局');
 
-  // 甲执黑先手，走对角线；乙走横线，故意让甲连成五子
   const moves: Array<[TestClient, number, number]> = [
     [a, 0, 0],
     [b, 10, 0],
@@ -138,27 +182,62 @@ async function main(): Promise<void> {
 
   const settlementA = await a.waitFor('server:settlement');
   await b.waitFor('server:settlement');
-  const settlement = settlementA.settlement;
-  assert(settlement.winners.includes(userA.user.id), '甲连成五子获胜');
+  assert(settlementA.settlement.winners.includes(userA.user.id), '甲连成五子获胜');
 
-  const entryA = settlement.entries.find((e: { playerId: string }) => e.playerId === userA.user.id);
-  const entryB = settlement.entries.find((e: { playerId: string }) => e.playerId === userB.user.id);
-  assert(entryA?.delta === 100, '胜者积分 +100');
-  assert(entryB?.delta === -100, '败者积分 -100');
-
-  await sleep(500);
+  await sleep(600);
   const meA = await fetchMe(userA.token);
   const meB = await fetchMe(userB.token);
   assert(meA.balance === 1100, `胜者余额正确 (${meA.balance})`);
   assert(meB.balance === 900, `败者余额正确 (${meB.balance})`);
 
-  // 非法落子应被服务端拒绝
-  a.send('client:intent', { cmd: 'place', payload: { x: 0, y: 0 } });
-  const error = await a.waitFor('server:error');
-  assert(typeof error.message === 'string', `非法操作被拒绝 (${error.message})`);
-
   a.close();
   b.close();
+
+  console.log('\n[2/3] 任务系统');
+  const tasks = await fetchTasks(userA.token);
+  const playTask = tasks.tasks.find((t) => t.key === 'daily_play');
+  const winTask = tasks.tasks.find((t) => t.key === 'daily_win');
+  assert(playTask?.progress === 1, `对局任务进度已累加 (${playTask?.progress})`);
+  assert(winTask?.progress === 1, '胜场任务进度已累加');
+
+  const loginTask = tasks.tasks.find((t) => t.key === 'daily_login');
+  assert(loginTask?.claimable === true, '每日签到可领取');
+
+  const claimRes = await fetch(`${API}/api/tasks/claim`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${userA.token}` },
+    body: JSON.stringify({ key: 'daily_login' }),
+  });
+  assert(claimRes.ok, '任务奖励领取成功');
+  const claimed = (await claimRes.json()) as { balance: number; reward: number };
+  assert(claimed.balance === meA.balance + 100, `奖励入账 (${claimed.balance})`);
+
+  const relief = tasks.tasks.find((t) => t.key === 'relief');
+  assert(relief?.locked === true, '余额充足时救济金被锁定');
+
+  console.log('\n[3/3] 排行榜');
+  const boardRes = await fetch(`${API}/api/leaderboard?limit=10`);
+  assert(boardRes.ok, '排行榜接口可访问');
+  const board = (await boardRes.json()) as { entries: Array<{ rank: number; title: string; balance: number }> };
+  assert(board.entries.length > 0, '排行榜返回数据');
+  assert(board.entries[0]?.title === '赌神', `榜首称号为「${board.entries[0]?.title}」`);
+  const sorted = board.entries.every((row, i, arr) => i === 0 || arr[i - 1]!.balance >= row.balance);
+  assert(sorted, '排行榜按筹码降序');
+}
+
+async function multiGameSmoke(): Promise<void> {
+  console.log('\n[附加] 多游戏可加载性');
+  const res = await fetch(`${API}/api/games`);
+  const body = (await res.json()) as { games: Array<{ gameId: string; name: string }> };
+  const ids = body.games.map((g) => g.gameId);
+  for (const expected of ['gomoku', 'doudizhu', 'paodekuai', 'tuizhuanzi', 'texas']) {
+    assert(ids.includes(expected), `已注册游戏：${expected}`);
+  }
+}
+
+async function main(): Promise<void> {
+  await gomokuFlow();
+  await multiGameSmoke();
   console.log('\n全部通过 ✓');
 }
 

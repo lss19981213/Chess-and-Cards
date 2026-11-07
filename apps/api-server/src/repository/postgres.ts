@@ -2,14 +2,37 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import type { Currency, Settlement } from '@cc/protocol';
 import { SCHEMA_SQL } from '../schema';
+import { periodKeyFor } from '../tasks';
 import type {
+  AuthUser,
   GameRecordView,
+  LeaderboardRow,
+  RegisterInput,
+  RegisterResult,
   Repository,
   SettlementResult,
+  TaskProgressRow,
   UserRecord,
 } from './types';
 
 const { Pool } = pg;
+
+interface UserRow {
+  id: string;
+  nickname: string;
+  username: string | null;
+  created_at: Date;
+  password_hash?: string;
+}
+
+function mapUser(row: UserRow): UserRecord {
+  return {
+    id: row.id,
+    nickname: row.nickname,
+    username: row.username,
+    createdAt: new Date(row.created_at).getTime(),
+  };
+}
 
 /** PostgreSQL 仓储：钱包与账本强事务，生产环境使用。 */
 export class PostgresRepository implements Repository {
@@ -25,15 +48,15 @@ export class PostgresRepository implements Repository {
     await this.pool.query(SCHEMA_SQL);
   }
 
-  async loginOrCreate(nickname: string): Promise<UserRecord> {
+  async register(input: RegisterInput): Promise<RegisterResult> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const res = await client.query<{ id: string; nickname: string; created_at: Date }>(
-        `insert into users (id, nickname) values ($1, $2)
-         on conflict (nickname) do update set nickname = excluded.nickname
-         returning id, nickname, created_at`,
-        [randomUUID(), nickname],
+      const res = await client.query<UserRow>(
+        `insert into users (id, nickname, username, password_hash)
+         values ($1, $2, $3, $4)
+         returning id, nickname, username, created_at`,
+        [randomUUID(), input.nickname, input.username, input.passwordHash],
       );
       const row = res.rows[0];
       if (!row) throw new Error('用户创建失败');
@@ -43,22 +66,38 @@ export class PostgresRepository implements Repository {
         [row.id, this.initialCoins],
       );
       await client.query('COMMIT');
-      return { id: row.id, nickname: row.nickname, createdAt: new Date(row.created_at).getTime() };
+      return { ok: true, user: mapUser(row) };
     } catch (error) {
       await client.query('ROLLBACK');
+      if ((error as { code?: string }).code === '23505') {
+        return { ok: false, reason: 'username_taken' };
+      }
       throw error;
     } finally {
       client.release();
     }
   }
 
+  async findByUsername(username: string): Promise<AuthUser | null> {
+    const res = await this.pool.query<UserRow>(
+      `select id, nickname, username, password_hash, created_at
+         from users
+        where lower(username) = lower($1)
+        limit 1`,
+      [username],
+    );
+    const row = res.rows[0];
+    if (!row) return null;
+    return { ...mapUser(row), passwordHash: row.password_hash ?? '' };
+  }
+
   async getUser(id: string): Promise<UserRecord | null> {
-    const res = await this.pool.query<{ id: string; nickname: string; created_at: Date }>(
-      'select id, nickname, created_at from users where id = $1',
+    const res = await this.pool.query<UserRow>(
+      'select id, nickname, username, created_at from users where id = $1',
       [id],
     );
     const row = res.rows[0];
-    return row ? { id: row.id, nickname: row.nickname, createdAt: new Date(row.created_at).getTime() } : null;
+    return row ? mapUser(row) : null;
   }
 
   async getBalance(userId: string, currency: Currency): Promise<number> {
@@ -74,9 +113,9 @@ export class PostgresRepository implements Repository {
     try {
       await client.query('BEGIN');
       let applied = 0;
+      const dayKey = periodKeyFor('daily');
 
       for (const entry of settlement.entries) {
-        // 幂等保护：该单据对应用户已入账则跳过更新
         const updated = await client.query<{ balance: string }>(
           `update wallets
               set balance = balance + $2, version = version + 1
@@ -96,6 +135,11 @@ export class PostgresRepository implements Repository {
            on conflict (biz_type, biz_id, user_id) do nothing`,
           [entry.playerId, entry.currency, entry.delta, Number(updated.rows[0]?.balance ?? 0), settlement.settlementId],
         );
+
+        await this.bumpTaskTx(client, entry.playerId, 'daily_play', dayKey, 1);
+        if (entry.delta > 0) {
+          await this.bumpTaskTx(client, entry.playerId, 'daily_win', dayKey, 1);
+        }
         applied += 1;
       }
 
@@ -157,7 +201,121 @@ export class PostgresRepository implements Repository {
     }));
   }
 
+  async credit(userId: string, amount: number, bizType: string, bizId: string): Promise<number> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const updated = await client.query<{ balance: string }>(
+        `update wallets
+            set balance = balance + $2, version = version + 1
+          where user_id = $1
+            and not exists (
+              select 1 from ledger where biz_type = $3 and biz_id = $4 and user_id = $1
+            )
+        returning balance`,
+        [userId, amount, bizType, bizId],
+      );
+
+      if (updated.rowCount === 0) {
+        const current = await client.query<{ balance: string }>(
+          'select balance from wallets where user_id = $1',
+          [userId],
+        );
+        await client.query('COMMIT');
+        return Number(current.rows[0]?.balance ?? 0);
+      }
+
+      const balance = Number(updated.rows[0]?.balance ?? 0);
+      await client.query(
+        `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+         values ($1, 'coin', $2, $3, $4, $5)
+         on conflict (biz_type, biz_id, user_id) do nothing`,
+        [userId, amount, balance, bizType, bizId],
+      );
+      await client.query('COMMIT');
+      return balance;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getTaskRows(userId: string, periodKeys: string[]): Promise<TaskProgressRow[]> {
+    const res = await this.pool.query<{
+      task_key: string;
+      period_key: string;
+      progress: number;
+      claimed: boolean;
+    }>(
+      `select task_key, period_key, progress, (claimed_at is not null) as claimed
+         from task_progress
+        where user_id = $1 and period_key = any($2::text[])`,
+      [userId, periodKeys],
+    );
+    return res.rows.map((row) => ({
+      taskKey: row.task_key,
+      periodKey: row.period_key,
+      progress: row.progress,
+      claimed: row.claimed,
+    }));
+  }
+
+  async bumpTask(userId: string, taskKey: string, periodKey: string, delta: number): Promise<number> {
+    const res = await this.bumpTaskTx(this.pool, userId, taskKey, periodKey, delta);
+    return res;
+  }
+
+  async claimTask(userId: string, taskKey: string, periodKey: string): Promise<boolean> {
+    const res = await this.pool.query(
+      `insert into task_progress (user_id, task_key, period_key, progress, claimed_at)
+       values ($1, $2, $3, 0, now())
+       on conflict (user_id, task_key, period_key)
+       do update set claimed_at = now()
+        where task_progress.claimed_at is null
+       returning claimed_at`,
+      [userId, taskKey, periodKey],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  async leaderboard(limit: number): Promise<LeaderboardRow[]> {
+    const res = await this.pool.query<{ user_id: string; nickname: string; balance: string }>(
+      `select w.user_id, u.nickname, w.balance
+         from wallets w
+         join users u on u.id = w.user_id
+        where w.currency = 'coin'
+        order by w.balance desc, u.created_at asc
+        limit $1`,
+      [limit],
+    );
+    return res.rows.map((row) => ({
+      userId: row.user_id,
+      nickname: row.nickname,
+      balance: Number(row.balance),
+    }));
+  }
+
   async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  private async bumpTaskTx(
+    client: pg.Pool | pg.PoolClient,
+    userId: string,
+    taskKey: string,
+    periodKey: string,
+    delta: number,
+  ): Promise<number> {
+    const res = await client.query<{ progress: number }>(
+      `insert into task_progress (user_id, task_key, period_key, progress)
+       values ($1, $2, $3, $4)
+       on conflict (user_id, task_key, period_key)
+       do update set progress = task_progress.progress + $4
+       returning progress`,
+      [userId, taskKey, periodKey, delta],
+    );
+    return res.rows[0]?.progress ?? 0;
   }
 }

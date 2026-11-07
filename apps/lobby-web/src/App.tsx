@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientMsg, ServerMsg, type GameMeta, type RoomView, type Settlement } from '@cc/protocol';
 import { api, getToken, setToken, type User } from './api';
 import { GameSocket } from './ws';
-import { Login } from './components/Login';
+import { AuthModal } from './components/AuthModal';
 import { Lobby } from './components/Lobby';
+import { LeaderboardModal } from './components/LeaderboardModal';
 import { Room } from './components/Room';
+import { TasksModal } from './components/TasksModal';
 
 export interface SnapshotEnvelope {
   roomId: string;
@@ -23,20 +25,35 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<SnapshotEnvelope | null>(null);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
+  const [rankOpen, setRankOpen] = useState(false);
+
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
+  const pendingJoinRef = useRef<GameMeta | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    const bootstrap = async (): Promise<void> => {
+      try {
+        const { games: list } = await api.games();
+        setGames(list);
+      } catch {
+        /* 大厅列表失败不阻塞浏览 */
+      }
+
+      const token = getToken();
+      if (token) {
+        try {
+          const { user: me } = await api.me();
+          setUser(me);
+        } catch {
+          setToken(null);
+        }
+      }
       setBooting(false);
-      return;
-    }
-    api
-      .me()
-      .then(({ user: me }) => setUser(me))
-      .catch(() => setToken(null))
-      .finally(() => setBooting(false));
+    };
+    void bootstrap();
   }, []);
 
   useEffect(() => {
@@ -45,20 +62,11 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const loadGames = useCallback(async () => {
-    try {
-      const { games: list } = await api.games();
-      setGames(list);
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : '加载游戏列表失败');
-    }
-  }, []);
-
   useEffect(() => {
     const token = getToken();
     if (!user || !token) return;
-    userIdRef.current = user.id;
 
+    userIdRef.current = user.id;
     const socket = new GameSocket(token);
     socketRef.current = socket;
 
@@ -86,36 +94,50 @@ export default function App() {
     });
 
     socket.connect();
-    void loadGames();
+
+    const pending = pendingJoinRef.current;
+    if (pending) {
+      pendingJoinRef.current = null;
+      socket.send(ClientMsg.JoinRoom, {
+        gameId: pending.gameId,
+        mode: 'casual',
+        maxPlayers: pending.maxPlayers,
+      });
+    }
 
     return () => {
       socket.close();
       socketRef.current = null;
     };
-  }, [user?.id, loadGames]);
+  }, [user?.id]);
 
-  const handleLogin = useCallback(
-    async (nickname: string) => {
-      const result = await api.login(nickname);
-      setToken(result.token);
-      setUser(result.user);
-      await loadGames();
-    },
-    [loadGames],
-  );
+  const joinGame = useCallback((game: GameMeta) => {
+    setSettlement(null);
+    setSnapshot(null);
+    socketRef.current?.send(ClientMsg.JoinRoom, {
+      gameId: game.gameId,
+      mode: 'casual',
+      maxPlayers: game.maxPlayers,
+    });
+  }, []);
 
   const handleEnter = useCallback(
     (game: GameMeta) => {
-      setSettlement(null);
-      setSnapshot(null);
-      socketRef.current?.send(ClientMsg.JoinRoom, {
-        gameId: game.gameId,
-        mode: 'casual',
-        maxPlayers: game.maxPlayers,
-      });
+      if (!user) {
+        pendingJoinRef.current = game;
+        setAuthOpen(true);
+        return;
+      }
+      joinGame(game);
     },
-    [],
+    [user, joinGame],
   );
+
+  const handleAuthSuccess = useCallback((token: string, nextUser: User) => {
+    setToken(token);
+    setUser(nextUser);
+    setAuthOpen(false);
+  }, []);
 
   const handleLeave = useCallback(() => {
     socketRef.current?.send(ClientMsg.LeaveRoom, {});
@@ -140,6 +162,11 @@ export default function App() {
     setUser(null);
     setRoom(null);
     setSnapshot(null);
+    setSettlement(null);
+  }, []);
+
+  const handleBalanceChange = useCallback((balance: number) => {
+    setUser((prev) => (prev ? { ...prev, balance } : prev));
   }, []);
 
   if (booting) {
@@ -153,9 +180,7 @@ export default function App() {
 
   return (
     <>
-      {!user ? (
-        <Login onLogin={handleLogin} />
-      ) : room ? (
+      {room && user ? (
         <Room
           room={room}
           snapshot={snapshot}
@@ -166,8 +191,24 @@ export default function App() {
           onIntent={handleIntent}
         />
       ) : (
-        <Lobby user={user} games={games} onEnter={handleEnter} onLogout={handleLogout} />
+        <Lobby
+          user={user}
+          games={games}
+          onEnter={handleEnter}
+          onLogin={() => setAuthOpen(true)}
+          onLogout={handleLogout}
+          onTasks={() => setTasksOpen(true)}
+          onLeaderboard={() => setRankOpen(true)}
+        />
       )}
+
+      {authOpen && (
+        <AuthModal onSuccess={handleAuthSuccess} onClose={() => setAuthOpen(false)} />
+      )}
+      {tasksOpen && (
+        <TasksModal onBalanceChange={handleBalanceChange} onClose={() => setTasksOpen(false)} />
+      )}
+      {rankOpen && <LeaderboardModal myUserId={user?.id ?? null} onClose={() => setRankOpen(false)} />}
       {toast && <div className="toast">{toast}</div>}
     </>
   );

@@ -81,7 +81,43 @@ importers:
 
   packages/protocol: {}
 
+  services/games/doudizhu:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
   services/games/gomoku:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
+  services/games/paodekuai:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
+  services/games/texas:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
+  services/games/tuizhuanzi:
     dependencies:
       '@cc/game-sdk':
         specifier: workspace:*
@@ -95,12 +131,24 @@ importers:
       '@cc/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@cc/game-doudizhu':
+        specifier: workspace:*
+        version: link:../games/doudizhu
       '@cc/game-gomoku':
         specifier: workspace:*
         version: link:../games/gomoku
+      '@cc/game-paodekuai':
+        specifier: workspace:*
+        version: link:../games/paodekuai
       '@cc/game-sdk':
         specifier: workspace:*
         version: link:../../packages/game-sdk
+      '@cc/game-texas':
+        specifier: workspace:*
+        version: link:../games/texas
+      '@cc/game-tuizhuanzi':
+        specifier: workspace:*
+        version: link:../games/tuizhuanzi
       '@cc/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

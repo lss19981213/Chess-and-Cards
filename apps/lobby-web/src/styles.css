@@ -706,3 +706,747 @@ input:focus {
     display: none;
   }
 }
+
+/* ===== 弹窗 ===== */
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 15, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 50;
+  animation: fadein 0.18s ease;
+}
+
+.modal {
+  width: min(520px, 100%);
+  max-height: 84vh;
+  overflow-y: auto;
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.modal__head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.auth-modal {
+  width: min(420px, 100%);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.auth-tabs button {
+  flex: 1;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.auth-tabs button.is-active {
+  background: var(--gold-dim);
+  color: var(--gold);
+}
+
+.auth-modal label {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: -6px;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.captcha-row input {
+  flex: 1;
+}
+
+.captcha-img {
+  width: 120px;
+  padding: 0;
+  background: #101528;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.captcha-img svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ===== 任务 ===== */
+
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-list li {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+}
+
+.task-list li.is-ready {
+  border-color: rgba(240, 180, 41, 0.4);
+  background: var(--gold-dim);
+}
+
+.task-list__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-list__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.task-list__reward {
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.task-list__main p {
+  margin: 4px 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.task-list__btn {
+  width: 84px !important;
+  padding: 9px 0 !important;
+  font-size: 13px !important;
+}
+
+.progress {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.progress__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffcf5c, var(--gold));
+}
+
+.progress span {
+  position: absolute;
+  right: 0;
+  top: -18px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ===== 排行榜 ===== */
+
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rank-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13.5px;
+}
+
+.rank-list li.is-me {
+  border: 1px solid rgba(240, 180, 41, 0.45);
+  background: var(--gold-dim);
+}
+
+.rank-list__no {
+  width: 26px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-list__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-list__title {
+  font-size: 11.5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(240, 180, 41, 0.16);
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.rank-list__bal {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.rank-list--top1 .rank-list__no {
+  color: #ffd875;
+  font-weight: 800;
+}
+
+.rank-list--top2 .rank-list__no {
+  color: #d7deea;
+  font-weight: 800;
+}
+
+.rank-list--top3 .rank-list__no {
+  color: #e0a060;
+  font-weight: 800;
+}
+
+/* ===== 大厅补充 ===== */
+
+.hero {
+  margin-bottom: 26px;
+  padding: 26px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(240, 180, 41, 0.12), rgba(78, 120, 255, 0.12));
+  border: 1px solid var(--border);
+}
+
+.hero h2 {
+  margin: 0 0 8px;
+  font-size: 21px;
+}
+
+.hero p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.topbar__login {
+  padding: 9px 18px !important;
+  font-size: 13.5px !important;
+  width: auto !important;
+}
+
+.lobby__footnote {
+  margin-top: 26px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ===== 结算条 ===== */
+
+.settle-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 13.5px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border);
+}
+
+.settle-bar strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settle-bar.is-win strong {
+  color: var(--green);
+}
+
+.settle-bar.is-lose strong {
+  color: var(--red);
+}
+
+/* ===== 牌桌通用 ===== */
+
+.card-table,
+.tui,
+.texas {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.card-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.card-row--hand {
+  gap: 4px;
+  justify-content: flex-start;
+  overflow-x: auto;
+  padding: 6px 2px;
+}
+
+.pcard {
+  min-width: 44px;
+  height: 62px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #f7f9ff;
+  color: #171b26;
+  font-weight: 700;
+  font-size: 15px;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.pcard.is-red {
+  color: #d63b45;
+}
+
+.pcard.is-selected {
+  transform: translateY(-10px);
+  border-color: var(--gold);
+}
+
+.pcard:disabled {
+  cursor: default;
+}
+
+.pcard--sm {
+  min-width: 34px;
+  height: 46px;
+  font-size: 12.5px;
+  border-radius: 6px;
+}
+
+.pcard--lg {
+  min-width: 52px;
+  height: 72px;
+  font-size: 17px;
+}
+
+.pcard--back {
+  background: repeating-linear-gradient(45deg, #22304d, #22304d 6px, #2b3b5c 6px, #2b3b5c 12px);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.opponent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  min-width: 120px;
+}
+
+.opponent.is-active {
+  border-color: rgba(240, 180, 41, 0.5);
+  background: var(--gold-dim);
+}
+
+.opponent__name {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.opponent__count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card-table__opponents {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.card-table__center {
+  min-height: 110px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.played__label {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.played__label span {
+  color: var(--gold);
+  margin-left: 6px;
+}
+
+.played__empty {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.card-table__mine {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.card-actions button {
+  width: auto !important;
+  padding: 10px 20px !important;
+  font-size: 14px !important;
+}
+
+.turn-hint {
+  margin-right: auto;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.turn-hint.is-on {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.badge-landlord,
+.badge-dealer {
+  font-style: normal;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(240, 180, 41, 0.18);
+  color: var(--gold);
+}
+
+/* ===== 推筒子 ===== */
+
+.tui__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.tui__pot strong {
+  color: var(--gold);
+}
+
+.tui__timer {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.tui__players {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.tui-seat {
+  width: 130px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.tui-seat.is-banker {
+  border-color: rgba(229, 72, 77, 0.5);
+  background: rgba(229, 72, 77, 0.08);
+}
+
+.tui-seat.is-me {
+  box-shadow: 0 0 0 1px rgba(240, 180, 41, 0.5);
+}
+
+.tui-seat__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.tui-seat__head em {
+  font-style: normal;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(229, 72, 77, 0.2);
+  color: #ff8b8f;
+}
+
+.tui-seat__cards {
+  display: flex;
+  gap: 6px;
+}
+
+.tui-card {
+  width: 34px;
+  height: 46px;
+  border-radius: 6px;
+  background: #f7f9ff;
+  color: #171b26;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 17px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.tui-card--back {
+  background: repeating-linear-gradient(45deg, #22304d, #22304d 6px, #2b3b5c 6px, #2b3b5c 12px);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.tui-seat__points {
+  font-size: 12.5px;
+}
+
+.tui-seat__points.muted {
+  color: var(--muted);
+}
+
+.tui__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.tui__bets {
+  display: flex;
+  gap: 10px;
+}
+
+.tui__bets button {
+  width: 84px !important;
+  padding: 11px 0 !important;
+}
+
+.tui__result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 360px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.tui__result-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
+.up {
+  color: var(--green);
+}
+
+.down {
+  color: var(--red);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ===== 德州 ===== */
+
+.texas__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.texas__pot strong {
+  color: var(--gold);
+}
+
+.texas__community {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.texas__players {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.texas-seat {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.texas-seat.is-active {
+  border-color: rgba(240, 180, 41, 0.55);
+  background: var(--gold-dim);
+}
+
+.texas-seat.is-folded {
+  opacity: 0.45;
+}
+
+.texas-seat.is-me {
+  box-shadow: 0 0 0 1px rgba(240, 180, 41, 0.4);
+}
+
+.texas-seat__name {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.texas-seat__bet {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.texas-seat__cards {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.mini-card {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f7f9ff;
+  color: #171b26;
+  font-weight: 700;
+}
+
+.mini-card.is-red {
+  color: #d63b45;
+}
+
+.texas__mine {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.texas__results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 420px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.texas__result-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .card-row--hand {
+    justify-content: flex-start;
+  }
+
+  .card-actions {
+    flex-wrap: wrap;
+  }
+
+  .turn-hint {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+}

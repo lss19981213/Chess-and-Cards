@@ -10,8 +10,12 @@
   },
   "dependencies": {
     "@cc/auth": "workspace:*",
+    "@cc/game-doudizhu": "workspace:*",
     "@cc/game-gomoku": "workspace:*",
+    "@cc/game-paodekuai": "workspace:*",
     "@cc/game-sdk": "workspace:*",
+    "@cc/game-texas": "workspace:*",
+    "@cc/game-tuizhuanzi": "workspace:*",
     "@cc/protocol": "workspace:*",
     "ws": "^8.18.0"
   },

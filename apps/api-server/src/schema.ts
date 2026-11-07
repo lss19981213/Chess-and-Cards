@@ -1,9 +1,15 @@
 export const SCHEMA_SQL = `
 create table if not exists users (
-  id         text primary key,
-  nickname   text not null unique,
-  created_at timestamptz not null default now()
+  id            text primary key,
+  nickname      text not null,
+  username      text,
+  password_hash text,
+  created_at    timestamptz not null default now()
 );
+
+-- 账号体系：用户名唯一（历史游客数据 username 为空，不参与唯一约束）
+create unique index if not exists users_username_uniq on users (username) where username is not null;
+alter table users drop constraint if exists users_nickname_key;
 
 create table if not exists wallets (
   user_id  text primary key references users(id),
@@ -11,6 +17,8 @@ create table if not exists wallets (
   balance  bigint not null default 0,
   version  integer not null default 0
 );
+
+create index if not exists wallets_balance_idx on wallets (balance desc);
 
 create table if not exists ledger (
   id            bigserial primary key,
@@ -39,4 +47,13 @@ create table if not exists game_records (
 );
 
 create index if not exists game_records_game_idx on game_records (game_id, created_at desc);
+
+create table if not exists task_progress (
+  user_id    text not null,
+  task_key   text not null,
+  period_key text not null,
+  progress   integer not null default 0,
+  claimed_at timestamptz,
+  primary key (user_id, task_key, period_key)
+);
 `;

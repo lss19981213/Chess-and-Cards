@@ -3,7 +3,37 @@ import type { GameMeta } from '@cc/protocol';
 export interface User {
   id: string;
   nickname: string;
+  username: string | null;
   balance: number;
+  createdAt?: number;
+}
+
+export interface Captcha {
+  id: string;
+  svg: string;
+  expiresIn: number;
+}
+
+export interface TaskView {
+  key: string;
+  name: string;
+  description: string;
+  target: number;
+  reward: number;
+  period: 'daily' | 'once';
+  progress: number;
+  claimed: boolean;
+  claimable: boolean;
+  locked: boolean;
+  lockReason?: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  nickname: string;
+  balance: number;
+  title: string;
 }
 
 const TOKEN_KEY = 'cc.token';
@@ -36,12 +66,39 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  login: (nickname: string) =>
+  captcha: () => request<Captcha>('/api/captcha'),
+
+  login: (username: string, password: string, captchaId: string, captcha: string) =>
     request<{ token: string; user: User }>('/api/login', {
       method: 'POST',
-      body: JSON.stringify({ nickname }),
+      body: JSON.stringify({ username, password, captchaId, captcha }),
     }),
+
+  register: (
+    username: string,
+    password: string,
+    nickname: string,
+    captchaId: string,
+    captcha: string,
+  ) =>
+    request<{ token: string; user: User }>('/api/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, nickname, captchaId, captcha }),
+    }),
+
   me: () => request<{ user: User }>('/api/me'),
   games: () => request<{ games: GameMeta[] }>('/api/games'),
   records: () => request<{ records: unknown[] }>('/api/records?limit=20'),
+
+  tasks: () => request<{ balance: number; tasks: TaskView[] }>('/api/tasks'),
+  claimTask: (key: string) =>
+    request<{ reward: number; balance: number; tasks: TaskView[] }>('/api/tasks/claim', {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    }),
+
+  leaderboard: (limit = 50) =>
+    request<{ entries: LeaderboardEntry[]; myRank: number | null; myUserId: string | null }>(
+      `/api/leaderboard?limit=${limit}`,
+    ),
 };

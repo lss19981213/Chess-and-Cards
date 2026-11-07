@@ -5,6 +5,17 @@ import { config } from './config';
 import { MemoryRepository } from './repository/memory';
 import { PostgresRepository } from './repository/postgres';
 import type { Repository } from './repository/types';
+import {
+  AttemptLimiter,
+  PASSWORD_MAX,
+  PASSWORD_MIN,
+  USERNAME_PATTERN,
+  consumeCaptcha,
+  createCaptcha,
+  hashPassword,
+  verifyPassword,
+} from './security';
+import { TASKS, findTask, periodKeyFor, titleFor, type TaskView } from './tasks';
 
 const FALLBACK_GAMES: GameMeta[] = [
   {
@@ -18,7 +29,57 @@ const FALLBACK_GAMES: GameMeta[] = [
     clientBundle: 'builtin:gomoku',
     tags: ['棋类', '双人', '休闲'],
   },
+  {
+    gameId: 'doudizhu',
+    name: '斗地主',
+    description: '经典三人斗地主，抢地主抢先出完手牌',
+    icon: '🃏',
+    minPlayers: 3,
+    maxPlayers: 3,
+    version: '1.0.0',
+    clientBundle: 'builtin:doudizhu',
+    tags: ['牌类', '三人', '热门'],
+  },
+  {
+    gameId: 'paodekuai',
+    name: '跑得快',
+    description: '16 张牌快节奏对局，先跑完者胜',
+    icon: '💨',
+    minPlayers: 3,
+    maxPlayers: 3,
+    version: '1.0.0',
+    clientBundle: 'builtin:paodekuai',
+    tags: ['牌类', '三人', '快节奏'],
+  },
+  {
+    gameId: 'tuizhuanzi',
+    name: '推筒子',
+    description: '两张牌比点数，庄闲对决一局定胜负',
+    icon: '🎴',
+    minPlayers: 2,
+    maxPlayers: 5,
+    version: '1.0.0',
+    clientBundle: 'builtin:tuizhuanzi',
+    tags: ['牌类', '多人', '刺激'],
+  },
+  {
+    gameId: 'texas',
+    name: '德州扑克',
+    description: '两张底牌加五张公共牌，比牌型大小',
+    icon: '♠️',
+    minPlayers: 2,
+    maxPlayers: 6,
+    version: '1.0.0',
+    clientBundle: 'builtin:texas',
+    tags: ['牌类', '多人', '竞技'],
+  },
 ];
+
+function httpError(message: string, statusCode: number): Error {
+  const error = new Error(message);
+  (error as Error & { statusCode?: number }).statusCode = statusCode;
+  return error;
+}
 
 async function createRepository(): Promise<Repository> {
   if (config.databaseUrl) {
@@ -35,17 +96,25 @@ function authHeader(req: FastifyRequest): TokenPayload {
   const header = req.headers.authorization;
   const token = header && header.startsWith('Bearer ') ? header.slice(7) : '';
   const claims = token ? verifyToken(config.jwtSecret, token) : null;
-  if (!claims) {
-    const error = new Error('未登录或登录已过期');
-    (error as Error & { statusCode?: number }).statusCode = 401;
-    throw error;
-  }
+  if (!claims) throw httpError('未登录或登录已过期', 401);
   return claims;
+}
+
+function clientIp(req: FastifyRequest): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0]?.trim() ?? 'unknown';
+  }
+  return req.ip ?? 'unknown';
 }
 
 async function start(): Promise<void> {
   const repo = await createRepository();
   const app = Fastify({ logger: false });
+
+  // 登录防爆破：IP 维度 10 次 / 10 分钟，账号维度 5 次 / 10 分钟
+  const ipLimiter = new AttemptLimiter(10, 10 * 60_000);
+  const accountLimiter = new AttemptLimiter(5, 10 * 60_000);
 
   let gamesCache: { at: number; data: GameMeta[] } = { at: 0, data: FALLBACK_GAMES };
 
@@ -65,6 +134,35 @@ async function start(): Promise<void> {
     }
   }
 
+  async function buildTasks(userId: string, balance: number): Promise<TaskView[]> {
+    const dailyKey = periodKeyFor('daily');
+    const onceKey = periodKeyFor('once');
+    const rows = await repo.getTaskRows(userId, [dailyKey, onceKey]);
+
+    return TASKS.map((task) => {
+      const pk = periodKeyFor(task.period);
+      const row = rows.find((r) => r.taskKey === task.key && r.periodKey === pk);
+      const progress = row?.progress ?? 0;
+      const claimed = row?.claimed ?? false;
+      const reached = progress >= task.target;
+      const blocked = task.maxBalance !== undefined && balance >= task.maxBalance;
+
+      return {
+        key: task.key,
+        name: task.name,
+        description: task.description,
+        target: task.target,
+        reward: task.reward,
+        period: task.period,
+        progress: Math.min(progress, task.target),
+        claimed,
+        claimable: reached && !claimed && !blocked,
+        locked: blocked && !claimed,
+        lockReason: blocked && !claimed ? `筹码需少于 ${task.maxBalance}` : undefined,
+      };
+    });
+  }
+
   app.addHook('onRequest', async (req, reply) => {
     reply.header('access-control-allow-origin', config.corsOrigin);
     reply.header('access-control-allow-headers', 'content-type,authorization');
@@ -82,28 +180,92 @@ async function start(): Promise<void> {
 
   app.get('/health', async () => ({ ok: true, storage: config.databaseUrl ? 'postgres' : 'memory' }));
 
-  app.post('/api/login', async (req) => {
-    const body = (req.body ?? {}) as { nickname?: unknown };
-    const raw = typeof body.nickname === 'string' ? body.nickname.trim() : '';
-    if (raw.length < 2 || raw.length > 16) {
-      const error = new Error('昵称长度需在 2-16 个字符之间');
-      (error as Error & { statusCode?: number }).statusCode = 400;
-      throw error;
+  app.get('/api/captcha', async () => createCaptcha());
+
+  app.post('/api/register', async (req) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const username = typeof body.username === 'string' ? body.username.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    const nicknameRaw = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+    const captchaId = typeof body.captchaId === 'string' ? body.captchaId : '';
+    const captcha = typeof body.captcha === 'string' ? body.captcha : '';
+
+    const ipKey = clientIp(req);
+    const ipState = ipLimiter.check(ipKey);
+    if (!ipState.allowed) throw httpError('操作过于频繁，请稍后再试', 429);
+
+    if (!consumeCaptcha(captchaId, captcha)) {
+      ipLimiter.fail(ipKey);
+      throw httpError('验证码错误或已过期', 400);
     }
-    const user = await repo.loginOrCreate(raw);
+    if (!USERNAME_PATTERN.test(username)) {
+      throw httpError('账号需为 4-20 位字母、数字或下划线', 400);
+    }
+    if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+      throw httpError(`密码长度需在 ${PASSWORD_MIN}-${PASSWORD_MAX} 位之间`, 400);
+    }
+
+    const nickname = nicknameRaw.length >= 2 && nicknameRaw.length <= 12 ? nicknameRaw : username;
+    const passwordHash = await hashPassword(password);
+    const result = await repo.register({ username, passwordHash, nickname });
+    if (!result.ok) throw httpError('该账号已被注册', 409);
+
+    ipLimiter.reset(ipKey);
+    const balance = await repo.getBalance(result.user.id, 'coin');
+    await repo.bumpTask(result.user.id, 'daily_login', periodKeyFor('daily'), 1);
+    const token = signToken(config.jwtSecret, { sub: result.user.id, name: result.user.nickname }, config.tokenTtlSeconds);
+    return { token, user: { ...result.user, balance } };
+  });
+
+  app.post('/api/login', async (req) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const username = typeof body.username === 'string' ? body.username.trim() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    const captchaId = typeof body.captchaId === 'string' ? body.captchaId : '';
+    const captcha = typeof body.captcha === 'string' ? body.captcha : '';
+
+    const ipKey = clientIp(req);
+    const accountKey = username.toLowerCase() || 'anonymous';
+
+    const ipState = ipLimiter.check(ipKey);
+    if (!ipState.allowed) {
+      throw httpError(`尝试次数过多，请 ${Math.ceil(ipState.remainingMs / 60000)} 分钟后再试`, 429);
+    }
+    const accountState = accountLimiter.check(accountKey);
+    if (!accountState.allowed) {
+      throw httpError(`该账号已被临时锁定，请 ${Math.ceil(accountState.remainingMs / 60000)} 分钟后再试`, 429);
+    }
+
+    if (!consumeCaptcha(captchaId, captcha)) {
+      ipLimiter.fail(ipKey);
+      accountLimiter.fail(accountKey);
+      throw httpError('验证码错误或已过期', 400);
+    }
+
+    const user = username ? await repo.findByUsername(username) : null;
+    const matched = user ? await verifyPassword(password, user.passwordHash) : false;
+    if (!user || !matched) {
+      ipLimiter.fail(ipKey);
+      accountLimiter.fail(accountKey);
+      throw httpError('账号或密码错误', 401);
+    }
+
+    ipLimiter.reset(ipKey);
+    accountLimiter.reset(accountKey);
+
     const balance = await repo.getBalance(user.id, 'coin');
+    await repo.bumpTask(user.id, 'daily_login', periodKeyFor('daily'), 1);
     const token = signToken(config.jwtSecret, { sub: user.id, name: user.nickname }, config.tokenTtlSeconds);
-    return { token, user: { ...user, balance } };
+    return {
+      token,
+      user: { id: user.id, nickname: user.nickname, username: user.username, createdAt: user.createdAt, balance },
+    };
   });
 
   app.get('/api/me', async (req) => {
     const claims = authHeader(req);
     const user = await repo.getUser(claims.sub);
-    if (!user) {
-      const error = new Error('用户不存在');
-      (error as Error & { statusCode?: number }).statusCode = 404;
-      throw error;
-    }
+    if (!user) throw httpError('用户不存在', 404);
     const balance = await repo.getBalance(user.id, 'coin');
     return { user: { ...user, balance } };
   });
@@ -128,6 +290,64 @@ async function start(): Promise<void> {
     const query = req.query as { limit?: string };
     const limit = Math.min(Math.max(Number(query.limit ?? 20) || 20, 1), 100);
     return { records: await repo.listRecords(claims.sub, limit) };
+  });
+
+  app.get('/api/tasks', async (req) => {
+    const claims = authHeader(req);
+    const balance = await repo.getBalance(claims.sub, 'coin');
+    return { balance, tasks: await buildTasks(claims.sub, balance) };
+  });
+
+  app.post('/api/tasks/claim', async (req) => {
+    const claims = authHeader(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const key = typeof body.key === 'string' ? body.key : '';
+    const task = findTask(key);
+    if (!task) throw httpError('任务不存在', 404);
+
+    const pk = periodKeyFor(task.period);
+    const balance = await repo.getBalance(claims.sub, 'coin');
+    const views = await buildTasks(claims.sub, balance);
+    const view = views.find((v) => v.key === key);
+    if (!view) throw httpError('任务不存在', 404);
+    if (view.claimed) throw httpError('该任务奖励已领取', 409);
+    if (view.locked) throw httpError(view.lockReason ?? '当前无法领取', 400);
+    if (view.progress < task.target) throw httpError('任务尚未完成', 400);
+
+    const newBalance = await repo.credit(claims.sub, task.reward, 'task', `${key}:${pk}`);
+    const claimed = await repo.claimTask(claims.sub, key, pk);
+    if (!claimed) throw httpError('该任务奖励已领取', 409);
+
+    return { reward: task.reward, balance: newBalance, tasks: await buildTasks(claims.sub, newBalance) };
+  });
+
+  app.get('/api/leaderboard', async (req) => {
+    const query = req.query as { limit?: string };
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 100);
+    const rows = await repo.leaderboard(limit);
+
+    let myRank: number | null = null;
+    let myUserId: string | null = null;
+    try {
+      const claims = authHeader(req);
+      myUserId = claims.sub;
+      const index = rows.findIndex((row) => row.userId === claims.sub);
+      myRank = index >= 0 ? index + 1 : null;
+    } catch {
+      /* 未登录也允许查看排行榜 */
+    }
+
+    return {
+      entries: rows.map((row, index) => ({
+        rank: index + 1,
+        userId: row.userId,
+        nickname: row.nickname,
+        balance: row.balance,
+        title: titleFor(index + 1),
+      })),
+      myRank,
+      myUserId,
+    };
   });
 
   app.post('/internal/settle', async (req, reply) => {

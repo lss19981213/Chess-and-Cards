@@ -6,6 +6,7 @@ type Handler = (data: unknown) => void;
 export class GameSocket {
   private ws: WebSocket | null = null;
   private readonly handlers = new Map<string, Set<Handler>>();
+  private readonly pending: Array<{ t: string; d: unknown }> = [];
   private manualClose = false;
   private attempt = 0;
   private reconnectTimer: number | null = null;
@@ -27,7 +28,13 @@ export class GameSocket {
 
     ws.onopen = () => {
       this.attempt = 0;
-      this.send('client:hello', { token: this.token });
+      ws.send(JSON.stringify({ t: 'client:hello', d: { token: this.token }, ts: Date.now() }));
+      // 认证消息之后按序冲刷排队消息
+      while (this.pending.length > 0) {
+        const item = this.pending.shift();
+        if (!item) break;
+        ws.send(JSON.stringify({ t: item.t, d: item.d, ts: Date.now() }));
+      }
     };
 
     ws.onmessage = (event) => {
@@ -56,8 +63,12 @@ export class GameSocket {
   }
 
   send(type: string, data: unknown): void {
-    if (this.ws?.readyState !== WebSocket.OPEN) return;
-    this.ws.send(JSON.stringify({ t: type, d: data, ts: Date.now() }));
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ t: type, d: data, ts: Date.now() }));
+      return;
+    }
+    // 未连接时排队，连上并完成认证后自动补发
+    if (this.pending.length < 20) this.pending.push({ t: type, d: data });
   }
 
   setRoomRef(ref: { roomId: string; playerId: string } | null): void {

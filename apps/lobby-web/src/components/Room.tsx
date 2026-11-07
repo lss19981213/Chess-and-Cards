@@ -1,6 +1,9 @@
 import type { RoomView, Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
+import { CardTable } from '../games/CardTable';
 import { Gomoku } from '../games/Gomoku';
+import { Texas } from '../games/Texas';
+import { Tuizhuanzi } from '../games/Tuizhuanzi';
 
 interface Props {
   room: RoomView;
@@ -21,19 +24,60 @@ const STATUS_TEXT: Record<string, string> = {
 
 const GAME_TITLE: Record<string, string> = {
   gomoku: '五子棋',
+  doudizhu: '斗地主',
+  paodekuai: '跑得快',
+  tuizhuanzi: '推筒子',
+  texas: '德州扑克',
 };
 
 export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onIntent }: Props) {
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
-  const iWon = settlement?.winners.includes(myId) ?? false;
 
   const renderGame = () => {
-    if (room.gameId === 'gomoku') {
-      return <Gomoku snapshot={snapshot} status={room.status} onPlace={(x, y) => onIntent('place', { x, y })} />;
+    switch (room.gameId) {
+      case 'gomoku':
+        return (
+          <Gomoku
+            snapshot={snapshot}
+            status={room.status}
+            onPlace={(x, y) => onIntent('place', { x, y })}
+          />
+        );
+      case 'doudizhu':
+      case 'paodekuai':
+        return (
+          <CardTable
+            variant={room.gameId}
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            onPlay={(cards) => onIntent('play', { cards })}
+            onPass={() => onIntent('pass', {})}
+          />
+        );
+      case 'tuizhuanzi':
+        return (
+          <Tuizhuanzi
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            onBet={(amount) => onIntent('bet', { amount })}
+          />
+        );
+      case 'texas':
+        return (
+          <Texas
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            onAction={(cmd) => onIntent(cmd, {})}
+          />
+        );
+      default:
+        return <div className="game-fallback">该游戏的客户端尚未接入</div>;
     }
-    return <div className="game-fallback">该游戏的客户端尚未接入</div>;
   };
 
   return (
@@ -51,19 +95,16 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
         </div>
       </header>
 
+      {settlement && (
+        <div className={`settle-bar ${myDelta > 0 ? 'is-win' : myDelta < 0 ? 'is-lose' : ''}`}>
+          本局结算：
+          <strong>{myDelta > 0 ? `+${myDelta}` : myDelta}</strong>
+          <span>筹码，5 秒后自动回到准备状态</span>
+        </div>
+      )}
+
       <main className="room__main">
-        <section className="room__board">
-          {renderGame()}
-          {settlement && (
-            <div className="result">
-              <h3>{iWon ? '本局胜利' : myDelta < 0 ? '本局失利' : '本局结束'}</h3>
-              <p className={myDelta > 0 ? 'up' : myDelta < 0 ? 'down' : ''}>
-                {myDelta > 0 ? `+${myDelta}` : myDelta < 0 ? `${myDelta}` : '±0'} 积分
-              </p>
-              <span>5 秒后自动回到准备状态</span>
-            </div>
-          )}
-        </section>
+        <section className="room__board">{renderGame()}</section>
 
         <aside className="room__side">
           <div className="panel">
@@ -97,11 +138,13 @@ export function Room({ room, snapshot, settlement, myId, onReady, onLeave, onInt
                 {me?.ready ? '取消准备' : '准备'}
               </button>
             ) : (
+              <p className="hint">{room.status === 'playing' ? '对局进行中' : '请等待本局结算完成'}</p>
+            )}
+            {isHost && room.players.length < room.maxPlayers && (
               <p className="hint">
-                {room.status === 'playing' ? '对局进行中' : '请等待本局结算完成'}
+                还差 {room.maxPlayers - room.players.length} 人，等待其他玩家加入…
               </p>
             )}
-            {isHost && room.players.length < 2 && <p className="hint">等待另一位玩家加入…</p>}
           </div>
         </aside>
       </main>

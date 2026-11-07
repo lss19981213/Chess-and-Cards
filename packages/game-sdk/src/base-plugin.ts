@@ -13,6 +13,7 @@ export abstract class BaseGamePlugin implements GamePlugin {
   onPlayerLeave(_ctx: RoomContext, _playerId: string): void {}
   onPlayerReady(_ctx: RoomContext, _playerId: string): void {}
   onIntent(_ctx: RoomContext, _playerId: string, _intent: GameIntent): void {}
+  onTick(_ctx: RoomContext, _dtMs: number): void {}
   onDestroy(_ctx: RoomContext): void {}
 
   abstract getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot;

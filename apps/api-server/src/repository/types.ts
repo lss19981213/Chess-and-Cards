@@ -3,11 +3,16 @@ import type { Currency, Settlement, SettlementEntry } from '@cc/protocol';
 export interface UserRecord {
   id: string;
   nickname: string;
+  username: string | null;
   createdAt: number;
 }
 
 export interface UserProfile extends UserRecord {
   balance: number;
+}
+
+export interface AuthUser extends UserRecord {
+  passwordHash: string;
 }
 
 export interface GameRecordView {
@@ -23,13 +28,42 @@ export interface GameRecordView {
 
 export type SettlementResult = 'applied' | 'duplicate';
 
+export interface TaskProgressRow {
+  taskKey: string;
+  periodKey: string;
+  progress: number;
+  claimed: boolean;
+}
+
+export interface LeaderboardRow {
+  userId: string;
+  nickname: string;
+  balance: number;
+}
+
+export interface RegisterInput {
+  username: string;
+  passwordHash: string;
+  nickname: string;
+}
+
+export type RegisterResult = { ok: true; user: UserRecord } | { ok: false; reason: 'username_taken' };
+
 export interface Repository {
-  /** 按昵称查找用户，不存在则创建（游客登录） */
-  loginOrCreate(nickname: string): Promise<UserRecord>;
+  register(input: RegisterInput): Promise<RegisterResult>;
+  findByUsername(username: string): Promise<AuthUser | null>;
   getUser(id: string): Promise<UserRecord | null>;
   getBalance(userId: string, currency: Currency): Promise<number>;
   /** 幂等记账：同一 settlementId 重复上报只生效一次 */
   applySettlement(settlement: Settlement): Promise<SettlementResult>;
   listRecords(userId: string, limit: number): Promise<GameRecordView[]>;
+  /** 幂等加币（任务奖励等），返回入账后余额 */
+  credit(userId: string, amount: number, bizType: string, bizId: string): Promise<number>;
+  getTaskRows(userId: string, periodKeys: string[]): Promise<TaskProgressRow[]>;
+  /** 累加任务进度，返回累加后的进度 */
+  bumpTask(userId: string, taskKey: string, periodKey: string, delta: number): Promise<number>;
+  /** 标记已领取，返回 false 表示此前已领取过 */
+  claimTask(userId: string, taskKey: string, periodKey: string): Promise<boolean>;
+  leaderboard(limit: number): Promise<LeaderboardRow[]>;
   close(): Promise<void>;
 }
