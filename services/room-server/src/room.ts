@@ -425,7 +425,8 @@ export class GameRoom {
       throw new AppError(ErrorCode.IllegalAction, '本局已结算，不能重复结算');
     }
     this.settledThisRound = true;
-    this.status = 'settled';
+    // 常驻房间由插件接续下一局，状态保持 playing，避免中途加入的玩家看到「已结算」
+    this.status = this.persistent ? 'playing' : 'settled';
 
     const entries = input.entries.filter((e) => {
       const valid = Number.isInteger(e.delta) && Math.abs(e.delta) <= 1_000_000;
