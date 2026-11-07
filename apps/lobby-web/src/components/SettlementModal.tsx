@@ -22,6 +22,7 @@ const GAME_NAME: Record<string, string> = {
   paodekuai: '跑得快',
   tuizhuanzi: '推筒子',
   texas: '德州扑克',
+  dice: '骰宝',
 };
 
 export function SettlementModal({ settlement, myId, balance, players, onClose }: Props) {

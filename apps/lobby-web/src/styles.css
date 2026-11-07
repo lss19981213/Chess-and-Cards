@@ -2616,6 +2616,548 @@ button.secondary:hover:not(:disabled) {
   background: rgba(240, 180, 41, 0.1);
 }
 
+/* ===== 下注类玩法（推筒子 / 骰宝） ===== */
+
+.lobby-game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 186px;
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
+.lobby-game__main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.lobby-game__bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.lobby-game__round {
+  letter-spacing: 1px;
+}
+
+.lobby-game__phase {
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-game__phase.is-open {
+  color: var(--gold);
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.12);
+}
+
+.lobby-game__mine {
+  color: var(--gold);
+  font-weight: 600;
+}
+
+/* 庄家 */
+
+.banker-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(240, 180, 41, 0.2);
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.banker-box__label {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--gold);
+}
+
+.banker-box__points {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* 三门 */
+
+.doors {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.door {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 8px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(30, 40, 62, 0.75), rgba(12, 18, 30, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--text);
+  font-weight: 400;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.door:hover:not(:disabled) {
+  transform: translateY(-3px);
+  border-color: rgba(240, 180, 41, 0.45);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+
+.door:disabled {
+  opacity: 0.85;
+}
+
+.door__label {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--gold);
+}
+
+.door__points {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.door__bet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(240, 180, 41, 0.12);
+}
+
+.door__bet img {
+  width: 16px;
+  height: 16px;
+}
+
+.door.is-bet {
+  border-color: rgba(240, 180, 41, 0.55);
+}
+
+.door.is-win {
+  border-color: rgba(62, 207, 142, 0.7);
+  box-shadow: 0 0 0 1px rgba(62, 207, 142, 0.4), 0 0 26px rgba(62, 207, 142, 0.25);
+}
+
+.door.is-win .door__points {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.tui-card--md {
+  width: 42px;
+  height: 58px;
+}
+
+/* 下注控件 */
+
+.bet-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.bet-controls__chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.chip-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: auto;
+  padding: 4px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.chip-btn img {
+  width: 38px;
+  height: 38px;
+  display: block;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  transition: transform 0.16s ease;
+}
+
+.chip-btn:hover:not(:disabled) img {
+  transform: translateY(-3px);
+}
+
+.chip-btn.is-active {
+  border-color: rgba(240, 180, 41, 0.55);
+  background: rgba(240, 180, 41, 0.1);
+  color: var(--gold);
+}
+
+.bet-controls__custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.bet-controls__custom input {
+  width: 108px;
+  padding: 8px 10px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.bet-controls__hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.lobby-results {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+/* 走势 */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  height: 100%;
+  max-height: 520px;
+}
+
+.history__title {
+  font-size: 11.5px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-align: center;
+}
+
+.history__legend,
+.history__row {
+  display: grid;
+  grid-template-columns: 26px 1fr 1fr 1fr 1fr;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.history__legend {
+  color: rgba(255, 255, 255, 0.35);
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.history__row--dice {
+  grid-template-columns: 26px 1.6fr 0.8fr 0.9fr;
+}
+
+.history__list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  max-height: 460px;
+  padding-right: 2px;
+}
+
+.history__row {
+  padding: 4px 2px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.history__row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.history__no {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.history__banker {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.history__row .is-hit {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.history__dice {
+  letter-spacing: 1px;
+}
+
+.history__row .is-big {
+  color: #ff8b8f;
+}
+
+.history__row .is-small {
+  color: #7bb6ff;
+}
+
+.history__row .is-triple {
+  color: var(--gold);
+}
+
+.history__empty {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  text-align: center;
+  padding: 10px 0;
+}
+
+/* ===== 骰宝 ===== */
+
+.dice-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.dice-stage__tray {
+  display: flex;
+  gap: 16px;
+  padding: 16px 24px;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 50% 30%, rgba(40, 60, 48, 0.9), rgba(8, 14, 12, 0.95));
+  border: 1px solid rgba(240, 180, 41, 0.18);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+.die {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, #ffffff 0%, #eef1f8 55%, #cfd6e4 100%);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.die.is-rolling {
+  animation: die-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.die.is-hidden {
+  background: linear-gradient(150deg, #2a3450, #151d30);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.die__q {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.die__pip {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #4a5266, #0f1420);
+}
+
+@keyframes die-pop {
+  0% {
+    transform: scale(0.6) rotate(-30deg);
+    opacity: 0.3;
+  }
+  60% {
+    transform: scale(1.08) rotate(6deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+.dice-stage__sum {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dice-stage__sum strong {
+  font-size: 26px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-stage__sum .is-big {
+  color: #ff8b8f;
+  font-weight: 700;
+}
+
+.dice-stage__sum .is-small {
+  color: #7bb6ff;
+  font-weight: 700;
+}
+
+.dice-stage__sum .is-triple {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.dice-zones {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dice-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(30, 40, 62, 0.8), rgba(12, 18, 30, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: var(--text);
+}
+
+.dice-zone:hover:not(:disabled) {
+  border-color: rgba(240, 180, 41, 0.45);
+  transform: translateY(-2px);
+}
+
+.dice-zone__label {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.dice-zone__odds {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.dice-zone.is-triple .dice-zone__label {
+  color: #ff8b8f;
+}
+
+.dice-zone.is-bet {
+  border-color: rgba(240, 180, 41, 0.55);
+  background: rgba(240, 180, 41, 0.1);
+}
+
+.dice-zone__bet {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.dice-zone__bet img {
+  width: 14px;
+  height: 14px;
+}
+
+.dice-sums {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.dice-sum {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.dice-sum strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-sum span {
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+.dice-sum:hover:not(:disabled) {
+  border-color: rgba(240, 180, 41, 0.45);
+}
+
+.dice-sum.is-bet {
+  border-color: rgba(240, 180, 41, 0.55);
+  background: rgba(240, 180, 41, 0.1);
+  color: var(--gold);
+}
+
+@media (max-width: 900px) {
+  .lobby-game {
+    grid-template-columns: 1fr;
+  }
+
+  .history {
+    max-height: 200px;
+  }
+
+  .history__list {
+    max-height: 150px;
+  }
+}
+
 /* 等待下一局的中央准备入口 */
 
 .ready-overlay {

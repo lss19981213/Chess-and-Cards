@@ -47,6 +47,8 @@ export interface RoomContext {
   markDirty(): void;
   /** 上报结算，容器负责幂等落库与账本记账。每局只允许调用一次。 */
   settle(input: SettlementInput): void;
+  /** 开启新一局（常驻玩法由插件按时间轴调用） */
+  beginRound(): void;
   log(message: string, extra?: Record<string, unknown>): void;
 }
 

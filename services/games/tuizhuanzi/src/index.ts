@@ -1,222 +1,277 @@
-import type { GameMeta, GameSnapshot, SettlementEntry } from '@cc/protocol';
-import { badRequest, illegalAction } from '@cc/protocol';
+import type { GameMeta, GameSnapshot } from '@cc/protocol';
+import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import {
   BaseGamePlugin,
   createCardDeck,
   shuffleWithSeed,
   type Card,
-  type GameIntent,
-  type RoomContext,
 } from '@cc/game-sdk';
 
-export const BET_OPTIONS = [100, 200, 300] as const;
-const DEFAULT_BET = 100;
-const BET_TIMEOUT_MS = 20_000;
+/**
+ * 推筒子（平台庄家版）
+ * - 平台坐庄，玩家只能在「天 / 地 / 人」三门下注，猜哪门比庄家大，赔率 1:1
+ * - 常驻运行：不依赖人数，每 60 秒一局（30 秒下注 + 6 秒开牌 + 24 秒展示）
+ * - 每局给三门与庄家各发两张筒子牌，点数取个位
+ */
+
+const DOORS = ['heaven', 'earth', 'human'] as const;
+type DoorKey = (typeof DOORS)[number];
+
+const DOOR_LABEL: Record<DoorKey, string> = {
+  heaven: '天',
+  earth: '地',
+  human: '人',
+};
+
 const RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+const BET_MS = 30_000;
+const REVEAL_MS = 6_000;
+const IDLE_MS = 24_000;
+
+const MIN_BET = 10;
+const MAX_BET = 2000;
+const MAX_TOTAL = 6000;
+const HISTORY_LIMIT = 30;
+
+type Phase = 'bet' | 'reveal' | 'idle';
+
+interface DoorHand {
+  cards: Card[];
+  points: number;
+}
+
+interface PlayerBet {
+  heaven: number;
+  earth: number;
+  human: number;
+}
 
 interface RoundResult {
   playerId: string;
-  points: number;
-  cards: Card[];
-  isBanker: boolean;
+  nickname: string;
   delta: number;
+  detail: string;
+}
+
+interface HistoryItem {
+  round: number;
+  banker: number;
+  heaven: number;
+  earth: number;
+  human: number;
+  winningDoors: DoorKey[];
 }
 
 interface State {
-  phase: 'bet' | 'reveal';
-  bankerId: string | null;
-  bets: Map<string, number>;
-  hands: Map<string, Card[]>;
-  points: Map<string, number>;
-  deadline: number;
-  /** 押注阶段开始时间，用于给机器人留出思考延迟 */
-  startAt: number;
+  phase: Phase;
+  phaseEndsAt: number;
+  doors: Record<DoorKey, DoorHand>;
+  banker: DoorHand;
+  bets: Map<string, PlayerBet>;
   results: RoundResult[];
-  settled: boolean;
+  history: HistoryItem[];
+  roundNo: number;
+}
+
+function emptyHand(): DoorHand {
+  return { cards: [], points: 0 };
 }
 
 function emptyState(): State {
   return {
     phase: 'bet',
-    bankerId: null,
+    phaseEndsAt: 0,
+    doors: { heaven: emptyHand(), earth: emptyHand(), human: emptyHand() },
+    banker: emptyHand(),
     bets: new Map(),
-    hands: new Map(),
-    points: new Map(),
-    deadline: 0,
-    startAt: 0,
     results: [],
-    settled: false,
+    history: [],
+    roundNo: 0,
   };
 }
 
-/**
- * 推筒子（简化规则）：
- * 庄家固定为座位最小者，闲家先押注，随后每人两张牌比点数（两牌之和取个位，0 点最小）。
- * 点数相同视为庄家胜，符合「庄闲对决、庄家吃平」的惯例。
- */
+function pointsOf(cards: Card[]): number {
+  return cards.reduce((sum, card) => sum + card.rank, 0) % 10;
+}
+
 export class TuizhuanziPlugin extends BaseGamePlugin {
+  override readonly apiVersion = 1;
+
   override readonly meta: GameMeta = {
     gameId: 'tuizhuanzi',
     name: '推筒子',
-    description: '两张牌比点数，庄闲对决一局定胜负',
-    icon: '🎴',
-    minPlayers: 2,
+    description: '押天地人三门，比庄家点数大即赢，赔率 1:1',
+    version: '2.0.0',
+    clientBundle: '',
+    minPlayers: 1,
     maxPlayers: 5,
-    version: '1.0.0',
-    clientBundle: 'builtin:tuizhuanzi',
-    tags: ['牌类', '多人', '刺激'],
+    tags: ['牌九', '常驻', '下注'],
+    icon: '🀄',
   };
-
-  override readonly commands: readonly string[] = ['bet'];
 
   private state: State = emptyState();
 
-  override onRoundStart(ctx: RoomContext): void {
-    const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
+  override onRoomCreate(_ctx: RoomContext): void {
     this.state = emptyState();
-    this.state.bankerId = players[0]?.playerId ?? null;
-    this.state.startAt = Date.now();
-    this.state.deadline = Date.now() + BET_TIMEOUT_MS;
-    ctx.markDirty();
-    // 只有庄家一人时无法比牌，直接结束本局
-    if (players.length < 2) {
-      ctx.settle({ entries: [], winners: [] });
-    }
+  }
+
+  override onRoundStart(ctx: RoomContext): void {
+    const deck = shuffleWithSeed(createCardDeck(RANKS, false), `${ctx.config.seed}`);
+    let cursor = 0;
+    const takeHand = (): DoorHand => {
+      const cards = [deck[cursor]!, deck[cursor + 1]!];
+      cursor += 2;
+      return { cards, points: pointsOf(cards) };
+    };
+
+    this.state.doors = { heaven: takeHand(), earth: takeHand(), human: takeHand() };
+    this.state.banker = takeHand();
+    this.state.bets = new Map();
+    this.state.results = [];
+    this.state.phase = 'bet';
+    this.state.phaseEndsAt = Date.now() + BET_MS;
+    this.state.roundNo = ctx.config.round;
   }
 
   override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
-    if (this.state.phase !== 'bet') throw illegalAction('当前不在押注阶段');
-    if (playerId === this.state.bankerId) throw illegalAction('庄家不能押注');
+    if (intent.cmd !== 'bet') throw new Error(`不支持的操作: ${intent.cmd}`);
+    if (this.state.phase !== 'bet') throw new Error('本局已停止下注，等下一局吧');
 
-    const amount = Number(intent.payload.amount ?? DEFAULT_BET);
-    if (!BET_OPTIONS.includes(amount as (typeof BET_OPTIONS)[number])) {
-      throw badRequest('押注金额不合法');
-    }
+    const area = String(intent.payload?.area ?? '');
+    if (!DOORS.includes(area as DoorKey)) throw new Error('只能押天、地、人三门');
 
-    this.state.bets.set(playerId, amount);
+    const amount = Number(intent.payload?.amount);
+    if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
+    if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
+
+    const current = this.state.bets.get(playerId) ?? { heaven: 0, earth: 0, human: 0 };
+    const total = current.heaven + current.earth + current.human;
+    if (total + amount > MAX_TOTAL) throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
+
+    current[area as DoorKey] += amount;
+    this.state.bets.set(playerId, current);
     ctx.markDirty();
-
-    if (this.allBetsPlaced(ctx)) this.reveal(ctx);
   }
 
   override onTick(ctx: RoomContext): void {
-    if (this.state.phase !== 'bet' || this.state.settled) return;
+    const now = Date.now();
+    if (now < this.state.phaseEndsAt) return;
 
-    // 机器人押注：给一点思考延迟，避免瞬间开牌
-    if (Date.now() - this.state.startAt >= 1200) {
-      let changed = false;
-      for (const player of ctx.players) {
-        if (!player.isBot || player.playerId === this.state.bankerId) continue;
-        if (this.state.bets.has(player.playerId)) continue;
-        this.state.bets.set(player.playerId, DEFAULT_BET);
-        changed = true;
+    if (this.state.phase === 'bet') {
+      this.reveal(ctx);
+      return;
+    }
+    if (this.state.phase === 'reveal') {
+      this.state.phase = 'idle';
+      this.state.phaseEndsAt = now + IDLE_MS;
+      ctx.markDirty();
+      return;
+    }
+    // idle 结束，开下一局
+    ctx.beginRound();
+  }
+
+  private reveal(ctx: RoomContext): void {
+    const bankerPoints = this.state.banker.points;
+    const winningDoors = DOORS.filter((door) => this.state.doors[door].points > bankerPoints);
+
+    const entries: SettlementInput['entries'] = [];
+    const results: RoundResult[] = [];
+
+    for (const [playerId, bet] of this.state.bets) {
+      let delta = 0;
+      const hits: string[] = [];
+      for (const door of DOORS) {
+        const amount = bet[door];
+        if (amount <= 0) continue;
+        const doorPoints = this.state.doors[door].points;
+        if (doorPoints > bankerPoints) {
+          delta += amount;
+          hits.push(`${DOOR_LABEL[door]}+${amount}`);
+        } else if (doorPoints < bankerPoints) {
+          delta -= amount;
+        }
+        // 点数相同视为和局，该门不输不赢
       }
-      if (changed) ctx.markDirty();
-      if (this.allBetsPlaced(ctx)) {
-        this.reveal(ctx);
-        return;
+      if (delta === 0 && hits.length === 0) continue;
+
+      const nickname = ctx.getPlayer(playerId)?.nickname ?? '玩家';
+      results.push({ playerId, nickname, delta, detail: hits.join(' ') || '未命中' });
+      if (delta !== 0) {
+        entries.push({
+          playerId,
+          currency: 'coin',
+          delta,
+          reason: 'game.tuizhuanzi',
+        });
       }
     }
 
-    if (Date.now() < this.state.deadline) return;
+    this.state.results = results;
+    this.state.history = [
+      ...this.state.history,
+      {
+        round: this.state.roundNo,
+        banker: bankerPoints,
+        heaven: this.state.doors.heaven.points,
+        earth: this.state.doors.earth.points,
+        human: this.state.doors.human.points,
+        winningDoors,
+      },
+    ].slice(-HISTORY_LIMIT);
 
-    for (const player of ctx.players) {
-      if (player.playerId === this.state.bankerId) continue;
-      if (!this.state.bets.has(player.playerId)) {
-        this.state.bets.set(player.playerId, DEFAULT_BET);
-      }
-    }
-    this.reveal(ctx);
+    this.state.phase = 'reveal';
+    this.state.phaseEndsAt = Date.now() + REVEAL_MS;
+    ctx.markDirty();
+
+    ctx.settle({
+      winners: results.filter((row) => row.delta > 0).map((row) => row.playerId),
+      entries,
+    });
   }
 
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {
-    const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
-    const revealed = this.state.phase === 'reveal';
+    const now = Date.now();
+    const revealed = this.state.phase !== 'bet';
+    const remainMs = Math.max(0, this.state.phaseEndsAt - now);
+
+    const doorView = (door: DoorKey) => ({
+      label: DOOR_LABEL[door],
+      points: revealed ? this.state.doors[door].points : null,
+      cards: revealed ? this.state.doors[door].cards.map((c) => ({ id: c.id, rank: c.rank })) : [],
+    });
+
+    const myBet = viewerId ? this.state.bets.get(viewerId) ?? null : null;
 
     return {
       phase: this.state.phase,
-      bankerId: this.state.bankerId,
-      betOptions: BET_OPTIONS,
-      deadline: this.state.deadline,
-      myBet: viewerId ? (this.state.bets.get(viewerId) ?? null) : null,
-      myPoints: viewerId ? (this.state.points.get(viewerId) ?? null) : null,
+      round: this.state.roundNo,
+      remainMs,
+      betEndsAt: this.state.phase === 'bet' ? this.state.phaseEndsAt : 0,
+      banker: {
+        points: revealed ? this.state.banker.points : null,
+        cards: revealed ? this.state.banker.cards.map((c) => ({ id: c.id, rank: c.rank })) : [],
+      },
+      doors: {
+        heaven: doorView('heaven'),
+        earth: doorView('earth'),
+        human: doorView('human'),
+      },
+      myBet: myBet ?? { heaven: 0, earth: 0, human: 0 },
       results: this.state.results,
-      players: players.map((p) => ({
+      history: this.state.history,
+      limits: { min: MIN_BET, max: MAX_BET, total: MAX_TOTAL },
+      players: ctx.players.map((p: PlayerContext) => ({
         playerId: p.playerId,
         nickname: p.nickname,
-        seat: p.seat,
-        isBanker: p.playerId === this.state.bankerId,
-        bet: this.state.bets.get(p.playerId) ?? null,
-        points: revealed ? (this.state.points.get(p.playerId) ?? null) : null,
-        cards: revealed ? (this.state.hands.get(p.playerId) ?? []).map((c) => ({ id: c.id, rank: c.rank })) : [],
+        isBot: p.isBot,
       })),
     };
   }
 
-  private allBetsPlaced(ctx: RoomContext): boolean {
-    return ctx.players
-      .filter((p) => p.playerId !== this.state.bankerId)
-      .every((p) => this.state.bets.has(p.playerId));
-  }
-
-  private reveal(ctx: RoomContext): void {
-    if (this.state.settled) return;
-    const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
-    const bankerId = this.state.bankerId;
-    if (!bankerId) {
-      ctx.settle({ entries: [], winners: [] });
-      return;
-    }
-
-    const deck = shuffleWithSeed(createCardDeck(RANKS, false), ctx.config.seed);
-    let cursor = 0;
-    for (const player of players) {
-      const first = deck[cursor];
-      const second = deck[cursor + 1];
-      cursor += 2;
-      if (!first || !second) continue;
-      this.state.hands.set(player.playerId, [first, second]);
-      this.state.points.set(player.playerId, (first.rank + second.rank) % 10);
-    }
-
-    const bankerPoints = this.state.points.get(bankerId) ?? 0;
-    const deltas = new Map<string, number>();
-    const winners: string[] = [];
-
-    for (const player of players) {
-      if (player.playerId === bankerId) continue;
-      const bet = this.state.bets.get(player.playerId) ?? DEFAULT_BET;
-      const points = this.state.points.get(player.playerId) ?? 0;
-      const challengerWins = points > bankerPoints;
-      const delta = challengerWins ? bet : -bet;
-
-      deltas.set(player.playerId, (deltas.get(player.playerId) ?? 0) + delta);
-      deltas.set(bankerId, (deltas.get(bankerId) ?? 0) - delta);
-      if (challengerWins) winners.push(player.playerId);
-    }
-
-    this.state.results = players.map((p) => ({
-      playerId: p.playerId,
-      points: this.state.points.get(p.playerId) ?? 0,
-      cards: this.state.hands.get(p.playerId) ?? [],
-      isBanker: p.playerId === bankerId,
-      delta: deltas.get(p.playerId) ?? 0,
-    }));
-
-    const entries: SettlementEntry[] = [...deltas.entries()]
-      .filter(([, delta]) => delta !== 0)
-      .map(([playerId, delta]) => ({
-        playerId,
-        currency: 'coin' as const,
-        delta,
-        reason: 'tuizhuanzi.result',
-      }));
-
-    this.state.phase = 'reveal';
-    this.state.settled = true;
-    ctx.markDirty();
-    ctx.settle({ entries, winners: winners.length > 0 ? winners : [bankerId] });
+  override getCurrentActor(): string | null {
+    // 下注制没有回合，由时间轴驱动
+    return null;
   }
 }
-
-export default TuizhuanziPlugin;

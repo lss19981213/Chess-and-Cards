@@ -54,7 +54,7 @@ export class RoomManager {
     return gameId ? all.filter((r) => r.gameId === gameId) : all;
   }
 
-  /** 快速匹配：优先加入可加入的房间，否则新开一间 */
+  /** 快速匹配：常驻房间优先，其次可加入的房间，否则新开一间 */
   joinOrCreate(
     gameId: string,
     mode: string,
@@ -65,6 +65,13 @@ export class RoomManager {
     const factory = this.factories.get(gameId);
     if (!factory) throw new AppError(ErrorCode.BadRequest, `游戏不存在或未部署: ${gameId}`);
 
+    // 下注类玩法只有一个常驻房间，所有玩家共享同一时间轴
+    const persistent = this.list(gameId).find((r) => r.isPersistent);
+    if (persistent) {
+      persistent.join(player, socket);
+      return persistent;
+    }
+
     let room = this.list(gameId).find((r) => r.isJoinable);
     if (!room) {
       const plugin = factory();
@@ -72,6 +79,19 @@ export class RoomManager {
       this.rooms.set(room.id, room);
     }
     room.join(player, socket);
+    return room;
+  }
+
+  /** 创建常驻房间：服务启动即开局，无人也持续推进 */
+  ensurePersistent(gameId: string, maxPlayers: number): GameRoom | null {
+    const factory = this.factories.get(gameId);
+    if (!factory) return null;
+    const existing = this.list(gameId).find((r) => r.isPersistent);
+    if (existing) return existing;
+    const room = new GameRoom(randomUUID(), factory(), 'classic', maxPlayers, this.deps, {
+      persistent: true,
+    });
+    this.rooms.set(room.id, room);
     return room;
   }
 

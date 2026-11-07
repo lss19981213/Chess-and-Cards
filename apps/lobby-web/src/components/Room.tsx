@@ -7,6 +7,7 @@ import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
 import { SettlementModal } from './SettlementModal';
 import { CardTable } from '../games/CardTable';
+import { Dice } from '../games/Dice';
 import { Gomoku } from '../games/Gomoku';
 import { Texas } from '../games/Texas';
 import { Tuizhuanzi } from '../games/Tuizhuanzi';
@@ -38,6 +39,7 @@ const GAME_TITLE: Record<string, string> = {
   paodekuai: '跑得快',
   tuizhuanzi: '推筒子',
   texas: '德州扑克',
+  dice: '骰宝',
 };
 
 export function Room({
@@ -114,7 +116,16 @@ export function Room({
             snapshot={snapshot?.snapshot ?? null}
             myId={myId}
             status={room.status}
-            onBet={(amount) => dispatch('bet', { amount })}
+            onBet={(area, amount) => dispatch('bet', { area, amount })}
+          />
+        );
+      case 'dice':
+        return (
+          <Dice
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            onBet={(area, amount) => dispatch('bet', { area, amount })}
           />
         );
       case 'texas':

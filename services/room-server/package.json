@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@cc/auth": "workspace:*",
+    "@cc/game-dice": "workspace:*",
     "@cc/game-doudizhu": "workspace:*",
     "@cc/game-gomoku": "workspace:*",
     "@cc/game-paodekuai": "workspace:*",

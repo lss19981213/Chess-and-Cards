@@ -66,18 +66,27 @@ export class GameRoom {
   private settledThisRound = false;
   private tickTimer: NodeJS.Timeout | null = null;
   private closed = false;
+  private readonly persistent: boolean;
   private emoteTimes = new Map<string, number[]>();
   /** 结算展示期间预约的准备意愿 */
   private pendingReady = new Map<string, boolean>();
   /** 已开启「连续对局」的玩家：之后每局结算都自动准备 */
   private autoReady = new Set<string>();
 
-  constructor(id: string, plugin: GamePlugin, mode: string, maxPlayers: number, deps: RoomDeps) {
+  constructor(
+    id: string,
+    plugin: GamePlugin,
+    mode: string,
+    maxPlayers: number,
+    deps: RoomDeps,
+    options: { persistent?: boolean } = {},
+  ) {
     this.id = id;
     this.plugin = plugin;
     this.mode = mode;
     this.maxPlayers = Math.max(plugin.meta.minPlayers, Math.min(maxPlayers, plugin.meta.maxPlayers));
     this.deps = deps;
+    this.persistent = options.persistent === true;
 
     const self = this;
     this.ctx = {
@@ -105,6 +114,7 @@ export class GameRoom {
         self.dirty = true;
       },
       settle: (input: SettlementInput) => self.handleSettle(input),
+      beginRound: () => self.beginRound(),
       log: (message: string, extra?: Record<string, unknown>) => {
         console.log(`[room ${self.id}] ${message}`, extra ?? '');
       },
@@ -112,6 +122,30 @@ export class GameRoom {
 
     this.plugin.onRoomCreate(this.ctx);
     this.tickTimer = setInterval(() => this.tick(), TICK_MS);
+
+    // 常驻房间：无玩家也持续开局
+    if (this.persistent) {
+      this.status = 'playing';
+      this.beginRound();
+    }
+  }
+
+  get isPersistent(): boolean {
+    return this.persistent;
+  }
+
+  /** 开启新一局：常驻玩法由插件按时间轴主动调用 */
+  beginRound(): void {
+    if (this.closed) return;
+    this.round += 1;
+    this.seq += 1;
+    this.seed = `${this.id}-${this.round}`;
+    this.status = 'playing';
+    this.settledThisRound = false;
+    this.dirty = true;
+    this.plugin.onRoundStart?.(this.ctx);
+    this.broadcastView();
+    this.pushSnapshots();
   }
 
   get gameId(): string {
@@ -416,7 +450,10 @@ export class GameRoom {
     this.dirty = true;
     this.pushSnapshots();
 
-    setTimeout(() => this.resetRound(), SETTLE_RESET_MS).unref?.();
+    // 常驻玩法由插件自己接续下一局，不回到准备态
+    if (!this.persistent) {
+      setTimeout(() => this.resetRound(), SETTLE_RESET_MS).unref?.();
+    }
   }
 
   private resetRound(): void {
@@ -457,6 +494,7 @@ export class GameRoom {
   }
 
   private checkEnoughPlayers(): void {
+    if (this.persistent) return;
     if (this.seats.size === 0) {
       this.destroy();
       return;

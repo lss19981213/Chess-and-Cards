@@ -1,182 +1,198 @@
-import { useEffect, useState } from 'react';
-import { Chip, ChipStack } from '../components/Chip';
-import { SeatPanel, TableStage } from '../components/TableStage';
+import { useEffect, useMemo, useState } from 'react';
+import { chipArt } from '../chips';
 import { cardBackArt, dotArt } from './cards';
 
-interface TuiCard {
-  id: string;
-  rank: number;
-}
-
-interface TuiPlayer {
-  playerId: string;
-  nickname: string;
-  seat: number;
-  isBanker: boolean;
-  bet: number | null;
+interface DoorView {
+  label: string;
   points: number | null;
-  cards: TuiCard[];
-}
-
-interface TuiResult {
-  playerId: string;
-  points: number;
-  isBanker: boolean;
-  delta: number;
+  cards: Array<{ id: string; rank: number }>;
 }
 
 interface TuiSnapshot {
-  phase: 'bet' | 'reveal';
-  bankerId: string | null;
-  betOptions: number[];
-  deadline: number;
-  myBet: number | null;
-  myPoints: number | null;
-  results: TuiResult[];
-  players: TuiPlayer[];
+  phase: 'bet' | 'reveal' | 'idle';
+  round: number;
+  remainMs: number;
+  banker: { points: number | null; cards: Array<{ id: string; rank: number }> };
+  doors: { heaven: DoorView; earth: DoorView; human: DoorView };
+  myBet: { heaven: number; earth: number; human: number };
+  results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
+  history: Array<{
+    round: number;
+    banker: number;
+    heaven: number;
+    earth: number;
+    human: number;
+    winningDoors: string[];
+  }>;
+  limits: { min: number; max: number; total: number };
 }
 
 interface Props {
   snapshot: Record<string, unknown> | null;
   myId: string;
   status: string;
-  onBet: (amount: number) => void;
+  onBet: (area: string, amount: number) => void;
 }
 
-function TuiCards({ cards, size = 'sm' }: { cards: TuiCard[]; size?: 'sm' | 'lg' }) {
-  if (cards.length === 0) {
-    return (
-      <div className="tui-cards">
-        <span className={`tui-card tui-card--${size}`}>
-          <img src={cardBackArt()} alt="" draggable={false} />
-        </span>
-        <span className={`tui-card tui-card--${size}`}>
-          <img src={cardBackArt()} alt="" draggable={false} />
-        </span>
-      </div>
-    );
-  }
+const DOOR_KEYS = ['heaven', 'earth', 'human'] as const;
+
+const PRESET = [10, 50, 100, 500, 1000];
+
+function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: number }>; revealed: boolean }) {
+  const list = revealed && cards.length > 0 ? cards : [null, null];
   return (
     <div className="tui-cards">
-      {cards.map((card) => (
-        <span key={card.id} className={`tui-card tui-card--${size}`}>
-          <img src={dotArt(card.rank)} alt={`${card.rank} 点`} draggable={false} />
+      {list.map((card, index) => (
+        <span key={card?.id ?? `back-${index}`} className="tui-card tui-card--md">
+          <img src={card ? dotArt(card.rank) : cardBackArt()} alt="" draggable={false} />
         </span>
       ))}
     </div>
   );
 }
 
-export function Tuizhuanzi({ snapshot, myId, status, onBet }: Props) {
+export function Tuizhuanzi({ snapshot, myId: _myId, status, onBet }: Props) {
   const data = snapshot as unknown as TuiSnapshot | undefined;
+  const [amount, setAmount] = useState(100);
   const [now, setNow] = useState(Date.now());
+  const [deadline, setDeadline] = useState(0);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 500);
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
   }, []);
 
-  if (!data) return <div className="board-placeholder">等待开局…</div>;
+  useEffect(() => {
+    if (data) setDeadline(Date.now() + data.remainMs);
+  }, [data?.remainMs, data?.phase, data?.round]);
 
-  const me = data.players.find((p) => p.playerId === myId);
-  const others = data.players.filter((p) => p.playerId !== myId);
-  const isBanker = me?.isBanker ?? false;
-  const phase = data.phase;
-  const remain = Math.max(0, Math.ceil((data.deadline - now) / 1000));
-  const canBet = phase === 'bet' && !isBanker && status === 'playing';
-  const pot = data.players.reduce((sum, p) => sum + (p.bet ?? 0), 0);
+  const left = Math.max(0, Math.ceil((deadline - now) / 1000));
+
+  const canBet = Boolean(data) && data!.phase === 'bet' && status === 'playing';
+  const revealed = Boolean(data) && data!.phase !== 'bet';
+
+  const history = data?.history ?? [];
+  const totals = useMemo(() => {
+    const bet = data?.myBet ?? { heaven: 0, earth: 0, human: 0 };
+    return bet.heaven + bet.earth + bet.human;
+  }, [data?.myBet]);
+
+  if (!data) return <div className="board-placeholder">正在连接牌桌…</div>;
 
   return (
-    <TableStage
-      watermark="TUI ZHUAN ZI"
-      seats={others.map((player) => ({
-        key: player.playerId,
-        active: player.isBanker,
-        node: (
-          <SeatPanel
-            nickname={player.nickname}
-            initial={player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
-            isBot={player.nickname.startsWith('🤖')}
-            badge={player.isBanker ? <em className="badge-dealer">庄</em> : null}
-            active={player.isBanker}
-            meta={
-              player.points !== null
-                ? `${player.points} 点`
-                : player.isBanker
-                  ? '庄家'
-                  : player.bet
-                    ? `押 ${player.bet}`
-                    : '未押注'
-            }
-            cards={<TuiCards cards={player.cards} />}
-          />
-        ),
-      }))}
-      center={
-        phase === 'bet' ? (
-          <div className="pot-display">
-            <span className="pot-display__label">底池</span>
-            <span className="pot-display__value">
-              <Chip size={19} />
-              <strong>{pot}</strong>
-            </span>
-            <ChipStack amount={pot} />
-            <span className="pot-display__timer">{remain}s</span>
-          </div>
-        ) : (
-          <div className="reveal-list">
-            {data.results.map((row) => {
-              const player = data.players.find((p) => p.playerId === row.playerId);
-              return (
-                <div key={row.playerId} className="reveal-row">
-                  <span className="reveal-row__name">{player?.nickname ?? '玩家'}</span>
-                  <span className="reveal-row__pt">{row.points} 点</span>
-                  <span className={row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'}>
-                    {row.delta > 0 ? `+${row.delta}` : row.delta}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )
-      }
-      bottom={
-        <div className="hand-area">
-          <div className="my-lane">
-            <div className="my-lane__head">
-              <span className="my-lane__name">
-                你
-                {isBanker && <em className="badge-dealer">庄</em>}
-              </span>
-              {me?.points !== null && me?.points !== undefined && (
-                <span className="my-lane__points">{me.points} 点</span>
-              )}
-              {me?.bet && <span className="my-lane__bet">已押 {me.bet}</span>}
-            </div>
-            {me && <TuiCards cards={me.cards} size="lg" />}
-          </div>
-
-          {phase === 'bet' &&
-            (isBanker ? (
-              <p className="hint">你是庄家，等待闲家押注…</p>
-            ) : (
-              <div className="bet-row">
-                <span className="bet-row__label">押注</span>
-                {data.betOptions.map((amount) => (
-                  <button
-                    key={amount}
-                    type="button"
-                    className={data.myBet === amount ? 'primary' : 'secondary'}
-                    disabled={!canBet}
-                    onClick={() => onBet(amount)}
-                  >
-                    <Chip size={14} /> {amount}
-                  </button>
-                ))}
-              </div>
-            ))}
+    <div className="lobby-game">
+      <div className="lobby-game__main">
+        <div className="lobby-game__bar">
+          <span className="lobby-game__round">第 {data.round} 局</span>
+          <span className={`lobby-game__phase ${data.phase === 'bet' ? 'is-open' : ''}`}>
+            {data.phase === 'bet' ? `下注中 · ${left}s` : '已封盘'}
+          </span>
+          {totals > 0 && <span className="lobby-game__mine">我押了 {totals}</span>}
         </div>
-      }
-    />
+
+        <div className="banker-box">
+          <div className="banker-box__label">庄家</div>
+          <DoorCards cards={data.banker.cards} revealed={revealed} />
+          <div className="banker-box__points">
+            {revealed && data.banker.points !== null ? `${data.banker.points} 点` : '—'}
+          </div>
+        </div>
+
+        <div className="doors">
+          {DOOR_KEYS.map((key) => {
+            const door = data.doors[key];
+            const bet = data.myBet[key] ?? 0;
+            const won = revealed && door.points !== null && data.banker.points !== null && door.points > data.banker.points;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`door ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''}`}
+                disabled={!canBet}
+                onClick={() => onBet(key, amount)}
+              >
+                <span className="door__label">{door.label}</span>
+                <DoorCards cards={door.cards} revealed={revealed} />
+                <span className="door__points">
+                  {revealed && door.points !== null ? `${door.points} 点` : '待开牌'}
+                </span>
+                {bet > 0 && (
+                  <span className="door__bet">
+                    <img src={chipArt(bet)} alt="" />
+                    {bet}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="bet-controls">
+          <div className="bet-controls__chips">
+            {PRESET.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={`chip-btn ${amount === value ? 'is-active' : ''}`}
+                onClick={() => setAmount(value)}
+              >
+                <img src={chipArt(value)} alt="" />
+                <span>{value}</span>
+              </button>
+            ))}
+          </div>
+          <div className="bet-controls__custom">
+            <span>自定义</span>
+            <input
+              type="number"
+              min={data.limits.min}
+              max={data.limits.max}
+              step={10}
+              value={amount}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setAmount(Number.isFinite(next) ? Math.max(0, Math.floor(next)) : 0);
+              }}
+            />
+            <span className="bet-controls__hint">
+              {data.limits.min}–{data.limits.max} / 门
+            </span>
+          </div>
+        </div>
+
+        {data.results.length > 0 && (
+          <div className="lobby-results">
+            {data.results.slice(0, 4).map((row) => (
+              <span key={row.playerId} className={row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'}>
+                {row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <aside className="history">
+        <div className="history__title">走势</div>
+        <div className="history__legend">
+          <span>局</span>
+          <span>庄</span>
+          <span>天</span>
+          <span>地</span>
+          <span>人</span>
+        </div>
+        <div className="history__list">
+          {history.length === 0 && <p className="history__empty">暂无记录</p>}
+          {[...history].reverse().map((item) => (
+            <div key={item.round} className="history__row">
+              <span className="history__no">{item.round}</span>
+              <span className="history__banker">{item.banker}</span>
+              <span className={item.winningDoors.includes('heaven') ? 'is-hit' : ''}>{item.heaven}</span>
+              <span className={item.winningDoors.includes('earth') ? 'is-hit' : ''}>{item.earth}</span>
+              <span className={item.winningDoors.includes('human') ? 'is-hit' : ''}>{item.human}</span>
+            </div>
+          ))}
+        </div>
+      </aside>
+    </div>
   );
 }
