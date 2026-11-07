@@ -218,6 +218,11 @@ export class GameRoom {
     this.broadcastView();
     this.dirty = true;
     this.tryStart();
+
+    // 常驻房间开局中：新加入的玩家立刻拿到当前快照
+    if (this.persistent && this.status === 'playing') {
+      this.pushSnapshots();
+    }
   }
 
   /** 添加机器人陪玩：入座即准备，由外部驱动器代其行动 */
