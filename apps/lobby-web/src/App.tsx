@@ -237,33 +237,44 @@ export default function App() {
     setJoinError(null);
     autoStartRef.current = !game.persistent;
 
-    if (!user) {
+    // 如果之前已有房间状态，先离开旧房间
+    if (room) {
+      socketRef.current?.send(ClientMsg.LeaveRoom, {});
+      setRoom(null);
+    }
+
+    const doJoin = () => {
+      socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
+    };
+
+    if (!user || !socketRef.current) {
       void api.guest().then((res) => {
         setToken(res.token);
         setUser(res.user);
         userIdRef.current = res.user.id;
         connectWs(res.token);
-        window.setTimeout(() => {
-          socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
-        }, 150);
+        window.setTimeout(doJoin, 200);
+      }).catch(() => {
+        showToast('网络连接中，请稍后再试');
       });
       return;
     }
 
-    socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
+    doJoin();
   };
 
   const handleEnter = (game: GameMeta): void => {
     setSelectedGame(game);
     setJoinError(null);
 
-    // 百人常驻玩法或一键快速游戏：直接加入
-    if (game.persistent) {
-      if (!user) {
-        setView('auth');
-        return;
-      }
-      socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId });
+    if (room) {
+      socketRef.current?.send(ClientMsg.LeaveRoom, {});
+      setRoom(null);
+    }
+
+    // 百人常驻玩法：直接极速入座
+    if (game.persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack'].includes(game.gameId)) {
+      handleQuickPlay(game);
       return;
     }
 
@@ -273,15 +284,28 @@ export default function App() {
 
   const handleJoinRoom = (roomId: string | null, create = false): void => {
     if (!selectedGame) return;
-    if (!user) {
-      setView('auth');
+    autoStartRef.current = !selectedGame.persistent;
+
+    const doJoin = () => {
+      socketRef.current?.send(ClientMsg.JoinRoom, {
+        gameId: selectedGame.gameId,
+        roomId: roomId ?? undefined,
+        create,
+      });
+    };
+
+    if (!user || !socketRef.current) {
+      void api.guest().then((res) => {
+        setToken(res.token);
+        setUser(res.user);
+        userIdRef.current = res.user.id;
+        connectWs(res.token);
+        window.setTimeout(doJoin, 200);
+      });
       return;
     }
-    socketRef.current?.send(ClientMsg.JoinRoom, {
-      gameId: selectedGame.gameId,
-      roomId: roomId ?? undefined,
-      create,
-    });
+
+    doJoin();
   };
 
   const handleLeaveRoom = (): void => {

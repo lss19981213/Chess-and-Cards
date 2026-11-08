@@ -5441,3 +5441,261 @@ html, body, #root {
   font-weight: 900 !important;
   box-shadow: 0 4px 14px rgba(230, 81, 0, 0.6) !important;
 }
+
+
+/* =========================================================================
+   26. 殿堂级商业质感全面升级 (大师级光影 · 拟物按键 · 极致沉浸)
+   ========================================================================= */
+
+/* 1. 大厅全屏背景与暗角晕光 */
+.lobby--commercial-grade {
+  background-image: 
+    radial-gradient(ellipse at 50% 30%, rgba(30, 24, 16, 0.45) 0%, rgba(6, 9, 15, 0.95) 75%),
+    var(--lobby-bg) !important;
+  background-size: cover !important;
+  background-position: center !important;
+}
+
+/* 2. 左侧专区导航优化 */
+.commercial-nav-rail {
+  width: 116px !important;
+  gap: 10px !important;
+}
+
+.nav-rail-item {
+  height: 56px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, rgba(22, 28, 42, 0.88) 0%, rgba(12, 16, 26, 0.95) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.22) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+}
+
+.nav-rail-item:hover {
+  transform: translateX(2px) !important;
+  border-color: rgba(243, 207, 122, 0.6) !important;
+}
+
+.nav-rail-item.is-active {
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.3) 0%, rgba(60, 42, 12, 0.95) 100%) !important;
+  border-color: #f7d78a !important;
+  box-shadow: 0 6px 20px rgba(243, 207, 122, 0.3), inset 0 0 12px rgba(243, 207, 122, 0.2) !important;
+}
+
+.nav-rail-icon {
+  font-size: 20px !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6)) !important;
+}
+
+.nav-rail-label {
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+}
+
+/* 3. 中间游戏卡片画卷 (宽度自适应 235px，立体层次) */
+.commercial-game-card {
+  width: 235px !important;
+  flex: 0 0 235px !important;
+  border-radius: 16px !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.32) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+}
+
+.commercial-game-card:hover {
+  transform: translateY(-5px) scale(1.015) !important;
+  border-color: rgba(243, 207, 122, 0.85) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 25px rgba(243, 207, 122, 0.3) !important;
+}
+
+.commercial-game-card__poster {
+  border-top-left-radius: 15px !important;
+  border-top-right-radius: 15px !important;
+}
+
+/* 核心极速开局大按钮：流光溢彩、高饱和暖金流光 */
+.btn-quick-play-gold {
+  height: 36px !important;
+  background: linear-gradient(180deg, #fff3b0 0%, #ffc107 40%, #d89f2a 100%) !important;
+  border: 1px solid #fff9db !important;
+  color: #1a1002 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.8px !important;
+  box-shadow: 0 4px 16px rgba(216, 159, 42, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.btn-quick-play-gold::after {
+  content: '' !important;
+  position: absolute !important;
+  top: -50% !important;
+  left: -60% !important;
+  width: 40% !important;
+  height: 200% !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent) !important;
+  transform: rotate(25deg) !important;
+  animation: goldSweep 3.2s infinite ease-in-out !important;
+}
+
+@keyframes goldSweep {
+  0% { left: -60%; }
+  30%, 100% { left: 140%; }
+}
+
+.btn-quick-play-gold:hover {
+  transform: scale(1.03) !important;
+  box-shadow: 0 6px 20px rgba(216, 159, 42, 0.75) !important;
+}
+
+.btn-quick-play-gold:active {
+  transform: scale(0.96) !important;
+}
+
+.btn-choose-room-subtle {
+  height: 36px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+/* 4. 荷官展台增强 */
+.commercial-dealer-companion-stand {
+  width: 185px !important;
+}
+
+.companion-speech-bubble {
+  padding: 8px 10px !important;
+  border-radius: 14px !important;
+  border-color: rgba(243, 207, 122, 0.45) !important;
+}
+
+.companion-name {
+  font-size: 11px !important;
+}
+
+.bubble-content {
+  font-size: 10.5px !important;
+  line-height: 1.4 !important;
+}
+
+.companion-portrait-wrapper {
+  border-radius: 16px !important;
+}
+
+.btn-random-match {
+  height: 36px !important;
+  font-size: 12px !important;
+  border-radius: 999px !important;
+}
+
+/* 5. 牌桌对局绿绒呢台面与操作栏天花板重构 */
+.room-stage-container {
+  background: radial-gradient(ellipse at 50% 45%, #0f3d2e 0%, #08241b 65%, #03100b 100%) !important;
+  position: relative !important;
+}
+
+/* 出牌操作栏三色拟物浮动按键 (不出 / 提示 / 出牌) */
+.hand-action-dock-center {
+  bottom: 115px !important;
+  gap: 16px !important;
+}
+
+.hand-action-dock-center .action-btn--pass {
+  background: linear-gradient(180deg, #5a6475 0%, #2f3642 100%) !important;
+  border: 1.5px solid #8c9cb6 !important;
+  color: #f1f5f9 !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  padding: 8px 22px !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
+}
+
+.hand-action-dock-center .action-btn--hint {
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%) !important;
+  border: 1.5px solid #93c5fd !important;
+  color: #fff !important;
+  font-size: 13.5px !important;
+  font-weight: 800 !important;
+  padding: 8px 22px !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 16px rgba(29, 78, 216, 0.5) !important;
+}
+
+.hand-action-dock-center .action-btn--play {
+  background: linear-gradient(180deg, #ffe082 0%, #f59e0b 45%, #b45309 100%) !important;
+  border: 1.5px solid #fef08a !important;
+  color: #1a1002 !important;
+  font-size: 14.5px !important;
+  font-weight: 900 !important;
+  padding: 8px 28px !important;
+  border-radius: 999px !important;
+  box-shadow: 0 5px 20px rgba(245, 158, 11, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
+
+.hand-action-dock-center .action-btn:hover {
+  transform: translateY(-2px) scale(1.03) !important;
+}
+
+.hand-action-dock-center .action-btn:active {
+  transform: scale(0.96) !important;
+}
+
+/* 等待界面卡片美化 */
+.waiting-card {
+  padding: 20px 28px !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, rgba(24, 32, 50, 0.98) 0%, rgba(12, 17, 28, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.5) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 30px rgba(243, 207, 122, 0.2) !important;
+}
+
+.waiting-actions-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 14px !important;
+  justify-content: center !important;
+}
+
+.btn-ready-action--instant {
+  height: 38px !important;
+  padding: 0 20px !important;
+  border-radius: 999px !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+/* 6. 百人局走势图 (绝对锁死在右侧，高对比度专业级路单) */
+.lobby-game {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 165px !important;
+  gap: 12px !important;
+}
+
+.lobby-game .history,
+.history {
+  width: 165px !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.4) !important;
+  background: linear-gradient(180deg, rgba(20, 26, 42, 0.97) 0%, rgba(10, 14, 24, 0.99) 100%) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7) !important;
+}
+
+.history__row {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 4px 4px !important;
+}
+
+.history__row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.history__no {
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+}
+
+.history__banker {
+  color: #f7d78a !important;
+}
