@@ -4084,10 +4084,20 @@ html, body, #root {
 
 
 /* =========================================================================
-   24. 黄金 1166 × 514 像素级全屏布局系统 (彻底根除底部空白、按钮挤压与界面遮挡)
+   24. 移动端全屏流体自适应系统与三大黄金专区 (零滚动条 · 零黑边 · 奢华质感)
    ========================================================================= */
 
-/* 根容器与基准舞台 */
+/* 1. 绝对全屏流体舞台 (自适应任意横屏，彻底消灭黑边与滚动条) */
+html, body, #root {
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #07090e !important;
+}
+
 .landscape-app-root {
   width: 100vw !important;
   height: 100vh !important;
@@ -4096,501 +4106,889 @@ html, body, #root {
   padding: 0 !important;
   overflow: hidden !important;
   display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  background: #000 !important;
+  flex-direction: column !important;
+  background: #07090e !important;
 }
 
 .landscape-stage-container {
-  width: 1166px !important;
-  height: 514px !important;
-  min-width: 1166px !important;
-  min-height: 514px !important;
-  max-width: 1166px !important;
-  max-height: 514px !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   position: relative !important;
-  overflow: hidden !important;
-  background: #07090e !important;
-  box-shadow: 0 0 50px rgba(0, 0, 0, 0.9) !important;
-  flex-shrink: 0 !important;
-}
-
-/* 大厅容器：完全锁死在 1166 × 514，padding 为 0，杜绝下沉产生黑底 */
-.lobby--luxury {
-  width: 1166px !important;
-  height: 514px !important;
-  min-width: 1166px !important;
-  min-height: 514px !important;
-  max-width: 1166px !important;
-  max-height: 514px !important;
-  padding: 0 !important;
-  margin: 0 !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
-  background-size: cover !important;
-  background-position: center !important;
+  background: #07090e !important;
+  flex: 1 !important;
 }
 
-/* 顶栏：高度精确 44px，绝不折行挤压变形 */
-.app-top--fixed {
-  width: 1166px !important;
+.lobby--luxury,
+.room--luxury {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  flex: 1 !important;
+}
+
+.room-viewport {
+  width: 100% !important;
+  height: calc(100% - 44px) !important;
+  max-height: calc(100% - 44px) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  flex: 1 !important;
+}
+
+.room-stage-container {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* 2. 顶栏防挤压、防截断、绝不换行体系 */
+.app-top {
   height: 44px !important;
   min-height: 44px !important;
   max-height: 44px !important;
-  padding: 0 16px !important;
-  margin: 0 !important;
-  box-sizing: border-box !important;
+  padding: 0 max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  flex-shrink: 0 !important;
-  background: linear-gradient(180deg, rgba(22, 28, 42, 0.98) 0%, rgba(12, 16, 25, 0.96) 100%) !important;
-  border-bottom: 1px solid rgba(243, 207, 122, 0.3) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+  background: linear-gradient(180deg, rgba(20, 26, 40, 0.98) 0%, rgba(10, 14, 22, 0.95) 100%) !important;
+  border-bottom: 1px solid rgba(243, 207, 122, 0.28) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6) !important;
   z-index: 100 !important;
+  backdrop-filter: blur(16px) !important;
+  flex-shrink: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .app-top__left {
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
+  gap: 8px !important;
   flex-shrink: 0 !important;
 }
 
 .app-top__user {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 6px !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(243, 207, 122, 0.2) !important;
+  cursor: pointer !important;
   flex-shrink: 0 !important;
 }
 
 .app-avatar-wrapper {
   position: relative !important;
-  width: 30px !important;
-  height: 30px !important;
+  width: 28px !important;
+  height: 28px !important;
   flex-shrink: 0 !important;
 }
 
 .app-avatar {
-  width: 30px !important;
-  height: 30px !important;
+  width: 28px !important;
+  height: 28px !important;
   border-radius: 50% !important;
+  background: radial-gradient(circle at 35% 30%, #ffe9a6 0%, #c49432 70%, #754f0a 100%) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 800 !important;
   font-size: 13px !important;
+  color: #1a1204 !important;
+  box-shadow: 0 0 0 1.5px rgba(255, 240, 180, 0.8) !important;
 }
 
 .app-avatar-badge {
   position: absolute !important;
   bottom: -2px !important;
-  right: -4px !important;
-  font-size: 8px !important;
+  right: -3px !important;
+  font-size: 7.5px !important;
+  font-weight: 900 !important;
   padding: 1px 3px !important;
-  background: #f0b429 !important;
-  color: #1a1204 !important;
-  font-weight: 800 !important;
-  border-radius: 4px !important;
+  border-radius: 5px !important;
+  background: linear-gradient(135deg, #e53935, #8e0000) !important;
+  color: #fff !important;
+  border: 0.5px solid #ffcdd2 !important;
+  line-height: 1 !important;
 }
 
 .app-top__id {
-  display: flex !important;
-  flex-direction: column !important;
-  line-height: 1.15 !important;
-  flex-shrink: 0 !important;
-}
-
-.user-nickname-text {
-  max-width: 95px !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  font-size: 13px !important;
-  color: #f7d78a !important;
-  font-weight: 800 !important;
-}
-
-.app-top__id small {
-  font-size: 10px !important;
-  color: #8c98af !important;
-  white-space: nowrap !important;
-}
-
-/* 筹码钱包：精致单行横排，彻底消除上下换行变形 */
-.app-top__wallet {
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  background: rgba(10, 14, 24, 0.85) !important;
-  border: 1px solid rgba(243, 207, 122, 0.45) !important;
-  border-radius: 20px !important;
-  padding: 3px 10px 3px 6px !important;
-  white-space: nowrap !important;
-  flex-shrink: 0 !important;
-  cursor: pointer !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
-}
-
-.wallet-info-col {
   display: flex !important;
   align-items: center !important;
   gap: 4px !important;
   white-space: nowrap !important;
 }
 
+.app-top__name-row strong {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  color: #f7eed7 !important;
+  max-width: 90px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+}
+
+/* 筹码钱包：绝对单行，绝不折叠换行 */
+.app-top__wallet {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 3px 10px 3px 6px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, rgba(26, 34, 52, 0.9) 0%, rgba(12, 17, 28, 0.95) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.45) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  height: 28px !important;
+  box-sizing: border-box !important;
+}
+
+.wallet-chip-icon {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.wallet-info-col {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  gap: 3px !important;
+  white-space: nowrap !important;
+}
+
 .wallet-label {
-  font-size: 11px !important;
-  color: #9aa7bf !important;
+  font-size: 9px !important;
+  color: #b3c2de !important;
+  white-space: nowrap !important;
 }
 
 .wallet-val {
-  font-size: 13px !important;
-  color: #f7d78a !important;
+  font-size: 13.5px !important;
   font-weight: 800 !important;
-  font-family: inherit !important;
+  color: #f5d893 !important;
+  letter-spacing: 0.3px !important;
+  white-space: nowrap !important;
+  font-variant-numeric: tabular-nums !important;
 }
 
 .wallet-plus {
-  color: #f7d78a !important;
-  font-weight: 800 !important;
-  font-size: 14px !important;
-  margin-left: 2px !important;
-}
-
-/* 顶部跑马灯：弹性自适应居中 */
-.app-top__marquee {
-  flex: 1 !important;
-  min-width: 140px !important;
-  max-width: 320px !important;
-  margin: 0 12px !important;
-  height: 28px !important;
+  width: 15px !important;
+  height: 15px !important;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, #f5d688, #b88628) !important;
+  color: #1a1204 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  background: rgba(12, 16, 26, 0.85) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 14px !important;
-  padding: 0 10px !important;
-  flex-shrink: 1 !important;
+  justify-content: center !important;
+  box-shadow: 0 0 5px rgba(243, 207, 122, 0.6) !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+/* 顶部跑马灯 */
+.app-top__marquee {
+  flex: 1 !important;
+  min-width: 60px !important;
+  max-width: 280px !important;
+  height: 26px !important;
+  margin: 0 8px !important;
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid rgba(243, 207, 122, 0.25) !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 8px !important;
+  gap: 6px !important;
   cursor: pointer !important;
+  overflow: hidden !important;
+  color: #f7d78a !important;
 }
 
 .marquee-viewport {
   flex: 1 !important;
   overflow: hidden !important;
   white-space: nowrap !important;
+  font-size: 10.5px !important;
 }
 
 .marquee-text {
-  font-size: 11px !important;
-  color: #ccd6ea !important;
   display: inline-block !important;
+  color: #e2e8f0 !important;
+  white-space: nowrap !important;
 }
 
 .marquee-arrow {
-  color: #f7d78a !important;
-  font-size: 13px !important;
+  font-size: 12px !important;
+  color: #f3cf7a !important;
+  flex-shrink: 0 !important;
 }
 
-/* 右侧功能胶囊按钮群：尺寸固定，字距适宜 */
+/* 顶部功能群与媒体群 */
 .app-top__tools {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 5px !important;
   flex-shrink: 0 !important;
 }
 
 .top-feature-pill {
-  height: 28px !important;
-  padding: 0 10px !important;
+  height: 26px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(243, 207, 122, 0.25) !important;
+  color: #e8ecf4 !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 5px !important;
-  border-radius: 14px !important;
-  background: rgba(18, 24, 38, 0.85) !important;
-  border: 1px solid rgba(243, 207, 122, 0.3) !important;
-  color: #ccd6ea !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  white-space: nowrap !important;
+  gap: 3px !important;
   cursor: pointer !important;
-  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
   position: relative !important;
+  transition: all 0.15s ease !important;
 }
 
-.top-feature-pill:hover {
-  border-color: rgba(243, 207, 122, 0.7) !important;
-  color: #fff !important;
-  transform: translateY(-1px) !important;
+.top-feature-pill:active {
+  transform: scale(0.95) !important;
+  border-color: #f3cf7a !important;
 }
 
 .feature-dot {
   position: absolute !important;
-  top: 3px !important;
-  right: 4px !important;
-  width: 6px !important;
-  height: 6px !important;
+  top: 2px !important;
+  right: 2px !important;
+  width: 5px !important;
+  height: 5px !important;
   border-radius: 50% !important;
-  background: #ff4757 !important;
-  box-shadow: 0 0 6px #ff4757 !important;
+  background: #ff334b !important;
+  box-shadow: 0 0 5px #ff334b !important;
 }
 
 .tool-divider {
   width: 1px !important;
   height: 18px !important;
-  background: rgba(255, 255, 255, 0.15) !important;
-  margin: 0 2px !important;
+  background: rgba(243, 207, 122, 0.25) !important;
+  margin: 0 3px !important;
+  flex-shrink: 0 !important;
 }
 
 .top-media-group {
   display: flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
 }
 
 .media-icon-btn {
-  width: 28px !important;
-  height: 28px !important;
+  width: 26px !important;
+  height: 26px !important;
   border-radius: 50% !important;
+  background: rgba(20, 26, 40, 0.8) !important;
+  border: 1px solid rgba(243, 207, 122, 0.3) !important;
+  color: #c4d0e6 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: rgba(18, 24, 38, 0.8) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  color: #ccd6ea !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
+  padding: 0 !important;
 }
 
 .media-icon-btn.is-active {
-  background: rgba(243, 207, 122, 0.2) !important;
-  border-color: rgba(243, 207, 122, 0.6) !important;
+  background: rgba(243, 207, 122, 0.22) !important;
+  border-color: #f3cf7a !important;
   color: #f7d78a !important;
+  box-shadow: 0 0 8px rgba(243, 207, 122, 0.3) !important;
 }
 
-/* ================= 1166 × 470 大厅主舞台 (完全消除底部空白) ================= */
+.media-icon-btn:active {
+  transform: scale(0.92) !important;
+}
 
-.app-main--stage1166 {
-  width: 1166px !important;
-  height: 470px !important;
-  min-height: 470px !important;
-  max-height: 470px !important;
-  padding: 6px 14px 6px 14px !important;
-  margin: 0 !important;
+/* ================= 3. 主页三大黄金专区 (无滚动条 · 一屏铺满自适应) ================= */
+
+.app-main--clean-hub {
+  width: 100% !important;
+  height: calc(100% - 44px) !important;
+  max-height: calc(100% - 44px) !important;
+  padding: 8px 12px 10px 12px !important;
   box-sizing: border-box !important;
-  overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
+  overflow: hidden !important;
+  flex: 1 !important;
 }
 
-.app-main--stage1166 .lobby-stage-layout {
+.home-trio-hub {
   width: 100% !important;
   height: 100% !important;
   display: flex !important;
   gap: 12px !important;
   align-items: stretch !important;
+  justify-content: space-between !important;
+  overflow: hidden !important;
 }
 
-.app-main--stage1166 .lobby-games-section {
-  flex: 1 !important;
-  min-width: 0 !important;
+/* 黄金三大专区通用卡片 */
+.hub-portal-card {
+  position: relative !important;
   height: 100% !important;
+  border-radius: 14px !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.28) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65), inset 0 0 20px rgba(0, 0, 0, 0.4) !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
   display: flex !important;
   flex-direction: column !important;
+  justify-content: space-between !important;
+  padding: 10px 14px 12px 14px !important;
+  box-sizing: border-box !important;
+  transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 
-.app-main--stage1166 .category-capsule-bar {
-  height: 32px !important;
-  min-height: 32px !important;
-  margin-bottom: 6px !important;
-  flex-shrink: 0 !important;
+.hub-portal-card:hover {
+  transform: translateY(-2px) !important;
+  border-color: rgba(243, 207, 122, 0.7) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8), 0 0 22px rgba(243, 207, 122, 0.25) !important;
+}
+
+.hub-portal-card:active {
+  transform: scale(0.985) !important;
+}
+
+.hub-portal-card__glow {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 40% !important;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 230, 150, 0.18) 0%, transparent 70%) !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+}
+
+.hub-portal-card__tag {
+  align-self: flex-start !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 3px 9px !important;
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(243, 207, 122, 0.4) !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  color: #f7d78a !important;
+  letter-spacing: 0.5px !important;
+  z-index: 3 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.live-sparkle-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: #ff4757 !important;
+  box-shadow: 0 0 8px #ff4757 !important;
+  animation: pulseSparkle 1.4s infinite ease-in-out !important;
+}
+
+@keyframes pulseSparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* 卡片信息区 */
+.hub-portal-card__info {
+  z-index: 3 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+}
+
+.hub-card-title-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.hub-card-title-row h2 {
+  margin: 0 !important;
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px !important;
+  background: linear-gradient(135deg, #fff9e6 0%, #f7d78a 60%, #c49432 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5) !important;
+}
+
+.hub-portal-card__desc {
+  margin: 0 !important;
+  font-size: 11px !important;
+  color: #b0bfd8 !important;
+  letter-spacing: 0.2px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.hub-portal-card__foot {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
+  margin-top: 5px !important;
 }
 
-.app-main--stage1166 .games-carousel-track {
-  flex: 1 !important;
-  height: 420px !important;
-  max-height: 420px !important;
-  min-height: 420px !important;
-  display: flex !important;
-  align-items: stretch !important;
-  gap: 14px !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  padding: 0 2px 2px 2px !important;
+.hub-count-tag {
+  font-size: 10px !important;
+  color: #8c9cb6 !important;
 }
 
-.app-main--stage1166 .showcase-card {
-  flex: 0 0 240px !important;
-  width: 240px !important;
-  height: 416px !important;
-  min-height: 416px !important;
-  max-height: 416px !important;
+.btn-portal-enter {
+  padding: 5px 12px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05)) !important;
+  border: 1px solid rgba(243, 207, 122, 0.45) !important;
+  color: #f7d78a !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.btn-portal-enter--gold {
+  background: linear-gradient(135deg, #ffe082 0%, #d89f2a 100%) !important;
+  color: #1a1204 !important;
+  border-color: #fff0a8 !important;
+  box-shadow: 0 3px 12px rgba(216, 159, 42, 0.4) !important;
+}
+
+/* ================= 3.1 百人局（最大视觉焦点，约 44% 宽度） ================= */
+.hub-portal-card--live {
+  flex: 4.4 !important;
+  min-width: 0 !important;
+  background: linear-gradient(150deg, rgba(35, 24, 12, 0.95) 0%, rgba(18, 14, 22, 0.95) 60%, rgba(10, 12, 18, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.45) !important;
+}
+
+.hub-portal-card__dealer {
+  position: absolute !important;
+  right: 10px !important;
+  top: 10px !important;
+  bottom: 50px !important;
+  width: 48% !important;
+  max-width: 220px !important;
   display: flex !important;
   flex-direction: column !important;
-  justify-content: space-between !important;
-  border-radius: 18px !important;
-  box-sizing: border-box !important;
-  background: #111726 !important;
-  border: 1.5px solid rgba(243, 207, 122, 0.3) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7) !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  z-index: 2 !important;
+  pointer-events: auto !important;
+}
+
+.hub-portal-card__dealer img {
+  max-height: 85% !important;
+  max-width: 100% !important;
+  object-fit: contain !important;
+  object-position: bottom right !important;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 18px rgba(243, 207, 122, 0.25)) !important;
+  transition: transform 0.25s ease !important;
+}
+
+.hub-portal-card__dealer:hover img {
+  transform: scale(1.04) !important;
+}
+
+.dealer-floating-name {
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  color: #f7eed7 !important;
+  padding: 2px 7px !important;
+  border-radius: 999px !important;
+  background: rgba(14, 18, 28, 0.85) !important;
+  border: 1px solid rgba(243, 207, 122, 0.5) !important;
+  margin-top: -6px !important;
+  z-index: 3 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6) !important;
+}
+
+.dealer-heart-float {
+  position: absolute !important;
+  top: 20% !important;
+  right: 25% !important;
+  font-size: 24px !important;
+  animation: floatHeart 1.2s ease-out forwards !important;
+  z-index: 10 !important;
+}
+
+@keyframes floatHeart {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  30% { opacity: 1; transform: translateY(-10px) scale(1.2); }
+  100% { transform: translateY(-40px) scale(0.9); opacity: 0; }
+}
+
+/* ================= 3.2 经典局（其次，约 32% 宽度） ================= */
+.hub-portal-card--table {
+  flex: 3.2 !important;
+  min-width: 0 !important;
+  background: linear-gradient(150deg, rgba(14, 32, 24, 0.95) 0%, rgba(12, 22, 20, 0.95) 60%, rgba(9, 14, 20, 0.98) 100%) !important;
+  border: 1.5px solid rgba(46, 204, 113, 0.35) !important;
+}
+
+.hub-portal-card--table .hub-portal-card__tag {
+  color: #2ecc71 !important;
+  border-color: rgba(46, 204, 113, 0.45) !important;
+}
+
+.hub-portal-card--table .hub-card-title-row h2 {
+  background: linear-gradient(135deg, #e8f8f5 0%, #2ecc71 60%, #1abc9c 100%) !important;
+  -webkit-background-clip: text !important;
+}
+
+.hub-portal-card__illustration {
+  position: absolute !important;
+  right: 10px !important;
+  top: 20px !important;
+  bottom: 50px !important;
+  width: 45% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+.hub-portal-card__illustration img {
+  max-height: 80% !important;
+  max-width: 100% !important;
+  object-fit: contain !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ================= 3.3 对弈局（最后，约 24% 宽度） ================= */
+.hub-portal-card--board {
+  flex: 2.4 !important;
+  min-width: 0 !important;
+  background: linear-gradient(150deg, rgba(16, 24, 42, 0.95) 0%, rgba(12, 18, 32, 0.95) 60%, rgba(8, 11, 18, 0.98) 100%) !important;
+  border: 1.5px solid rgba(78, 120, 255, 0.35) !important;
+}
+
+.hub-portal-card--board .hub-portal-card__tag {
+  color: #70a1ff !important;
+  border-color: rgba(78, 120, 255, 0.45) !important;
+}
+
+.hub-portal-card--board .hub-card-title-row h2 {
+  background: linear-gradient(135deg, #edf2f7 0%, #70a1ff 60%, #3742fa 100%) !important;
+  -webkit-background-clip: text !important;
+}
+
+/* ================= 4. 二级专区视图 (零滚动条 · 自适应平铺卡片) ================= */
+
+.category-subpage-view {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
   overflow: hidden !important;
 }
 
-.app-main--stage1166 .showcase-card__poster {
+.category-subpage-header {
+  height: 38px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-shrink: 0 !important;
+  margin-bottom: 8px !important;
+}
+
+.subpage-title-row {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 10px !important;
+}
+
+.subpage-title-row h2 {
+  margin: 0 !important;
+  font-size: 19px !important;
+  font-weight: 900 !important;
+  background: var(--gold-gradient) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.subpage-desc {
+  font-size: 11px !important;
+  color: #94a3b8 !important;
+}
+
+.subpage-return-btn {
+  height: 30px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  background: rgba(243, 207, 122, 0.15) !important;
+  border: 1px solid rgba(243, 207, 122, 0.5) !important;
+  color: #f7d78a !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  transition: all 0.15s ease !important;
+}
+
+.subpage-return-btn:active {
+  transform: scale(0.96) !important;
+}
+
+.category-games-row {
   width: 100% !important;
-  height: 220px !important;
-  min-height: 220px !important;
-  max-height: 220px !important;
+  flex: 1 !important;
+  display: flex !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
+}
+
+.subpage-game-card {
+  flex: 1 !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, rgba(22, 28, 42, 0.92) 0%, rgba(12, 16, 26, 0.96) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.25) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+}
+
+.subpage-game-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: rgba(243, 207, 122, 0.6) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.75), 0 0 15px rgba(243, 207, 122, 0.2) !important;
+}
+
+.subpage-game-card:active {
+  transform: scale(0.98) !important;
+}
+
+.subpage-game-card__poster {
+  width: 100% !important;
+  flex: 1.4 !important;
+  min-height: 0 !important;
   position: relative !important;
   overflow: hidden !important;
-  flex-shrink: 0 !important;
+  background: #090d16 !important;
 }
 
-.app-main--stage1166 .showcase-card__poster img {
+.subpage-game-card__poster img {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
   object-position: center !important;
 }
 
-.app-main--stage1166 .showcase-card__content {
+.subpage-game-tag {
+  position: absolute !important;
+  top: 6px !important;
+  right: 6px !important;
+  padding: 2px 7px !important;
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  border: 0.5px solid rgba(243, 207, 122, 0.5) !important;
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  color: #f7eed7 !important;
+}
+
+.subpage-game-card__body {
   flex: 1 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  padding: 10px 12px 10px 12px !important;
-  background: linear-gradient(180deg, rgba(17, 23, 38, 0.95) 0%, rgba(9, 13, 20, 0.98) 100%) !important;
-}
-
-.app-main--stage1166 .showcase-card__title {
-  font-size: 16px !important;
-  font-weight: 800 !important;
-  margin: 0 0 4px 0 !important;
-  color: #f7d78a !important;
-}
-
-.app-main--stage1166 .showcase-card__desc {
-  font-size: 11px !important;
-  line-height: 1.4 !important;
-  height: 44px !important;
-  color: #9aa7bf !important;
-  margin-bottom: 8px !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 3 !important;
-  -webkit-box-orient: vertical !important;
-  overflow: hidden !important;
-}
-
-.app-main--stage1166 .btn-enter-table {
-  width: 100% !important;
-  padding: 10px 0 !important;
-  font-size: 14px !important;
-  font-weight: 800 !important;
-  background: var(--gold-btn-gradient) !important;
-  border: 1px solid var(--gold-btn-border) !important;
-  color: #1a1204 !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 14px rgba(216, 159, 42, 0.4) !important;
-  cursor: pointer !important;
-}
-
-/* 右侧动漫美女荷官看板娘展台：高416px，完整立绘不遮挡 */
-.app-main--stage1166 .lobby-dealer-stand {
-  width: 255px !important;
-  height: 416px !important;
-  min-height: 416px !important;
-  max-height: 416px !important;
-  flex-shrink: 0 !important;
+  min-height: 0 !important;
+  padding: 8px 10px 10px 10px !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
   box-sizing: border-box !important;
-  border-radius: 18px !important;
-  padding: 8px 10px 8px 10px !important;
-  background: linear-gradient(180deg, rgba(20, 26, 39, 0.95) 0%, rgba(11, 15, 23, 0.98) 100%) !important;
-  border: 1.5px solid rgba(243, 207, 122, 0.4) !important;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.75) !important;
 }
 
-.app-main--stage1166 .dealer-stand__bubble {
-  height: 58px !important;
-  min-height: 58px !important;
-  margin-bottom: 6px !important;
-  padding: 5px 8px !important;
-}
-
-.app-main--stage1166 .bubble-speaker {
-  font-size: 10.5px !important;
+.subpage-game-card__body h3 {
+  margin: 0 !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
-  color: #f7d78a !important;
+  color: #f8fafc !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
-.app-main--stage1166 .bubble-text {
-  font-size: 11px !important;
-  line-height: 1.3 !important;
-  color: #e5edff !important;
-  margin: 2px 0 0 0 !important;
-}
-
-.app-main--stage1166 .dealer-stand__portrait-card {
-  flex: 1 !important;
-  min-height: 290px !important;
-  max-height: 290px !important;
-  height: 290px !important;
-  border-radius: 14px !important;
-  position: relative !important;
+.subpage-game-card__body p {
+  margin: 2px 0 6px 0 !important;
+  font-size: 10px !important;
+  color: #94a3b8 !important;
+  line-height: 1.35 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
   overflow: hidden !important;
 }
 
-.app-main--stage1166 .dealer-stand__img {
+.subpage-game-card__body .btn-enter-table {
+  width: 100% !important;
+  padding: 6px 0 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #ffe082 0%, #d89f2a 100%) !important;
+  border: 1px solid #fff0a8 !important;
+  color: #1a1204 !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(216, 159, 42, 0.4) !important;
+}
+
+/* ================= 5. 所有游戏界面走势图与布局彻底锁死在右侧 ================= */
+
+/* 强制推筒子、骰宝、百家乐、百人牛牛、21点等下注游戏的左右双栏结构，绝不单列掉底 */
+.lobby-game {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 155px !important;
+  gap: 12px !important;
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important;
-  object-position: top center !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  padding: 8px 12px 10px 12px !important;
+  box-sizing: border-box !important;
 }
 
-.app-main--stage1166 .dealer-stand__actions {
-  height: 36px !important;
-  min-height: 36px !important;
-  margin-top: 6px !important;
-  display: flex !important;
-  gap: 8px !important;
-}
-
-/* ================= 牌桌出牌按钮居中悬浮 (彻底避免遮挡右侧手牌) ================= */
-
-.hand-super-area {
-  position: relative !important;
+.lobby-game__main {
   width: 100% !important;
+  height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: center !important;
+  justify-content: space-between !important;
+  overflow-y: auto !important;
+  min-width: 0 !important;
 }
 
-.hand-action-dock-center {
-  position: absolute !important;
-  top: -48px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
+/* 走势图固定在右侧，完整高度一目了然 */
+.lobby-game .history,
+.history {
+  width: 155px !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  flex-shrink: 0 !important;
   display: flex !important;
-  align-items: center !important;
-  gap: 12px !important;
-  z-index: 100 !important;
-  white-space: nowrap !important;
-  background: rgba(14, 20, 31, 0.9) !important;
-  padding: 5px 14px !important;
-  border-radius: 20px !important;
-  border: 1px solid rgba(243, 207, 122, 0.45) !important;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7) !important;
-  backdrop-filter: blur(8px) !important;
+  flex-direction: column !important;
+  background: linear-gradient(180deg, rgba(18, 24, 38, 0.95) 0%, rgba(10, 14, 22, 0.98) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.35) !important;
+  border-radius: 12px !important;
+  padding: 8px !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5) !important;
+  overflow: hidden !important;
 }
 
-/* 全屏页面统一左上角高贵返回大厅按钮 */
+.history__title {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #f7d78a !important;
+  text-align: center !important;
+  padding-bottom: 5px !important;
+  border-bottom: 1px solid rgba(243, 207, 122, 0.2) !important;
+  flex-shrink: 0 !important;
+}
+
+.history__legend {
+  display: flex !important;
+  justify-content: space-between !important;
+  font-size: 9.5px !important;
+  color: #8c9cb6 !important;
+  padding: 4px 2px !important;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+  flex-shrink: 0 !important;
+}
+
+.history__list {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  max-height: none !important;
+  margin-top: 4px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+}
+
+.history__row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 10px !important;
+  padding: 3px 2px !important;
+  border-radius: 4px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+/* 覆盖一切媒体查询，任何宽度下都禁止将 lobby-game 变为单列 */
+@media (max-width: 1200px) {
+  .lobby-game {
+    grid-template-columns: minmax(0, 1fr) 140px !important;
+    gap: 8px !important;
+  }
+  .lobby-game .history,
+  .history {
+    width: 140px !important;
+  }
+}
+
+/* 恒定左上角返回大厅按钮 */
+.lobby-return-dock {
+  position: absolute !important;
+  top: 7px !important;
+  left: 12px !important;
+  z-index: 999 !important;
+}
+
 .luxury-back-btn {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 6px !important;
   padding: 5px 12px !important;
   height: 30px !important;
   border-radius: 15px !important;
@@ -4619,35 +5017,24 @@ html, body, #root {
   line-height: 1 !important;
 }
 
-/* 牌桌通用尺寸：1166 × 514 */
-.room--luxury {
-  width: 1166px !important;
-  height: 514px !important;
-  max-width: 1166px !important;
-  max-height: 514px !important;
-  overflow: hidden !important;
+/* 扑克出牌操作栏：浮于手牌上方居中，不遮挡右侧手牌 */
+.hand-action-dock-center {
+  position: absolute !important;
+  bottom: 110px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
   display: flex !important;
-  flex-direction: column !important;
+  align-items: center !important;
+  gap: 12px !important;
+  z-index: 50 !important;
+  pointer-events: auto !important;
 }
 
-.room-topbar {
-  height: 44px !important;
-  min-height: 44px !important;
-  max-height: 44px !important;
-  padding: 0 16px !important;
-}
-
-.room-viewport {
-  width: 1166px !important;
-  height: 470px !important;
-  max-height: 470px !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-
-.room-stage-container {
-  width: 100% !important;
-  height: 100% !important;
-  position: relative !important;
-  overflow: hidden !important;
+.hand-action-dock-center .action-btn {
+  padding: 7px 18px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
+  cursor: pointer !important;
 }

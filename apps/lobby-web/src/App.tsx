@@ -31,9 +31,6 @@ export interface SnapshotEnvelope {
   snapshot: Record<string, unknown>;
 }
 
-const BASE_WIDTH = 1166;
-const BASE_HEIGHT = 514;
-
 export type AppView =
   | 'lobby'
   | 'game_rooms'
@@ -71,7 +68,7 @@ function PortraitPrompt() {
       <div className="rotate-phone-icon">📱↻</div>
       <div className="portrait-notice-text">
         <strong>建议横屏游玩</strong>
-        <small>旋转横置设备体验最佳黄金 16:9 画幅视效</small>
+        <small>旋转横置设备体验最佳黄金画幅视效</small>
       </div>
       <button type="button" className="portrait-notice-close" onClick={() => setDismissed(true)}>
         知道了
@@ -94,23 +91,6 @@ export default function App() {
 
   // 全屏视图状态流转 (彻底消除弹窗)
   const [view, setView] = useState<AppView>('lobby');
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    const updateScale = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const s = Math.min(vw / BASE_WIDTH, vh / BASE_HEIGHT);
-      setScale(s > 0 ? s : 1);
-    };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    window.addEventListener('orientationchange', updateScale);
-    return () => {
-      window.removeEventListener('resize', updateScale);
-      window.removeEventListener('orientationchange', updateScale);
-    };
-  }, []);
 
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
@@ -119,208 +99,185 @@ export default function App() {
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
       try {
-        const { games: list } = await api.games();
-        setGames(list);
-      } catch {
-        /* 大厅列表失败不阻塞浏览 */
-      }
-
-      const token = getToken();
-      if (token) {
-        try {
-          const { user: me } = await api.me();
-          setUser(me);
-        } catch {
-          setToken(null);
+        const gamesRes = await api.games();
+        setGames(gamesRes.games);
+        const token = getToken();
+        if (token) {
+          const me = await api.me();
+          setUser(me.user);
+          userIdRef.current = me.user.id;
+          connectWs(token);
         }
+      } catch {
+        /* 未登录也可以匿名游玩 */
+      } finally {
+        setBooting(false);
       }
-      setBooting(false);
     };
     void bootstrap();
+    return () => socketRef.current?.close();
   }, []);
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(null), 3000);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
+  const connectWs = (token: string): void => {
+    socketRef.current?.close();
+    const s = new GameSocket(token);
+    socketRef.current = s;
 
-  useEffect(() => {
-    const handler = (): void => audio.unlock();
-    window.addEventListener('pointerdown', handler, { once: true });
-    return () => window.removeEventListener('pointerdown', handler);
-  }, []);
+    s.on(ServerMsg.Hello, (data) => {
+      const payload = data as { playerId: string };
+      userIdRef.current = payload.playerId;
+      const pending = pendingJoinRef.current;
+      if (pending) {
+        pendingJoinRef.current = null;
+        s.send(ClientMsg.JoinRoom, { gameId: pending.gameId });
+      }
+    });
 
-  useEffect(() => {
-    const token = getToken();
-    if (!user || !token) return;
-
-    userIdRef.current = user.id;
-    const socket = new GameSocket(token);
-    socketRef.current = socket;
-
-    socket.on(ServerMsg.RoomView, (data) => {
+    s.on(ServerMsg.RoomView, (data) => {
       const payload = data as { room: RoomView };
       setRoom(payload.room);
       setView('room');
-      socket.setRoomRef({ roomId: payload.room.roomId, playerId: userIdRef.current ?? '' });
+      setJoinError(null);
     });
 
-    socket.on(ServerMsg.Snapshot, (data) => {
-      setSnapshot(data as SnapshotEnvelope);
+    s.on(ServerMsg.Snapshot, (data) => {
+      const payload = data as SnapshotEnvelope;
+      setSnapshot(payload);
+      if (payload.status === 'playing') setSettlement(null);
     });
 
-    socket.on(ServerMsg.Wallet, (data) => {
-      const payload = data as { balance?: number };
-      if (Number.isFinite(payload.balance)) {
-        setUser((prev) => (prev ? { ...prev, balance: payload.balance as number } : prev));
+    s.on(ServerMsg.Settlement, (data) => {
+      const payload = data as Settlement;
+      setSettlement(payload);
+      audio.play('win');
+      if (userIdRef.current) {
+        const myEntry = payload.entries.find((e) => e.playerId === userIdRef.current);
+        if (myEntry) {
+          setUser((prev) => (prev ? { ...prev, balance: prev.balance + myEntry.delta } : prev));
+        }
       }
     });
 
-    socket.on(ServerMsg.Settlement, (data) => {
-      const payload = data as { settlement: Settlement };
-      setSettlement(payload.settlement);
-      const mine = payload.settlement.entries.find((entry) => entry.playerId === userIdRef.current);
-      if (mine && mine.delta > 0) audio.play('win');
-      else if (mine && mine.delta < 0) audio.play('lose');
-      window.setTimeout(() => {
-        void api.me().then(({ user: me }) => setUser(me)).catch(() => undefined);
-      }, 600);
+    s.on(ServerMsg.Wallet, (data) => {
+      const payload = data as { balance: number };
+      setUser((prev) => (prev ? { ...prev, balance: payload.balance } : prev));
     });
 
-    socket.on(ServerMsg.Emote, (data) => {
-      const emote = data as EmotePayload;
-      setEmotes((prev) => [...prev.slice(-3), emote]);
-      window.setTimeout(() => {
-        setEmotes((prev) => prev.filter((item) => item.at !== emote.at));
-      }, 3400);
+    s.on(ServerMsg.Emote, (data) => {
+      const payload = data as EmotePayload;
+      setEmotes((prev) => [...prev.slice(-9), payload]);
     });
 
-    socket.on(ServerMsg.Error, (data) => {
-      const payload = data as { message?: string };
-      setToast(payload.message ?? '操作失败');
-      setJoinError(payload.message ?? '操作失败');
+    s.on(ServerMsg.Error, (data) => {
+      const payload = data as { code: string; message: string };
+      setJoinError(payload.message || '操作失败');
+      showToast(payload.message || '操作失败');
     });
 
-    socket.connect();
+    s.connect();
+  };
 
-    return () => {
-      socket.close();
-      socketRef.current = null;
-    };
-  }, [user?.id]);
+  const showToast = (message: string): void => {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3000);
+  };
 
-  const joinGame = useCallback((game: GameMeta, roomId: string | null, create: boolean) => {
-    setSettlement(null);
-    setSnapshot(null);
+  const handleAuthSuccess = (token: string, loggedUser: User): void => {
+    setToken(token);
+    setUser(loggedUser);
+    userIdRef.current = loggedUser.id;
+    connectWs(token);
+    setView('lobby');
+    showToast(`欢迎回来，尊贵的 ${loggedUser.nickname}`);
+  };
+
+  const handleLogout = (): void => {
+    setToken(null);
+    setUser(null);
+    userIdRef.current = null;
+    socketRef.current?.close();
+    socketRef.current = null;
+    setView('lobby');
+    showToast('已安全退出账号');
+  };
+
+  const handleEnter = (game: GameMeta): void => {
+    setSelectedGame(game);
     setJoinError(null);
-    socketRef.current?.send(ClientMsg.JoinRoom, {
-      gameId: game.gameId,
-      mode: 'casual',
-      maxPlayers: game.maxPlayers,
-      ...(roomId ? { roomId } : {}),
-      ...(create ? { create: true } : {}),
-    });
-  }, []);
 
-  const handleEnter = useCallback(
-    (game: GameMeta) => {
+    // 百人常驻玩法或一键快速游戏：直接加入
+    if (game.persistent) {
       if (!user) {
-        pendingJoinRef.current = game;
         setView('auth');
         return;
       }
-      setSelectedGame(game);
-      setJoinError(null);
-      setView('game_rooms');
-    },
-    [user],
-  );
-
-  const handleJoinRoom = useCallback(
-    (roomId: string | null, create: boolean) => {
-      if (!selectedGame) return;
-      joinGame(selectedGame, roomId, create);
-    },
-    [selectedGame, joinGame],
-  );
-
-  const handleAuthSuccess = useCallback((token: string, nextUser: User) => {
-    setToken(token);
-    setUser(nextUser);
-    const pending = pendingJoinRef.current;
-    if (pending) {
-      pendingJoinRef.current = null;
-      setSelectedGame(pending);
-      setView('game_rooms');
-    } else {
-      setView('lobby');
+      socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId });
+      return;
     }
-  }, []);
 
-  const handleLeaveRoom = useCallback(() => {
+    // 房间制游戏：进入全屏选台界面
+    setView('game_rooms');
+  };
+
+  const handleJoinRoom = (roomId: string | null, create = false): void => {
+    if (!selectedGame) return;
+    if (!user) {
+      setView('auth');
+      return;
+    }
+    socketRef.current?.send(ClientMsg.JoinRoom, {
+      gameId: selectedGame.gameId,
+      roomId: roomId ?? undefined,
+      create,
+    });
+  };
+
+  const handleLeaveRoom = (): void => {
     socketRef.current?.send(ClientMsg.LeaveRoom, {});
-    socketRef.current?.setRoomRef(null);
     setRoom(null);
     setSnapshot(null);
     setSettlement(null);
     setView('lobby');
-  }, []);
+  };
 
-  const handleReady = useCallback((ready: boolean) => {
+  const handleReady = (ready: boolean): void => {
     socketRef.current?.send(ClientMsg.Ready, { ready });
-  }, []);
+  };
 
-  const handleIntent = useCallback((cmd: string, payload: Record<string, unknown>) => {
+  const handleIntent = (cmd: string, payload: Record<string, unknown> = {}): void => {
     socketRef.current?.send(ClientMsg.Intent, { cmd, payload });
-  }, []);
+  };
 
-  const handleAddBot = useCallback(() => {
+  const handleAddBot = (): void => {
     socketRef.current?.send(ClientMsg.AddBot, {});
-  }, []);
+  };
 
-  const handleEmote = useCallback((key: string) => {
+  const handleEmote = (key: string): void => {
     socketRef.current?.send(ClientMsg.Emote, { key });
-  }, []);
+  };
 
-  const handleLogout = useCallback(() => {
-    socketRef.current?.close();
-    socketRef.current = null;
-    setToken(null);
-    setUser(null);
-    setRoom(null);
-    setSnapshot(null);
-    setSettlement(null);
-    setView('lobby');
+  const handleBalanceChange = useCallback((newBalance: number) => {
+    setUser((prev) => (prev ? { ...prev, balance: newBalance } : prev));
   }, []);
-
-  const handleBalanceChange = useCallback((balance: number) => {
-    setUser((prev) => (prev ? { ...prev, balance } : prev));
-  }, []);
-
-  if (window.location.hash === '#/admin') {
-    return <AdminPanel />;
-  }
 
   if (booting) {
     return (
-      <div className="boot luxury-boot">
-        <div className="spinner luxury-spinner" />
-        <p className="luxury-boot-text">✦ 尊贵牌友 · 正在进入巅峰娱乐殿堂 ✦</p>
+      <div className="boot">
+        <div className="boot__spinner" />
+        <p>正在连接殿堂级娱乐大厅…</p>
       </div>
     );
   }
 
-  // 渲染当前全屏主视图
   const renderCurrentView = () => {
-    if (view === 'room' && room && user) {
+    if (view === 'room' && room) {
       return (
         <Room
           room={room}
           snapshot={snapshot}
           settlement={settlement}
-          myId={user.id}
-          balance={user.balance}
+          myId={userIdRef.current ?? ''}
+          balance={user?.balance ?? 0}
           onReady={handleReady}
           onLeave={handleLeaveRoom}
           onIntent={handleIntent}
@@ -336,11 +293,7 @@ export default function App() {
       return (
         <GameRooms
           game={selectedGame}
-          onBack={() => {
-            setSelectedGame(null);
-            setJoinError(null);
-            setView('lobby');
-          }}
+          onBack={() => setView('lobby')}
           onJoin={handleJoinRoom}
           joinError={joinError}
         />
@@ -407,16 +360,8 @@ export default function App() {
   return (
     <div className="landscape-app-root">
       <PortraitPrompt />
-      {/* 核心横屏舞台 (以 1166*514 黄金比例驱动) */}
-      <div
-        className="landscape-stage-container"
-        style={{
-          width: BASE_WIDTH,
-          height: BASE_HEIGHT,
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
-        }}
-      >
+      {/* 真正自适应所有横屏移动端视口，100% 弹性充满，绝无黑边与留白 */}
+      <div className="landscape-stage-container">
         {renderCurrentView()}
       </div>
       {toast && <div className="toast luxury-toast">{toast}</div>}

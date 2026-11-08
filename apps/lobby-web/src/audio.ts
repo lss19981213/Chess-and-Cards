@@ -1,6 +1,6 @@
 /**
  * 全局合成音效与背景音乐引擎：
- * 基于 Web Audio API，无需加载任何外部音频文件即可实现高质感音效，杜绝断网或资源 404 故障。
+ * 基于 Web Audio API 与 HTML5 Audio，确保任何环境下都有优美高级的声音体验。
  */
 
 export type SfxName =
@@ -33,10 +33,9 @@ interface AudioPrefs {
 const TRACKS: ReadonlyArray<{ id: string; name: string; file: string }> = [
   { id: 'lounge', name: '名流爵士', file: 'assets/music/menu-theme.mp3' },
   { id: 'chill', name: '微醺对决', file: 'assets/music/upbeat-theme.mp3' },
-  { id: 'crystal', name: '金色华尔兹', file: 'assets/music/menu-theme.mp3' },
 ];
 
-/** 高级爵士 Lounge 温暖和弦系列 (Dm9 -> G13 -> Cmaj9 -> Am9) */
+/** 优雅温暖的爵士 Lounge 和弦 (Dm9 -> G13 -> Cmaj9 -> Am9) */
 const JAZZ_CHORDS: number[][] = [
   [146.83, 220.0, 261.63, 329.63, 392.0],  // Dm9
   [98.0, 196.0, 246.94, 293.66, 349.23],   // G7(9)
@@ -48,7 +47,6 @@ const JAZZ_CHORDS: number[][] = [
   [196.0, 246.94, 293.66, 392.0, 493.88],  // G13
 ];
 
-/** 柔美钢琴高音琶音音阶 */
 const JAZZ_MELODY = [
   523.25, 587.33, 659.25, 783.99, 880.0, 987.77, 1046.5,
   880.0, 783.99, 659.25, 587.33, 523.25, 440.0, 392.0,
@@ -75,35 +73,54 @@ class AudioEngine {
         this.prefs = { music: parsed.music !== false, sfx: parsed.sfx !== false };
       }
     } catch {
-      /* 忽略损坏的偏好 */
+      /* 忽略 */
+    }
+
+    // 全局手势监听：用户在页面任意位置点击/按键即刻激活音效系统与背景音乐
+    if (typeof window !== 'undefined') {
+      const unlockEvents = ['pointerdown', 'touchstart', 'click', 'keydown'];
+      const onUserGesture = () => {
+        this.unlock();
+        if (this.unlocked) {
+          unlockEvents.forEach((evt) => window.removeEventListener(evt, onUserGesture));
+        }
+      };
+      unlockEvents.forEach((evt) => window.addEventListener(evt, onUserGesture, { passive: true }));
     }
   }
 
   /** 用户首次手势交互时唤醒 AudioContext */
   unlock(): void {
-    if (this.unlocked) return;
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    this.ctx = ctx;
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      this.ctx = ctx;
 
-    const master = ctx.createGain();
-    master.gain.value = 0.85;
-    master.connect(ctx.destination);
-    this.master = master;
+      const master = ctx.createGain();
+      master.gain.value = 0.85;
+      master.connect(ctx.destination);
+      this.master = master;
 
-    const musicGain = ctx.createGain();
-    musicGain.gain.value = 0.18;
-    musicGain.connect(master);
-    this.musicGain = musicGain;
+      const musicGain = ctx.createGain();
+      musicGain.gain.value = 0.22;
+      musicGain.connect(master);
+      this.musicGain = musicGain;
 
-    const sfxGain = ctx.createGain();
-    sfxGain.gain.value = 0.45;
-    sfxGain.connect(master);
-    this.sfxGain = sfxGain;
+      const sfxGain = ctx.createGain();
+      sfxGain.gain.value = 0.45;
+      sfxGain.connect(master);
+      this.sfxGain = sfxGain;
+    }
+
+    if (this.ctx && this.ctx.state === 'suspended') {
+      void this.ctx.resume();
+    }
 
     this.unlocked = true;
-    if (this.prefs.music) this.startMusic();
+    if (this.prefs.music) {
+      this.startMusic();
+    }
   }
 
   get musicOn(): boolean {
@@ -115,6 +132,7 @@ class AudioEngine {
   }
 
   toggleMusic(): boolean {
+    this.unlock();
     this.prefs.music = !this.prefs.music;
     this.savePrefs();
     if (this.prefs.music) {
@@ -126,13 +144,17 @@ class AudioEngine {
   }
 
   toggleSfx(): boolean {
+    this.unlock();
     this.prefs.sfx = !this.prefs.sfx;
     this.savePrefs();
     return this.prefs.sfx;
   }
 
   play(name: SfxName): void {
-    if (!this.unlocked || !this.prefs.sfx) return;
+    if (!this.unlocked) {
+      this.unlock();
+    }
+    if (!this.prefs.sfx) return;
     const ctx = this.ctx;
     const out = this.sfxGain;
     if (!ctx || !out) return;
@@ -193,7 +215,6 @@ class AudioEngine {
 
   private chipClack(out: AudioNode): void {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime;
     this.noise(0.02, 0.2, out);
     this.tone(1480, 0.03, 'sine', 0.15, out);
     window.setTimeout(() => {
@@ -331,6 +352,7 @@ class AudioEngine {
   }
 
   nextTrack(): string {
+    this.unlock();
     this.trackIndex = (this.trackIndex + 1) % TRACKS.length;
     this.stopMusic();
     if (this.el) {
@@ -338,13 +360,42 @@ class AudioEngine {
       this.el = null;
     }
     this.usingSynth = false;
-    if (this.prefs.music && this.unlocked) this.startMusic();
+    if (this.prefs.music) {
+      this.startMusic();
+    }
     return this.trackName;
   }
 
   private startMusic(): void {
     if (!this.prefs.music) return;
     this.stopMusic();
+
+    // 优先尝试使用标准音频元素播放高质量音乐文件
+    const track = TRACKS[this.trackIndex];
+    if (track && typeof Audio !== 'undefined') {
+      try {
+        const url = `${import.meta.env.BASE_URL}${track.file}`;
+        const el = new Audio(url);
+        el.loop = true;
+        el.volume = 0.35;
+        const playPromise = el.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              this.el = el;
+              this.usingSynth = false;
+            })
+            .catch(() => {
+              // 自动播放被阻拦或文件无法解析，启动高音质合成和弦
+              this.startSynth();
+            });
+          return;
+        }
+      } catch {
+        /* 回退到合成器 */
+      }
+    }
+
     this.startSynth();
   }
 
@@ -353,7 +404,14 @@ class AudioEngine {
       window.clearInterval(this.timer);
       this.timer = null;
     }
-    if (this.el && !this.el.paused) this.el.pause();
+    if (this.el) {
+      try {
+        this.el.pause();
+      } catch {
+        /* 忽略 */
+      }
+      this.el = null;
+    }
   }
 
   get isSynthFallback(): boolean {
@@ -363,6 +421,9 @@ class AudioEngine {
   /** 打造高雅温暖的夜总会爵士钢琴 Lounge 背景音乐 */
   private startSynth(): void {
     if (!this.prefs.music || !this.ctx || this.timer !== null) return;
+    if (this.ctx.state === 'suspended') {
+      void this.ctx.resume();
+    }
     this.usingSynth = true;
     this.bar = 0;
     this.scheduleBar();
