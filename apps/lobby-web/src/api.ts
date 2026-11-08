@@ -77,6 +77,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   captcha: () => request<Captcha>('/api/captcha'),
+  guest: () => request<{ token: string; user: User }>('/api/guest', { method: 'POST' }),
 
   login: (username: string, password: string, captchaId: string, captcha: string) =>
     request<{ token: string; user: User }>('/api/login', {

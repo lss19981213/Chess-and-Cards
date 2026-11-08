@@ -95,21 +95,38 @@ export default function App() {
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
   const pendingJoinRef = useRef<GameMeta | null>(null);
+  const autoStartRef = useRef<boolean>(false);
 
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
       try {
         const gamesRes = await api.games();
         setGames(gamesRes.games);
-        const token = getToken();
+        let token = getToken();
         if (token) {
-          const me = await api.me();
-          setUser(me.user);
-          userIdRef.current = me.user.id;
-          connectWs(token);
+          try {
+            const me = await api.me();
+            setUser(me.user);
+            userIdRef.current = me.user.id;
+            connectWs(token);
+          } catch {
+            token = null;
+          }
+        }
+        // 如果未登录或 token 失效，自动无感接入游客账号，确保立刻能开玩
+        if (!token) {
+          try {
+            const guestRes = await api.guest();
+            setToken(guestRes.token);
+            setUser(guestRes.user);
+            userIdRef.current = guestRes.user.id;
+            connectWs(guestRes.token);
+          } catch (e) {
+            console.error('Guest init error:', e);
+          }
         }
       } catch {
-        /* 未登录也可以匿名游玩 */
+        /* 容错 */
       } finally {
         setBooting(false);
       }
@@ -138,6 +155,20 @@ export default function App() {
       setRoom(payload.room);
       setView('room');
       setJoinError(null);
+
+      // 极速开局：若在等待中，自动准备并自动加满 AI
+      if (payload.room.status === 'waiting' && autoStartRef.current) {
+        autoStartRef.current = false;
+        s.send(ClientMsg.Ready, { ready: true });
+        if (payload.room.hostId === userIdRef.current) {
+          const need = payload.room.maxPlayers - payload.room.players.length;
+          for (let i = 0; i < need; i++) {
+            window.setTimeout(() => {
+              s.send(ClientMsg.AddBot, {});
+            }, (i + 1) * 80);
+          }
+        }
+      }
     });
 
     s.on(ServerMsg.Snapshot, (data) => {
@@ -199,6 +230,27 @@ export default function App() {
     socketRef.current = null;
     setView('lobby');
     showToast('已安全退出账号');
+  };
+
+  const handleQuickPlay = (game: GameMeta): void => {
+    setSelectedGame(game);
+    setJoinError(null);
+    autoStartRef.current = !game.persistent;
+
+    if (!user) {
+      void api.guest().then((res) => {
+        setToken(res.token);
+        setUser(res.user);
+        userIdRef.current = res.user.id;
+        connectWs(res.token);
+        window.setTimeout(() => {
+          socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
+        }, 150);
+      });
+      return;
+    }
+
+    socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
   };
 
   const handleEnter = (game: GameMeta): void => {
@@ -346,6 +398,7 @@ export default function App() {
         user={user}
         games={games}
         onEnter={handleEnter}
+        onQuickPlay={handleQuickPlay}
         onLogin={() => setView('auth')}
         onTasks={() => setView('tasks')}
         onLeaderboard={() => setView('leaderboard')}

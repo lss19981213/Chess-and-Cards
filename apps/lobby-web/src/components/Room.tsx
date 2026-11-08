@@ -415,6 +415,24 @@ export function Room({
                 </div>
 
                 <div className="waiting-actions-row">
+                  {isHost && room.players.length < room.maxPlayers && (
+                    <button
+                      type="button"
+                      className="btn-ready-action btn-ready-action--instant"
+                      onClick={() => {
+                        audio.play('click');
+                        if (!me?.ready) onReady(true);
+                        const need = room.maxPlayers - room.players.length;
+                        for (let i = 0; i < need; i++) {
+                          window.setTimeout(() => onAddBot(), i * 60);
+                        }
+                      }}
+                      title="自动加入AI陪玩并立即开始"
+                    >
+                      <span>⚡ 补满AI秒开对决</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     className={`btn-ready-action ${me?.ready ? 'is-cancel' : 'is-ready'}`}
@@ -436,7 +454,7 @@ export function Room({
                         onAddBot();
                       }}
                     >
-                      🤖 添加AI陪玩
+                      🤖 +1陪玩
                     </button>
                   )}
                 </div>

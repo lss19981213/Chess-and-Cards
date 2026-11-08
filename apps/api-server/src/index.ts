@@ -233,6 +233,20 @@ const EVENT_PATHS = new Set([
 
   app.get('/api/captcha', async () => createCaptcha());
 
+  app.post('/api/guest', async () => {
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    const username = 'guest_' + Date.now().toString(36) + '_' + rand;
+    const nickname = '尊贵牌友_' + rand;
+    const passwordHash = await hashPassword('guest123456');
+    const result = await repo.register({ username, passwordHash, nickname });
+    if (!result.ok) throw httpError('游客账号生成失败', 500);
+
+    const balance = await repo.getBalance(result.user.id, 'coin');
+    await repo.bumpTask(result.user.id, 'daily_login', periodKeyFor('daily'), 1);
+    const token = signToken(config.jwtSecret, { sub: result.user.id, name: result.user.nickname }, config.tokenTtlSeconds);
+    return { token, user: { ...result.user, balance } };
+  });
+
   app.post('/api/register', async (req) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const username = typeof body.username === 'string' ? body.username.trim() : '';

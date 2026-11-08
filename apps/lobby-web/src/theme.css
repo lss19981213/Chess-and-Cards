@@ -5038,3 +5038,406 @@ html, body, #root {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6) !important;
   cursor: pointer !important;
 }
+
+
+/* =========================================================================
+   25. 商业级横屏棋牌大厅系统 (参考欢乐斗地主/JJ棋牌/博雅经典布局，满屏沉浸无死角)
+   ========================================================================= */
+
+.lobby--commercial-grade {
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background-color: #07090e !important;
+  background-size: cover !important;
+  background-position: center !important;
+  position: relative !important;
+}
+
+/* 主舞台左右三栏联动 (左导航 + 中画卷 + 右荷官) */
+.commercial-lobby-stage {
+  flex: 1 !important;
+  width: 100% !important;
+  height: calc(100% - 44px) !important;
+  max-height: calc(100% - 44px) !important;
+  display: flex !important;
+  align-items: stretch !important;
+  padding: 8px 12px 10px 12px !important;
+  box-sizing: border-box !important;
+  gap: 12px !important;
+  overflow: hidden !important;
+}
+
+/* 1. 左侧专区快捷选项卡导航 (轻量级竖排胶囊) */
+.commercial-nav-rail {
+  width: 110px !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  padding: 4px 0 !important;
+  justify-content: flex-start !important;
+}
+
+.nav-rail-item {
+  width: 100% !important;
+  height: 52px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, rgba(26, 34, 52, 0.75) 0%, rgba(14, 18, 30, 0.85) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.2) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  cursor: pointer !important;
+  position: relative !important;
+  transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+  color: #c8d5ea !important;
+}
+
+.nav-rail-item:hover {
+  border-color: rgba(243, 207, 122, 0.5) !important;
+  background: linear-gradient(135deg, rgba(38, 50, 76, 0.85) 0%, rgba(20, 26, 42, 0.9) 100%) !important;
+  transform: translateY(-1px) !important;
+}
+
+.nav-rail-item.is-active {
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.28) 0%, rgba(42, 32, 14, 0.9) 100%) !important;
+  border-color: #f3cf7a !important;
+  box-shadow: 0 4px 16px rgba(243, 207, 122, 0.25), inset 0 0 10px rgba(243, 207, 122, 0.15) !important;
+  color: #fff4d1 !important;
+}
+
+.nav-rail-icon {
+  font-size: 18px !important;
+  line-height: 1 !important;
+}
+
+.nav-rail-label {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.5px !important;
+}
+
+.nav-rail-badge {
+  position: absolute !important;
+  top: 3px !important;
+  right: 4px !important;
+  font-size: 8px !important;
+  font-weight: 900 !important;
+  padding: 1px 4px !important;
+  border-radius: 6px !important;
+  background: linear-gradient(135deg, #e53935, #b71c1c) !important;
+  color: #fff !important;
+  line-height: 1 !important;
+  box-shadow: 0 0 6px rgba(229, 57, 53, 0.6) !important;
+}
+
+/* 2. 中间游戏展示画卷 (自适应 100% 充满，横向无缝滚动) */
+.commercial-games-carousel-viewport {
+  flex: 1 !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  position: relative !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  display: flex !important;
+  align-items: stretch !important;
+  padding-bottom: 2px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(243, 207, 122, 0.3) transparent !important;
+}
+
+.commercial-games-strip {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 14px !important;
+  height: 100% !important;
+  padding: 2px 4px 6px 4px !important;
+}
+
+/* 单个商业级精美游戏卡片 */
+.commercial-game-card {
+  width: 220px !important;
+  flex: 0 0 220px !important;
+  height: 100% !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, rgba(22, 28, 42, 0.94) 0%, rgba(12, 16, 26, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.28) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  transition: all 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+  position: relative !important;
+}
+
+.commercial-game-card:hover {
+  transform: translateY(-4px) !important;
+  border-color: rgba(243, 207, 122, 0.75) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.8), 0 0 20px rgba(243, 207, 122, 0.25) !important;
+}
+
+/* 海报画卷区 (占大半高度，震撼视觉) */
+.commercial-game-card__poster {
+  flex: 1 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  position: relative !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+  background: #090e18 !important;
+}
+
+.commercial-game-card__poster img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  transition: transform 0.35s ease !important;
+}
+
+.commercial-game-card:hover .commercial-game-card__poster img {
+  transform: scale(1.06) !important;
+}
+
+.poster-light-sweep {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: linear-gradient(180deg, transparent 55%, rgba(12, 16, 26, 0.95) 100%) !important;
+  pointer-events: none !important;
+}
+
+.game-badge-tag {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+  background: rgba(0, 0, 0, 0.75) !important;
+  border: 0.5px solid rgba(243, 207, 122, 0.55) !important;
+  color: #fff1b8 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.5px !important;
+  backdrop-filter: blur(8px) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 卡片元信息与按键栏 */
+.commercial-game-card__meta {
+  padding: 8px 10px 10px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  background: linear-gradient(180deg, rgba(14, 18, 28, 0.95) 0%, rgba(8, 11, 18, 0.98) 100%) !important;
+  border-top: 1px solid rgba(243, 207, 122, 0.15) !important;
+  flex-shrink: 0 !important;
+}
+
+.meta-text-col {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.meta-title {
+  margin: 0 !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  color: #f7eed7 !important;
+  letter-spacing: 0.5px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.meta-desc {
+  margin: 0 !important;
+  font-size: 10px !important;
+  color: #94a3b8 !important;
+  line-height: 1.3 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* 双通道按钮群 */
+.meta-actions-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-top: 2px !important;
+}
+
+/* 核心极速开局大按钮 (暖金流光，强烈刺激点击) */
+.btn-quick-play-gold {
+  flex: 1 !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #ffe082 0%, #d89f2a 100%) !important;
+  border: 1px solid #fff3c4 !important;
+  color: #1a1204 !important;
+  font-size: 12.5px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.5px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 14px rgba(216, 159, 42, 0.45) !important;
+  transition: all 0.15s ease !important;
+}
+
+.btn-quick-play-gold:hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 6px 18px rgba(216, 159, 42, 0.6) !important;
+}
+
+.btn-quick-play-gold:active {
+  transform: scale(0.97) !important;
+}
+
+.btn-bolt {
+  font-size: 13px !important;
+}
+
+.btn-choose-room-subtle {
+  height: 34px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(243, 207, 122, 0.35) !important;
+  color: #f7eed7 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.btn-choose-room-subtle:hover {
+  background: rgba(243, 207, 122, 0.2) !important;
+  border-color: #f3cf7a !important;
+}
+
+.btn-choose-room-subtle:active {
+  transform: scale(0.96) !important;
+}
+
+/* 3. 右侧首席动漫美女荷官艾莉丝陪玩展台 */
+.commercial-dealer-companion-stand {
+  width: 175px !important;
+  flex-shrink: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  padding: 4px 0 !important;
+}
+
+.companion-speech-bubble {
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, rgba(24, 30, 46, 0.95) 0%, rgba(14, 18, 28, 0.95) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.38) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  padding: 6px 8px !important;
+  cursor: pointer !important;
+  position: relative !important;
+}
+
+.bubble-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-bottom: 2px !important;
+}
+
+.companion-name {
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  color: #f7d78a !important;
+}
+
+.companion-dot {
+  width: 5px !important;
+  height: 5px !important;
+  border-radius: 50% !important;
+  background: #2ecc71 !important;
+  box-shadow: 0 0 6px #2ecc71 !important;
+}
+
+.bubble-content {
+  margin: 0 !important;
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+  color: #cbd5e1 !important;
+}
+
+.companion-portrait-wrapper {
+  flex: 1 !important;
+  min-height: 0 !important;
+  border-radius: 14px !important;
+  background: radial-gradient(circle at 50% 25%, rgba(243, 207, 122, 0.2) 0%, rgba(14, 18, 28, 0.95) 75%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.4) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+}
+
+.companion-portrait-wrapper img {
+  max-width: 100% !important;
+  max-height: 95% !important;
+  object-fit: contain !important;
+  object-position: bottom center !important;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8)) !important;
+  transition: transform 0.25s ease !important;
+}
+
+.companion-portrait-wrapper:hover img {
+  transform: scale(1.05) !important;
+}
+
+.btn-random-match {
+  width: 100% !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.5) !important;
+  color: #f7eed7 !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+}
+
+.btn-random-match:hover {
+  background: rgba(243, 207, 122, 0.35) !important;
+  border-color: #f3cf7a !important;
+}
+
+.btn-random-match:active {
+  transform: scale(0.96) !important;
+}
+
+/* 牌桌秒开高光按键 */
+.btn-ready-action--instant {
+  background: linear-gradient(180deg, #ff9800 0%, #e65100 100%) !important;
+  border: 1px solid #ffcc80 !important;
+  color: #fff !important;
+  font-weight: 900 !important;
+  box-shadow: 0 4px 14px rgba(230, 81, 0, 0.6) !important;
+}
