@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import type { SnapshotEnvelope } from '../App';
+import { audio } from '../audio';
 import { SeatPanel, TableStage } from '../components/TableStage';
 
 interface GomokuSnapshot {
@@ -54,6 +55,7 @@ export function Gomoku({ snapshot, status, myId, players, onPlace }: Props) {
     const x = Math.round(((event.clientX - rect.left) * scale - PAD) / CELL);
     const y = Math.round(((event.clientY - rect.top) * scale - PAD) / CELL);
     if (x < 0 || y < 0 || x >= n || y >= n) return;
+    audio.play('chip_clack');
     onPlace(x, y);
   };
 

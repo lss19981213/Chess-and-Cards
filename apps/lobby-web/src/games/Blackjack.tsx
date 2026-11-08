@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { chipArt } from '../chips';
+import { DEALER_MAIN } from '../assets';
+import { audio } from '../audio';
 import { cardArt, cardBackArt, cardLabel, type CardView } from './cards';
 
 interface BlackjackSnapshot {
@@ -64,174 +66,178 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
 
   if (!data) return <div className="board-placeholder">等待发牌…</div>;
 
+  const handleHit = () => {
+    audio.play('click');
+    onAction('hit');
+  };
+
+  const handleStand = () => {
+    audio.play('pass');
+    onAction('stand');
+  };
+
+  const handleDouble = () => {
+    audio.play('chip_clack');
+    onAction('double');
+  };
+
   return (
-    <div className="dice-stage">
-      <div className="dice-stage__main">
-        <div className="dice-stage__cards">
+    <div className="lobby-game lobby-game--bj">
+      <div className="lobby-game__main">
+        {/* 顶部状态条 */}
+        <div className="lobby-game__bar">
+          <span className="lobby-game__round">第 {data.round} 局</span>
+          <span className={`lobby-game__phase ${data.phase === 'bet' ? 'is-open' : 'is-reveal'}`}>
+            {data.phase === 'bet' ? `下注阶段 · ${left}s` : data.phase === 'play' ? `要牌决战 · ${left}s` : `结算开牌`}
+          </span>
+          {betting > 0 && <span className="lobby-game__mine">已下注 {betting}</span>}
+          <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
+        </div>
+
+        {/* 动漫美女荷官专属席位 */}
+        <div className="table-dealer-host">
+          <div className="dealer-mini-portrait">
+            <img src={DEALER_MAIN} alt="荷官艾莉丝" draggable={false} />
+          </div>
+          <div className="dealer-text-badge">
+            <span className="dealer-title">荷官·艾莉丝</span>
+            <span className="dealer-action">{playing ? '等待玩家要牌' : '发牌洗牌中'}</span>
+          </div>
+        </div>
+
+        {/* 庄家手牌与我的手牌展台 */}
+        <div className="dice-stage__cards bj-table-cards">
           <div className="bj-row">
-            <span className="bj-row__tag">庄家</span>
-            {data.dealerCards.length === 0 ? (
-              <span className="card">
-                <img src={cardBackArt()} alt="" />
-              </span>
-            ) : (
-              data.dealerCards.map((card, index) => (
-                <span key={card?.id ?? `hole-${index}`} className="card">
-                  <img src={card ? cardArt(card.id) : cardBackArt()} alt={card ? cardLabel(card) : ''} />
+            <span className="bj-row__tag">庄家手牌</span>
+            <div className="bj-row__hand">
+              {data.dealerCards.length === 0 ? (
+                <span className="pcard pcard--back">
+                  <img src={cardBackArt()} alt="" draggable={false} />
                 </span>
-              ))
-            )}
-            {data.dealerPoints !== null && <strong className="bj-row__points">{data.dealerPoints}</strong>}
+              ) : (
+                data.dealerCards.map((card, index) => (
+                  <span key={card?.id ?? `hole-${index}`} className="pcard">
+                    <img src={card ? cardArt(card.id) : cardBackArt()} alt={card ? cardLabel(card) : ''} draggable={false} />
+                  </span>
+                ))
+              )}
+            </div>
+            {data.dealerPoints !== null && <strong className="bj-row__points">{data.dealerPoints} 点</strong>}
           </div>
 
           <div className="bj-row">
-            <span className="bj-row__tag">我的牌</span>
-            {data.myCards.length === 0 ? (
-              <span className="muted">下注后发牌</span>
-            ) : (
-              data.myCards.map((card) => (
-                <span key={card.id} className="card">
-                  <img src={cardArt(card.id)} alt={cardLabel(card)} />
-                </span>
-              ))
-            )}
+            <span className="bj-row__tag">我的手牌</span>
+            <div className="bj-row__hand">
+              {data.myCards.length === 0 ? (
+                <span className="muted">下注后发牌</span>
+              ) : (
+                data.myCards.map((card) => (
+                  <span key={card.id} className="pcard">
+                    <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
+                  </span>
+                ))
+              )}
+            </div>
             {data.myPoints !== null && (
-              <strong className="bj-row__points">
-                {data.myPoints}
-                {data.myPoints === 21 && <em className="is-triple">21 点</em>}
-                {data.myPoints > 21 && <em className="is-small">爆牌</em>}
+              <strong className={`bj-row__points ${data.myPoints > 21 ? 'is-bust' : ''}`}>
+                {data.myPoints > 21 ? `${data.myPoints} 点 (爆牌)` : `${data.myPoints} 点`}
               </strong>
             )}
           </div>
+        </div>
 
-          {playing && data.myCards.length > 0 && !data.myDone && (
-            <div className="bj-actions">
-              <button type="button" className="primary" onClick={() => onAction('hit')}>
-                要牌
+        {/* 要牌 / 停牌 / 加倍 操作区 */}
+        {playing && !data.myDone && (
+          <div className="bj-actions hand-actions--luxury">
+            <button type="button" className="action-btn action-btn--play" onClick={handleHit}>
+              + 要牌 (Hit)
+            </button>
+            <button type="button" className="action-btn action-btn--hint" onClick={handleStand}>
+              停牌 (Stand)
+            </button>
+            {data.myCards.length === 2 && balance >= betting && (
+              <button type="button" className="action-btn action-btn--pass" onClick={handleDouble}>
+                加倍 (Double)
               </button>
-              <button type="button" className="secondary" onClick={() => onAction('stand')}>
-                停牌
+            )}
+          </div>
+        )}
+
+        {/* 下注控制区 */}
+        <div className="bet-controls">
+          <div className="bet-controls__chips">
+            {PRESET.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={`chip-btn ${amount === value ? 'is-active' : ''}`}
+                onClick={() => {
+                  audio.play('click');
+                  setAmount(value);
+                }}
+              >
+                <img src={chipArt(value)} alt="" />
+                <span>{value}</span>
               </button>
+            ))}
+          </div>
+
+          {canBet && (
+            <div className="bj-bet-zones">
+              {(data.areas ?? [{ area: 'main', label: '主注', odds: 1 }]).map((area) => (
+                <button
+                  key={area.area}
+                  type="button"
+                  className={`door ${data.myBet[area.area] ? 'is-bet' : ''}`}
+                  disabled={!canPlace}
+                  onClick={() => {
+                    audio.play('chip_clack');
+                    onBet(area.area, amount);
+                  }}
+                >
+                  <span className="door__label">{area.label}</span>
+                  <span className="door__points">1:{area.odds}</span>
+                  {data.myBet[area.area] ? <span className="door__bet">我押 {data.myBet[area.area]}</span> : null}
+                </button>
+              ))}
             </div>
           )}
-          {playing && data.myDone && <p className="hint">已停牌，等待其他玩家…</p>}
-        </div>
-      </div>
 
-      <div className="dice-zones">
-        {(data.areas ?? []).map((zone) => {
-          const bet = data.myBet[zone.area] ?? 0;
-          return (
+          {canBet && betting > 0 && (
             <button
-              key={zone.area}
               type="button"
-              className={`dice-zone ${bet > 0 ? 'is-bet' : ''} ${zone.area === 'bj' ? 'is-triple' : ''}`}
-              disabled={!canPlace}
-              onClick={() => onBet(zone.area, amount)}
+              className="ghost clear-bet-btn"
+              onClick={() => {
+                audio.play('click');
+                onClear();
+              }}
             >
-              <span className="dice-zone__label">{zone.label}</span>
-              <span className="dice-zone__odds">1:{zone.odds}</span>
-              {(data.zoneTotals?.[zone.area] ?? 0) > 0 && (
-                <span className="dice-zone__pool" key={`pool-${data.zoneTotals[zone.area]}`}>
-                  共押 {data.zoneTotals[zone.area]}
-                </span>
-              )}
-              {bet > 0 && (
-                <span className="dice-zone__bet" key={bet}>
-                  <img src={chipArt(bet)} alt="" />
-                  {bet}
-                  {canBet && (
-                    <span
-                      className="bet-cancel"
-                      role="button"
-                      tabIndex={0}
-                      title="取消该区下注"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onClear(zone.area);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.stopPropagation();
-                          onClear(zone.area);
-                        }
-                      }}
-                    >
-                      ×
-                    </span>
-                  )}
-                </span>
-              )}
+              清空下注
             </button>
-          );
-        })}
-      </div>
-
-      <div className="bet-controls">
-        <div className="bet-controls__chips">
-          {PRESET.map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={`chip-btn ${amount === value ? 'is-active' : ''}`}
-              onClick={() => setAmount(value)}
-            >
-              <img src={chipArt(value)} alt="" />
-              <span>{value}</span>
-            </button>
-          ))}
+          )}
         </div>
-        {canBet && betting > 0 && (
-          <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
-            清空下注
-          </button>
+
+        {/* 结果栏 */}
+        {data.results.length > 0 && (
+          <div className="lobby-results">
+            {rankedResults.map((row) => (
+              <span
+                key={row.playerId}
+                className={`${row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'} ${
+                  row.playerId === myId ? 'is-me' : ''
+                }`}
+              >
+                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+              </span>
+            ))}
+          </div>
         )}
-        <div className="bet-controls__custom">
-          <span>自定义</span>
-          <input
-            type="number"
-            min={data.limits.min}
-            max={data.limits.max}
-            step={10}
-            value={amount}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              setAmount(Number.isFinite(next) ? Math.max(0, Math.floor(next)) : 0);
-            }}
-          />
-          <span className="bet-controls__hint">
-            {data.limits.min}–{data.limits.max} / 区
-          </span>
-        </div>
       </div>
 
-      {data.results.length > 0 && (
-        <div className="lobby-results">
-          {rankedResults.map((row) => (
-            <span
-              key={row.playerId}
-              className={`${row.delta > 0 ? 'up' : row.delta < 0 ? 'down' : 'muted'} ${
-                row.playerId === myId ? 'is-me' : ''
-              }`}
-            >
-              {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="dice-stage__timer">
-        <div className="dice-stage__timer-bar">
-          <i style={{ width: `${progress}%` }} />
-        </div>
-        <span>
-          第 {data.round} 局 · {canBet ? '下注中' : playing ? '要牌中' : '结算中'} {left}s
-        </span>
-      </div>
-
+      {/* 历史走势 */}
       <aside className="history">
         <div className="history__title">走势</div>
-        <div className="history__legend history__legend--dice">
+        <div className="history__legend">
           <span>局</span>
           <span>我</span>
           <span>庄</span>
@@ -240,11 +246,13 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
         <div className="history__list">
           {data.history.length === 0 && <p className="history__empty">暂无记录</p>}
           {[...data.history].reverse().map((item) => (
-            <div key={item.round} className="history__row history__row--dice">
+            <div key={item.round} className="history__row">
               <span className="history__no">{item.round}</span>
-              <span className="history__dice">{item.playerPoints ?? '—'}</span>
-              <span className="history__banker">{item.dealerPoints}</span>
-              <span className="is-big">{item.outcome}</span>
+              <span>{item.playerPoints ?? '—'}</span>
+              <span>{item.dealerPoints}</span>
+              <span className={item.outcome === 'win' ? 'is-hit' : ''}>
+                {item.outcome === 'win' ? '胜' : item.outcome === 'lose' ? '负' : '平'}
+              </span>
             </div>
           ))}
         </div>

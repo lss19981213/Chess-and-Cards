@@ -3934,3 +3934,150 @@ html, body, #root {
     text-overflow: ellipsis;
   }
 }
+
+
+/* ================= 23. 全游戏操作与手牌高级样式 ================= */
+
+.hand-actions--luxury {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  justify-content: center !important;
+  padding: 6px 12px !important;
+  background: rgba(14, 20, 31, 0.8) !important;
+  border-radius: 18px !important;
+  border: 1px solid rgba(243, 207, 122, 0.3) !important;
+  backdrop-filter: blur(10px) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
+.hand-actions--luxury .turn-hint {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #f7d78a !important;
+  text-shadow: 0 0 10px rgba(243, 207, 122, 0.5) !important;
+  margin-right: 6px !important;
+}
+
+.hand-actions--luxury .action-btn {
+  padding: 8px 18px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.hand-actions--luxury .action-btn:active {
+  transform: scale(0.95) !important;
+}
+
+.hand-actions--luxury .action-btn--play {
+  background: var(--gold-btn-gradient) !important;
+  border: 1px solid var(--gold-btn-border) !important;
+  color: #1a1204 !important;
+  box-shadow: 0 4px 14px rgba(216, 159, 42, 0.4) !important;
+}
+
+.hand-actions--luxury .action-btn--hint {
+  background: rgba(243, 207, 122, 0.2) !important;
+  border: 1px solid rgba(243, 207, 122, 0.5) !important;
+  color: #f7d78a !important;
+}
+
+.hand-actions--luxury .action-btn--pass {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ccd6ea !important;
+}
+
+/* 21点与牛牛专用展台 */
+.bj-table-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(16, 22, 34, 0.7);
+  border-radius: 16px;
+  border: 1px solid rgba(243, 207, 122, 0.25);
+  margin-bottom: 8px;
+}
+
+.bj-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bj-row__tag {
+  font-size: 12px;
+  font-weight: 800;
+  color: #f7d78a;
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.bj-row__hand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bj-row__points {
+  font-size: 14px;
+  color: #f7d78a;
+  font-weight: 800;
+  margin-left: 8px;
+}
+
+.bj-row__points.is-bust {
+  color: #ff5555;
+}
+
+.bj-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 6px 0;
+}
+
+.bj-bet-zones {
+  display: flex;
+  gap: 8px;
+}
+
+/* 牛牛专用 */
+.niuniu-cards-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.niuniu-result-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: var(--gold-btn-gradient);
+  color: #1a1204;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(216, 159, 42, 0.5);
+}
+
+/* 斗地主/跑得快扑克扇面重叠优化 (手牌很多时不溢出) */
+.hand-cards-rack .hand__card {
+  margin-left: -20px;
+}
+
+.hand-cards-rack .hand__card:first-child {
+  margin-left: 0;
+}
+
+.hand-cards-rack .hand__card:hover {
+  z-index: 20;
+}
+
+.hand-cards-rack .hand__card.is-selected {
+  z-index: 30;
+}

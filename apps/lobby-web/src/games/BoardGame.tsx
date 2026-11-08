@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { audio } from '../audio';
 
 interface BoardPiece {
   type: string;
@@ -49,6 +50,13 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
   const rows = isXq ? 10 : 8;
   const glyph = isXq ? XQ_GLYPH : CHESS_GLYPH;
 
+  // 将军震撼音效
+  useEffect(() => {
+    if (data?.inCheck && !data?.winner) {
+      audio.play('alert');
+    }
+  }, [data?.inCheck, data?.winner]);
+
   const cellOf = (cell: { f?: number; c?: number; r: number }): { x: number; y: number } => ({
     x: isXq ? (cell.c ?? 0) : (cell.f ?? 0),
     y: isXq ? cell.r : rows - 1 - cell.r,
@@ -85,6 +93,7 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
         return `${f.x},${f.y}` === selected && `${t.x},${t.y}` === cell;
       });
       if (from) {
+        audio.play('chip_clack');
         onAction('move', {
           from: isXq ? { c: from.from.c, r: from.from.r } : { f: from.from.f, r: from.from.r },
           to: isXq ? { c: from.to.c, r: from.to.r } : { f: from.to.f, r: from.to.r },
@@ -95,6 +104,7 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
     }
 
     if (piece && piece.color === data.myColor) {
+      audio.play('click');
       setSelected(cell);
       return;
     }
@@ -121,7 +131,7 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
               ? '轮到你走'
               : '等待对方走…'}
         </span>
-        {data.inCheck && !data.winner && <span className="boardgame__check">将军！</span>}
+        {data.inCheck && !data.winner && <span className="boardgame__check">⚠️ 将军！</span>}
         <span className="boardgame__seats">
           {otherPlayer && <em>{otherPlayer.nickname}（{otherPlayer.color === 'w' || otherPlayer.color === 'r' ? '先手' : '后手'}）</em>}
           {myPlayer && <em>我（{myPlayer.color === 'w' || myPlayer.color === 'r' ? '先手' : '后手'}）</em>}
@@ -150,9 +160,7 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
               const t = cellOf(data.lastMove!.to);
               return (f.x === x && f.y === y) || (t.x === x && t.y === y);
             })();
-          const dark = isXq
-            ? (x + y) % 2 === 1
-            : (x + y) % 2 === 1;
+          const dark = (x + y) % 2 === 1;
           return (
             <button
               key={`${x},${y}`}

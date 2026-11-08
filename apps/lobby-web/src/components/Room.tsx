@@ -74,6 +74,7 @@ export function Room({
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
   const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
+  const isPersistentGame = persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack'].includes(room.gameId);
 
   const [dismissedKey, setDismissedKey] = useState('');
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -259,8 +260,17 @@ export function Room({
       {/* 极简流光牌桌顶栏 */}
       <header className="room-topbar">
         <div className="room-topbar__left">
-          <button type="button" className="room-leave-btn" onClick={onLeave}>
-            <span>‹</span> 退出
+          <button
+            type="button"
+            className="luxury-back-btn"
+            onClick={() => {
+              audio.play('click');
+              onLeave();
+            }}
+            title="返回游戏大厅"
+          >
+            <span className="back-arrow">‹</span>
+            <span>返回大厅</span>
           </button>
           <div className="room-info-pill">
             <strong>{GAME_TITLE[room.gameId] ?? room.gameId}</strong>
@@ -306,7 +316,7 @@ export function Room({
           rows={resultRows}
           myId={myId}
           balance={balance}
-          persistent={persistent}
+          persistent={isPersistentGame}
           onContinue={() => {
             setDismissedKey(resultKey);
             onReady(true);
@@ -364,7 +374,7 @@ export function Room({
           {renderGame()}
 
           {/* 等待开局专属悬浮就绪控制台（沉浸式牌桌中心，彻底取代旧侧栏） */}
-          {room.status === 'waiting' && !persistent && (
+          {room.status === 'waiting' && !isPersistentGame && (
             <div className="table-waiting-overlay">
               <div className="waiting-card">
                 <div className="waiting-card__title">

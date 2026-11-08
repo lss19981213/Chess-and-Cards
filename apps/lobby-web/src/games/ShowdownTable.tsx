@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
+import { audio } from '../audio';
 
 interface ShowdownSnapshot {
   phase: string;
@@ -52,6 +53,26 @@ export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Pro
   const showResults = data.results.length > 0;
   const me = data.players.find((p) => p.playerId === myId);
   const need = data.toCall + raiseAdd;
+
+  const handleFold = () => {
+    audio.play('pass');
+    onAction('fold');
+  };
+
+  const handleCheck = () => {
+    audio.play('click');
+    onAction('check');
+  };
+
+  const handleCall = () => {
+    audio.play('chip_clack');
+    onAction('call');
+  };
+
+  const handleRaise = () => {
+    audio.play('chip_clack');
+    onAction('raise', raiseAdd);
+  };
 
   return (
     <div className="showdown">
@@ -114,21 +135,21 @@ export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Pro
           ))}
         </div>
       ) : (
-        <div className="showdown__actions">
+        <div className="showdown__actions hand-actions--luxury">
           <span className={`turn-hint ${isMyTurn ? 'is-on' : ''}`}>
-            {isMyTurn ? '该你行动' : '等待其他玩家…'}
+            {isMyTurn ? '★ 该你行动 ★' : '等待其他玩家…'}
           </span>
-          <button type="button" className="secondary" disabled={!isMyTurn} onClick={() => onAction('fold')}>
+          <button type="button" className="action-btn action-btn--pass" disabled={!isMyTurn} onClick={handleFold}>
             弃牌
           </button>
-          <button type="button" className="secondary" disabled={!isMyTurn || !canCheck} onClick={() => onAction('check')}>
+          <button type="button" className="action-btn action-btn--hint" disabled={!isMyTurn || !canCheck} onClick={handleCheck}>
             过牌
           </button>
           <button
             type="button"
-            className="primary"
+            className="action-btn action-btn--play"
             disabled={!isMyTurn || canCheck || data.toCall > balance}
-            onClick={() => onAction('call')}
+            onClick={handleCall}
           >
             跟注 {data.toCall}
           </button>
@@ -146,9 +167,9 @@ export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Pro
             />
             <button
               type="button"
-              className="primary"
+              className="action-btn action-btn--play"
               disabled={!isMyTurn || raiseAdd < data.raiseUnit || need > balance}
-              onClick={() => onAction('raise', raiseAdd)}
+              onClick={handleRaise}
             >
               加注 +{raiseAdd}
             </button>

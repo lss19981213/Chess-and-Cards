@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 import { Chip, ChipStack } from '../components/Chip';
 import { SeatPanel, TableStage } from '../components/TableStage';
+import { audio } from '../audio';
 
 interface TexasPlayer {
   playerId: string;
@@ -62,6 +63,26 @@ export function Texas({ snapshot, myId, status, balance, onAction }: Props) {
   const isMyTurn = data.turn === myId && status === 'playing' && !me?.folded;
   const canCheck = data.toCall === 0;
   const showResults = data.results.length > 0;
+
+  const handleFold = () => {
+    audio.play('pass');
+    onAction('fold');
+  };
+
+  const handleCheck = () => {
+    audio.play('click');
+    onAction('check');
+  };
+
+  const handleCall = () => {
+    audio.play('chip_clack');
+    onAction('call');
+  };
+
+  const handleRaise = () => {
+    audio.play('chip_clack');
+    onAction('raise', raiseAdd);
+  };
 
   return (
     <TableStage
@@ -149,21 +170,31 @@ export function Texas({ snapshot, myId, status, balance, onAction }: Props) {
             ))}
           </div>
 
-          <div className="hand-actions">
+          <div className="hand-actions hand-actions--luxury">
             <span className={`turn-hint ${isMyTurn ? 'is-on' : ''}`}>
-              {isMyTurn ? '该你行动' : '等待其他玩家…'}
+              {isMyTurn ? '★ 该你行动 ★' : '等待其他玩家…'}
             </span>
-            <button type="button" className="secondary" disabled={!isMyTurn} onClick={() => onAction('fold')}>
+            <button
+              type="button"
+              className="action-btn action-btn--pass"
+              disabled={!isMyTurn}
+              onClick={handleFold}
+            >
               弃牌
             </button>
-            <button type="button" className="secondary" disabled={!isMyTurn} onClick={() => onAction('check')}>
+            <button
+              type="button"
+              className="action-btn action-btn--hint"
+              disabled={!isMyTurn || !canCheck}
+              onClick={handleCheck}
+            >
               过牌
             </button>
             <button
               type="button"
-              className="primary"
+              className="action-btn action-btn--play"
               disabled={!isMyTurn || canCheck || data.toCall > balance}
-              onClick={() => onAction('call')}
+              onClick={handleCall}
             >
               跟注 {data.toCall}
             </button>
@@ -181,9 +212,9 @@ export function Texas({ snapshot, myId, status, balance, onAction }: Props) {
               />
               <button
                 type="button"
-                className="primary"
+                className="action-btn action-btn--play"
                 disabled={!isMyTurn || raiseAdd < data.raiseUnit || data.toCall + raiseAdd > balance}
-                onClick={() => onAction('raise', raiseAdd)}
+                onClick={handleRaise}
               >
                 加注 +{raiseAdd}
               </button>
