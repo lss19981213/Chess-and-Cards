@@ -129,8 +129,8 @@ export function Lobby({
 
   return (
     <div className="lobby lobby--luxury" style={{ ['--lobby-bg' as string]: `url(${HERO_BG})` }}>
-      {/* 顶部殿堂级流光导航条 */}
-      <header className="app-top">
+      {/* 顶部殿堂级导航条：1166px 宽度黄金排布，元素永不挤压变形 */}
+      <header className="app-top app-top--fixed">
         <div className="app-top__left">
           {/* 用户头像与信息 */}
           <div
@@ -145,15 +145,12 @@ export function Lobby({
               <span className="app-avatar-badge">{user ? 'VIP' : 'GUEST'}</span>
             </div>
             <div className="app-top__id">
-              <div className="app-top__name-row">
-                <strong>{user?.nickname ?? '游客身份'}</strong>
-                {!user && <span className="login-pill">点此登录</span>}
-              </div>
-              <small>{user ? `ID: ${user.id.slice(0, 8)}` : '尚未登录账号'}</small>
+              <strong className="user-nickname-text">{user?.nickname ?? '游客身份'}</strong>
+              <small>{user ? `ID: ${user.id.slice(0, 6)}` : '点此登录'}</small>
             </div>
           </div>
 
-          {/* 筹码钱包 */}
+          {/* 筹码钱包：紧凑横排胶囊，绝对不折行 */}
           <div
             className="app-top__wallet"
             onClick={onTasks}
@@ -162,13 +159,13 @@ export function Lobby({
             title="筹码钱包 · 点击领取福利"
           >
             <div className="wallet-chip-icon">
-              <Chip size={22} />
+              <Chip size={20} />
             </div>
-            <div className="wallet-amount">
-              <span className="wallet-label">筹码余额</span>
-              <strong>{user ? user.balance.toLocaleString() : '—'}</strong>
+            <div className="wallet-info-col">
+              <span className="wallet-label">筹码</span>
+              <strong className="wallet-val">{user ? user.balance.toLocaleString() : '1,000'}</strong>
             </div>
-            <span className="wallet-plus" title="福利任务">+</span>
+            <span className="wallet-plus">+</span>
           </div>
         </div>
 
@@ -181,81 +178,83 @@ export function Lobby({
           <span className="marquee-arrow">›</span>
         </div>
 
-        {/* 顶部右侧系统功能群 (精细矢量图标，全屏无弹窗模式) */}
+        {/* 顶部右侧系统功能群：统一胶囊尺寸，绝不变形 */}
         <div className="app-top__tools">
           <button
             type="button"
-            className="top-feature-btn"
+            className="top-feature-pill"
             onClick={onTasks}
             title="福利任务"
           >
-            <IconGift size={16} />
+            <IconGift size={15} />
             <span>福利</span>
             <span className="feature-dot" />
           </button>
 
           <button
             type="button"
-            className="top-feature-btn"
+            className="top-feature-pill"
             onClick={onLeaderboard}
             title="名人堂排行榜"
           >
-            <IconTrophy size={16} />
+            <IconTrophy size={15} />
             <span>榜单</span>
           </button>
 
           <button
             type="button"
-            className="top-feature-btn"
+            className="top-feature-pill"
             onClick={onAssistant}
             title="智谋助手 (GLM驱动)"
           >
-            <IconAssistant size={16} />
+            <IconAssistant size={15} />
             <span>助手</span>
           </button>
 
           <button
             type="button"
-            className="top-feature-btn"
+            className="top-feature-pill"
             onClick={onRules}
             title="玩法规则"
           >
-            <IconRules size={16} />
+            <IconRules size={15} />
             <span>规则</span>
           </button>
 
           <div className="tool-divider" />
 
-          {/* 媒体控制 */}
-          <button
-            type="button"
-            className={`tool-btn ${musicOn ? 'is-active' : ''}`}
-            title={musicOn ? '关闭背景音乐' : '开启背景音乐'}
-            onClick={() => setMusicOn(audio.toggleMusic())}
-          >
-            <IconMusic on={musicOn} size={15} />
-          </button>
-          <button
-            type="button"
-            className={`tool-btn ${sfxOn ? 'is-active' : ''}`}
-            title={sfxOn ? '关闭音效' : '开启音效'}
-            onClick={() => setSfxOn(audio.toggleSfx())}
-          >
-            <IconSound on={sfxOn} size={15} />
-          </button>
-          <button
-            type="button"
-            className="tool-btn"
-            title={`切歌（当前：${trackName}）`}
-            onClick={() => setTrackName(audio.nextTrack())}
-          >
-            <IconNext size={14} />
-          </button>
+          {/* 媒体控制群 */}
+          <div className="top-media-group">
+            <button
+              type="button"
+              className={`media-icon-btn ${musicOn ? 'is-active' : ''}`}
+              title={musicOn ? '关闭背景音乐' : '开启背景音乐'}
+              onClick={() => setMusicOn(audio.toggleMusic())}
+            >
+              <IconMusic on={musicOn} size={15} />
+            </button>
+            <button
+              type="button"
+              className={`media-icon-btn ${sfxOn ? 'is-active' : ''}`}
+              title={sfxOn ? '关闭音效' : '开启音效'}
+              onClick={() => setSfxOn(audio.toggleSfx())}
+            >
+              <IconSound on={sfxOn} size={15} />
+            </button>
+            <button
+              type="button"
+              className="media-icon-btn"
+              title={`切歌（当前：${trackName}）`}
+              onClick={() => setTrackName(audio.nextTrack())}
+            >
+              <IconNext size={14} />
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* 大厅主展台：彻底消灭底部与边缘空白，左侧游戏画卷 + 右侧美女荷官展台 */}
-      <main className="app-main app-main--showcase app-main--pure app-main--fullwidth">
+      {/* 大厅主展台：1166*514 黄金比例，高度 470px 垂直撑满，彻底消除底部空白 */}
+      <main className="app-main app-main--showcase app-main--pure app-main--stage1166">
         <div className="lobby-stage-layout">
           {/* 左侧主要区域：分类胶囊 + 纵向满幅横向游戏画卷 */}
           <section className="lobby-games-section">
@@ -284,7 +283,7 @@ export function Lobby({
               </div>
             </div>
 
-            {/* 横向游戏画卷轨道：高度自适应拉伸充满视口 */}
+            {/* 横向游戏画卷轨道：高度 420px 完整纵向拉满 */}
             <div className="games-carousel-track">
               {filteredGames.map((game) => {
                 const isLive = game.persistent === true || game.category === 'live';
@@ -346,7 +345,7 @@ export function Lobby({
             </div>
           </section>
 
-          {/* 右侧专属区域：动漫首席荷官·艾莉丝迎宾展台 (显式呈现，灵动陪伴) */}
+          {/* 右侧专属区域：动漫首席荷官·艾莉丝迎宾展台 (高度420px撑满，立绘完整呈现) */}
           <aside className="lobby-dealer-stand" onClick={handleDealerClick} title="点击与美女荷官艾莉丝互动">
             {/* 灵动台词气泡 */}
             <div className="dealer-stand__bubble">

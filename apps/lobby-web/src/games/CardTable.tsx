@@ -224,9 +224,9 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
               {hand.length === 0 && <span className="hand-finished-tag">🎉 手牌已全部出完！</span>}
             </div>
 
-            {/* 右下黄金操作控制台 */}
+            {/* 黄金操作控制台 (居于手牌上方居中，绝不遮挡任何手牌) */}
             {isMyTurn && (
-              <div className="hand-action-dock">
+              <div className="hand-action-dock-center">
                 {canPass && (
                   <button
                     type="button"

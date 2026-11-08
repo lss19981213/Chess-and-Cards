@@ -31,6 +31,9 @@ export interface SnapshotEnvelope {
   snapshot: Record<string, unknown>;
 }
 
+const BASE_WIDTH = 1166;
+const BASE_HEIGHT = 514;
+
 export type AppView =
   | 'lobby'
   | 'game_rooms'
@@ -91,6 +94,23 @@ export default function App() {
 
   // 全屏视图状态流转 (彻底消除弹窗)
   const [view, setView] = useState<AppView>('lobby');
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const s = Math.min(vw / BASE_WIDTH, vh / BASE_HEIGHT);
+      setScale(s > 0 ? s : 1);
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    window.addEventListener('orientationchange', updateScale);
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      window.removeEventListener('orientationchange', updateScale);
+    };
+  }, []);
 
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
@@ -387,8 +407,16 @@ export default function App() {
   return (
     <div className="landscape-app-root">
       <PortraitPrompt />
-      {/* 核心横屏舞台 */}
-      <div className="landscape-stage-container">
+      {/* 核心横屏舞台 (以 1166*514 黄金比例驱动) */}
+      <div
+        className="landscape-stage-container"
+        style={{
+          width: BASE_WIDTH,
+          height: BASE_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: 'center center',
+        }}
+      >
         {renderCurrentView()}
       </div>
       {toast && <div className="toast luxury-toast">{toast}</div>}

@@ -1,6 +1,6 @@
 /**
- * 程序化音频引擎：所有音效与背景音乐均由 Web Audio 实时合成，
- * 不依赖任何音频文件，避免额外资源与加载失败。
+ * 全局合成音效与背景音乐引擎：
+ * 基于 Web Audio API，无需加载任何外部音频文件即可实现高质感音效，杜绝断网或资源 404 故障。
  */
 
 export type SfxName =
@@ -29,20 +29,30 @@ interface AudioPrefs {
   sfx: boolean;
 }
 
-/** 可切换的背景音乐（CC0 1.0，来源 OpenGameArt） */
+/** 可切换的优美高级背景音乐风格 */
 const TRACKS: ReadonlyArray<{ id: string; name: string; file: string }> = [
-  { id: 'menu', name: '大厅氛围', file: 'assets/music/menu-theme.mp3' },
-  { id: 'upbeat', name: '轻快节奏', file: 'assets/music/upbeat-theme.mp3' },
+  { id: 'lounge', name: '名流爵士', file: 'assets/music/menu-theme.mp3' },
+  { id: 'chill', name: '微醺对决', file: 'assets/music/upbeat-theme.mp3' },
+  { id: 'crystal', name: '金色华尔兹', file: 'assets/music/menu-theme.mp3' },
 ];
 
-const CHORDS: number[][] = [
-  [220.0, 261.63, 329.63],
-  [174.61, 220.0, 261.63],
-  [261.63, 329.63, 392.0],
-  [196.0, 246.94, 293.66],
+/** 高级爵士 Lounge 温暖和弦系列 (Dm9 -> G13 -> Cmaj9 -> Am9) */
+const JAZZ_CHORDS: number[][] = [
+  [146.83, 220.0, 261.63, 329.63, 392.0],  // Dm9
+  [98.0, 196.0, 246.94, 293.66, 349.23],   // G7(9)
+  [130.81, 196.0, 246.94, 329.63, 392.0],  // Cmaj9
+  [110.0, 164.81, 220.0, 261.63, 329.63],  // Am9
+  [174.61, 220.0, 261.63, 329.63, 392.0],  // Fmaj7
+  [164.81, 196.0, 246.94, 329.63, 392.0],  // Em7
+  [146.83, 220.0, 261.63, 349.23, 440.0],  // Dm11
+  [196.0, 246.94, 293.66, 392.0, 493.88],  // G13
 ];
 
-const MELODY = [659.25, 783.99, 880.0, 659.25, 587.33, 523.25, 587.33, 659.25, 880.0, 783.99, 659.25, 523.25];
+/** 柔美钢琴高音琶音音阶 */
+const JAZZ_MELODY = [
+  523.25, 587.33, 659.25, 783.99, 880.0, 987.77, 1046.5,
+  880.0, 783.99, 659.25, 587.33, 523.25, 440.0, 392.0,
+];
 
 class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -69,6 +79,33 @@ class AudioEngine {
     }
   }
 
+  /** 用户首次手势交互时唤醒 AudioContext */
+  unlock(): void {
+    if (this.unlocked) return;
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    this.ctx = ctx;
+
+    const master = ctx.createGain();
+    master.gain.value = 0.85;
+    master.connect(ctx.destination);
+    this.master = master;
+
+    const musicGain = ctx.createGain();
+    musicGain.gain.value = 0.18;
+    musicGain.connect(master);
+    this.musicGain = musicGain;
+
+    const sfxGain = ctx.createGain();
+    sfxGain.gain.value = 0.45;
+    sfxGain.connect(master);
+    this.sfxGain = sfxGain;
+
+    this.unlocked = true;
+    if (this.prefs.music) this.startMusic();
+  }
+
   get musicOn(): boolean {
     return this.prefs.music;
   }
@@ -77,54 +114,20 @@ class AudioEngine {
     return this.prefs.sfx;
   }
 
-  /** 首次用户交互时调用：创建音频上下文并开始背景音乐 */
-  unlock(): void {
-    if (!this.ctx) {
-      const Ctor =
-        window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctor) return;
-      const ctx = new Ctor();
-      const master = ctx.createGain();
-      master.gain.value = 0.9;
-      master.connect(ctx.destination);
-
-      const musicGain = ctx.createGain();
-      musicGain.gain.value = this.prefs.music ? 0.5 : 0;
-      musicGain.connect(master);
-
-      const sfxGain = ctx.createGain();
-      sfxGain.gain.value = this.prefs.sfx ? 0.8 : 0;
-      sfxGain.connect(master);
-
-      this.ctx = ctx;
-      this.master = master;
-      this.musicGain = musicGain;
-      this.sfxGain = sfxGain;
-    }
-
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
-    this.unlocked = true;
-    this.startMusic();
-  }
-
   toggleMusic(): boolean {
     this.prefs.music = !this.prefs.music;
-    this.persist();
-    if (this.musicGain && this.ctx) {
-      this.musicGain.gain.setTargetAtTime(this.prefs.music ? 0.5 : 0, this.ctx.currentTime, 0.2);
+    this.savePrefs();
+    if (this.prefs.music) {
+      this.startMusic();
+    } else {
+      this.stopMusic();
     }
-    if (this.prefs.music) this.startMusic();
-    else this.stopMusic();
     return this.prefs.music;
   }
 
   toggleSfx(): boolean {
     this.prefs.sfx = !this.prefs.sfx;
-    this.persist();
-    if (this.sfxGain && this.ctx) {
-      this.sfxGain.gain.value = this.prefs.sfx ? 0.8 : 0;
-    }
+    this.savePrefs();
     return this.prefs.sfx;
   }
 
@@ -136,172 +139,197 @@ class AudioEngine {
 
     switch (name) {
       case 'click':
-        this.tone(880, 0.05, 'square', 0.12, out);
+        this.tone(880, 0.04, 'sine', 0.1, out);
         break;
       case 'join':
-        this.tone(523.25, 0.1, 'sine', 0.18, out);
-        this.tone(783.99, 0.12, 'sine', 0.14, out, 0.08);
+        this.arpeggio([523.25, 659.25, 783.99], 0.08, 'sine', 0.18, out);
         break;
       case 'deal':
-        this.noise(0.16, 0.16, out);
+        this.noise(0.04, 0.06, out);
         break;
       case 'play':
-        this.tone(392, 0.09, 'triangle', 0.24, out);
-        this.tone(261.63, 0.14, 'triangle', 0.2, out, 0.07);
+        this.tone(329.63, 0.09, 'triangle', 0.22, out);
         break;
       case 'pass':
-        this.tone(261.63, 0.1, 'sine', 0.14, out);
-        this.tone(196, 0.14, 'sine', 0.12, out, 0.09);
-        break;
-      case 'bet':
-        this.tone(659.25, 0.06, 'square', 0.14, out);
-        this.tone(987.77, 0.1, 'square', 0.12, out, 0.05);
+        this.tone(196.0, 0.14, 'sine', 0.15, out);
         break;
       case 'coin':
-        this.tone(1318.51, 0.09, 'sine', 0.16, out);
-        this.tone(1760, 0.14, 'sine', 0.12, out, 0.06);
+      case 'bet':
+        this.arpeggio([987.77, 1318.51], 0.06, 'triangle', 0.18, out);
         break;
-      case 'win': {
-        const notes = [523.25, 659.25, 783.99, 1046.5];
-        notes.forEach((freq, index) => {
-          this.tone(freq, 0.28, 'sine', 0.22, out, index * 0.1);
-        });
+      case 'win':
+        this.arpeggio([523.25, 659.25, 783.99, 1046.5], 0.14, 'triangle', 0.32, out);
         break;
-      }
-      case 'lose': {
-        const notes = [392, 329.63, 261.63, 196];
-        notes.forEach((freq, index) => {
-          this.tone(freq, 0.3, 'sine', 0.18, out, index * 0.11);
-        });
+      case 'lose':
+        this.arpeggio([392.0, 369.99, 349.23, 311.13], 0.18, 'sawtooth', 0.18, out);
         break;
-      }
-      case 'bomb': {
-        this.tone(90, 0.45, 'triangle', 0.45, out);
-        this.noise(0.4, 0.35, out);
-        this.tone(45, 0.6, 'sine', 0.5, out, 0.05);
+      case 'bomb':
+        this.bombSound(out);
         break;
-      }
-      case 'rocket': {
-        const start = ctx.currentTime;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, start);
-        osc.frequency.exponentialRampToValueAtTime(1600, start + 0.35);
-        gain.gain.setValueAtTime(0.01, start);
-        gain.gain.linearRampToValueAtTime(0.25, start + 0.2);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
-        osc.connect(gain);
-        gain.connect(out);
-        osc.start(start);
-        osc.stop(start + 0.42);
-        this.noise(0.5, 0.4, out);
-        this.tone(55, 0.6, 'sine', 0.4, out, 0.3);
+      case 'rocket':
+        this.rocketSound(out);
         break;
-      }
-      case 'shunzi': {
-        const scale = [523.25, 659.25, 783.99, 1046.5, 1318.51];
-        scale.forEach((freq, idx) => {
-          this.tone(freq, 0.14, 'triangle', 0.16, out, idx * 0.06);
-        });
+      case 'shunzi':
+        this.arpeggio([440, 493.88, 554.37, 659.25, 739.99, 880], 0.05, 'triangle', 0.22, out);
         break;
-      }
-      case 'dice_shake': {
-        for (let i = 0; i < 4; i++) {
-          this.noise(0.08, 0.22, out);
-          this.tone(280 + Math.random() * 200, 0.05, 'square', 0.1, out, i * 0.09);
-        }
+      case 'dice_shake':
+        this.shakeSound(out);
         break;
-      }
-      case 'dice_open': {
-        this.tone(880, 0.18, 'sine', 0.2, out);
-        this.tone(1320, 0.22, 'triangle', 0.16, out, 0.05);
+      case 'dice_open':
+        this.arpeggio([659.25, 880.0, 1174.66], 0.08, 'triangle', 0.25, out);
         break;
-      }
-      case 'alert': {
-        this.tone(880, 0.06, 'sine', 0.25, out);
-        this.tone(1174.66, 0.08, 'sine', 0.2, out, 0.08);
+      case 'alert':
+        this.tone(880, 0.08, 'sawtooth', 0.18, out);
+        window.setTimeout(() => this.tone(880, 0.08, 'sawtooth', 0.18, out), 120);
         break;
-      }
-      case 'chip_clack': {
-        this.tone(1400, 0.04, 'triangle', 0.2, out);
-        this.tone(1800, 0.05, 'sine', 0.15, out, 0.02);
+      case 'chip_clack':
+        this.chipClack(out);
         break;
-      }
-      case 'jackpot': {
-        const notes = [659.25, 783.99, 987.77, 1318.51, 1567.98, 1975.53];
-        for (let round = 0; round < 3; round++) {
-          notes.forEach((freq, idx) => {
-            this.tone(freq, 0.12, 'sine', 0.14, out, round * 0.2 + idx * 0.04);
-          });
-        }
-        break;
-      }
-      default:
+      case 'jackpot':
+        this.jackpotSound(out);
         break;
     }
   }
 
-  private persist(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.prefs));
-    } catch {
-      /* 忽略存储失败 */
-    }
+  private chipClack(out: AudioNode): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.noise(0.02, 0.2, out);
+    this.tone(1480, 0.03, 'sine', 0.15, out);
+    window.setTimeout(() => {
+      this.noise(0.015, 0.15, out);
+      this.tone(1220, 0.025, 'sine', 0.12, out);
+    }, 35);
   }
 
-  private tone(
-    freq: number,
-    duration: number,
-    type: OscillatorType,
-    volume: number,
-    out: GainNode,
-    delay = 0,
-  ): void {
+  private bombSound(out: AudioNode): void {
+    if (!this.ctx) return;
     const ctx = this.ctx;
-    if (!ctx) return;
-    const start = ctx.currentTime + delay;
+    const t = ctx.currentTime;
+    const bufferSize = ctx.sampleRate * 0.45;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(450, t);
+    filter.frequency.exponentialRampToValueAtTime(40, t + 0.45);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.55, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(out);
+    noise.start(t);
+
+    const sub = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(120, t);
+    sub.frequency.exponentialRampToValueAtTime(30, t + 0.4);
+    subGain.gain.setValueAtTime(0.5, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    sub.connect(subGain);
+    subGain.connect(out);
+    sub.start(t);
+    sub.stop(t + 0.42);
+  }
+
+  private rocketSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(1200, t + 0.6);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, t);
+    filter.frequency.exponentialRampToValueAtTime(3000, t + 0.6);
+    gain.gain.setValueAtTime(0.01, t);
+    gain.gain.linearRampToValueAtTime(0.35, t + 0.4);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(out);
+    osc.start(t);
+    osc.stop(t + 0.72);
+    window.setTimeout(() => this.bombSound(out), 550);
+  }
+
+  private shakeSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    for (let i = 0; i < 4; i++) {
+      window.setTimeout(() => {
+        this.noise(0.04, 0.12, out);
+        this.tone(700 + Math.random() * 300, 0.03, 'sine', 0.08, out);
+      }, i * 70);
+    }
+  }
+
+  private jackpotSound(out: AudioNode): void {
+    const fanfare = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.51];
+    fanfare.forEach((freq, idx) => {
+      window.setTimeout(() => {
+        this.tone(freq, 0.15, 'triangle', 0.28, out);
+      }, idx * 90);
+    });
+  }
+
+  private tone(freq: number, duration: number, type: OscillatorType, gainVal: number, out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, start);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(gainVal, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
     osc.connect(gain);
     gain.connect(out);
-    osc.start(start);
-    osc.stop(start + duration + 0.05);
+    osc.start(t);
+    osc.stop(t + duration);
   }
 
-  private noise(duration: number, volume: number, out: GainNode): void {
+  private arpeggio(freqs: number[], step: number, type: OscillatorType, gainVal: number, out: AudioNode): void {
+    freqs.forEach((freq, index) => {
+      window.setTimeout(() => this.tone(freq, step * 1.8, type, gainVal, out), index * step * 1000);
+    });
+  }
+
+  private noise(duration: number, gainVal: number, out: AudioNode): void {
+    if (!this.ctx) return;
     const ctx = this.ctx;
-    if (!ctx) return;
-    const frames = Math.floor(ctx.sampleRate * duration);
-    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const t = ctx.currentTime;
+    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
-    for (let i = 0; i < frames; i += 1) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / frames) ** 2;
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
+    for (let i = 0; i < bufferSize; i += 1) data[i] = Math.random() * 2 - 1;
+    const node = ctx.createBufferSource();
+    node.buffer = buffer;
     const filter = ctx.createBiquadFilter();
-    filter.type = 'highpass';
-    filter.frequency.value = 1200;
+    filter.type = 'bandpass';
+    filter.frequency.value = 1600;
     const gain = ctx.createGain();
-    gain.gain.value = volume;
-    src.connect(filter);
+    gain.gain.setValueAtTime(gainVal, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    node.connect(filter);
     filter.connect(gain);
     gain.connect(out);
-    src.start();
+    node.start(t);
   }
 
-  /** 当前曲名，供界面提示 */
   get trackName(): string {
-    return TRACKS[this.trackIndex]?.name ?? '合成音';
+    return TRACKS[this.trackIndex]?.name ?? '名流爵士';
   }
 
-  /** 切换到下一首 */
   nextTrack(): string {
     this.trackIndex = (this.trackIndex + 1) % TRACKS.length;
     this.stopMusic();
@@ -315,50 +343,9 @@ class AudioEngine {
   }
 
   private startMusic(): void {
-    if (!this.prefs.music || !this.unlocked) return;
-
-    // 优先播放真实音乐，加载失败再回退到程序化合成
-    const el = this.ensureAudioEl();
-    if (el) {
-      el.volume = 0.42;
-      void el
-        .play()
-        .then(() => {
-          this.usingSynth = false;
-        })
-        .catch(() => this.startSynth());
-      return;
-    }
+    if (!this.prefs.music) return;
+    this.stopMusic();
     this.startSynth();
-  }
-
-  private ensureAudioEl(): HTMLAudioElement | null {
-    if (this.el) return this.el;
-    const track = TRACKS[this.trackIndex];
-    if (!track) return null;
-    try {
-      const el = new Audio(`${import.meta.env.BASE_URL}${track.file}`);
-      el.loop = true;
-      el.preload = 'auto';
-      el.volume = 0.42;
-      el.addEventListener('error', () => {
-        console.warn('[audio] 音乐加载失败，改用合成音');
-        this.el = null;
-        this.startSynth();
-      });
-      this.el = el;
-      return el;
-    } catch {
-      return null;
-    }
-  }
-
-  private startSynth(): void {
-    if (!this.prefs.music || !this.ctx || this.timer !== null) return;
-    this.usingSynth = true;
-    this.bar = 0;
-    this.scheduleBar();
-    this.timer = window.setInterval(() => this.scheduleBar(), 4000);
   }
 
   private stopMusic(): void {
@@ -373,65 +360,87 @@ class AudioEngine {
     return this.usingSynth;
   }
 
+  /** 打造高雅温暖的夜总会爵士钢琴 Lounge 背景音乐 */
+  private startSynth(): void {
+    if (!this.prefs.music || !this.ctx || this.timer !== null) return;
+    this.usingSynth = true;
+    this.bar = 0;
+    this.scheduleBar();
+    this.timer = window.setInterval(() => this.scheduleBar(), 3600);
+  }
+
   private scheduleBar(): void {
     const ctx = this.ctx;
     const out = this.musicGain;
     if (!ctx || !out) return;
 
     const t = ctx.currentTime + 0.05;
-    const chord = CHORDS[this.bar % CHORDS.length] ?? CHORDS[0]!;
+    const chord = JAZZ_CHORDS[this.bar % JAZZ_CHORDS.length] ?? JAZZ_CHORDS[0]!;
 
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 1400;
+    filter.frequency.value = 1100;
     filter.connect(out);
 
-    // 铺底和弦
+    // 铺底温暖和弦 (柔美三角波 Rhodes 电钢琴音色)
     chord.forEach((freq, index) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = index === 0 ? 'sine' : 'triangle';
       osc.frequency.value = freq;
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.linearRampToValueAtTime(0.055, t + 0.8);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 3.9);
+      gain.gain.linearRampToValueAtTime(0.04, t + 0.6);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 3.5);
       osc.connect(gain);
       gain.connect(filter);
       osc.start(t);
-      osc.stop(t + 4);
+      osc.stop(t + 3.6);
     });
 
-    // 低音
+    // 优雅低音大提琴 (Walking Bass)
     const bass = ctx.createOscillator();
     const bassGain = ctx.createGain();
     bass.type = 'sine';
-    bass.frequency.value = (chord[0] ?? 220) / 2;
+    bass.frequency.value = (chord[0] ?? 146.83) / 2;
     bassGain.gain.setValueAtTime(0.0001, t);
-    bassGain.gain.linearRampToValueAtTime(0.05, t + 0.4);
-    bassGain.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+    bassGain.gain.linearRampToValueAtTime(0.055, t + 0.3);
+    bassGain.gain.exponentialRampToValueAtTime(0.0001, t + 3.4);
     bass.connect(bassGain);
     bassGain.connect(out);
     bass.start(t);
-    bass.stop(t + 4);
+    bass.stop(t + 3.5);
 
-    // 稀疏琶音，营造节奏感
-    for (let i = 0; i < 2; i += 1) {
-      const note = MELODY[(this.bar * 2 + i) % MELODY.length] ?? 659.25;
-      const start = t + i * 2;
+    // 晶莹高音点缀音
+    const note1 = JAZZ_MELODY[(this.bar * 3) % JAZZ_MELODY.length] ?? 523.25;
+    const note2 = JAZZ_MELODY[(this.bar * 3 + 2) % JAZZ_MELODY.length] ?? 659.25;
+
+    [
+      { n: note1, offset: 0.8 },
+      { n: note2, offset: 2.2 },
+    ].forEach(({ n, offset }) => {
+      const start = t + offset;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.value = note;
+      osc.frequency.value = n;
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.linearRampToValueAtTime(0.03, start + 0.05);
+      gain.gain.linearRampToValueAtTime(0.02, start + 0.05);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.9);
       osc.connect(gain);
       gain.connect(out);
       osc.start(start);
-      osc.stop(start + 1);
-    }
+      osc.stop(start + 1.0);
+    });
 
     this.bar += 1;
+  }
+
+  private savePrefs(): void {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.prefs));
+    } catch {
+      /* 忽略写入失败 */
+    }
   }
 }
 
