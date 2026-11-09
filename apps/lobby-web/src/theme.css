@@ -7021,9 +7021,12 @@ html, body, #root {
 }
 
 .companion-portrait-wrapper img {
-  width: 100% !important;
+  /* 放大到容器宽度的 1.5 倍并居中溢出，人像更饱满，上方空白显著减少 */
+  width: 150% !important;
+  max-width: none !important;
   height: auto !important;
-  max-height: 100%;
+  max-height: none !important;
+  margin-left: -25%;
   object-fit: contain !important;
   object-position: bottom center !important;
   filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.6));
