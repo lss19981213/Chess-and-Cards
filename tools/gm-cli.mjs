@@ -134,7 +134,7 @@ async function deploy() {
 async function status() {
   const conn = await connect();
   const svc = await sshExec(conn, 'systemctl is-active cc-api cc-room');
-  const log = await sshExec(conn, 'tail -1 /tmp/deploy.log 2>/dev/null || echo (无日志)');
+  const log = await sshExec(conn, 'tail -1 /tmp/deploy.log 2>/dev/null || echo no-log-yet');
   const disk = await sshExec(conn, "df -h / | tail -1 | awk '{print $5}'");
   conn.end();
 

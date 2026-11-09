@@ -6,6 +6,15 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+# 启动异常写入本地文件，避免窗口一闪而过没有任何提示
+trap {
+  $detail = ($_ | Out-String)
+  $path = Join-Path $env:TEMP 'cc-gm-tool-error.txt'
+  Set-Content -Path $path -Value $detail -Encoding UTF8
+  [System.Windows.Forms.MessageBox]::Show("GM 工具启动失败：`r`n$($_.Exception.Message)`r`n`r`n详细信息：$path", 'Chess & Cards GM')
+  break
+}
+
 $ErrorActionPreference = 'Stop'
 $script:Root = Split-Path -Parent $PSScriptRoot
 $script:ConfigPath = Join-Path $PSScriptRoot '.gm-config.json'
