@@ -7133,6 +7133,25 @@ html, body, #root {
 
 .hand-area {
   padding-bottom: 2px !important;
+  gap: 4px !important;
+}
+
+/* 底池块压缩并上移，避开手牌区域 */
+.texas-center {
+  gap: 4px !important;
+}
+
+.pot-display--inline {
+  margin-top: 0 !important;
+  gap: 1px !important;
+}
+
+.pot-display--inline .pot-display__value strong {
+  font-size: 20px !important;
+}
+
+.pot-display--inline .pot-display__meta {
+  font-size: 9.5px !important;
 }
 
 /* 26.6 任务分组 */
