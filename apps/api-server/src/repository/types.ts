@@ -81,6 +81,40 @@ export interface RegisterInput {
   nickname: string;
 }
 
+/** 玩家公开资料（好友、搜索、个人中心共用） */
+export interface PlayerProfile {
+  userId: string;
+  nickname: string;
+  username: string | null;
+  bio: string;
+  avatar: string | null;
+  /** 是否已与当前登录用户互为好友 */
+  isFriend?: boolean;
+  /** 我是否已向对方发出待处理申请 */
+  requestPending?: boolean;
+}
+
+export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface FriendRequestView {
+  id: string;
+  fromId: string;
+  fromNickname: string;
+  fromAvatar: string | null;
+  toId: string;
+  toNickname: string;
+  toAvatar: string | null;
+  message: string | null;
+  status: FriendRequestStatus;
+  createdAt: number;
+}
+
+export interface ProfilePatch {
+  nickname?: string;
+  bio?: string;
+  avatar?: string | null;
+}
+
 export type RegisterResult = { ok: true; user: UserRecord } | { ok: false; reason: 'username_taken' };
 
 export interface Repository {
@@ -122,4 +156,21 @@ export interface Repository {
   }): Promise<Announcement>;
   deleteAnnouncement(id: string): Promise<boolean>;
   close(): Promise<void>;
+
+  // ---------- 个人资料 ----------
+  getProfile(userId: string): Promise<PlayerProfile | null>;
+  updateProfile(userId: string, patch: ProfilePatch): Promise<PlayerProfile>;
+  /** 按昵称或账号搜索玩家，keyword 为空时返回最近注册的玩家 */
+  searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]>;
+
+  // ---------- 好友 ----------
+  listFriends(userId: string): Promise<PlayerProfile[]>;
+  /** 建立一条待处理申请；已是好友或已有待处理申请时抛错 */
+  createFriendRequest(fromId: string, toId: string, message: string | null): Promise<FriendRequestView>;
+  listFriendRequests(userId: string): Promise<{ incoming: FriendRequestView[]; outgoing: FriendRequestView[] }>;
+  /** 接受申请：写入双向好友关系。返回 false 表示申请不存在或不属于该用户 */
+  acceptFriendRequest(requestId: string, userId: string): Promise<boolean>;
+  rejectFriendRequest(requestId: string, userId: string): Promise<boolean>;
+  removeFriend(userId: string, friendId: string): Promise<boolean>;
+  areFriends(userId: string, friendId: string): Promise<boolean>;
 }

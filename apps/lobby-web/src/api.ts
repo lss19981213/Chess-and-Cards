@@ -168,4 +168,98 @@ export const api = {
 
   leaderboardRewards: () =>
     request<{ dayKey: string; entries: LeaderboardRewardRow[] }>('/api/leaderboard/rewards'),
+
+  // ---------- 个人资料与好友 ----------
+  profile: () =>
+    request<{
+      profile: PlayerProfile;
+      balance: number;
+      friendsCount: number;
+      rank: number | null;
+      achievements: number;
+    }>('/api/profile'),
+
+  updateProfile: (patch: { nickname?: string; bio?: string; avatar?: string | null }) =>
+    request<{ profile: PlayerProfile }>('/api/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+
+  searchUsers: (keyword: string) =>
+    request<{ users: PlayerProfile[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}`),
+
+  friends: () =>
+    request<{
+      friends: PlayerProfile[];
+      incoming: FriendRequestView[];
+      outgoing: FriendRequestView[];
+    }>('/api/friends'),
+
+  requestFriend: (userId: string, message?: string) =>
+    request<{ ok: boolean; request: FriendRequestView }>('/api/friends/request', {
+      method: 'POST',
+      body: JSON.stringify({ userId, message }),
+    }),
+
+  acceptFriend: (requestId: string) =>
+    request<{ ok: boolean; friends: PlayerProfile[] }>('/api/friends/accept', {
+      method: 'POST',
+      body: JSON.stringify({ requestId }),
+    }),
+
+  rejectFriend: (requestId: string) =>
+    request<{ ok: boolean }>('/api/friends/reject', {
+      method: 'POST',
+      body: JSON.stringify({ requestId }),
+    }),
+
+  removeFriend: (userId: string) =>
+    request<{ ok: boolean }>(`/api/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+
+  // ---------- 房间邀请 ----------
+  inviteToRoom: (input: { roomId: string; gameId: string; roomName?: string; friendIds: string[] }) =>
+    request<{ ok: boolean; sent: number }>('/api/rooms/invite', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  roomInvites: () => request<{ invites: RoomInviteView[] }>('/api/rooms/invites'),
+
+  dismissInvite: (id: string) =>
+    request<{ ok: boolean }>(`/api/rooms/invites/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
+
+export interface RoomInviteView {
+  id: string;
+  fromId: string;
+  fromNickname: string;
+  fromAvatar: string | null;
+  toId: string;
+  roomId: string;
+  gameId: string;
+  roomName: string;
+  createdAt: number;
+}
+
+export interface PlayerProfile {
+  userId: string;
+  nickname: string;
+  username: string | null;
+  bio: string;
+  avatar: string | null;
+  isFriend?: boolean;
+  requestPending?: boolean;
+}
+
+export interface FriendRequestView {
+  id: string;
+  fromId: string;
+  fromNickname: string;
+  fromAvatar: string | null;
+  toId: string;
+  toNickname: string;
+  toAvatar: string | null;
+  message: string | null;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: number;
+}

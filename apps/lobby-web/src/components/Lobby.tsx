@@ -17,6 +17,7 @@ import {
   IconSound,
   IconSpade,
   IconTrophy,
+  IconUser,
 } from './Icons';
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
   onQuickPlay: (game: GameMeta) => void;
   onLogin: () => void;
   onTasks: () => void;
+  onFriends: () => void;
   onLeaderboard: () => void;
   onProfile: () => void;
   onNotices: () => void;
@@ -61,6 +63,7 @@ export function Lobby({
   onQuickPlay,
   onLogin,
   onTasks,
+  onFriends,
   onLeaderboard,
   onProfile,
   onNotices,
@@ -183,6 +186,11 @@ export function Lobby({
             <IconGift size={15} />
             <span>福利</span>
             <span className="feature-dot" />
+          </button>
+
+          <button type="button" className="top-feature-pill" onClick={onFriends} title="好友与牌局邀请">
+            <IconUser size={15} />
+            <span>好友</span>
           </button>
 
           <button type="button" className="top-feature-pill" onClick={onLeaderboard} title="名人堂榜单">

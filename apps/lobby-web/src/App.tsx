@@ -13,6 +13,7 @@ import { GameSocket } from './ws';
 import { AdminPanel } from './components/AdminPanel';
 import { AssistantView } from './components/AssistantView';
 import { AuthView } from './components/AuthView';
+import { FriendsView } from './components/FriendsView';
 import { GameRooms } from './components/GameRooms';
 import { LeaderboardView } from './components/LeaderboardView';
 import { Lobby } from './components/Lobby';
@@ -37,6 +38,7 @@ export type AppView =
   | 'room'
   | 'tasks'
   | 'leaderboard'
+  | 'friends'
   | 'profile'
   | 'notices'
   | 'assistant'
@@ -95,6 +97,8 @@ export default function App() {
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
   const pendingJoinRef = useRef<GameMeta | null>(null);
+  /** 邀请链接携带的房间号，连上 WebSocket 后优先入座 */
+  const pendingInviteRef = useRef<{ game: GameMeta; roomId: string } | null>(null);
   const autoStartRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -102,6 +106,21 @@ export default function App() {
       try {
         const gamesRes = await api.games();
         setGames(gamesRes.games);
+
+        // 邀请链接：?join=<roomId>&game=<gameId>，连接建立后自动入座
+        const params = new URLSearchParams(window.location.search);
+        const joinRoomId = params.get('join');
+        const joinGameId = params.get('game');
+        if (joinRoomId && joinGameId) {
+          const invited = gamesRes.games.find((game) => game.gameId === joinGameId);
+          if (invited) {
+            pendingInviteRef.current = { game: invited, roomId: joinRoomId };
+            setSelectedGame(invited);
+            // 消费掉参数，避免刷新后重复入座
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        }
+
         let token = getToken();
         if (token) {
           try {
@@ -143,6 +162,16 @@ export default function App() {
     s.on(ServerMsg.Hello, (data) => {
       const payload = data as { playerId: string };
       userIdRef.current = payload.playerId;
+
+      // 邀请链接优先：直接进指定房间
+      const invite = pendingInviteRef.current;
+      if (invite) {
+        pendingInviteRef.current = null;
+        autoStartRef.current = false;
+        s.send(ClientMsg.JoinRoom, { gameId: invite.game.gameId, roomId: invite.roomId });
+        return;
+      }
+
       const pending = pendingJoinRef.current;
       if (pending) {
         pendingJoinRef.current = null;
@@ -391,12 +420,20 @@ export default function App() {
       return <LeaderboardView myUserId={user?.id ?? null} onBack={() => setView('lobby')} />;
     }
 
+    if (view === 'friends') {
+      return <FriendsView onBack={() => setView('lobby')} />;
+    }
+
     if (view === 'profile' && user) {
       return (
         <ProfileView
           user={user}
           onLogout={handleLogout}
           onGoTasks={() => setView('tasks')}
+          onGoFriends={() => setView('friends')}
+          onProfileChange={(patch) =>
+            setUser((prev) => (prev ? { ...prev, nickname: patch.nickname ?? prev.nickname } : prev))
+          }
           onBack={() => setView('lobby')}
         />
       );
@@ -432,6 +469,7 @@ export default function App() {
         onQuickPlay={handleQuickPlay}
         onLogin={() => setView('auth')}
         onTasks={() => setView('tasks')}
+        onFriends={() => setView('friends')}
         onLeaderboard={() => setView('leaderboard')}
         onProfile={() => (user ? setView('profile') : setView('auth'))}
         onNotices={() => setView('notices')}

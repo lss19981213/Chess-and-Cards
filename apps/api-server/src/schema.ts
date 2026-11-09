@@ -91,4 +91,37 @@ create table if not exists leaderboard_daily_snapshots (
 
 create index if not exists leaderboard_daily_snapshots_idx
   on leaderboard_daily_snapshots (period_key, rank);
+
+-- 玩家扩展资料：个性签名与头像（头像为压缩后的 data URL）
+create table if not exists user_profiles (
+  user_id    text primary key references users(id) on delete cascade,
+  bio        text not null default '',
+  avatar     text,
+  updated_at timestamptz not null default now()
+);
+
+-- 好友申请
+create table if not exists friend_requests (
+  id         text primary key,
+  from_id    text not null references users(id) on delete cascade,
+  to_id      text not null references users(id) on delete cascade,
+  message    text,
+  status     text not null default 'pending',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists friend_requests_to_idx on friend_requests (to_id, status);
+create index if not exists friend_requests_from_idx on friend_requests (from_id, status);
+
+-- 同一对用户只保留一条待处理申请，避免刷屏
+create unique index if not exists friend_requests_pending_uniq
+  on friend_requests (from_id, to_id) where status = 'pending';
+
+-- 好友关系：双向各存一条，查询各自好友列表时只需单边索引
+create table if not exists friendships (
+  user_id    text not null references users(id) on delete cascade,
+  friend_id  text not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, friend_id)
+);
 `;

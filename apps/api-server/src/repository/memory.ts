@@ -8,8 +8,11 @@ import type {
   AuthUser,
   LeaderboardSnapshotRow,
   DailyWinnerRow,
+  FriendRequestView,
   GameRecordView,
   LeaderboardRow,
+  PlayerProfile,
+  ProfilePatch,
   RegisterInput,
   RegisterResult,
   Repository,
@@ -41,6 +44,11 @@ export class MemoryRepository implements Repository {
   /** 每日排行榜结算快照：dayKey -> 行 */
   private readonly snapshots = new Map<string, LeaderboardSnapshotRow[]>();
   private readonly initialCoins: number;
+  /** 玩家扩展资料：签名与头像 */
+  private readonly profiles = new Map<string, { bio: string; avatar: string | null }>();
+  /** 好友关系，双向各存一条：`${userId}|${friendId}` */
+  private readonly friendships = new Set<string>();
+  private readonly friendRequests: FriendRequestView[] = [];
 
   constructor(initialCoins: number) {
     this.initialCoins = initialCoins;
@@ -284,6 +292,158 @@ export class MemoryRepository implements Repository {
 
   async close(): Promise<void> {
     /* nothing to release */
+  }
+
+  // ---------- 个人资料 ----------
+
+  async getProfile(userId: string): Promise<PlayerProfile | null> {
+    const user = this.users.get(userId);
+    if (!user) return null;
+    const extra = this.profiles.get(userId);
+    return {
+      userId: user.id,
+      nickname: user.nickname,
+      username: user.username,
+      bio: extra?.bio ?? '',
+      avatar: extra?.avatar ?? null,
+    };
+  }
+
+  async updateProfile(userId: string, patch: ProfilePatch): Promise<PlayerProfile> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error('用户不存在');
+
+    if (patch.nickname !== undefined) {
+      const nickname = patch.nickname.trim();
+      if (nickname.length < 2 || nickname.length > 16) throw new Error('昵称需 2-16 个字符');
+      this.users.set(userId, { ...user, nickname });
+    }
+    const current = this.profiles.get(userId) ?? { bio: '', avatar: null };
+    this.profiles.set(userId, {
+      bio: patch.bio !== undefined ? patch.bio.slice(0, 60) : current.bio,
+      avatar: patch.avatar !== undefined ? patch.avatar : current.avatar,
+    });
+
+    const profile = await this.getProfile(userId);
+    return profile as PlayerProfile;
+  }
+
+  async searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]> {
+    const q = keyword.trim().toLowerCase();
+    const all = [...this.users.values()].filter((user) => user.id !== excludeUserId);
+    const matched = q
+      ? all.filter(
+          (user) =>
+            user.nickname.toLowerCase().includes(q) ||
+            (user.username ?? '').toLowerCase().includes(q),
+        )
+      : all;
+
+    return matched
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, limit)
+      .map((user) => {
+        const extra = this.profiles.get(user.id);
+        return {
+          userId: user.id,
+          nickname: user.nickname,
+          username: user.username,
+          bio: extra?.bio ?? '',
+          avatar: extra?.avatar ?? null,
+          isFriend: this.friendships.has(`${excludeUserId}|${user.id}`),
+          requestPending: this.friendRequests.some(
+            (r) => r.fromId === excludeUserId && r.toId === user.id && r.status === 'pending',
+          ),
+        };
+      });
+  }
+
+  // ---------- 好友 ----------
+
+  async listFriends(userId: string): Promise<PlayerProfile[]> {
+    const ids = [...this.friendships]
+      .filter((key) => key.startsWith(`${userId}|`))
+      .map((key) => key.split('|')[1]!)
+      .filter(Boolean);
+
+    const result: PlayerProfile[] = [];
+    for (const id of ids) {
+      const profile = await this.getProfile(id);
+      if (profile) result.push({ ...profile, isFriend: true });
+    }
+    return result.sort((a, b) => a.nickname.localeCompare(b.nickname, 'zh-Hans-CN'));
+  }
+
+  async createFriendRequest(fromId: string, toId: string, message: string | null): Promise<FriendRequestView> {
+    if (fromId === toId) throw new Error('不能添加自己为好友');
+    if (!this.users.has(toId)) throw new Error('该玩家不存在');
+    if (this.friendships.has(`${fromId}|${toId}`)) throw new Error('你们已经是好友了');
+    if (this.friendRequests.some((r) => r.status === 'pending' && r.fromId === fromId && r.toId === toId)) {
+      throw new Error('已发送过申请，请等待对方处理');
+    }
+    // 对方先发过申请时直接互相成为好友
+    const reverse = this.friendRequests.find(
+      (r) => r.status === 'pending' && r.fromId === toId && r.toId === fromId,
+    );
+    if (reverse) {
+      reverse.status = 'accepted';
+      this.friendships.add(`${fromId}|${toId}`);
+      this.friendships.add(`${toId}|${fromId}`);
+    }
+
+    const from = await this.getProfile(fromId);
+    const to = await this.getProfile(toId);
+    const row: FriendRequestView = {
+      id: randomUUID(),
+      fromId,
+      fromNickname: from?.nickname ?? '未知玩家',
+      fromAvatar: from?.avatar ?? null,
+      toId,
+      toNickname: to?.nickname ?? '未知玩家',
+      toAvatar: to?.avatar ?? null,
+      message: message ?? null,
+      status: reverse ? 'accepted' : 'pending',
+      createdAt: Date.now(),
+    };
+    this.friendRequests.push(row);
+    return row;
+  }
+
+  async listFriendRequests(userId: string): Promise<{
+    incoming: FriendRequestView[];
+    outgoing: FriendRequestView[];
+  }> {
+    const pending = this.friendRequests.filter((r) => r.status === 'pending');
+    return {
+      incoming: pending.filter((r) => r.toId === userId).sort((a, b) => b.createdAt - a.createdAt),
+      outgoing: pending.filter((r) => r.fromId === userId).sort((a, b) => b.createdAt - a.createdAt),
+    };
+  }
+
+  async acceptFriendRequest(requestId: string, userId: string): Promise<boolean> {
+    const row = this.friendRequests.find((r) => r.id === requestId);
+    if (!row || row.toId !== userId || row.status !== 'pending') return false;
+    row.status = 'accepted';
+    this.friendships.add(`${row.fromId}|${row.toId}`);
+    this.friendships.add(`${row.toId}|${row.fromId}`);
+    return true;
+  }
+
+  async rejectFriendRequest(requestId: string, userId: string): Promise<boolean> {
+    const row = this.friendRequests.find((r) => r.id === requestId);
+    if (!row || row.toId !== userId || row.status !== 'pending') return false;
+    row.status = 'rejected';
+    return true;
+  }
+
+  async removeFriend(userId: string, friendId: string): Promise<boolean> {
+    const had = this.friendships.delete(`${userId}|${friendId}`);
+    this.friendships.delete(`${friendId}|${userId}`);
+    return had;
+  }
+
+  async areFriends(userId: string, friendId: string): Promise<boolean> {
+    return this.friendships.has(`${userId}|${friendId}`);
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {

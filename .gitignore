@@ -18,6 +18,11 @@ Thumbs.db
 .turbo/
 tmp/
 generated-images/
+
+# 部署面板的本地凭证，绝不入库
+tools/.deploy-profile.json
+deploy.tar.gz
+
 deploy.tar.gz
 deploy.tar
 /*.png

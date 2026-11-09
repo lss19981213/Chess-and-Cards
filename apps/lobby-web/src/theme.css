@@ -7001,7 +7001,34 @@ html, body, #root {
   flex: 0 0 auto;
 }
 
-/* 26.4 荷官插图完整呈现（原图 3:4 竖版，避免 cover 裁掉头部/身体） */
+/* 26.4 荷官插图完整呈现：立绘按原图比例贴底，上方改用舞台光晕而非黑块 */
+.commercial-dealer-companion-stand {
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 100%, rgba(243, 207, 122, 0.1), transparent 72%),
+    linear-gradient(180deg, rgba(6, 8, 14, 0.2) 0%, rgba(6, 8, 14, 0.85) 100%);
+}
+
+.companion-portrait-wrapper {
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 1 1 auto;
+  display: flex !important;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 76% 42% at 50% 96%, rgba(243, 207, 122, 0.18), transparent 70%);
+}
+
+.companion-portrait-wrapper img {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 100%;
+  object-fit: contain !important;
+  object-position: bottom center !important;
+  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.6));
+}
+
 .dealer-stand__img {
   object-fit: contain !important;
   object-position: bottom center !important;
@@ -7011,6 +7038,22 @@ html, body, #root {
 .room-dealer-avatar img {
   object-fit: cover !important;
   object-position: 50% 14% !important;
+}
+
+/* 牌桌荷官胶囊：文字不折行，打赏按钮始终完整可见 */
+.room-dealer-companion {
+  max-width: min(320px, 52vw) !important;
+  white-space: nowrap;
+}
+
+.room-dealer-companion strong,
+.room-dealer-companion span,
+.room-dealer-companion small {
+  white-space: nowrap;
+}
+
+.room-dealer-text {
+  max-width: 118px !important;
 }
 
 /* 26.5 棋子：改用矢量素材，取代文字字符 */
@@ -7152,6 +7195,647 @@ html, body, #root {
 
 .pot-display--inline .pot-display__meta {
   font-size: 9.5px !important;
+}
+
+/* =========================================================================
+   27. 好友 / 邀请 / 个人资料编辑
+   ========================================================================= */
+
+.player-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: radial-gradient(circle at 32% 28%, #f3d489, #b8872a);
+  color: #241a08;
+  font-weight: 800;
+  border: 1px solid rgba(243, 215, 138, 0.55);
+}
+
+.player-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.friends-view {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.friends-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 20px 20px;
+}
+
+.friends-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(16, 21, 16, 0.72);
+  border: 1px solid rgba(243, 207, 122, 0.16);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.friends-col__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.friends-col__head h3 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #f3d489;
+}
+
+.friends-col__head span {
+  font-size: 11px;
+  color: rgba(237, 228, 207, 0.45);
+}
+
+.friends-subhead {
+  margin: 12px 2px 6px;
+  font-size: 11px;
+  color: rgba(237, 228, 207, 0.4);
+}
+
+.friends-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.friends-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.friends-list::-webkit-scrollbar-thumb {
+  background: rgba(243, 207, 122, 0.28);
+  border-radius: 3px;
+}
+
+.friends-empty {
+  padding: 26px 12px;
+  text-align: center;
+  color: rgba(237, 228, 207, 0.4);
+}
+
+.friends-empty p {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.friends-empty small {
+  font-size: 11px;
+}
+
+.friend-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(28, 36, 27, 0.62);
+  border: 1px solid rgba(237, 228, 207, 0.08);
+}
+
+.friend-card.is-muted {
+  opacity: 0.62;
+}
+
+.friend-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.friend-card__info strong {
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-card__info small {
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-card__add,
+.friend-card__accept {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #241a08;
+  background: linear-gradient(180deg, #e7b45a, #c8912f);
+  border: none;
+  flex-shrink: 0;
+}
+
+.friend-card__drop,
+.friend-card__reject {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: rgba(237, 228, 207, 0.6);
+  background: transparent;
+  border: 1px solid rgba(237, 228, 207, 0.18);
+  flex-shrink: 0;
+}
+
+.friend-card__drop:hover {
+  color: #e88b80;
+  border-color: rgba(210, 77, 67, 0.45);
+}
+
+.friend-card__badge {
+  font-size: 10.5px;
+  color: rgba(243, 212, 137, 0.75);
+  border: 1px solid rgba(243, 207, 122, 0.3);
+  border-radius: 6px;
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
+.friend-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.friends-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.friends-search input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: rgba(8, 12, 9, 0.8);
+  border: 1px solid rgba(243, 207, 122, 0.28);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.friends-search input::placeholder {
+  color: rgba(237, 228, 207, 0.35);
+}
+
+.friends-search__spin {
+  font-size: 11px;
+  color: rgba(237, 228, 207, 0.45);
+  flex-shrink: 0;
+}
+
+.friends-hint {
+  position: fixed;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 9px 20px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: rgba(16, 24, 18, 0.96);
+  border: 1px solid rgba(243, 207, 122, 0.45);
+  color: #f3d489;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.friends-hint.is-err {
+  border-color: rgba(210, 77, 67, 0.55);
+  color: #eea79f;
+}
+
+/* 牌桌邀请按钮 */
+.room-invite-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #f3d489;
+  background: rgba(243, 207, 122, 0.14);
+  border: 1px solid rgba(243, 207, 122, 0.45);
+}
+
+.room-invite-btn:hover {
+  background: rgba(243, 207, 122, 0.24);
+}
+
+/* 邀请弹窗 */
+.invite-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(2, 5, 4, 0.72);
+  backdrop-filter: blur(3px);
+  overscroll-behavior: contain;
+}
+
+.invite-modal {
+  width: min(520px, 94vw);
+  max-height: min(760px, 92dvh);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px 18px;
+  border-radius: 16px;
+  background: #12160f;
+  border: 1px solid rgba(243, 207, 122, 0.28);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  overflow-y: auto;
+}
+
+.invite-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.invite-modal__head h3 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #f3d489;
+}
+
+.invite-modal__close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid rgba(237, 228, 207, 0.18);
+  color: rgba(237, 228, 207, 0.7);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.invite-modal__hint {
+  margin-bottom: 10px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: rgba(243, 207, 122, 0.1);
+  color: #f3d489;
+}
+
+.invite-modal__hint.is-err {
+  background: rgba(210, 77, 67, 0.14);
+  color: #eea79f;
+}
+
+.invite-link-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(8, 12, 9, 0.8);
+  border: 1px solid rgba(237, 228, 207, 0.12);
+}
+
+.invite-link-box__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.invite-link-box__text span {
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.45);
+}
+
+.invite-link-box__text code {
+  font-size: 11px;
+  color: rgba(237, 228, 207, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.invite-link-box__copy {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #241a08;
+  background: linear-gradient(180deg, #e7b45a, #c8912f);
+  border: none;
+  flex-shrink: 0;
+}
+
+.invite-link-box__copy.is-done {
+  background: rgba(88, 184, 147, 0.22);
+  color: #7fd6ae;
+}
+
+.invite-modal__note {
+  margin: 7px 2px 12px;
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.42);
+}
+
+.invite-modal__list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #f3d489;
+}
+
+.invite-modal__list-head span:last-child {
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.4);
+}
+
+.invite-friend-list {
+  flex: 1;
+  min-height: 120px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.invite-friend-list__empty {
+  padding: 22px 10px;
+  text-align: center;
+  color: rgba(237, 228, 207, 0.42);
+  font-size: 12.5px;
+}
+
+.invite-friend-list__empty button {
+  margin-top: 8px;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #f3d489;
+  background: transparent;
+  border: 1px solid rgba(243, 207, 122, 0.4);
+}
+
+.invite-friend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(28, 36, 27, 0.6);
+  border: 1px solid rgba(237, 228, 207, 0.08);
+  color: var(--text);
+  text-align: left;
+}
+
+.invite-friend.is-selected {
+  background: rgba(243, 207, 122, 0.14);
+  border-color: rgba(243, 212, 137, 0.65);
+}
+
+.invite-friend__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-friend__check {
+  width: 20px;
+  text-align: center;
+  color: #f3d489;
+  font-weight: 800;
+}
+
+.invite-modal__foot {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.invite-modal__cancel {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: rgba(237, 228, 207, 0.07);
+  border: 1px solid rgba(237, 228, 207, 0.2);
+}
+
+.invite-modal__send {
+  flex: 1.4;
+  min-height: 42px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #241a08;
+  background: linear-gradient(180deg, #e7b45a, #c8912f);
+  border: none;
+}
+
+.invite-modal__send:disabled {
+  opacity: 0.45;
+}
+
+/* 个人资料编辑 */
+.profile-large-avatar.is-editable {
+  position: relative;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.profile-large-avatar.is-editable img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatar-edit-badge {
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-style: normal;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(10, 14, 10, 0.88);
+  border: 1px solid rgba(243, 207, 122, 0.45);
+  color: #f3d489;
+  white-space: nowrap;
+}
+
+.profile-stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 12px;
+}
+
+.profile-stats-row > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.profile-stats-row strong {
+  font-size: 17px;
+  color: #f3d489;
+}
+
+.profile-stats-row small {
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.42);
+}
+
+.profile-edit-card {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(16, 21, 16, 0.72);
+  border: 1px solid rgba(243, 207, 122, 0.16);
+}
+
+.profile-edit-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.profile-edit-card__head h4 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #f3d489;
+}
+
+.profile-edit-toggle {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #f3d489;
+  background: transparent;
+  border: 1px solid rgba(243, 207, 122, 0.4);
+}
+
+.profile-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-edit-cancel,
+.profile-edit-save {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-edit-cancel {
+  color: rgba(237, 228, 207, 0.7);
+  background: transparent;
+  border: 1px solid rgba(237, 228, 207, 0.2);
+}
+
+.profile-edit-save {
+  color: #241a08;
+  background: linear-gradient(180deg, #e7b45a, #c8912f);
+  border: none;
+}
+
+.profile-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.profile-field > span {
+  width: 62px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: rgba(237, 228, 207, 0.55);
+}
+
+.profile-field input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: rgba(8, 12, 9, 0.8);
+  border: 1px solid rgba(243, 207, 122, 0.22);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.profile-field input:disabled {
+  color: rgba(237, 228, 207, 0.55);
+  background: rgba(8, 12, 9, 0.4);
+  border-color: rgba(237, 228, 207, 0.1);
+}
+
+.profile-edit-tip {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.38);
+}
+
+/* 窄屏（平板/手机）回落为单列堆叠 */
+@media (max-width: 1080px) {
+  .friends-layout {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .friends-col {
+    max-height: 60dvh;
+  }
 }
 
 /* 26.6 任务分组 */

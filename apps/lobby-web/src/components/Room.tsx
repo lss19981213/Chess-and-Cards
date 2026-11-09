@@ -5,6 +5,7 @@ import { audio } from '../audio';
 import { DEALER_MAIN, GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
+import { InviteFriendsModal } from './InviteFriendsModal';
 import { RulesModal } from './RulesModal';
 import { SettleBubble, type ResultRow } from './SettleBubble';
 import { WinCelebration } from './WinCelebration';
@@ -85,6 +86,7 @@ export function Room({
 
   const [dismissedKey, setDismissedKey] = useState('');
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [emoteOpen, setEmoteOpen] = useState(false);
   const [playersDrawerOpen, setPlayersDrawerOpen] = useState(false);
   const [cheerEffect, setCheerEffect] = useState(false);
@@ -310,6 +312,15 @@ export function Room({
             👥 {room.players.length}/{room.maxPlayers}
           </button>
 
+          <button
+            type="button"
+            className="room-invite-btn"
+            onClick={() => setInviteOpen(true)}
+            title="邀请好友入座"
+          >
+            ＋ 邀请
+          </button>
+
           <button type="button" className="room-rules-btn" onClick={() => setRulesOpen(true)}>
             ? 规则
           </button>
@@ -322,6 +333,14 @@ export function Room({
       </header>
 
       {rulesOpen && <RulesModal gameId={room.gameId} onClose={() => setRulesOpen(false)} />}
+      {inviteOpen && (
+        <InviteFriendsModal
+          roomId={room.roomId}
+          gameId={room.gameId}
+          roomName={GAME_TITLE[room.gameId] ?? room.gameId}
+          onClose={() => setInviteOpen(false)}
+        />
+      )}
       {settlement && myDelta > 0 && <WinCelebration key={`win-${room.roomId}-${room.round}`} delta={myDelta} />}
 
       {/* 战报气泡 HUD (轻量浮动，零遮挡，非阻断) */}
