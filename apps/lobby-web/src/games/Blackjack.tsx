@@ -33,7 +33,7 @@ interface Props {
   onAction: (cmd: string, amount?: number) => void;
 }
 
-const PRESET = [10, 50, 100, 500, 1000];
+const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
 export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onAction }: Props) {
   const data = snapshot as unknown as BlackjackSnapshot | undefined;

@@ -1,5 +1,5 @@
 /** 筹码面额素材，与 scripts/gen-chips.mjs 保持一致 */
-export const CHIP_DENOMS = [1, 5, 10, 20, 50, 100, 300, 500, 1000, 2000, 5000, 10000] as const;
+export const CHIP_DENOMS = [1, 5, 10, 20, 50, 100, 300, 500, 1000, 2000, 5000, 10000, 50000, 100000] as const;
 
 export type ChipDenom = (typeof CHIP_DENOMS)[number];
 

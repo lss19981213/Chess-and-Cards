@@ -29,7 +29,7 @@ interface Props {
   onClear: (area?: string) => void;
 }
 
-const PRESET = [10, 50, 100, 500, 1000];
+const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 const SUM_KEYS = ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17'];
 
 const FACE_DOTS: Record<number, number[][]> = {

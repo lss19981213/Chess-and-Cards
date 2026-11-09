@@ -284,6 +284,16 @@ export class PostgresRepository implements Repository {
         if (entry.delta > 0) {
           await this.bumpTaskTx(client, entry.playerId, 'daily_win', dayKey, 1);
         }
+        // 记录当日玩过的游戏种类（多面手）与单局大赢（大杀四方）
+        await this.bumpTaskTx(client, entry.playerId, `game_${settlement.gameId}`, dayKey, 1);
+        if (entry.delta >= 500) {
+          await this.bumpTaskTx(client, entry.playerId, 'daily_bigwin', dayKey, 1);
+        }
+        // 长期累计：成长任务
+        await this.bumpTaskTx(client, entry.playerId, 'total_play', 'all', 1);
+        if (entry.delta > 0) {
+          await this.bumpTaskTx(client, entry.playerId, 'total_win', 'all', 1);
+        }
         applied += 1;
       }
 

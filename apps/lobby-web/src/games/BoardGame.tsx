@@ -32,14 +32,19 @@ interface Props {
 }
 
 const CHESS_GLYPH: Record<string, Record<string, string>> = {
-  w: { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙' },
-  b: { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' },
+  w: { k: '白王', q: '白后', r: '白车', b: '白象', n: '白马', p: '白兵' },
+  b: { k: '黑王', q: '黑后', r: '黑车', b: '黑象', n: '黑马', p: '黑兵' },
 };
 
 const XQ_GLYPH: Record<string, Record<string, string>> = {
   r: { k: '帅', a: '仕', b: '相', n: '马', r: '车', c: '炮', p: '兵' },
   b: { k: '将', a: '士', b: '象', n: '马', r: '车', c: '炮', p: '卒' },
 };
+
+/** 棋子矢量素材，由 scripts/gen-pieces.mjs 生成 */
+function pieceArt(variant: 'chess' | 'xiangqi', color: string, type: string): string {
+  return `${import.meta.env.BASE_URL}assets/pieces/${variant}-${color}-${type}.svg`;
+}
 
 export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) {
   const data = snapshot as unknown as BoardSnapshot | undefined;
@@ -172,7 +177,11 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
             >
               {piece && (
                 <span className={`boardgame__piece is-${piece.color}`}>
-                  {glyph[piece.color]?.[piece.type] ?? piece.type}
+                  <img
+                    src={pieceArt(variant, piece.color, piece.type)}
+                    alt={glyph[piece.color]?.[piece.type] ?? piece.type}
+                    draggable={false}
+                  />
                 </span>
               )}
             </button>

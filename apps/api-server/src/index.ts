@@ -164,11 +164,28 @@ const EVENT_PATHS = new Set([
     const onceKey = periodKeyFor('once');
     const rows = await repo.getTaskRows(userId, [dailyKey, onceKey]);
 
+    // 当日玩过的不同游戏数量，用于「多面手」这类任务
+    const playedToday = new Set(
+      rows
+        .filter((row) => row.periodKey === dailyKey && row.taskKey.startsWith('game_'))
+        .map((row) => row.taskKey),
+    ).size;
+
     return TASKS.map((task) => {
       const pk = periodKeyFor(task.period);
-      const row = rows.find((r) => r.taskKey === task.key && r.periodKey === pk);
-      const progress = row?.progress ?? 0;
-      const claimed = row?.claimed ?? false;
+      const ownRow = rows.find((r) => r.taskKey === task.key && r.periodKey === pk);
+
+      let progress = 0;
+      if (task.progressSource?.kind === 'gameKinds') {
+        progress = playedToday;
+      } else {
+        const sourceKey = task.progressSource?.key ?? task.key;
+        const row = rows.find((r) => r.taskKey === sourceKey && r.periodKey === pk);
+        progress = row?.progress ?? 0;
+      }
+
+      // 领取状态永远记在任务自身 key 上，避免共用进度时互相顶掉
+      const claimed = ownRow?.claimed ?? false;
       const reached = progress >= task.target;
       const blocked = task.maxBalance !== undefined && balance >= task.maxBalance;
 
@@ -179,6 +196,7 @@ const EVENT_PATHS = new Set([
         target: task.target,
         reward: task.reward,
         period: task.period,
+        group: task.group,
         progress: Math.min(progress, task.target),
         claimed,
         claimable: reached && !claimed && !blocked,
@@ -384,6 +402,28 @@ const EVENT_PATHS = new Set([
     if (!claimed) throw httpError('该任务奖励已领取', 409);
 
     return { reward: task.reward, balance: newBalance, tasks: await buildTasks(claims.sub, newBalance) };
+  });
+
+  // 打赏荷官：真实扣减筹码并推进当日打赏任务
+  app.post('/api/tip-dealer', async (req) => {
+    const claims = authHeader(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const amount = Math.floor(Number(body.amount ?? 0));
+    const giftName = String(body.giftName ?? '礼物').slice(0, 20);
+
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 10_000) {
+      throw httpError('打赏金额不合法', 400);
+    }
+
+    const balance = await repo.getBalance(claims.sub, 'coin');
+    if (balance < amount) throw httpError('筹码不足，先去福利中心领取救济金吧', 400);
+
+    // 每次打赏是独立事件，幂等键带时间戳避免重复提交时被吞掉
+    const bizId = `tip:${claims.sub}:${Date.now()}`;
+    const newBalance = await repo.credit(claims.sub, -amount, 'dealer_tip', bizId);
+    await repo.bumpTask(claims.sub, 'daily_tip', periodKeyFor('daily'), 1);
+
+    return { ok: true, balance: newBalance, amount, giftName };
   });
 
   app.get('/api/leaderboard', async (req) => {

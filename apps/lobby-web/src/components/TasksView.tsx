@@ -81,56 +81,80 @@ export function TasksView({ onBalanceChange, onBack }: Props) {
           {error && <div className="luxury-alert is-error">{error}</div>}
           {loading && <div className="view-loading">正在同步任务凭据…</div>}
 
-          <div className="task-cards-grid">
-            {tasks.map((task) => {
-              const ready = task.claimable && !task.claimed;
-              return (
-                <div
-                  key={task.key}
-                  className={`task-row-card ${task.claimed ? 'is-claimed' : ready ? 'is-ready' : 'is-ongoing'}`}
-                >
-                  <div className="task-row__left">
-                    <div className="task-row__icon-box">
-                      <IconGift size={20} />
-                    </div>
-                    <div className="task-row__info">
-                      <h4>{task.name}</h4>
-                      <p>{task.description}</p>
-                      <div className="task-row__progress">
-                        <div className="progress-track">
-                          <div
-                            className="progress-fill"
-                            style={{
-                              width: `${Math.min(100, (task.progress / Math.max(1, task.target)) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                        <span className="progress-num">
-                          {task.progress}/{task.target}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+          {(
+            [
+              { id: 'daily' as const, title: '每日任务', hint: '每日 0 点重置' },
+              { id: 'growth' as const, title: '成长任务', hint: '完成一次，永久有效' },
+            ]
+          ).map((group) => {
+            const list = tasks
+              .filter((task) => (task.group ?? (task.period === 'once' ? 'growth' : 'daily')) === group.id)
+              // 可领取的排在最前，其次进行中，最后已领取
+              .sort((a, b) => {
+                const rank = (t: TaskView) => (t.claimable && !t.claimed ? 0 : t.claimed ? 2 : 1);
+                return rank(a) - rank(b);
+              });
+            if (list.length === 0) return null;
 
-                  <div className="task-row__right">
-                    <div className="task-reward-pill">
-                      <Chip size={18} />
-                      <strong>+{task.reward.toLocaleString()}</strong>
-                    </div>
-
-                    <button
-                      type="button"
-                      className={`btn-claim ${task.claimed ? 'is-done' : ready ? 'is-active' : 'is-locked'}`}
-                      disabled={!ready || claiming === task.key}
-                      onClick={() => claim(task.key)}
-                    >
-                      {task.claimed ? '已领取' : ready ? (claiming === task.key ? '领取中…' : '立即领取') : '进行中'}
-                    </button>
-                  </div>
+            return (
+              <div className="task-group" key={group.id}>
+                <div className="task-group__head">
+                  <h3>{group.title}</h3>
+                  <span>{group.hint}</span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="task-cards-grid">
+                  {list.map((task) => {
+                    const ready = task.claimable && !task.claimed;
+                    return (
+                      <div
+                        key={task.key}
+                        className={`task-row-card ${task.claimed ? 'is-claimed' : ready ? 'is-ready' : 'is-ongoing'}`}
+                      >
+                        <div className="task-row__left">
+                          <div className="task-row__icon-box">
+                            <IconGift size={20} />
+                          </div>
+                          <div className="task-row__info">
+                            <h4>{task.name}</h4>
+                            <p>{task.description}</p>
+                            <div className="task-row__progress">
+                              <div className="progress-track">
+                                <div
+                                  className="progress-fill"
+                                  style={{
+                                    width: `${Math.min(100, (task.progress / Math.max(1, task.target)) * 100)}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className="progress-num">
+                                {task.progress}/{task.target}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="task-row__right">
+                          <div className="task-reward-pill">
+                            <Chip size={18} />
+                            <strong>+{task.reward.toLocaleString()}</strong>
+                          </div>
+
+                          <button
+                            type="button"
+                            className={`btn-claim ${task.claimed ? 'is-done' : ready ? 'is-active' : 'is-locked'}`}
+                            disabled={!ready || claiming === task.key}
+                            onClick={() => claim(task.key)}
+                          >
+                            {task.claimed ? '已领取' : ready ? (claiming === task.key ? '领取中…' : '立即领取') : '进行中'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </section>
       </main>
     </div>

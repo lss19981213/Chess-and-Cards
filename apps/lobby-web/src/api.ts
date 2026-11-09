@@ -21,6 +21,7 @@ export interface TaskView {
   target: number;
   reward: number;
   period: 'daily' | 'once';
+  group: 'daily' | 'growth';
   progress: number;
   claimed: boolean;
   claimable: boolean;

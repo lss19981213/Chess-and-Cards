@@ -33,7 +33,7 @@ interface Props {
   onClear: (area?: string) => void;
 }
 
-const PRESET = [10, 50, 100, 500, 1000];
+const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
 const ZONES: Array<{ key: 'player' | 'banker' | 'tie'; label: string; odds: string }> = [
   { key: 'player', label: '闲', odds: '1 : 1' },

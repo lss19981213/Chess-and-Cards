@@ -1,11 +1,13 @@
 import { CHIP_IMG } from '../assets';
+import { chipArt, toChipStack } from '../chips';
 
-/** 筹码图标：圆形裁剪的筹码堆特写 */
-export function Chip({ size = 16, className = '' }: { size?: number; className?: string }) {
+/** 筹码图标：默认使用 100 面额矢量筹码，可指定面额 */
+export function Chip({ size = 16, value, className = '' }: { size?: number; value?: number; className?: string }) {
+  const src = value ? chipArt(value) : CHIP_IMG;
   return (
     <img
       className={`chip-ico ${className}`}
-      src={CHIP_IMG}
+      src={src}
       alt=""
       width={size}
       height={size}
@@ -14,14 +16,24 @@ export function Chip({ size = 16, className = '' }: { size?: number; className?:
   );
 }
 
-/** 桌面筹码柱：按底池大小堆叠，纯 CSS 绘制 */
-export function ChipStack({ amount }: { amount: number }) {
+/**
+ * 桌面筹码堆：按金额拆解成真实面额筹码，错位叠放。
+ * 使用生成的矢量筹码素材，避免纯色圆片带来的塑料感。
+ */
+export function ChipStack({ amount, limit = 6 }: { amount: number; limit?: number }) {
   if (amount <= 0) return null;
-  const count = Math.max(2, Math.min(6, Math.ceil(Math.log2(amount / 40))));
+  const stack = toChipStack(amount, limit);
   return (
     <div className="chip-stack" aria-hidden>
-      {Array.from({ length: count }, (_, index) => (
-        <span key={index} className={index % 3 === 2 ? 'is-red' : ''} />
+      {stack.map((denom, index) => (
+        <img
+          key={`${denom}-${index}`}
+          className="chip-stack__chip"
+          src={chipArt(denom)}
+          alt=""
+          style={{ ['--i' as string]: index }}
+          draggable={false}
+        />
       ))}
     </div>
   );

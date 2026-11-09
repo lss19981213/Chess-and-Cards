@@ -21,17 +21,18 @@ const DENOMS = [
   { v: 2000, base: '#2aa6b8', edge: '#ffffff', label: '#ffffff' },
   { v: 5000, base: '#7a4a2b', edge: '#ffd875', label: '#ffd875' },
   { v: 10000, base: '#7d1a2e', edge: '#ffd875', label: '#ffd875' },
+  { v: 50000, base: '#1d3b2a', edge: '#ffd875', label: '#ffd875' },
+  { v: 100000, base: '#12151c', edge: '#f0c451', label: '#f0c451' },
 ];
 
 function shortLabel(v) {
-  if (v >= 10000) return `${v / 1000}K`;
   if (v >= 1000) return `${v / 1000}K`;
   return String(v);
 }
 
 function chip({ v, base, edge, label }) {
   const text = shortLabel(v);
-  const fontSize = text.length >= 3 ? 24 : 32;
+  const fontSize = text.length >= 4 ? 21 : text.length >= 3 ? 25 : 32;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <defs>

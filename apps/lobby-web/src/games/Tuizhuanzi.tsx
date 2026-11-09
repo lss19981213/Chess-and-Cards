@@ -42,7 +42,7 @@ interface Props {
 
 const DOOR_KEYS = ['heaven', 'earth', 'human'] as const;
 
-const PRESET = [10, 50, 100, 500, 1000];
+const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
 function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: number }>; revealed: boolean }) {
   const list = revealed && cards.length > 0 ? cards : [null, null];

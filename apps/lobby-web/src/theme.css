@@ -6883,3 +6883,201 @@ html, body, #root {
   align-items: center;
   margin-left: 6px;
 }
+
+/* =========================================================================
+   26. 可用性修复：打赏入口 / 手牌可读性 / 筹码质感 / 荷官插图
+   ========================================================================= */
+
+/* 26.1 牌桌荷官 HUD —— 提升层级避免被座位卡压住，并收窄以让出牌桌空间 */
+.room-dealer-companion {
+  z-index: 60 !important;
+  top: 8px !important;
+  right: 10px !important;
+  max-width: min(270px, 46vw);
+  gap: 6px !important;
+  padding: 4px 10px 4px 4px !important;
+}
+
+.room-dealer-avatar {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.room-dealer-speech {
+  min-width: 0;
+}
+
+.room-dealer-text {
+  max-width: 92px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-dealer-tip-slot {
+  margin-left: 2px !important;
+  flex-shrink: 0;
+}
+
+.btn-tip-dealer-gold {
+  height: 27px !important;
+  padding: 0 11px !important;
+  font-size: 11.5px !important;
+  gap: 4px !important;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tip-btn-text {
+  white-space: nowrap;
+}
+
+/* 26.2 手牌：一屏可见 + 拖动刷选 + 双击同点数 */
+.hand-cards-rack {
+  height: 120px !important;
+  padding: 2px 8px 0 !important;
+  overflow: visible !important;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.hand-cards-rack .pcard {
+  width: 78px !important;
+  height: 108px !important;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.62) !important;
+  cursor: pointer;
+}
+
+.hand-cards-rack .hand__card.is-selected {
+  transform: translateY(-17px) !important;
+}
+
+/* 操作按钮随牌面高度上移，不再与手牌重叠 */
+.hand-action-dock-center {
+  bottom: 126px !important;
+  gap: 14px !important;
+}
+
+/* 26.3 筹码：真实矢量筹码堆叠，替代纯色圆片 */
+.chip-stack {
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0 !important;
+  margin-top: 2px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
+}
+
+.chip-stack__chip {
+  width: 27px;
+  height: 27px;
+  margin-left: -9px;
+  transform: translateY(calc(var(--i, 0) * -1.2px));
+  flex: 0 0 auto;
+}
+
+.chip-stack__chip:first-child {
+  margin-left: 0;
+}
+
+/* 大面额筹码较多时横向滚动，不挤压牌桌 */
+.bet-controls__chips {
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 2px 4px;
+  max-width: 100%;
+}
+
+.bet-controls__chips::-webkit-scrollbar {
+  display: none;
+}
+
+.bet-controls__chips .chip-btn {
+  flex: 0 0 auto;
+}
+
+/* 26.4 荷官插图完整呈现（原图 3:4 竖版，避免 cover 裁掉头部/身体） */
+.dealer-stand__img {
+  object-fit: contain !important;
+  object-position: bottom center !important;
+}
+
+.dealer-mini-portrait img,
+.room-dealer-avatar img {
+  object-fit: cover !important;
+  object-position: 50% 14% !important;
+}
+
+/* 26.5 棋子：改用矢量素材，取代文字字符 */
+.boardgame__piece {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0 !important;
+  line-height: 0;
+}
+
+.boardgame__piece img {
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+}
+
+/* 中国象棋：木纹棋盘 + 细网格线，取消方块马赛克 */
+.boardgame--xiangqi .boardgame__board {
+  background-color: #e5cfa8;
+  background-image:
+    repeating-linear-gradient(to right, rgba(96, 64, 30, 0.4) 0 1px, transparent 1px calc(100% / 9)),
+    repeating-linear-gradient(to bottom, rgba(96, 64, 30, 0.4) 0 1px, transparent 1px calc(100% / 10)),
+    linear-gradient(150deg, #ecd7b2, #cfae7c);
+  box-shadow:
+    inset 0 0 0 2px rgba(96, 64, 30, 0.45),
+    0 14px 32px rgba(0, 0, 0, 0.5);
+}
+
+.boardgame--xiangqi .boardgame__cell.is-dark {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+/* 国际象棋：木质深浅格 */
+.boardgame--chess .boardgame__board {
+  background: linear-gradient(160deg, #ddc9a6, #c0a67f);
+}
+
+.boardgame--chess .boardgame__cell {
+  border-color: rgba(74, 51, 26, 0.16) !important;
+}
+
+.boardgame--chess .boardgame__cell.is-dark {
+  background: rgba(74, 51, 26, 0.42) !important;
+}
+
+/* 26.6 任务分组 */
+.task-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 12px 2px 8px;
+}
+
+.task-group__head h3 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #f3d489;
+}
+
+.task-group__head span {
+  font-size: 10.5px;
+  color: rgba(237, 228, 207, 0.45);
+}

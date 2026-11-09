@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+
+/** 手牌目标宽度：在 844×390 横屏下保证点数与花色可辨认 */
+const CARD_W = 78;
+/** 单张牌最小可视宽度（重叠后仍要露出左上角点数） */
+const MIN_STEP = 26;
 import { SeatPanel, TableStage } from '../components/TableStage';
 import { TableEffects, type EffectTrigger } from '../components/TableEffects';
 import { audio } from '../audio';
@@ -63,6 +68,11 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
   const data = snapshot as unknown as HandSnapshot | undefined;
   const [selected, setSelected] = useState<string[]>([]);
   const [fxTrigger, setFxTrigger] = useState<EffectTrigger | null>(null);
+  const rackRef = useRef<HTMLDivElement | null>(null);
+  /** 手牌区可用宽度，用于动态计算重叠量，保证不溢出视口 */
+  const [rackWidth, setRackWidth] = useState(0);
+  /** 拖动刷选状态：一次按下后经过的牌统一置为同一模式 */
+  const dragRef = useRef<{ mode: 'add' | 'remove'; seen: Set<string> } | null>(null);
 
   // 发牌音效
   useEffect(() => {
@@ -81,6 +91,17 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
   useEffect(() => {
     setSelected((prev) => prev.filter((id) => hand.some((card) => card.id === id)));
   }, [hand]);
+
+  // 手牌区宽度自适应：牌数变化或屏幕旋转时重新计算重叠
+  useEffect(() => {
+    const el = rackRef.current;
+    if (!el) return;
+    const update = () => setRackWidth(el.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hand.length]);
 
   // 监听上家出牌特效 (炸弹、火箭、顺子)
   useEffect(() => {
@@ -107,10 +128,58 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
   const others = data.handCounts.filter((player) => player.playerId !== myId);
   const lastPlayer = data.handCounts.find((player) => player.playerId === data.lastPlayerId);
 
-  const toggle = (id: string): void => {
+  // 手牌动态重叠：牌多时压缩步进，牌少时铺开，始终一屏可见
+  const cardStep = useMemo(() => {
+    const count = hand.length;
+    if (count <= 1) return CARD_W;
+    const available = Math.max(260, rackWidth) - 12;
+    const raw = (available - CARD_W) / (count - 1);
+    return Math.max(MIN_STEP, Math.min(CARD_W, raw));
+  }, [hand.length, rackWidth]);
+  const cardOverlap = Math.max(0, CARD_W - cardStep);
+
+  const applyCard = (id: string, on: boolean): void => {
+    setSelected((prev) => {
+      if (on) return prev.includes(id) ? prev : [...prev, id];
+      return prev.filter((x) => x !== id);
+    });
+  };
+
+  /** 按下即选中/取消，并进入拖动刷选模式 */
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (!isMyTurn) return;
+    const el = (event.target as HTMLElement).closest('[data-card-id]') as HTMLElement | null;
+    const id = el?.dataset.cardId;
+    if (!id) return;
     audio.play('click');
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    const mode: 'add' | 'remove' = selected.includes(id) ? 'remove' : 'add';
+    dragRef.current = { mode, seen: new Set([id]) };
+    applyCard(id, mode === 'add');
+    // 捕获指针：拖出牌面后仍能收到 move 事件，实现「划过即选」
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  /** 拖动经过其他牌时批量应用同一模式 */
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const hit = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
+    const id = hit?.closest('[data-card-id]')?.getAttribute('data-card-id');
+    if (!id || drag.seen.has(id)) return;
+    drag.seen.add(id);
+    applyCard(id, drag.mode === 'add');
+  };
+
+  const handlePointerUp = (): void => {
+    dragRef.current = null;
+  };
+
+  /** 双击选中同点数所有牌，避免一张张点 */
+  const handleDoubleClick = (rank: number): void => {
+    if (!isMyTurn) return;
+    const same = hand.filter((card) => card.rank === rank).map((card) => card.id);
+    audio.play('click');
+    setSelected((prev) => Array.from(new Set([...prev, ...same])));
   };
 
   const handlePlayCards = () => {
@@ -202,20 +271,34 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
         bottom={
           <div className="hand-super-area">
             {/* 玩家当前手牌展台 */}
-            <div className="hand-cards-rack" key={`round-${round}`}>
+            <div
+              className="hand-cards-rack"
+              key={`round-${round}`}
+              ref={rackRef}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+            >
               {hand.map((card, index) => {
                 const isSelected = selected.includes(card.id);
                 return (
                   <button
                     key={card.id}
                     type="button"
-                    style={{ '--i': index } as CSSProperties}
+                    data-card-id={card.id}
+                    style={
+                      {
+                        '--i': index,
+                        marginLeft: index === 0 ? 0 : -cardOverlap,
+                      } as CSSProperties
+                    }
                     className={`pcard hand__card ${isRedCard(card) ? 'is-red' : ''} ${
                       isSelected ? 'is-selected' : ''
                     }`}
-                    onClick={() => toggle(card.id)}
+                    onDoubleClick={() => handleDoubleClick(card.rank)}
                     disabled={!isMyTurn}
-                    title={cardLabel(card)}
+                    title={`${cardLabel(card)}（双击选中同点数）`}
                   >
                     <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
                   </button>

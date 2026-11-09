@@ -29,7 +29,7 @@ interface Props {
   onClear: (area?: string) => void;
 }
 
-const PRESET = [10, 50, 100, 500, 1000];
+const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
 export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as NiuniuSnapshot | undefined;

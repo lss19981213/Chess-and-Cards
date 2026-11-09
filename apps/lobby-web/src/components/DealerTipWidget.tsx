@@ -44,23 +44,19 @@ export function DealerTipWidget({ balance, onBalanceChange, onAliceSpeak, classN
     setLoading(true);
     try {
       audio.play('coin');
-      // 触发飞天礼花与荷官即刻互动
+      const res = await api.tipDealer(gift.cost, gift.name);
+      // 服务端确认扣款成功后才播放庆祝动画，避免"假打赏"
       triggerFlyAnimation(gift);
       if (onAliceSpeak) onAliceSpeak(gift.quote);
-
-      const res = await api.tipDealer(gift.cost, gift.name);
       onBalanceChange(res.balance);
       showTipNotice(`感谢打赏 ${gift.name}！艾莉丝好感度 +${gift.cost} 💖`);
       audio.play('shunzi');
-    } catch {
-      // 容错兜底本地扣减
-      const localBalance = Math.max(0, balance - gift.cost);
-      onBalanceChange(localBalance);
-      showTipNotice(`感谢打赏 ${gift.name}！艾莉丝好感度 +${gift.cost} 💖`);
-      audio.play('shunzi');
+      setOpen(false);
+    } catch (error) {
+      audio.play('alert');
+      showTipNotice(error instanceof Error ? error.message : '打赏失败，请稍后再试');
     } finally {
       setLoading(false);
-      setOpen(false);
     }
   };
 
