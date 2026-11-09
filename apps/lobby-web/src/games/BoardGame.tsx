@@ -149,6 +149,11 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
           gridTemplateColumns: `repeat(${cols}, 1fr)`,
           gridTemplateRows: `repeat(${rows}, 1fr)`,
           aspectRatio: `${cols} / ${rows}`,
+          // 高度受视口约束，宽度由比例反推，保证整盘完整可见不裁切
+          height: 'calc(100dvh - 84px)',
+          width: 'auto',
+          maxWidth: '100%',
+          margin: '0 auto',
         }}
       >
         {cells.map(({ x, y }) => {
