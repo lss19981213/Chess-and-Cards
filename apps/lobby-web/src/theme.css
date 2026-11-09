@@ -6934,7 +6934,7 @@ html, body, #root {
 
 /* 26.2 手牌：一屏可见 + 拖动刷选 + 双击同点数 */
 .hand-cards-rack {
-  height: 120px !important;
+  height: 106px !important;
   padding: 2px 8px 0 !important;
   overflow: visible !important;
   touch-action: none;
@@ -6944,8 +6944,8 @@ html, body, #root {
 }
 
 .hand-cards-rack .pcard {
-  width: 78px !important;
-  height: 108px !important;
+  width: 72px !important;
+  height: 100px !important;
   flex: 0 0 auto;
   border-radius: 6px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.62) !important;

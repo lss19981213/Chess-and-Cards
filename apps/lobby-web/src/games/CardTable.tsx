@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 /** 手牌目标宽度：在 844×390 横屏下保证点数与花色可辨认 */
-const CARD_W = 78;
+const CARD_W = 72;
 /** 单张牌最小可视宽度（重叠后仍要露出左上角点数） */
 const MIN_STEP = 26;
 import { SeatPanel, TableStage } from '../components/TableStage';
