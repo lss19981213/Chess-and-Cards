@@ -7032,6 +7032,14 @@ html, body, #root {
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
 }
 
+/* 格子跟随棋盘尺寸铺满，而不是固定 46px，否则整盘高度会撑破视口 */
+.boardgame__cell {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
 /* 中国象棋：木纹棋盘 + 细网格线，取消方块马赛克 */
 .boardgame--xiangqi .boardgame__board {
   background-color: #e5cfa8;
