@@ -4,6 +4,7 @@ import { api, type User } from '../api';
 import { audio } from '../audio';
 import { DEALER_MAIN, GAME_ART, HERO_BG } from '../assets';
 import { Chip } from './Chip';
+import { DealerTipWidget } from './DealerTipWidget';
 import {
   IconAssistant,
   IconChess,
@@ -30,6 +31,7 @@ interface Props {
   onNotices: () => void;
   onAssistant: () => void;
   onRules: () => void;
+  onBalanceChange?: (newBalance: number) => void;
 }
 
 type CategoryKey = 'all' | 'live' | 'cards' | 'chess';
@@ -64,7 +66,9 @@ export function Lobby({
   onNotices,
   onAssistant,
   onRules,
+  onBalanceChange,
 }: Props) {
+  const [customQuote, setCustomQuote] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<CategoryKey>('all');
   const [musicOn, setMusicOn] = useState(audio.musicOn);
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
@@ -333,11 +337,11 @@ export function Lobby({
               {dealerHeart && <span className="dealer-heart-float">💖</span>}
             </div>
             <p className="bubble-content">
-              {activeTab === 'live'
+              {customQuote ?? (activeTab === 'live'
                 ? '百人推筒子、骰宝正在火爆下注，主人要试试手气吗？'
                 : activeTab === 'cards'
                   ? '经典斗地主秒匹秒开，AI陪玩随叫随到，祝您把把通天顺！'
-                  : '国粹象棋楚汉争霸，静候主人排兵布阵～'}
+                  : '国粹象棋楚汉争霸，静候主人排兵布阵～')}
             </p>
           </div>
 
@@ -352,6 +356,11 @@ export function Lobby({
             <button type="button" className="btn-random-match" onClick={handleRandomPlay}>
               <span>🎲 随机幸运开局</span>
             </button>
+            <DealerTipWidget
+              balance={user?.balance ?? 0}
+              onBalanceChange={onBalanceChange ?? (() => {})}
+              onAliceSpeak={(txt) => setCustomQuote(txt)}
+            />
           </div>
         </aside>
       </main>

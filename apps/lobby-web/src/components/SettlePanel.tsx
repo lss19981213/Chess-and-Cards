@@ -46,12 +46,13 @@ export function SettlePanel({
   onContinue,
   onClose,
 }: Props) {
-  const mine = rows.find((row) => row.playerId === myId);
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const mine = safeRows.find((row) => row?.playerId === myId);
   const delta = mine?.delta ?? 0;
   const isWin = delta > 0;
   const isLose = delta < 0;
 
-  const ranked = [...rows].sort((a, b) => b.delta - a.delta);
+  const ranked = [...safeRows].sort((a, b) => (b?.delta ?? 0) - (a?.delta ?? 0));
   const titleText = isWin ? '旗开得胜 · 大吉大利' : isLose ? '局结失利 · 虽败犹荣' : '本局平局 · 势均力敌';
 
   return (

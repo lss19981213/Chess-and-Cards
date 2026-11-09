@@ -178,11 +178,17 @@ export default function App() {
     });
 
     s.on(ServerMsg.Settlement, (data) => {
-      const payload = data as Settlement;
-      setSettlement(payload);
+      // 容错解构：兼容 { settlement: Settlement } 与直接 Settlement 对象
+      const env = data as { settlement?: Settlement } | Settlement;
+      const actual = (env && typeof env === 'object' && 'settlement' in env && env.settlement) 
+        ? env.settlement 
+        : (env as Settlement);
+      if (!actual) return;
+
+      setSettlement(actual);
       audio.play('win');
-      if (userIdRef.current) {
-        const myEntry = payload.entries.find((e) => e.playerId === userIdRef.current);
+      if (userIdRef.current && Array.isArray(actual.entries)) {
+        const myEntry = actual.entries.find((e) => e.playerId === userIdRef.current);
         if (myEntry) {
           setUser((prev) => (prev ? { ...prev, balance: prev.balance + myEntry.delta } : prev));
         }
@@ -361,6 +367,7 @@ export default function App() {
           emotes={emotes}
           onEmote={handleEmote}
           persistent={games.find((g) => g.gameId === room.gameId)?.persistent === true}
+          onBalanceChange={handleBalanceChange}
         />
       );
     }
@@ -430,6 +437,7 @@ export default function App() {
         onNotices={() => setView('notices')}
         onAssistant={() => setView('assistant')}
         onRules={() => setView('rules')}
+        onBalanceChange={handleBalanceChange}
       />
     );
   };

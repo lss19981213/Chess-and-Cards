@@ -6,7 +6,9 @@ import { DEALER_MAIN, GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { CoinBurst } from './CoinBurst';
 import { RulesModal } from './RulesModal';
-import { SettlePanel, type ResultRow } from './SettlePanel';
+import { SettleBubble, type ResultRow } from './SettleBubble';
+import { WinCelebration } from './WinCelebration';
+import { DealerTipWidget } from './DealerTipWidget';
 import { Baccarat } from '../games/Baccarat';
 import { Blackjack } from '../games/Blackjack';
 import { BoardGame } from '../games/BoardGame';
@@ -32,6 +34,7 @@ interface Props {
   onEmote: (key: string) => void;
   /** 平台坐庄的常驻玩法 */
   persistent: boolean;
+  onBalanceChange?: (newBalance: number) => void;
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -70,10 +73,14 @@ export function Room({
   emotes,
   onEmote,
   persistent,
+  onBalanceChange,
 }: Props) {
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
-  const myDelta = settlement?.entries.find((e) => e.playerId === myId)?.delta ?? 0;
+  const myDelta = useMemo(() => {
+    const entries = Array.isArray(settlement?.entries) ? settlement.entries : [];
+    return entries.find((e) => e.playerId === myId)?.delta ?? 0;
+  }, [settlement, myId]);
   const isPersistentGame = persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack'].includes(room.gameId);
 
   const [dismissedKey, setDismissedKey] = useState('');
@@ -81,13 +88,21 @@ export function Room({
   const [emoteOpen, setEmoteOpen] = useState(false);
   const [playersDrawerOpen, setPlayersDrawerOpen] = useState(false);
   const [cheerEffect, setCheerEffect] = useState(false);
+  const [customDealerTip, setCustomDealerTip] = useState<string | null>(null);
 
   const dealerTip = useMemo(() => {
+    if (customDealerTip) return customDealerTip;
+    if (myDelta > 0 && (room.status === 'settled' || !persistent)) {
+      return `哇！恭喜主人大获全胜～赢了 +${myDelta.toLocaleString()} 筹码！🎉`;
+    }
+    if (myDelta < 0 && (room.status === 'settled' || !persistent)) {
+      return '主人别灰心，下一局一定通天大顺翻倍赢回来！💪';
+    }
     if (room.status === 'waiting') return '各位牌友请就绪，精彩马上开启～';
     if (room.status === 'playing') return '艾莉丝发牌中，祝主人好运连连！';
     if (room.status === 'settled') return '本局结算完毕，手气真棒～';
     return '艾莉丝陪伴为您服务';
-  }, [room.status]);
+  }, [customDealerTip, myDelta, room.status, persistent]);
 
   const handleDealerCheer = () => {
     audio.play('shunzi');
@@ -103,8 +118,9 @@ export function Room({
   )?.results;
 
   const resultRows: ResultRow[] = useMemo(() => {
-    if (settlement?.entries.length) {
-      return settlement.entries.map((entry) => {
+    const entries = Array.isArray(settlement?.entries) ? settlement.entries : [];
+    if (entries.length > 0) {
+      return entries.map((entry) => {
         const player = room.players.find((p) => p.playerId === entry.playerId);
         return {
           playerId: entry.playerId,
@@ -306,11 +322,11 @@ export function Room({
       </header>
 
       {rulesOpen && <RulesModal gameId={room.gameId} onClose={() => setRulesOpen(false)} />}
-      {settlement && myDelta > 0 && <CoinBurst key={`${room.roomId}-${room.round}`} />}
+      {settlement && myDelta > 0 && <WinCelebration key={`win-${room.roomId}-${room.round}`} delta={myDelta} />}
 
-      {/* 胜利/局结弹窗 */}
+      {/* 战报气泡 HUD (轻量浮动，零遮挡，非阻断) */}
       {showPanel && (
-        <SettlePanel
+        <SettleBubble
           gameId={room.gameId}
           round={room.round}
           rows={resultRows}
@@ -368,6 +384,14 @@ export function Room({
               </div>
               <span className="room-dealer-text">{dealerTip}</span>
             </div>
+
+            {/* 玩家打赏荷官组件 */}
+            <DealerTipWidget
+              balance={balance}
+              onBalanceChange={onBalanceChange ?? (() => {})}
+              onAliceSpeak={(txt) => setCustomDealerTip(txt)}
+              className="room-dealer-tip-slot"
+            />
           </aside>
 
           {/* 渲染游戏牌桌 */}

@@ -77,7 +77,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   captcha: () => request<Captcha>('/api/captcha'),
-  guest: () => request<{ token: string; user: User }>('/api/guest', { method: 'POST' }),
+  guest: () => request<{ token: string; user: User }>('/api/guest', { method: 'POST', body: '{}' }),
 
   login: (username: string, password: string, captchaId: string, captcha: string) =>
     request<{ token: string; user: User }>('/api/login', {
@@ -102,6 +102,11 @@ export const api = {
   records: () => request<{ records: unknown[] }>('/api/records?limit=20'),
 
   tasks: () => request<{ balance: number; tasks: TaskView[] }>('/api/tasks'),
+  tipDealer: (amount: number, giftName?: string) =>
+    request<{ ok: boolean; balance: number; amount: number; giftName: string }>('/api/tip-dealer', {
+      method: 'POST',
+      body: JSON.stringify({ amount, giftName }),
+    }),
   claimTask: (key: string) =>
     request<{ reward: number; balance: number; tasks: TaskView[] }>('/api/tasks/claim', {
       method: 'POST',
