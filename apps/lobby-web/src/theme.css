@@ -7085,11 +7085,26 @@ html, body, #root {
 }
 
 .bet-controls {
-  position: sticky;
-  bottom: 0;
-  z-index: 12;
-  padding: 6px 8px max(6px, env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(4, 8, 6, 0) 0%, rgba(4, 8, 6, 0.96) 42%);
+  padding: 4px 8px max(4px, env(safe-area-inset-bottom));
+}
+
+/* 荷官条与骰盅压缩，为筹码行腾出纵向空间 */
+.table-dealer-host {
+  padding: 2px 10px 2px 4px !important;
+  margin-bottom: 4px !important;
+}
+
+.dealer-mini-portrait {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.dice-stage {
+  gap: 4px !important;
+}
+
+.dice-stage__tray {
+  padding: 4px 10px !important;
 }
 
 /* 26.6 任务分组 */
