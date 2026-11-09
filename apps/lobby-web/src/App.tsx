@@ -10,7 +10,6 @@ import {
 import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
 import { GameSocket } from './ws';
-import { AdminPanel } from './components/AdminPanel';
 import { AssistantView } from './components/AssistantView';
 import { AuthView } from './components/AuthView';
 import { FriendsView } from './components/FriendsView';

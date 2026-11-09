@@ -719,6 +719,48 @@ const EVENT_PATHS = new Set([
     return { announcements: await repo.listAnnouncements(limit) };
   });
 
+  // ---------- GM 工具接口（本地桌面工具专用） ----------
+
+  function requireAdmin(token: string): void {
+    if (!config.adminToken || token !== config.adminToken) throw httpError('后台口令不正确', 403);
+  }
+
+  app.get('/api/admin/players', async (req) => {
+    const query = req.query as { token?: string; q?: string };
+    requireAdmin(String(query.token ?? ''));
+
+    const keyword = String(query.q ?? '').trim();
+    const users = await repo.searchUsers(keyword, '', 30);
+    const players = await Promise.all(
+      users.map(async (user) => ({
+        ...user,
+        balance: await repo.getBalance(user.userId, 'coin'),
+      })),
+    );
+    return { players };
+  });
+
+  // GM 发放 / 扣除筹码，走账本幂等入账
+  app.post('/api/admin/grant', async (req) => {
+    const query = req.query as { token?: string };
+    requireAdmin(String(query.token ?? ''));
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const userId = typeof body.userId === 'string' ? body.userId : '';
+    const amount = Math.floor(Number(body.amount ?? 0));
+    const reason = typeof body.reason === 'string' ? body.reason.slice(0, 40) : 'GM 调整';
+
+    if (!userId) throw httpError('缺少玩家 ID', 400);
+    if (!Number.isFinite(amount) || amount === 0) throw httpError('金额需为非零整数', 400);
+    if (Math.abs(amount) > 1_000_000) throw httpError('单次调整不能超过 100 万', 400);
+
+    const target = await repo.getProfile(userId);
+    if (!target) throw httpError('玩家不存在', 404);
+
+    const balance = await repo.credit(userId, amount, 'gm_grant', `gm:${userId}:${Date.now()}`);
+    apiLog.info(`GM 调整筹码 userId=${userId} amount=${amount} reason=${reason} balance=${balance}`);
+    return { ok: true, nickname: target.nickname, balance };
+  });
+
   app.post('/api/admin/announcements', async (req) => {
     const query = req.query as { token?: string };
     if (!config.adminToken || query.token !== config.adminToken) {
