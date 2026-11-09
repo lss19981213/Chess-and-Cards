@@ -7844,6 +7844,43 @@ html, body, #root {
   }
 }
 
+/* 26.9 牌桌内的打赏气泡改为向下展开
+   荷官 HUD 位于顶栏，默认的 bottom: 100% 会顶到视口外被裁切 */
+.room-dealer-companion {
+  z-index: 90 !important;
+}
+
+.room-dealer-companion .tip-menu-bubble {
+  bottom: auto !important;
+  top: calc(100% + 10px) !important;
+  right: 0 !important;
+  width: 272px;
+  max-width: calc(100vw - 24px);
+  z-index: 10050 !important;
+  animation: tipMenuPopDown 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes tipMenuPopDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 牌桌内气泡更紧凑，避免压住整块牌桌 */
+.room-dealer-companion .tip-gifts-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.room-dealer-companion .tip-gift-card {
+  padding: 8px 6px;
+}
+
 /* 26.6 任务分组 */
 .task-group__head {
   display: flex;
