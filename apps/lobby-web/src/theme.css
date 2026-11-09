@@ -7084,8 +7084,19 @@ html, body, #root {
   padding-bottom: 4px !important;
 }
 
+/* 筹码行吸底常驻：大面额筹码随时可选，滚动时也不被下注格挤出视口 */
 .bet-controls {
-  padding: 4px 8px max(4px, env(safe-area-inset-bottom));
+  position: sticky;
+  bottom: 0;
+  z-index: 14;
+  padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(4, 8, 6, 0) 0%, rgba(4, 8, 6, 0.96) 46%);
+}
+
+/* 为吸底筹码行预留滚动空间，避免最后一行下注格永远被压住 */
+.dice-zones,
+.lobby-game__main {
+  padding-bottom: 6px;
 }
 
 /* 荷官条与骰盅压缩，为筹码行腾出纵向空间 */
