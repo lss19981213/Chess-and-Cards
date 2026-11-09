@@ -119,16 +119,8 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
     }
   }, [data?.lastCombo]);
 
-  if (!data) {
-    return <div className="board-placeholder">正在发牌…</div>;
-  }
-
-  const isMyTurn = data.turn === myId && status === 'playing';
-  const canPass = Boolean(data.lastCombo) && data.lastPlayerId !== myId;
-  const others = data.handCounts.filter((player) => player.playerId !== myId);
-  const lastPlayer = data.handCounts.find((player) => player.playerId === data.lastPlayerId);
-
   // 手牌动态重叠：牌多时压缩步进，牌少时铺开，始终一屏可见
+  // 注意：必须放在提前 return 之前，否则 hook 数量在不同渲染间不一致
   const cardStep = useMemo(() => {
     const count = hand.length;
     if (count <= 1) return CARD_W;
@@ -137,6 +129,15 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
     return Math.max(MIN_STEP, Math.min(CARD_W, raw));
   }, [hand.length, rackWidth]);
   const cardOverlap = Math.max(0, CARD_W - cardStep);
+
+  if (!data) {
+    return <div className="board-placeholder">正在发牌…</div>;
+  }
+
+  const isMyTurn = data.turn === myId && status === 'playing';
+  const canPass = Boolean(data.lastCombo) && data.lastPlayerId !== myId;
+  const others = data.handCounts.filter((player) => player.playerId !== myId);
+  const lastPlayer = data.handCounts.find((player) => player.playerId === data.lastPlayerId);
 
   const applyCard = (id: string, on: boolean): void => {
     setSelected((prev) => {
