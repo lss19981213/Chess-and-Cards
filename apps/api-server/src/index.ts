@@ -278,7 +278,7 @@ const EVENT_PATHS = new Set([
   app.post('/api/guest', async () => {
     const rand = Math.floor(1000 + Math.random() * 9000);
     const username = 'guest_' + Date.now().toString(36) + '_' + rand;
-    const nickname = '尊贵牌友_' + rand;
+    const nickname = '牌友_' + rand;
     const passwordHash = await hashPassword('guest123456');
     const result = await repo.register({ username, passwordHash, nickname });
     if (!result.ok) throw httpError('游客账号生成失败', 500);

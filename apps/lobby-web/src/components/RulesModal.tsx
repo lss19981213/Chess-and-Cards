@@ -61,7 +61,7 @@ const RULES: Record<string, GameRules> = {
   },
   niuniu: {
     name: '斗牛',
-    intro: '庄家每局开三张牌算牛点，押中对应的牛数就赢。',
+    intro: '百人极速斗牛：庄家每局开三张牌快速算牛（三张点数之和取尾数定牛点），押中对应的牛数或无牛即可斩获高倍筹码！',
     sections: [
       { title: '怎么玩', lines: [
         '庄家开三张牌，点数规则：A 计 1 点，J / Q / K 各计 10 点，其余按面值。',

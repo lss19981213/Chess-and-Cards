@@ -108,7 +108,7 @@ export class NiuniuPlugin extends BaseGamePlugin {
   override readonly meta: GameMeta = {
     gameId: 'niuniu',
     name: '斗牛',
-    description: '三张牌算牛点，押中牛几就赢多少',
+    description: '极速三张算牛，单注押牛一至牛牛，高倍奖池火爆开奖',
     icon: '🐂',
     minPlayers: 1,
     maxPlayers: 5,

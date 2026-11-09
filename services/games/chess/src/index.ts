@@ -351,7 +351,7 @@ export class ChessPlugin extends BaseGamePlugin {
   override readonly meta: GameMeta = {
     gameId: 'chess',
     name: '国际象棋',
-    description: '楚汉对决，王将争锋',
+    description: '六十四格西洋棋，兵升变与王车易位的智慧博弈',
     icon: '♞',
     minPlayers: 2,
     maxPlayers: 2,
