@@ -1,4 +1,4 @@
-import type { GameMeta, GameSnapshot, SettlementEntry } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameSnapshot, SettlementEntry } from '@cc/protocol';
 
 /** 插件 API 版本：容器加载插件时校验，避免协议不兼容。 */
 export const PLUGIN_API_VERSION = 1;
@@ -9,6 +9,7 @@ export interface PlayerContext {
   seat: number;
   connected: boolean;
   isBot: boolean;
+  botDifficulty?: BotDifficulty;
 }
 
 export interface RoomConfig {
@@ -86,8 +87,8 @@ export interface GamePlugin {
   /** 当前应当行动的玩家（用于驱动机器人），无回合概念时返回 null */
   getCurrentActor?(ctx: RoomContext): string | null;
 
-  /** 规则 AI 兜底决策，返回 null 表示无法行动 */
-  botIntent?(ctx: RoomContext, playerId: string): GameIntent | null;
+  /** 根据难度生成机器人对弈决策，返回 null 表示无法行动 */
+  botIntent?(ctx: RoomContext, playerId: string, difficulty?: BotDifficulty): GameIntent | null;
 }
 
 export type GamePluginFactory = () => GamePlugin;

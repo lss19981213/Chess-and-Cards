@@ -1,4 +1,4 @@
-import type { GameMeta, GameSnapshot } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import { BaseGamePlugin, TicketBook, createCardDeck, shuffleWithSeed, type Card } from '@cc/game-sdk';
 
@@ -100,6 +100,46 @@ function pointsOf(cards: Card[]): number {
     aces -= 1;
   }
   return total;
+}
+
+function shouldBotHit(cards: Card[], dealerUpcard: Card | undefined, difficulty: BotDifficulty): boolean {
+  const pts = pointsOf(cards);
+  if (pts >= 21) return false;
+
+  if (difficulty === 'low') {
+    if (pts <= 14) return true;
+    if (pts <= 17) return Math.random() < 0.35;
+    return false;
+  }
+
+  if (difficulty === 'medium') {
+    return pts < 17;
+  }
+
+  // 高难度：21点基础策略（Basic Strategy），区分软牌与硬牌并结合庄家明牌
+  let hardSum = 0;
+  let aces = 0;
+  for (const card of cards) {
+    if (card.rank === 14) {
+      aces += 1;
+      hardSum += 1;
+    } else {
+      hardSum += Math.min(10, card.rank);
+    }
+  }
+  const isSoft = aces > 0 && hardSum + 10 <= 21;
+  const total = isSoft ? hardSum + 10 : hardSum;
+  const up = dealerUpcard ? (dealerUpcard.rank === 14 ? 11 : Math.min(10, dealerUpcard.rank)) : 10;
+
+  if (isSoft) {
+    if (total >= 19) return false;
+    if (total === 18) return up >= 9;
+    return true;
+  }
+  if (total <= 11) return true;
+  if (total === 12) return up < 4 || up > 6;
+  if (total >= 13 && total <= 16) return up >= 7;
+  return false;
 }
 
 /** 每个玩家一副独立的牌，牌堆由房间种子与玩家派生，互不干扰 */
@@ -235,19 +275,24 @@ export class BlackjackPlugin extends BaseGamePlugin {
       if (changed) ctx.markDirty();
     }
 
-    // 机器人手牌：点数不足 17 自动要牌
+    // 机器人手牌：按低/中/高难度执行不同要牌策略（高难度遵循 Basic Strategy）
     if (this.state.phase === 'play') {
       let changed = false;
+      const dealerUpcard = this.state.dealer[0];
       for (const [playerId, hand] of this.state.hands) {
         if (hand.done) continue;
-        const isBot = ctx.getPlayer(playerId)?.isBot === true;
-        if (!isBot) continue;
-        if (pointsOf(hand.cards) < 17 && hand.cards.length < 2 + MAX_HITS) {
+        const player = ctx.getPlayer(playerId);
+        if (player?.isBot !== true) continue;
+        const diff = player.botDifficulty ?? 'medium';
+        if (shouldBotHit(hand.cards, dealerUpcard, diff) && hand.cards.length < 2 + MAX_HITS) {
           const deck = handDeck(`${ctx.config.seed}:${ctx.config.round}`, playerId);
           const card = deck[hand.cards.length];
           if (card) {
             hand.cards.push(card);
             if (pointsOf(hand.cards) > 21) hand.done = true;
+            changed = true;
+          } else {
+            hand.done = true;
             changed = true;
           }
         } else {
@@ -400,8 +445,20 @@ export class BlackjackPlugin extends BaseGamePlugin {
     const now = Date.now();
     const seats = ctx.players.filter((p) => p.isBot).slice(0, 30);
     for (const seat of seats) {
-      const area = AREAS[Math.floor(Math.random() * AREAS.length)]!;
-      const amount = MIN_BET * (1 + Math.floor(Math.random() * 20));
+      const diff = seat.botDifficulty ?? 'medium';
+      const r = Math.random();
+      let area: Area;
+      let amount: number;
+      if (diff === 'low') {
+        area = AREAS[Math.floor(Math.random() * AREAS.length)]!;
+        amount = MIN_BET * (1 + Math.floor(Math.random() * 25));
+      } else if (diff === 'high') {
+        area = r < 0.58 ? 'win' : r < 0.9 ? 'lose' : 'bj';
+        amount = MIN_BET * (2 + Math.floor(Math.random() * 8));
+      } else {
+        area = r < 0.42 ? 'win' : r < 0.78 ? 'lose' : r < 0.9 ? 'bj' : 'tie';
+        amount = MIN_BET * (1 + Math.floor(Math.random() * 15));
+      }
       plans.push({ playerId: seat.playerId, area, amount, at: now + 800 + Math.random() * 12_000, done: false });
     }
     this.state.botPlans = plans;

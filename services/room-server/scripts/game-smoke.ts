@@ -195,7 +195,7 @@ function testGomokuStillWorks(): void {
 
 function testBotPlaysGomoku(): void {
   console.log('\n[机器人：五子棋]');
-  const players = makePlayers(2, 0); // 全部机器人，验证 AI 能自我对弈
+  const players = makePlayers(2, 0); // 全部机器人，验证机器人能自我对弈
   const plugin = new GomokuPlugin();
   const { ctx, settled } = makeCtx(players);
   plugin.onRoundStart(ctx);

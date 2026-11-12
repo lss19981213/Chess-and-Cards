@@ -116,7 +116,7 @@ export function SettleBubble({
                 <div key={row.playerId} className={`bubble-player-chip ${rowIsMe ? 'is-me' : ''}`}>
                   <span className="rank-dot">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
                   <span className="player-name">{row.nickname}</span>
-                  {row.isBot && <em className="ai-tag">AI</em>}
+                  {row.isBot && <em className="ai-tag">人机</em>}
                   <strong className={`player-delta ${row.delta > 0 ? 'is-pos' : row.delta < 0 ? 'is-neg' : ''}`}>
                     {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
                   </strong>

@@ -292,7 +292,14 @@ export class NiuniuPlugin extends BaseGamePlugin {
     const seats = ctx.players.filter((p) => p.isBot).slice(0, 30);
     for (const seat of seats) {
       const area = AREAS[Math.floor(Math.random() * AREAS.length)]!;
-      const amount = MIN_BET * (1 + Math.floor(Math.random() * 20));
+      const diff = seat.botDifficulty ?? 'medium';
+      const mult =
+        diff === 'high'
+          ? 2 + Math.floor(Math.random() * 8)
+          : diff === 'low'
+            ? 1 + Math.floor(Math.random() * 25)
+            : 1 + Math.floor(Math.random() * 18);
+      const amount = MIN_BET * mult;
       plans.push({ playerId: seat.playerId, area, amount, at: now + 800 + Math.random() * 12_000, done: false });
     }
     this.state.botPlans = plans;

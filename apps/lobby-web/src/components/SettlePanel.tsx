@@ -105,7 +105,7 @@ export function SettlePanel({
                     </span>
                     <span className="player-col">
                       <strong>{row.nickname}</strong>
-                      {row.isBot && <em className="tag-ai">AI</em>}
+                      {row.isBot && <em className="tag-ai">人机</em>}
                       {rowIsMe && <em className="tag-self">我</em>}
                     </span>
                     <span className={`score-col ${row.delta > 0 ? 'is-pos' : row.delta < 0 ? 'is-neg' : ''}`}>

@@ -114,18 +114,6 @@ export function IconNotice({ size = 20, className = '' }: { size?: number; class
   );
 }
 
-export function IconAssistant({ size = 20, className = '' }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={`ico-svg ${className}`}>
-      <rect x="4" y="6" width="16" height="13" rx="3.5" fill="rgba(66,133,244,0.25)" stroke="#60a5fa" strokeWidth="1.6" />
-      <circle cx="9" cy="12" r="1.8" fill="#fff" />
-      <circle cx="15" cy="12" r="1.8" fill="#fff" />
-      <path d="M10 16h4" stroke="#60a5fa" strokeWidth="1.6" strokeLinecap="round" />
-      <path d="M12 2v4M2 13h2M20 13h2" stroke="#60a5fa" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function IconFlame({ size = 18, className = '' }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={`ico-svg ${className}`}>

@@ -65,6 +65,12 @@ export interface JoinRoomPayload {
   maxPlayers?: number;
   /** 指定房间号则加入该房间，否则自动匹配 */
   roomId?: string;
+  /** 可选默认机器人难度 */
+  botDifficulty?: import('./types').BotDifficulty;
+}
+
+export interface AddBotPayload {
+  difficulty?: import('./types').BotDifficulty;
 }
 
 /** 最近一局的走势标记 */

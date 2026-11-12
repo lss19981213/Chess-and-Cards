@@ -7,14 +7,13 @@ function IconBolt() {
 }
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Announcement, GameMeta } from '@cc/protocol';
+import type { Announcement, BotDifficulty, GameMeta } from '@cc/protocol';
 import { api, type User } from '../api';
 import { audio } from '../audio';
 import { DEALER_MAIN, GAME_ART, HERO_BG } from '../assets';
 import { Chip } from './Chip';
 import { DealerTipWidget } from './DealerTipWidget';
 import {
-  IconAssistant,
   IconChess,
   IconDice,
   IconGift,
@@ -38,8 +37,9 @@ interface Props {
   onLeaderboard: () => void;
   onProfile: () => void;
   onNotices: () => void;
-  onAssistant: () => void;
   onRules: () => void;
+  botDifficulty: BotDifficulty;
+  onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
   onBalanceChange?: (newBalance: number) => void;
 }
 
@@ -125,8 +125,9 @@ export function Lobby({
   onLeaderboard,
   onProfile,
   onNotices,
-  onAssistant,
   onRules,
+  botDifficulty,
+  onChangeBotDifficulty,
   onBalanceChange,
 }: Props) {
   const [activeTab, setActiveTab] = useState<CategoryKey>('all');
@@ -251,7 +252,7 @@ export function Lobby({
     }
     if (customQuote) return customQuote;
     if (activeTab === 'live') return '百人推筒子、骰宝正在火爆下注，主人要试试手气吗？🎰';
-    if (activeTab === 'cards') return '经典斗地主秒匹秒开，AI陪玩随叫随到，祝您把把通天顺！♠️';
+    if (activeTab === 'cards') return '经典斗地主秒匹秒开，多难度牌手陪练随叫随到，祝您把把通天顺！♠️';
     if (activeTab === 'chess') return '楚汉争霸楚河汉界，静候主人排兵布阵～♟️';
     return '尊贵的主人，艾莉丝已就绪，今天想挑战哪位牌王？💖';
   }, [hoveredGame, customQuote, activeTab]);
@@ -335,10 +336,19 @@ export function Lobby({
             <span>榜单</span>
           </button>
 
-          <button type="button" className="top-feature-pill" onClick={onAssistant} title="AI智谋推演助手">
-            <IconAssistant size={15} />
-            <span>助手</span>
-          </button>
+          <div className="bot-diff-switch top-diff-switch" title="选择机器人对战难度">
+            <span className="bot-diff-switch__label">难度</span>
+            {(['low', 'medium', 'high'] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={`bot-diff-btn is-${d} ${botDifficulty === d ? 'is-active' : ''}`}
+                onClick={() => onChangeBotDifficulty(d)}
+              >
+                {d === 'low' ? '低' : d === 'medium' ? '中' : '高'}
+              </button>
+            ))}
+          </div>
 
           <button type="button" className="top-feature-pill" onClick={onRules} title="全游戏规则说明">
             <IconRules size={15} />

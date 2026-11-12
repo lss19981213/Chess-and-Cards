@@ -190,20 +190,33 @@ export class BaccaratPlugin extends BaseGamePlugin {
     this.planBotBets(ctx);
   }
 
-  /** 机器人下注计划：分散到整个下注期，模拟玩家陆续进场 */
+  /** 机器人下注计划：按难度分流期望收益偏好与筹码尺度 */
   private planBotBets(ctx: RoomContext): void {
     const now = Date.now();
-    const areas: Area[] = ['player', 'banker', 'tie'];
-    const amounts = [10, 20, 50, 100, 200];
     const plans: BotPlan[] = [];
     for (const bot of ctx.players) {
       if (!bot.isBot) continue;
       if (Math.random() > 0.6) continue;
+      const diff = bot.botDifficulty ?? 'medium';
       const count = Math.random() < 0.28 ? 2 : 1;
       for (let i = 0; i < count; i += 1) {
+        const r = Math.random();
+        const area: Area =
+          diff === 'high'
+            ? r < 0.56
+              ? 'banker'
+              : 'player'
+            : diff === 'low'
+              ? (['player', 'banker', 'tie', 'tie'] as Area[])[Math.floor(Math.random() * 4)]!
+              : r < 0.46
+                ? 'banker'
+                : r < 0.88
+                  ? 'player'
+                  : 'tie';
+        const amounts = diff === 'high' ? [20, 50, 100] : diff === 'low' ? [10, 50, 200] : [10, 20, 50, 100, 200];
         plans.push({
           playerId: bot.playerId,
-          area: areas[Math.floor(Math.random() * areas.length)]!,
+          area,
           amount: amounts[Math.floor(Math.random() * amounts.length)]!,
           at: now + 600 + Math.random() * (BET_MS - 4600),
           done: false,

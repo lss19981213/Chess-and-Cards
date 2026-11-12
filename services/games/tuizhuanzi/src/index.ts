@@ -158,17 +158,18 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     this.planBotBets(ctx);
   }
 
-  /** 机器人下注计划：分散到整个下注期，模拟玩家陆续进场 */
+  /** 机器人下注计划：按难度区分稳健分散注码与激进随机注码 */
   private planBotBets(ctx: RoomContext): void {
     const now = Date.now();
     const doors: DoorKey[] = ['heaven', 'earth', 'human'];
-    const amounts = [10, 20, 50, 100, 200, 500];
     const plans: BotPlan[] = [];
 
     for (const bot of ctx.players) {
       if (!bot.isBot) continue;
       if (Math.random() > 0.62) continue;
-      const count = Math.random() < 0.28 ? 2 : 1;
+      const diff = bot.botDifficulty ?? 'medium';
+      const count = diff === 'high' ? 2 : Math.random() < 0.28 ? 2 : 1;
+      const amounts = diff === 'high' ? [20, 50, 100] : diff === 'low' ? [10, 100, 500] : [10, 20, 50, 100, 200];
       for (let i = 0; i < count; i += 1) {
         plans.push({
           playerId: bot.playerId,

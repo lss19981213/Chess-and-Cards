@@ -170,20 +170,28 @@ export class DicePlugin extends BaseGamePlugin {
     this.planBotBets(ctx);
   }
 
-  /** 机器人下注计划：分散到整个下注期，模拟玩家陆续进场 */
+  /** 机器人下注计划：按难度分配赌场优势区偏好 */
   private planBotBets(ctx: RoomContext): void {
     const now = Date.now();
-    const areas: Area[] = ['big', 'small', 'odd', 'even', 'triple'];
-    const amounts = [10, 20, 50, 100, 200];
+    const evenAreas: Area[] = ['big', 'small', 'odd', 'even'];
+    const allAreas: Area[] = ['big', 'small', 'odd', 'even', 'triple'];
     const plans: BotPlan[] = [];
     for (const bot of ctx.players) {
       if (!bot.isBot) continue;
       if (Math.random() > 0.6) continue;
+      const diff = bot.botDifficulty ?? 'medium';
       const count = Math.random() < 0.28 ? 2 : 1;
       for (let i = 0; i < count; i += 1) {
+        const area =
+          diff === 'high'
+            ? evenAreas[Math.floor(Math.random() * evenAreas.length)]!
+            : diff === 'low'
+              ? (Math.random() < 0.35 ? 'triple' : allAreas[Math.floor(Math.random() * allAreas.length)]!)
+              : allAreas[Math.floor(Math.random() * allAreas.length)]!;
+        const amounts = diff === 'high' ? [20, 50, 100] : [10, 20, 50, 100, 200];
         plans.push({
           playerId: bot.playerId,
-          area: areas[Math.floor(Math.random() * areas.length)]!,
+          area,
           amount: amounts[Math.floor(Math.random() * amounts.length)]!,
           at: now + 600 + Math.random() * (BET_MS - 4600),
           done: false,

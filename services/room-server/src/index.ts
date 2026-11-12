@@ -11,6 +11,7 @@ import {
   ServerMsg,
   asString,
   isPlainObject,
+  type BotDifficulty,
   type Envelope,
 } from '@cc/protocol';
 import { BOT_NAMES, driveBot } from './bot';
@@ -261,11 +262,14 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       if (room.view().hostId !== session.playerId) {
         throw new AppError(ErrorCode.IllegalAction, '只有房主可以添加机器人');
       }
+      const rawDiff = payload.difficulty;
+      const difficulty: BotDifficulty =
+        rawDiff === 'low' || rawDiff === 'medium' || rawDiff === 'high' ? rawDiff : 'medium';
       const used = new Set(room.view().players.map((p) => p.nickname));
       const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
       const nickname =
         free[Math.floor(Math.random() * free.length)] ?? `机器人${room.view().players.length + 1}`;
-      room.addBot(`bot:${randomUUID()}`, `🤖 ${nickname}`);
+      room.addBot(`bot:${randomUUID()}`, `🤖 ${nickname}`, difficulty);
       return;
     }
 

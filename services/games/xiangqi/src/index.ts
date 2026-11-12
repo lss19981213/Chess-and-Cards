@@ -1,4 +1,4 @@
-import type { GameMeta, GameSnapshot } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, RoomContext } from '@cc/game-sdk';
 import { BaseGamePlugin } from '@cc/game-sdk';
 
@@ -395,6 +395,255 @@ function applyMove(state: State, move: Move): void {
   state.turn = piece.color === 'r' ? 'b' : 'r';
 }
 
+// --- 象棋博弈搜索引擎（PST + MVV-LVA + Alpha-Beta + 静态搜索） ---
+
+const XQ_VAL: Record<PieceType, number> = {
+  k: 10000,
+  r: 900,
+  c: 450,
+  n: 400,
+  b: 200,
+  a: 200,
+  p: 100,
+};
+
+// 红方视角（r=9为底线，r=0为敌方底线）；黑方以 9-r 镜像查表
+const XQ_PAWN_PST = [
+  [9, 9, 9, 11, 13, 11, 9, 9, 9],
+  [39, 48, 56, 65, 70, 65, 56, 48, 39],
+  [38, 46, 54, 62, 68, 62, 54, 46, 38],
+  [30, 38, 44, 52, 56, 52, 44, 38, 30],
+  [18, 24, 30, 36, 40, 36, 30, 24, 18],
+  [4, 0, 8, 0, 12, 0, 8, 0, 4],
+  [2, 0, 4, 0, 8, 0, 4, 0, 2],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0],
+];
+
+const XQ_ROOK_PST = [
+  [14, 14, 12, 18, 16, 18, 12, 14, 14],
+  [16, 20, 18, 24, 26, 24, 18, 20, 16],
+  [12, 16, 14, 20, 22, 20, 14, 16, 12],
+  [12, 16, 14, 20, 22, 20, 14, 16, 12],
+  [12, 16, 16, 22, 24, 22, 16, 16, 12],
+  [10, 14, 12, 18, 20, 18, 12, 14, 10],
+  [6, 10, 10, 14, 16, 14, 10, 10, 6],
+  [4, 8, 8, 12, 14, 12, 8, 8, 4],
+  [8, 12, 10, 14, 12, 14, 10, 12, 8],
+  [-2, 8, 4, 12, 10, 12, 4, 8, -2],
+];
+
+const XQ_KNIGHT_PST = [
+  [4, 8, 16, 12, 4, 12, 16, 8, 4],
+  [4, 10, 22, 16, 14, 16, 22, 10, 4],
+  [8, 16, 24, 26, 20, 26, 24, 16, 8],
+  [6, 14, 20, 24, 26, 24, 20, 14, 6],
+  [4, 12, 18, 20, 24, 20, 18, 12, 4],
+  [2, 10, 14, 18, 20, 18, 14, 10, 2],
+  [0, 8, 12, 14, 16, 14, 12, 8, 0],
+  [-4, 4, 10, 8, 12, 8, 10, 4, -4],
+  [-6, 0, 4, 6, 4, 6, 4, 0, -6],
+  [-8, -4, 0, 2, 0, 2, 0, -4, -8],
+];
+
+const XQ_CANNON_PST = [
+  [6, 4, 0, -4, -6, -4, 0, 4, 6],
+  [4, 4, 2, 4, 6, 4, 2, 4, 4],
+  [2, 4, 6, 10, 14, 10, 6, 4, 2],
+  [2, 2, 4, 8, 12, 8, 4, 2, 2],
+  [0, 2, 4, 10, 16, 10, 4, 2, 0],
+  [0, 2, 4, 8, 12, 8, 4, 2, 0],
+  [0, 4, 4, 6, 10, 6, 4, 4, 0],
+  [2, 6, 8, 10, 18, 10, 8, 6, 2],
+  [0, 2, 2, 4, 8, 4, 2, 2, 0],
+  [0, 0, 2, 4, 6, 4, 2, 0, 0],
+];
+
+function xqPst(piece: Piece, c: number, r: number): number {
+  const row = piece.color === 'r' ? r : 9 - r;
+  switch (piece.type) {
+    case 'p':
+      return XQ_PAWN_PST[row]![c]!;
+    case 'r':
+      return XQ_ROOK_PST[row]![c]!;
+    case 'n':
+      return XQ_KNIGHT_PST[row]![c]!;
+    case 'c':
+      return XQ_CANNON_PST[row]![c]!;
+    case 'k':
+      return row >= 8 && c === 4 ? 10 : 0;
+    case 'a':
+      return c === 4 && row === 8 ? 10 : 4;
+    case 'b':
+      return row >= 7 && (c === 2 || c === 6) ? 8 : 2;
+  }
+}
+
+function evalXiangqi(board: Array<Piece | null>, side: Color): number {
+  let score = 0;
+  for (let r = 0; r < ROWS; r += 1) {
+    for (let c = 0; c < COLS; c += 1) {
+      const p = board[r * COLS + c];
+      if (!p) continue;
+      const v = XQ_VAL[p.type] + xqPst(p, c, r);
+      score += p.color === side ? v : -v;
+    }
+  }
+  return score;
+}
+
+function xqSearchMoves(dummy: State, color: Color, capturesOnly: boolean): Array<{ move: Move; order: number }> {
+  const result: Array<{ move: Move; order: number }> = [];
+  const board = dummy.board;
+  for (let r = 0; r < ROWS; r += 1) {
+    for (let c = 0; c < COLS; c += 1) {
+      const p = board[r * COLS + c];
+      if (!p || p.color !== color) continue;
+      for (const move of pseudoMoves(dummy, { c, r })) {
+        const victim = board[idx(move.to)] ?? null;
+        if (capturesOnly && !victim) continue;
+        // 原地试走并检查被将军/将帅对脸
+        const fromIdx = idx(move.from);
+        const toIdx = idx(move.to);
+        board[toIdx] = p;
+        board[fromIdx] = null;
+        const ok = !inCheck(board, color) && !kingsFacing(board);
+        board[fromIdx] = p;
+        board[toIdx] = victim ?? null;
+        if (!ok) continue;
+
+        const mvvLva = victim ? XQ_VAL[victim.type] * 10 - XQ_VAL[p.type] + 2000 : 0;
+        const posGain = xqPst(p, move.to.c, move.to.r) - xqPst(p, move.from.c, move.from.r);
+        result.push({ move, order: mvvLva + posGain });
+      }
+    }
+  }
+  result.sort((a, b) => b.order - a.order);
+  return result;
+}
+
+interface XqSearchCtx {
+  dummy: State;
+  deadline: number;
+  aborted: boolean;
+}
+
+function xqQuiesce(ctx: XqSearchCtx, side: Color, alpha: number, beta: number, qDepth: number): number {
+  const standPat = evalXiangqi(ctx.dummy.board, side);
+  if (standPat >= beta) return beta;
+  let a = Math.max(alpha, standPat);
+  if (qDepth <= 0 || Date.now() >= ctx.deadline) return a;
+
+  const caps = xqSearchMoves(ctx.dummy, side, true);
+  const nextSide: Color = side === 'r' ? 'b' : 'r';
+  for (const { move } of caps) {
+    const fromIdx = idx(move.from);
+    const toIdx = idx(move.to);
+    const piece = ctx.dummy.board[fromIdx]!;
+    const captured = ctx.dummy.board[toIdx] ?? null;
+    ctx.dummy.board[toIdx] = piece;
+    ctx.dummy.board[fromIdx] = null;
+    const score = -xqQuiesce(ctx, nextSide, -beta, -a, qDepth - 1);
+    ctx.dummy.board[fromIdx] = piece;
+    ctx.dummy.board[toIdx] = captured;
+    if (score >= beta) return beta;
+    if (score > a) a = score;
+  }
+  return a;
+}
+
+function xqNegamax(
+  ctx: XqSearchCtx,
+  side: Color,
+  depth: number,
+  ply: number,
+  alpha: number,
+  beta: number,
+  useQuiesce: boolean,
+): number {
+  if (Date.now() >= ctx.deadline) {
+    ctx.aborted = true;
+    return evalXiangqi(ctx.dummy.board, side);
+  }
+  if (depth <= 0) {
+    return useQuiesce ? xqQuiesce(ctx, side, alpha, beta, 2) : evalXiangqi(ctx.dummy.board, side);
+  }
+  const moves = xqSearchMoves(ctx.dummy, side, false);
+  if (moves.length === 0) return -9500 + ply;
+
+  const nextSide: Color = side === 'r' ? 'b' : 'r';
+  let a = alpha;
+  for (const { move } of moves) {
+    const fromIdx = idx(move.from);
+    const toIdx = idx(move.to);
+    const piece = ctx.dummy.board[fromIdx]!;
+    const captured = ctx.dummy.board[toIdx] ?? null;
+    ctx.dummy.board[toIdx] = piece;
+    ctx.dummy.board[fromIdx] = null;
+    const score = -xqNegamax(ctx, nextSide, depth - 1, ply + 1, -beta, -a, useQuiesce);
+    ctx.dummy.board[fromIdx] = piece;
+    ctx.dummy.board[toIdx] = captured;
+    if (ctx.aborted) return a;
+    if (score >= beta) return beta;
+    if (score > a) a = score;
+  }
+  return a;
+}
+
+function chooseXiangqiBotMove(state: State, color: Color, difficulty: BotDifficulty): Move | null {
+  const boardCopy = state.board.map((p) => (p ? { ...p } : null));
+  const dummy: State = { board: boardCopy, turn: color, winner: null, results: [], lastMove: null };
+  const rootMoves = xqSearchMoves(dummy, color, false);
+  if (rootMoves.length === 0) return null;
+
+  const targetDepth = difficulty === 'low' ? 1 : difficulty === 'medium' ? 2 : 3;
+  const useQuiesce = difficulty === 'high';
+  const deadline = Date.now() + (difficulty === 'high' ? 32 : 16);
+  const nextSide: Color = color === 'r' ? 'b' : 'r';
+
+  let scored: Array<{ move: Move; score: number }> = rootMoves.map((m) => ({ move: m.move, score: 0 }));
+
+  for (let depth = 1; depth <= targetDepth; depth += 1) {
+    const ctx: XqSearchCtx = { dummy, deadline, aborted: false };
+    const nextScored: Array<{ move: Move; score: number }> = [];
+    for (const item of scored) {
+      const fromIdx = idx(item.move.from);
+      const toIdx = idx(item.move.to);
+      const piece = dummy.board[fromIdx]!;
+      const captured = dummy.board[toIdx] ?? null;
+      dummy.board[toIdx] = piece;
+      dummy.board[fromIdx] = null;
+      const score = -xqNegamax(ctx, nextSide, depth - 1, 1, -20000, 20000, useQuiesce);
+      dummy.board[fromIdx] = piece;
+      dummy.board[toIdx] = captured;
+      if (ctx.aborted) break;
+      nextScored.push({ move: item.move, score });
+    }
+    if (!ctx.aborted && nextScored.length === scored.length) {
+      nextScored.sort((a, b) => b.score - a.score);
+      scored = nextScored;
+    } else {
+      break;
+    }
+  }
+
+  if (difficulty === 'low') {
+    // 初级：偶发小失误，从分差合理的候选里带噪声抽取
+    const bestScore = scored[0]!.score;
+    const pool = scored.filter((m) => bestScore - m.score <= 180).slice(0, 4);
+    return pool[Math.floor(Math.random() * pool.length)]!.move;
+  }
+
+  if (difficulty === 'medium') {
+    const bestScore = scored[0]!.score;
+    const pool = scored.filter((m) => bestScore - m.score <= 15).slice(0, 2);
+    return pool[Math.floor(Math.random() * pool.length)]!.move;
+  }
+
+  return scored[0]!.move;
+}
+
 export class XiangqiPlugin extends BaseGamePlugin {
   override readonly apiVersion = 1;
 
@@ -480,14 +729,11 @@ export class XiangqiPlugin extends BaseGamePlugin {
     ctx.settle({ entries, winners: results.filter((r) => r.delta > 0).map((r) => r.playerId) });
   }
 
-  override botIntent(ctx: RoomContext, playerId: string): GameIntent | null {
+  override botIntent(ctx: RoomContext, playerId: string, difficulty: BotDifficulty = 'medium'): GameIntent | null {
     const color = this.colorOf(ctx, playerId);
     if (!color || this.state.winner || this.state.turn !== color) return null;
-    const moves = legalMoves(this.state, color);
-    if (moves.length === 0) return null;
-    const captures = moves.filter((m) => this.state.board[idx(m.to)]);
-    const pool = captures.length > 0 && Math.random() < 0.75 ? captures : moves;
-    const move = pool[Math.floor(Math.random() * pool.length)]!;
+    const move = chooseXiangqiBotMove(this.state, color, difficulty);
+    if (!move) return null;
     return { cmd: 'move', payload: { from: move.from, to: move.to } };
   }
 

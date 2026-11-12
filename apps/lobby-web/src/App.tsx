@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ClientMsg,
   ServerMsg,
+  type BotDifficulty,
   type EmotePayload,
   type GameMeta,
   type RoomView,
@@ -10,7 +11,6 @@ import {
 import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
 import { GameSocket } from './ws';
-import { AssistantView } from './components/AssistantView';
 import { AuthView } from './components/AuthView';
 import { FriendsView } from './components/FriendsView';
 import { GameRooms } from './components/GameRooms';
@@ -40,7 +40,6 @@ export type AppView =
   | 'friends'
   | 'profile'
   | 'notices'
-  | 'assistant'
   | 'rules'
   | 'auth';
 
@@ -99,6 +98,24 @@ export default function App() {
   /** 邀请链接携带的房间号，连上 WebSocket 后优先入座 */
   const pendingInviteRef = useRef<{ game: GameMeta; roomId: string } | null>(null);
   const autoStartRef = useRef<boolean>(false);
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(() => {
+    try {
+      const saved = window.localStorage.getItem('cc:bot-difficulty');
+      return saved === 'low' || saved === 'medium' || saved === 'high' ? saved : 'medium';
+    } catch {
+      return 'medium';
+    }
+  });
+  const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
+  const updateBotDifficulty = useCallback((diff: BotDifficulty) => {
+    setBotDifficulty(diff);
+    botDifficultyRef.current = diff;
+    try {
+      window.localStorage.setItem('cc:bot-difficulty', diff);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
@@ -184,7 +201,7 @@ export default function App() {
       setView('room');
       setJoinError(null);
 
-      // 极速开局：若在等待中，自动准备并自动加满 AI
+      // 极速开局：若在等待中，自动准备并按所选难度自动加满机器人
       if (payload.room.status === 'waiting' && autoStartRef.current) {
         autoStartRef.current = false;
         s.send(ClientMsg.Ready, { ready: true });
@@ -192,7 +209,7 @@ export default function App() {
           const need = payload.room.maxPlayers - payload.room.players.length;
           for (let i = 0; i < need; i++) {
             window.setTimeout(() => {
-              s.send(ClientMsg.AddBot, {});
+              s.send(ClientMsg.AddBot, { difficulty: botDifficultyRef.current });
             }, (i + 1) * 80);
           }
         }
@@ -318,7 +335,7 @@ export default function App() {
 
   const handleJoinRoom = (roomId: string | null, create = false): void => {
     if (!selectedGame) return;
-    autoStartRef.current = !selectedGame.persistent;
+    autoStartRef.current = !selectedGame.persistent && !create && !roomId;
 
     const doJoin = () => {
       socketRef.current?.send(ClientMsg.JoinRoom, {
@@ -358,8 +375,10 @@ export default function App() {
     socketRef.current?.send(ClientMsg.Intent, { cmd, payload });
   };
 
-  const handleAddBot = (): void => {
-    socketRef.current?.send(ClientMsg.AddBot, {});
+  const handleAddBot = (difficulty?: BotDifficulty): void => {
+    const chosen = difficulty ?? botDifficultyRef.current;
+    if (difficulty && difficulty !== botDifficultyRef.current) updateBotDifficulty(difficulty);
+    socketRef.current?.send(ClientMsg.AddBot, { difficulty: chosen });
   };
 
   const handleEmote = (key: string): void => {
@@ -392,6 +411,8 @@ export default function App() {
           onLeave={handleLeaveRoom}
           onIntent={handleIntent}
           onAddBot={handleAddBot}
+          botDifficulty={botDifficulty}
+          onChangeBotDifficulty={updateBotDifficulty}
           emotes={emotes}
           onEmote={handleEmote}
           persistent={games.find((g) => g.gameId === room.gameId)?.persistent === true}
@@ -404,6 +425,8 @@ export default function App() {
       return (
         <GameRooms
           game={selectedGame}
+          botDifficulty={botDifficulty}
+          onChangeBotDifficulty={updateBotDifficulty}
           onBack={() => setView('lobby')}
           onJoin={handleJoinRoom}
           joinError={joinError}
@@ -442,10 +465,6 @@ export default function App() {
       return <NoticesView onBack={() => setView('lobby')} />;
     }
 
-    if (view === 'assistant') {
-      return <AssistantView onBalanceChange={handleBalanceChange} onBack={() => setView('lobby')} />;
-    }
-
     if (view === 'rules') {
       return (
         <RulesView
@@ -472,8 +491,9 @@ export default function App() {
         onLeaderboard={() => setView('leaderboard')}
         onProfile={() => (user ? setView('profile') : setView('auth'))}
         onNotices={() => setView('notices')}
-        onAssistant={() => setView('assistant')}
         onRules={() => setView('rules')}
+        botDifficulty={botDifficulty}
+        onChangeBotDifficulty={updateBotDifficulty}
         onBalanceChange={handleBalanceChange}
       />
     );

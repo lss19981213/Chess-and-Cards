@@ -1,9 +1,10 @@
-import type { GameMeta, GameSnapshot, SettlementEntry } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameSnapshot, SettlementEntry } from '@cc/protocol';
 import { badRequest, illegalAction } from '@cc/protocol';
 import {
   BaseGamePlugin,
   compareHandRank,
   createPokerDeck,
+  decidePokerBotAction,
   evaluateBestHand,
   shuffleWithSeed,
   type Card,
@@ -349,24 +350,27 @@ export class TexasPlugin extends BaseGamePlugin {
     return this.state.settled ? null : this.state.turn;
   }
 
-  override botIntent(ctx: RoomContext, playerId: string): GameIntent | null {
+  override botIntent(ctx: RoomContext, playerId: string, difficulty: BotDifficulty = 'medium'): GameIntent | null {
     if (this.state.settled || this.state.turn !== playerId) return null;
     if (this.state.folded.has(playerId)) return null;
 
     const hand = this.state.hands.get(playerId) ?? [];
-    const best = evaluateBestHand([...hand, ...this.state.community]);
     const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
-    const strength = best.category;
     const canRaise = (this.state.raises.get(playerId) ?? 0) < MAX_RAISES;
+    const opponents = Math.max(1, this.aliveIds(ctx).filter((id) => id !== playerId).length);
 
-    if (toCall <= 0) {
-      if (canRaise && strength >= 3 && Math.random() < 0.55) return { cmd: 'raise', payload: {} };
-      return { cmd: 'check', payload: {} };
-    }
-    if (strength >= 5 && canRaise) return { cmd: 'raise', payload: {} };
-    if (strength >= 2) return { cmd: 'call', payload: {} };
-    if (toCall <= 100 && Math.random() < 0.35) return { cmd: 'call', payload: {} };
-    return { cmd: 'fold', payload: {} };
+    return decidePokerBotAction({
+      mode: 'texas',
+      holeCards: hand,
+      communityCards: this.state.community,
+      knownDeadCards: [...hand, ...this.state.community],
+      pot: this.pot(),
+      toCall,
+      canRaise,
+      raiseUnit: RAISE_UNIT,
+      opponents,
+      difficulty,
+    });
   }
 
   private settleShowdown(ctx: RoomContext): void {

@@ -155,12 +155,6 @@ export const api = {
       entries: Array<{ userId: string; nickname: string; net: number; rounds: number }>;
     }>(`/api/leaderboard/daily?limit=${limit}`),
 
-  assistantChat: (message: string, history: Array<{ role: string; content: string }>) =>
-    request<{ reply: string; granted: number; balance: number; fallback?: boolean }>('/api/assistant/chat', {
-      method: 'POST',
-      body: JSON.stringify({ message, history }),
-    }),
-
   leaderboard: () =>
     request<{ entries: LeaderboardEntry[]; myRank: number | null; myUserId: string | null }>(
       '/api/leaderboard',

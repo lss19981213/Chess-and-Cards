@@ -21,15 +21,6 @@ import {
   verifyPassword,
 } from './security';
 import { TASKS, findTask, periodKeyFor, titleFor, type TaskView } from './tasks';
-import {
-  GRANT_AMOUNT,
-  GRANT_MAX_BALANCE,
-  askAssistant,
-  assistantReady,
-  fallbackReply,
-  splitGrant,
-  type ChatMessage,
-} from './assistant';
 
 const FALLBACK_GAMES: GameMeta[] = [
   {
@@ -156,14 +147,11 @@ const EVENT_PATHS = new Set([
   '/api/register',
   '/api/login',
   '/api/tasks/claim',
-  '/api/assistant/chat',
 ]);
 
   // 登录防爆破：IP 维度 10 次 / 10 分钟，账号维度 5 次 / 10 分钟
   const ipLimiter = new AttemptLimiter(10, 10 * 60_000);
   const accountLimiter = new AttemptLimiter(5, 10 * 60_000);
-  // AI 助手：每用户每分钟最多 20 次
-  const assistantLimiter = new AttemptLimiter(20, 60_000);
 
   let gamesCache: { at: number; data: GameMeta[] } = { at: 0, data: FALLBACK_GAMES };
 
@@ -804,67 +792,6 @@ const EVENT_PATHS = new Set([
     }
     const limit = Math.min(Math.max(Number(query.limit ?? 60) || 60, 1), 240);
     return { events: recentEvents(limit) };
-  });
-
-  app.post('/api/assistant/chat', async (req) => {
-    const claims = authHeader(req);
-    const state = assistantLimiter.check(claims.sub);
-    if (!state.allowed) throw httpError('问得有点快，喝口水再来问我', 429);
-
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const message = typeof body.message === 'string' ? body.message.trim().slice(0, 400) : '';
-    if (!message) throw httpError('说点什么吧', 400);
-
-    const rawHistory = Array.isArray(body.history) ? body.history : [];
-    const history: ChatMessage[] = rawHistory
-      .filter(
-        (item): item is { role: string; content: string } =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof (item as { role?: unknown }).role === 'string' &&
-          typeof (item as { content?: unknown }).content === 'string',
-      )
-      .slice(-6)
-      .map((item) => ({
-        role: item.role === 'assistant' ? 'assistant' : 'user',
-        content: item.content.slice(0, 400),
-      }));
-
-    assistantLimiter.fail(claims.sub);
-
-    const balance = await repo.getBalance(claims.sub, 'coin');
-
-    const raw = assistantReady()
-      ? await askAssistant([...history, { role: 'user', content: message }], balance)
-      : null;
-
-    if (!raw) {
-      return { reply: fallbackReply(message), granted: 0, balance, fallback: true };
-    }
-
-    const { text, grant } = splitGrant(raw);
-    // 只有玩家真的在求助时，才进入发放判定，避免模型在普通问答里误加标记
-    const wantsHelp = /(筹码|救济|输光|没钱|破产|给点|送点|借点|补助|帮帮我)/.test(message);
-    let granted = 0;
-    let note = '';
-
-    if (grant && wantsHelp) {
-      if (balance >= GRANT_MAX_BALANCE) {
-        note = '\n\n（牌友，你筹码还厚实，机会留给真断粮的兄弟吧～）';
-      } else {
-        const dayKey = periodKeyFor('daily');
-        const fresh = await repo.claimTask(claims.sub, 'assistant_grant', dayKey);
-        if (!fresh) {
-          note = '\n\n（今天的救济已经给过你啦，明天再来找我。）';
-        } else {
-          granted = GRANT_AMOUNT;
-          await repo.credit(claims.sub, granted, 'assistant', `${claims.sub}:${dayKey}`);
-        }
-      }
-    }
-
-    const newBalance = granted > 0 ? await repo.getBalance(claims.sub, 'coin') : balance;
-    return { reply: text + note, granted, balance: newBalance };
   });
 
   /** 下注即时扣款 / 撤注退款。余额校验在数据库原子完成，拒绝超额下注。 */

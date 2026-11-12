@@ -1,6 +1,13 @@
-import type { GameMeta, GameSnapshot } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, RoomContext } from '@cc/game-sdk';
-import { BaseGamePlugin, createPokerDeck, evaluateBestHand, shuffleWithSeed, type Card } from '@cc/game-sdk';
+import {
+  BaseGamePlugin,
+  createPokerDeck,
+  decidePokerBotAction,
+  evaluateBestHand,
+  shuffleWithSeed,
+  type Card,
+} from '@cc/game-sdk';
 
 const ANTE = 50;
 const RAISE_UNIT = 100;
@@ -254,20 +261,27 @@ export class StudPlugin extends BaseGamePlugin {
     ctx.settle({ entries, winners });
   }
 
-  override botIntent(ctx: RoomContext, playerId: string): GameIntent | null {
+  override botIntent(ctx: RoomContext, playerId: string, difficulty: BotDifficulty = 'medium'): GameIntent | null {
     if (this.state.settled || this.state.turn !== playerId) return null;
     if (this.state.folded.has(playerId)) return null;
     const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
     const hand = this.state.hands.get(playerId) ?? [];
-    const strength = evaluateBestHand(hand).category;
-    if (toCall <= 0) {
-      if (strength >= 3 && Math.random() < 0.4) return { cmd: 'raise', payload: {} };
-      return { cmd: 'check', payload: {} };
-    }
-    if (strength >= 5 && Math.random() < 0.5) return { cmd: 'raise', payload: {} };
-    if (strength >= 2) return { cmd: 'call', payload: {} };
-    if (Math.random() < 0.3) return { cmd: 'fold', payload: {} };
-    return { cmd: 'call', payload: {} };
+    const pot = [...this.state.totalBet.values()].reduce((sum, value) => sum + value, 0);
+    const canRaise = (this.state.raises.get(playerId) ?? 0) < MAX_RAISES;
+    const opponents = Math.max(1, this.aliveIds(ctx).filter((id) => id !== playerId).length);
+
+    return decidePokerBotAction({
+      mode: 'stud',
+      holeCards: hand,
+      communityCards: [],
+      knownDeadCards: hand,
+      pot,
+      toCall,
+      canRaise,
+      raiseUnit: RAISE_UNIT,
+      opponents,
+      difficulty,
+    });
   }
 
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {

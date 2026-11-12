@@ -32,6 +32,15 @@ export interface Announcement {
 
 export type RoomStatus = 'waiting' | 'playing' | 'settled' | 'closed';
 
+/** 机器人对弈难度等级：低 / 中 / 高 */
+export type BotDifficulty = 'low' | 'medium' | 'high';
+
+export const BOT_DIFFICULTY_LABEL: Record<BotDifficulty, string> = {
+  low: '低级',
+  medium: '中级',
+  high: '高级',
+};
+
 /** 房间内玩家的公开视图，快照会下发给同房间所有人。 */
 export interface PlayerView {
   playerId: string;
@@ -42,6 +51,8 @@ export interface PlayerView {
   score: number;
   /** 是否为机器人陪玩 */
   isBot: boolean;
+  /** 机器人难度等级 */
+  botDifficulty?: BotDifficulty;
 }
 
 /** 游戏快照：结构由各游戏插件自定义，客户端按 gameId 分发渲染。 */

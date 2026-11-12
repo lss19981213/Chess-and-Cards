@@ -114,7 +114,7 @@ export function SeatPanel({
         {active && <div className="seat__turn-glow" />}
         <div className={`seat__avatar ${isBot ? 'is-bot' : ''}`}>
           <span>{initial}</span>
-          {isBot && <span className="seat__bot-tag">AI</span>}
+          {isBot && <span className="seat__bot-tag">人机</span>}
         </div>
       </div>
       <div className="seat__body">

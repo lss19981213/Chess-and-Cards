@@ -1,4 +1,4 @@
-import type { GameMeta, GameSnapshot } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameSnapshot } from '@cc/protocol';
 import { PLUGIN_API_VERSION, type GameIntent, type GamePlugin, type PlayerContext, type RoomContext } from './types';
 
 /** 插件基类，提供默认的空实现，具体游戏只需覆写关心的钩子。 */
@@ -22,7 +22,7 @@ export abstract class BaseGamePlugin implements GamePlugin {
     return null;
   }
 
-  botIntent(_ctx: RoomContext, _playerId: string): GameIntent | null {
+  botIntent(_ctx: RoomContext, _playerId: string, _difficulty?: BotDifficulty): GameIntent | null {
     return null;
   }
 }

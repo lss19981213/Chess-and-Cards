@@ -4,6 +4,7 @@ import {
   AppError,
   ErrorCode,
   ServerMsg,
+  type BotDifficulty,
   type PlayerView,
   type RoomStatus,
   type RoomView,
@@ -11,7 +12,7 @@ import {
   type Settlement,
   type TrendMark,
 } from '@cc/protocol';
-import type { GameIntent, GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
+import type { GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import type { RoomServerConfig } from './config';
 import type { ReleaseClient, WalletClient } from './wallet';
 import { createLogger } from './logger';
@@ -42,6 +43,7 @@ interface Seat {
   socket: WebSocket | null;
   graceTimer: NodeJS.Timeout | null;
   isBot: boolean;
+  botDifficulty?: BotDifficulty;
 }
 
 export interface RoomDeps {
@@ -213,6 +215,7 @@ export class GameRoom {
       used.add(nickname);
 
       const playerId = `ambient:${randomUUID()}`;
+      const diffs: BotDifficulty[] = ['low', 'medium', 'high'];
       this.seats.set(playerId, {
         playerId,
         nickname,
@@ -222,6 +225,7 @@ export class GameRoom {
         socket: null,
         graceTimer: null,
         isBot: true,
+        botDifficulty: diffs[i % diffs.length]!,
       });
     }
     this.dirty = true;
@@ -390,8 +394,8 @@ export class GameRoom {
     }
   }
 
-  /** 添加机器人陪玩：入座即准备，由外部驱动器代其行动 */
-  addBot(playerId: string, nickname: string): void {
+  /** 添加机器人陪玩：入座即准备，按指定难度由本地博弈算法代其行动 */
+  addBot(playerId: string, nickname: string, difficulty: BotDifficulty = 'medium'): void {
     if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
     if (this.seats.has(playerId)) return;
     if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '对局进行中，无法添加机器人');
@@ -406,6 +410,7 @@ export class GameRoom {
       socket: null,
       graceTimer: null,
       isBot: true,
+      botDifficulty: difficulty,
     };
     this.seats.set(playerId, seat);
     if (this.hostId === null) this.hostId = playerId;
@@ -416,6 +421,7 @@ export class GameRoom {
       seat: seat.seat,
       connected: true,
       isBot: true,
+      botDifficulty: difficulty,
     });
 
     this.broadcastView();
@@ -437,33 +443,22 @@ export class GameRoom {
     return this.seats.get(playerId)?.isBot === true;
   }
 
-  /** 用规则 AI 代机器人行动，返回是否成功提交 */
+  botDifficultyOf(playerId: string): BotDifficulty {
+    return this.seats.get(playerId)?.botDifficulty ?? 'medium';
+  }
+
+  /** 按机器人难度调用本地博弈算法，返回是否成功提交 */
   actAsBot(playerId: string): boolean {
     if (!this.isBot(playerId)) return false;
     try {
-      const intent = this.plugin.botIntent?.(this.ctx, playerId) ?? null;
+      const difficulty = this.botDifficultyOf(playerId);
+      const intent = this.plugin.botIntent?.(this.ctx, playerId, difficulty) ?? null;
       if (!intent) return false;
       this.handleIntent(playerId, intent.cmd, intent.payload);
       return true;
     } catch (error) {
       console.warn(`[room ${this.id}] 机器人行动失败`, (error as Error).message);
       return false;
-    }
-  }
-
-  /** 提交外部决策器（大模型）给出的机器人指令，合法性由容器统一校验 */
-  applyBotIntent(playerId: string, intent: GameIntent): void {
-    if (!this.isBot(playerId)) throw new AppError(ErrorCode.IllegalAction, '非机器人玩家');
-    this.handleIntent(playerId, intent.cmd, intent.payload);
-  }
-
-  /** 供外部决策器（含大模型）读取局面 */
-  snapshotFor(playerId: string): Record<string, unknown> | null {
-    if (!this.seats.has(playerId)) return null;
-    try {
-      return this.plugin.getSnapshot(this.ctx, playerId);
-    } catch {
-      return null;
     }
   }
 
@@ -746,6 +741,7 @@ export class GameRoom {
         seat: s.seat,
         connected: s.socket !== null || s.isBot,
         isBot: s.isBot,
+        ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'medium' } : {}),
       }));
   }
 
@@ -760,6 +756,7 @@ export class GameRoom {
         online: s.socket !== null || s.isBot,
         score: s.score,
         isBot: s.isBot,
+        ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'medium' } : {}),
       }));
   }
 

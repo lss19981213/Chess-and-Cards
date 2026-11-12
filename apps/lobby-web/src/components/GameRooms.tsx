@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { GameMeta } from '@cc/protocol';
+import type { BotDifficulty, GameMeta } from '@cc/protocol';
 import { api } from '../api';
 import { audio } from '../audio';
 import { GAME_ART } from '../assets';
@@ -24,6 +24,8 @@ interface RoomItem {
 
 interface Props {
   game: GameMeta;
+  botDifficulty: BotDifficulty;
+  onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
   onBack: () => void;
   onJoin: (roomId: string | null, create: boolean) => void;
   joinError: string | null;
@@ -35,7 +37,7 @@ const STATUS_TEXT: Record<string, string> = {
   settled: '开奖结算中',
 };
 
-export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
+export function GameRooms({ game, botDifficulty, onChangeBotDifficulty, onBack, onJoin, joinError }: Props) {
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,9 +122,26 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
               </div>
             </div>
             {!isLive && (
-              <button type="button" className="btn-create-room" onClick={handleCreate}>
-                + 创建专属房间
-              </button>
+              <>
+                <div className="gamerooms-diff-box">
+                  <span className="gamerooms-diff-box__label">陪玩机器人难度</span>
+                  <div className="bot-diff-switch">
+                    {(['low', 'medium', 'high'] as const).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        className={`bot-diff-btn is-${d} ${botDifficulty === d ? 'is-active' : ''}`}
+                        onClick={() => onChangeBotDifficulty(d)}
+                      >
+                        {d === 'low' ? '初级(低)' : d === 'medium' ? '中级(中)' : '高级(高)'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button type="button" className="btn-create-room" onClick={handleCreate}>
+                  + 创建专属房间
+                </button>
+              </>
             )}
           </div>
         </aside>

@@ -1,4 +1,4 @@
-import type { GameMeta, GameSnapshot } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, RoomContext } from '@cc/game-sdk';
 import { BaseGamePlugin } from '@cc/game-sdk';
 
@@ -345,6 +345,250 @@ function applyMove(state: State, move: Move): void {
   state.turn = piece.color === 'w' ? 'b' : 'w';
 }
 
+// --- 国际象棋博弈搜索引擎（PST + MVV-LVA + Alpha-Beta + 静态搜索） ---
+
+const CHESS_VAL: Record<PieceType, number> = {
+  p: 100,
+  n: 320,
+  b: 330,
+  r: 500,
+  q: 900,
+  k: 20000,
+};
+
+// r=0 为棋盘顶端（黑方底线），r=7 为棋盘底端（白方底线）
+const CHESS_PAWN_PST = [
+  [0, 0, 0, 0, 0, 0, 0, 0],
+  [50, 50, 50, 50, 50, 50, 50, 50],
+  [10, 10, 20, 30, 30, 20, 10, 10],
+  [5, 5, 10, 25, 25, 10, 5, 5],
+  [0, 0, 0, 20, 20, 0, 0, 0],
+  [5, -5, -10, 0, 0, -10, -5, 5],
+  [5, 10, 10, -20, -20, 10, 10, 5],
+  [0, 0, 0, 0, 0, 0, 0, 0],
+];
+
+const CHESS_KNIGHT_PST = [
+  [-50, -40, -30, -30, -30, -30, -40, -50],
+  [-40, -20, 0, 0, 0, 0, -20, -40],
+  [-30, 0, 10, 15, 15, 10, 0, -30],
+  [-30, 5, 15, 20, 20, 15, 5, -30],
+  [-30, 0, 15, 20, 20, 15, 0, -30],
+  [-30, 5, 10, 15, 15, 10, 5, -30],
+  [-40, -20, 0, 5, 5, 0, -20, -40],
+  [-50, -40, -30, -30, -30, -30, -40, -50],
+];
+
+const CHESS_BISHOP_PST = [
+  [-20, -10, -10, -10, -10, -10, -10, -20],
+  [-10, 0, 0, 0, 0, 0, 0, -10],
+  [-10, 0, 5, 10, 10, 5, 0, -10],
+  [-10, 5, 5, 10, 10, 5, 5, -10],
+  [-10, 0, 10, 10, 10, 10, 0, -10],
+  [-10, 10, 10, 10, 10, 10, 10, -10],
+  [-10, 5, 0, 0, 0, 0, 5, -10],
+  [-20, -10, -10, -10, -10, -10, -10, -20],
+];
+
+const CHESS_ROOK_PST = [
+  [0, 0, 0, 0, 0, 0, 0, 0],
+  [5, 10, 10, 10, 10, 10, 10, 5],
+  [-5, 0, 0, 0, 0, 0, 0, -5],
+  [-5, 0, 0, 0, 0, 0, 0, -5],
+  [-5, 0, 0, 0, 0, 0, 0, -5],
+  [-5, 0, 0, 0, 0, 0, 0, -5],
+  [-5, 0, 0, 0, 0, 0, 0, -5],
+  [0, 0, 0, 5, 5, 0, 0, 0],
+];
+
+const CHESS_QUEEN_PST = [
+  [-20, -10, -10, -5, -5, -10, -10, -20],
+  [-10, 0, 0, 0, 0, 0, 0, -10],
+  [-10, 0, 5, 5, 5, 5, 0, -10],
+  [-5, 0, 5, 5, 5, 5, 0, -5],
+  [0, 0, 5, 5, 5, 5, 0, -5],
+  [-10, 5, 5, 5, 5, 5, 0, -10],
+  [-10, 0, 5, 0, 0, 0, 0, -10],
+  [-20, -10, -10, -5, -5, -10, -10, -20],
+];
+
+const CHESS_KING_PST = [
+  [-30, -40, -40, -50, -50, -40, -40, -30],
+  [-30, -40, -40, -50, -50, -40, -40, -30],
+  [-30, -40, -40, -50, -50, -40, -40, -30],
+  [-30, -40, -40, -50, -50, -40, -40, -30],
+  [-20, -30, -30, -40, -40, -30, -30, -20],
+  [-10, -20, -20, -20, -20, -20, -20, -10],
+  [20, 20, 0, 0, 0, 0, 20, 20],
+  [20, 30, 10, 0, 0, 10, 30, 20],
+];
+
+function chessPst(piece: Piece, f: number, r: number): number {
+  const row = piece.color === 'w' ? r : 7 - r;
+  switch (piece.type) {
+    case 'p':
+      return CHESS_PAWN_PST[row]![f]!;
+    case 'n':
+      return CHESS_KNIGHT_PST[row]![f]!;
+    case 'b':
+      return CHESS_BISHOP_PST[row]![f]!;
+    case 'r':
+      return CHESS_ROOK_PST[row]![f]!;
+    case 'q':
+      return CHESS_QUEEN_PST[row]![f]!;
+    case 'k':
+      return CHESS_KING_PST[row]![f]!;
+  }
+}
+
+function cloneChessState(state: State): State {
+  return {
+    board: state.board.map((p) => (p ? { ...p } : null)),
+    turn: state.turn,
+    castling: { ...state.castling },
+    ep: state.ep ? { ...state.ep } : null,
+    moved: new Set(state.moved),
+    lastMove: state.lastMove,
+    winner: state.winner,
+    results: state.results,
+    charged: state.charged,
+  };
+}
+
+function evalChess(board: Array<Piece | null>, side: Color): number {
+  let score = 0;
+  for (let r = 0; r < RANKS; r += 1) {
+    for (let f = 0; f < FILES; f += 1) {
+      const p = board[r * FILES + f];
+      if (!p) continue;
+      const v = CHESS_VAL[p.type] + chessPst(p, f, r);
+      score += p.color === side ? v : -v;
+    }
+  }
+  return score;
+}
+
+function orderChessMoves(state: State, moves: Move[], capturesOnly = false): Move[] {
+  const scored: Array<{ move: Move; order: number }> = [];
+  for (const move of moves) {
+    const attacker = state.board[idx(move.from)];
+    const victim = state.board[idx(move.to)];
+    if (capturesOnly && !victim && !move.promotion) continue;
+    let order = 0;
+    if (victim && attacker) {
+      order += CHESS_VAL[victim.type] * 10 - CHESS_VAL[attacker.type] + 2000;
+    }
+    if (move.promotion) {
+      order += CHESS_VAL[move.promotion] + 1000;
+    }
+    if (attacker) {
+      order += chessPst(attacker, move.to.f, move.to.r) - chessPst(attacker, move.from.f, move.from.r);
+    }
+    scored.push({ move, order });
+  }
+  scored.sort((a, b) => b.order - a.order);
+  return scored.map((s) => s.move);
+}
+
+interface ChessSearchCtx {
+  deadline: number;
+  aborted: boolean;
+}
+
+function chessQuiesce(ctx: ChessSearchCtx, state: State, side: Color, alpha: number, beta: number, qDepth: number): number {
+  const standPat = evalChess(state.board, side);
+  if (standPat >= beta) return beta;
+  let a = Math.max(alpha, standPat);
+  if (qDepth <= 0 || Date.now() >= ctx.deadline) return a;
+
+  const caps = orderChessMoves(state, legalMoves(state, side), true);
+  const nextSide: Color = side === 'w' ? 'b' : 'w';
+  for (const move of caps) {
+    const next = cloneChessState(state);
+    applyMove(next, move);
+    const score = -chessQuiesce(ctx, next, nextSide, -beta, -a, qDepth - 1);
+    if (score >= beta) return beta;
+    if (score > a) a = score;
+  }
+  return a;
+}
+
+function chessNegamax(
+  ctx: ChessSearchCtx,
+  state: State,
+  side: Color,
+  depth: number,
+  ply: number,
+  alpha: number,
+  beta: number,
+  useQuiesce: boolean,
+): number {
+  if (Date.now() >= ctx.deadline) {
+    ctx.aborted = true;
+    return evalChess(state.board, side);
+  }
+  if (depth <= 0) {
+    return useQuiesce ? chessQuiesce(ctx, state, side, alpha, beta, 2) : evalChess(state.board, side);
+  }
+  const moves = orderChessMoves(state, legalMoves(state, side));
+  if (moves.length === 0) {
+    return inCheck(state.board, side) ? -19500 + ply : 0;
+  }
+
+  const nextSide: Color = side === 'w' ? 'b' : 'w';
+  let a = alpha;
+  for (const move of moves) {
+    const next = cloneChessState(state);
+    applyMove(next, move);
+    const score = -chessNegamax(ctx, next, nextSide, depth - 1, ply + 1, -beta, -a, useQuiesce);
+    if (ctx.aborted) return a;
+    if (score >= beta) return beta;
+    if (score > a) a = score;
+  }
+  return a;
+}
+
+function chooseChessBotMove(state: State, color: Color, difficulty: BotDifficulty): Move | null {
+  const rootMoves = orderChessMoves(state, legalMoves(state, color));
+  if (rootMoves.length === 0) return null;
+
+  const targetDepth = difficulty === 'low' ? 1 : difficulty === 'medium' ? 2 : 3;
+  const useQuiesce = difficulty === 'high';
+  const deadline = Date.now() + (difficulty === 'high' ? 32 : 16);
+  const nextSide: Color = color === 'w' ? 'b' : 'w';
+
+  let scored: Array<{ move: Move; score: number }> = rootMoves.map((move) => ({ move, score: 0 }));
+  for (let depth = 1; depth <= targetDepth; depth += 1) {
+    const ctx: ChessSearchCtx = { deadline, aborted: false };
+    const nextScored: Array<{ move: Move; score: number }> = [];
+    for (const item of scored) {
+      const next = cloneChessState(state);
+      applyMove(next, item.move);
+      const score = -chessNegamax(ctx, next, nextSide, depth - 1, 1, -40000, 40000, useQuiesce);
+      if (ctx.aborted) break;
+      nextScored.push({ move: item.move, score });
+    }
+    if (!ctx.aborted && nextScored.length === scored.length) {
+      nextScored.sort((a, b) => b.score - a.score);
+      scored = nextScored;
+    } else {
+      break;
+    }
+  }
+
+  if (difficulty === 'low') {
+    const bestScore = scored[0]!.score;
+    const pool = scored.filter((m) => bestScore - m.score <= 150).slice(0, 4);
+    return pool[Math.floor(Math.random() * pool.length)]!.move;
+  }
+  if (difficulty === 'medium') {
+    const bestScore = scored[0]!.score;
+    const pool = scored.filter((m) => bestScore - m.score <= 12).slice(0, 2);
+    return pool[Math.floor(Math.random() * pool.length)]!.move;
+  }
+  return scored[0]!.move;
+}
+
 export class ChessPlugin extends BaseGamePlugin {
   override readonly apiVersion = 1;
 
@@ -430,15 +674,11 @@ export class ChessPlugin extends BaseGamePlugin {
     ctx.settle({ entries, winners: results.filter((r) => r.delta > 0).map((r) => r.playerId) });
   }
 
-  override botIntent(ctx: RoomContext, playerId: string): GameIntent | null {
+  override botIntent(ctx: RoomContext, playerId: string, difficulty: BotDifficulty = 'medium'): GameIntent | null {
     const color = this.colorOf(ctx, playerId);
     if (!color || this.state.winner || this.state.turn !== color) return null;
-    const moves = legalMoves(this.state, color);
-    if (moves.length === 0) return null;
-    // 优先吃子，其次随机
-    const captures = moves.filter((m) => this.state.board[idx(m.to)]);
-    const pool = captures.length > 0 && Math.random() < 0.7 ? captures : moves;
-    const move = pool[Math.floor(Math.random() * pool.length)]!;
+    const move = chooseChessBotMove(this.state, color, difficulty);
+    if (!move) return null;
     return { cmd: 'move', payload: { from: move.from, to: move.to } };
   }
 
