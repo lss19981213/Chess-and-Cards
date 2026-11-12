@@ -14,15 +14,12 @@ import { DEALER_MAIN, GAME_ART, HERO_BG } from '../assets';
 import { Chip } from './Chip';
 import { DealerTipWidget } from './DealerTipWidget';
 import {
-  IconChess,
-  IconDice,
   IconGift,
   IconMusic,
   IconNext,
   IconNotice,
   IconRules,
   IconSound,
-  IconSpade,
   IconTrophy,
 } from './Icons';
 
@@ -121,7 +118,7 @@ export function Lobby({
   onQuickPlay,
   onLogin,
   onTasks,
-  onFriends,
+  onFriends: _onFriends,
   onLeaderboard,
   onProfile,
   onNotices,

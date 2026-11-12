@@ -1,5 +1,3 @@
-import type { SVGProps } from 'react';
-
 /**
  * 殿堂级精细矢量图标库 (Grand Luxury Vector Iconography)
  * 纯手绘矢量 SVG，支持金属流光与香槟金渐变，杜绝 emoji 粗糙感

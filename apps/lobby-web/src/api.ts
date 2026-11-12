@@ -52,6 +52,13 @@ const TOKEN_KEY = 'cc.token';
 /** 站点部署在子路径（/lobby/），所有接口都带此前缀 */
 export const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
 
+/** 将后端返回的 `/api/avatar/...` 路径补全站点前缀，兼容本地 data URL 预览 */
+export function resolveAvatarUrl(avatar: string | null | undefined): string | null {
+  if (!avatar) return null;
+  if (avatar.startsWith('/api/')) return `${BASE_PATH}${avatar}`;
+  return avatar;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }

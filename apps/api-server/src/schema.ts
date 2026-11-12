@@ -63,11 +63,24 @@ create table if not exists game_records (
   round         integer not null,
   seed          text not null,
   winners       text[] not null default '{}',
+  participants  text[] not null default '{}',
   detail        jsonb not null,
   created_at    timestamptz not null default now()
 );
 
+alter table game_records add column if not exists participants text[] not null default '{}';
+
 create index if not exists game_records_game_idx on game_records (game_id, created_at desc);
+create index if not exists game_records_participants_gin on game_records using gin (participants);
+
+-- 老库回填 participants：只在字段为空但 detail 里有玩家记录时补齐，避免重复扫描
+update game_records
+   set participants = coalesce(
+     (select array_agg(distinct e->>'playerId') from jsonb_array_elements(detail->'entries') e),
+     '{}'
+   )
+ where cardinality(participants) = 0
+   and jsonb_array_length(coalesce(detail->'entries', '[]'::jsonb)) > 0;
 
 create table if not exists task_progress (
   user_id    text not null,

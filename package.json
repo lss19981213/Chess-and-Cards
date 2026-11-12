@@ -13,16 +13,25 @@
     "dev:web": "pnpm --filter @cc/lobby-web dev",
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "eslint apps packages services",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css}\" \"packages/**/*.ts\" \"services/**/*.ts\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,css}\" \"packages/**/*.ts\" \"services/**/*.ts\"",
     "e2e": "tsx scripts/e2e-smoke.ts",
     "gm": "node tools/gm-cli.mjs",
     "clean": "pnpm -r exec rimraf dist node_modules/.cache"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.2",
     "@types/ssh2": "^1.15.6",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.9.10",
     "rimraf": "^6.0.1",
     "ssh2": "^1.17.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.72.2"
   }
 }

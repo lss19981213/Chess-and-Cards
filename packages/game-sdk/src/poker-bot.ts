@@ -31,7 +31,7 @@ function preflopTexasScore(hole: readonly Card[]): number {
   const gap = high - low;
   const isPair = high === low;
 
-  let base = 0;
+  let base: number;
   if (high === 14) base = 10;
   else if (high === 13) base = 8;
   else if (high === 12) base = 7;
@@ -184,7 +184,7 @@ export function decidePokerBotAction(input: PokerBotInput): PokerBotDecision {
   }
 
   // ================== 计算蒙特卡洛胜率与底池赔率 ==================
-  let equity = 0.5;
+  let equity: number;
   if (mode === 'texas' && communityCards.length === 0) {
     // 翻牌前使用 Chen Formula 快速估权并根据多人底池折扣
     const huEq = preflopTexasScore(holeCards);

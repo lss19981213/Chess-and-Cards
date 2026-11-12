@@ -1,0 +1,6 @@
+dist
+node_modules
+.outbox
+pnpm-lock.yaml
+screenshots
+scratch

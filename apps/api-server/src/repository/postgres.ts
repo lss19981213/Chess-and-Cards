@@ -1,19 +1,14 @@
-import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { SCHEMA_SQL } from '../schema';
-import { periodKeyFor } from '../tasks';
-import { InsufficientFundsError } from './types';
-import { LEADERBOARD_SIZE, rewardForRank } from '../leaderboard';
 import type {
   AuthUser,
   BetAdjustment,
-  FriendRequestStatus,
+  DailyWinnerRow,
   FriendRequestView,
   GameRecordView,
-  LeaderboardSnapshotRow,
-  DailyWinnerRow,
   LeaderboardRow,
+  LeaderboardSnapshotRow,
   PlayerProfile,
   ProfilePatch,
   RegisterInput,
@@ -23,27 +18,49 @@ import type {
   TaskProgressRow,
   UserRecord,
 } from './types';
+import {
+  adjustBet,
+  applySettlement,
+  listGameRecords,
+  releaseOrphanBets,
+} from './pg/settlement';
+import {
+  creditWallet,
+  findUserByUsername,
+  getUserById,
+  getWalletBalance,
+  registerUser,
+} from './pg/wallet';
+import {
+  bumpTask,
+  claimTask,
+  getDailyWinners,
+  getLeaderboard,
+  getLeaderboardRank,
+  getTaskRows,
+  listDailySnapshot,
+  settleDailyLeaderboard,
+} from './pg/tasks-leaderboard';
+import {
+  acceptFriendRequest,
+  areFriends,
+  createAnnouncement,
+  createFriendRequest,
+  deleteAnnouncement,
+  getAvatar,
+  getProfile,
+  listAnnouncements,
+  listFriendRequests,
+  listFriends,
+  rejectFriendRequest,
+  removeFriend,
+  searchUsers,
+  updateProfile,
+} from './pg/social';
 
 const { Pool } = pg;
 
-interface UserRow {
-  id: string;
-  nickname: string;
-  username: string | null;
-  created_at: Date;
-  password_hash?: string;
-}
-
-function mapUser(row: UserRow): UserRecord {
-  return {
-    id: row.id,
-    nickname: row.nickname,
-    username: row.username,
-    createdAt: new Date(row.created_at).getTime(),
-  };
-}
-
-/** PostgreSQL 仓储：钱包与账本强事务，生产环境使用。 */
+/** PostgreSQL 仓储：钱包与账本强事务，生产环境使用。按域拆分子模块于 ./pg/。 */
 export class PostgresRepository implements Repository {
   private readonly pool: pg.Pool;
   private readonly initialCoins: number;
@@ -57,888 +74,142 @@ export class PostgresRepository implements Repository {
     await this.pool.query(SCHEMA_SQL);
   }
 
-  async releaseOrphanBets(roomId?: string): Promise<number> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const groups = await client.query<{ user_id: string; hold_id: string; staked: string }>(
-        `select l.user_id,
-                split_part(l.biz_id, ':', 1) || ':' || split_part(l.biz_id, ':', 2) || ':' || l.user_id as hold_id,
-                sum(l.delta) as staked
-           from ledger l
-          where l.biz_type in ('game_bet', 'game_bet_refund')
-            and ($1::text is null or split_part(l.biz_id, ':', 1) = $1)
-            and not exists (
-              select 1 from ledger r
-               where r.biz_type in ('game_bet_return', 'game_bet_release')
-                 and r.user_id = l.user_id
-                 and r.biz_id = split_part(l.biz_id, ':', 1) || ':' || split_part(l.biz_id, ':', 2) || ':' || l.user_id || ':return'
-            )
-          group by 1, 2
-         having sum(l.delta) < 0`,
-        [roomId ?? null],
-      );
-
-      let released = 0;
-      for (const row of groups.rows) {
-        const amount = -Number(row.staked);
-        const ledgerId = `${row.hold_id}:return`;
-
-        // 先锁钱包行，再复核是否已释放/已结算，最后才加钱。
-        // 不能像旧实现那样「先加钱再插入账本」：并发或重试时插入被唯一键吞掉，
-        // 钱却已经加过，会重复退款。
-        const walletRes = await client.query<{ balance: string }>(
-          'select balance from wallets where user_id = $1 for update',
-          [row.user_id],
-        );
-        if (walletRes.rowCount === 0) continue;
-        const done = await client.query(
-          `select 1 from ledger
-            where user_id = $1
-              and biz_type in ('game_bet_return', 'game_bet_release')
-              and biz_id = $2`,
-          [row.user_id, ledgerId],
-        );
-        if (done.rowCount && done.rowCount > 0) continue;
-
-        const balance = Number(walletRes.rows[0]?.balance ?? 0) + amount;
-        await client.query(
-          'update wallets set balance = $2, version = version + 1 where user_id = $1',
-          [row.user_id, balance],
-        );
-        await client.query(
-          `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
-           values ($1, 'coin', $2, $3, 'game_bet_release', $4)`,
-          [row.user_id, amount, balance, ledgerId],
-        );
-        released += amount;
-      }
-      await client.query('COMMIT');
-      return released;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+  releaseOrphanBets(roomId?: string): Promise<number> {
+    return releaseOrphanBets(this.pool, roomId);
   }
 
-  async register(input: RegisterInput): Promise<RegisterResult> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const res = await client.query<UserRow>(
-        `insert into users (id, nickname, username, password_hash)
-         values ($1, $2, $3, $4)
-         returning id, nickname, username, created_at`,
-        [randomUUID(), input.nickname, input.username, input.passwordHash],
-      );
-      const row = res.rows[0];
-      if (!row) throw new Error('用户创建失败');
-      await client.query(
-        `insert into wallets (user_id, currency, balance) values ($1, 'coin', $2)
-         on conflict (user_id) do nothing`,
-        [row.id, this.initialCoins],
-      );
-      await client.query('COMMIT');
-      return { ok: true, user: mapUser(row) };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      if ((error as { code?: string }).code === '23505') {
-        return { ok: false, reason: 'username_taken' };
-      }
-      throw error;
-    } finally {
-      client.release();
-    }
+  register(input: RegisterInput): Promise<RegisterResult> {
+    return registerUser(this.pool, this.initialCoins, input);
   }
 
-  async findByUsername(username: string): Promise<AuthUser | null> {
-    const res = await this.pool.query<UserRow>(
-      `select id, nickname, username, password_hash, created_at
-         from users
-        where lower(username) = lower($1)
-        limit 1`,
-      [username],
-    );
-    const row = res.rows[0];
-    if (!row) return null;
-    return { ...mapUser(row), passwordHash: row.password_hash ?? '' };
+  findByUsername(username: string): Promise<AuthUser | null> {
+    return findUserByUsername(this.pool, username);
   }
 
-  async getUser(id: string): Promise<UserRecord | null> {
-    const res = await this.pool.query<UserRow>(
-      'select id, nickname, username, created_at from users where id = $1',
-      [id],
-    );
-    const row = res.rows[0];
-    return row ? mapUser(row) : null;
+  getUser(id: string): Promise<UserRecord | null> {
+    return getUserById(this.pool, id);
   }
 
-  async getBalance(userId: string, currency: Currency): Promise<number> {
-    const res = await this.pool.query<{ balance: string }>(
-      'select balance from wallets where user_id = $1 and currency = $2',
-      [userId, currency],
-    );
-    return Number(res.rows[0]?.balance ?? 0);
+  getBalance(userId: string, currency: Currency): Promise<number> {
+    return getWalletBalance(this.pool, userId, currency);
   }
 
-  async adjustBet(input: BetAdjustment): Promise<number> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      let amount = input.amount;
-      if (input.action === 'refund') {
-        const origin = await client.query<{ delta: string }>(
-          `select delta from ledger
-            where user_id = $1 and biz_type = 'game_bet' and biz_id = $2`,
-          [input.userId, input.bizId],
-        );
-        if (origin.rowCount === 0) throw new Error('原下注凭证不存在');
-        // 以实际扣款额为准，不信任调用方传来的金额
-        amount = -Number(origin.rows[0]?.delta ?? 0);
-
-        // 该注单若已随房间销毁被批量释放（game_bet_release）或已结算退还
-        // （game_bet_return），这里不能再退一次，否则一份本金退两次。
-        const holdId = `${input.bizId.split(':').slice(0, -1).join(':')}:return`;
-        const settledOrReleased = await client.query(
-          `select 1 from ledger
-            where user_id = $1
-              and biz_type in ('game_bet_return', 'game_bet_release')
-              and biz_id = $2`,
-          [input.userId, holdId],
-        );
-        if (settledOrReleased.rowCount && settledOrReleased.rowCount > 0) {
-          throw new Error('该注单已结算或已释放，不能重复退款');
-        }
-      }
-
-      const bizType = input.action === 'debit' ? 'game_bet' : 'game_bet_refund';
-      const delta = input.action === 'debit' ? -amount : amount;
-      const updated = await client.query<{ balance: string }>(
-        `update wallets
-            set balance = balance + $2, version = version + 1
-          where user_id = $1
-            and balance + $2 >= 0
-            and not exists (
-              select 1 from ledger where biz_type = $3 and biz_id = $4 and user_id = $1
-            )
-        returning balance`,
-        [input.userId, delta, bizType, input.bizId],
-      );
-
-      if (updated.rowCount === 0) {
-        const dup = await client.query(
-          'select 1 from ledger where biz_type = $1 and biz_id = $2 and user_id = $3',
-          [bizType, input.bizId, input.userId],
-        );
-        const current = await client.query<{ balance: string }>(
-          'select balance from wallets where user_id = $1',
-          [input.userId],
-        );
-        const balance = Number(current.rows[0]?.balance ?? 0);
-        await client.query('COMMIT');
-        if (dup.rowCount && dup.rowCount > 0) return balance;
-        throw new InsufficientFundsError();
-      }
-
-      const balance = Number(updated.rows[0]?.balance ?? 0);
-      await client.query(
-        `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
-         values ($1, 'coin', $2, $3, $4, $5)
-         on conflict (biz_type, biz_id, user_id) do nothing`,
-        [input.userId, delta, balance, bizType, input.bizId],
-      );
-      await client.query('COMMIT');
-      return balance;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+  adjustBet(input: BetAdjustment): Promise<number> {
+    return adjustBet(this.pool, input);
   }
 
-  async applySettlement(settlement: Settlement): Promise<SettlementResult> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      let applied = 0;
-      const dayKey = periodKeyFor('daily');
-
-      for (const entry of settlement.entries) {
-        // 本局下注已即时扣过本金，结算时先退还本金，再按净盈亏入账。
-        // game_settle 仍记净额，战报/今日净收益的口径不变。
-        const stakedRes = await client.query<{ staked: string }>(
-          `select coalesce(sum(delta), 0) as staked from ledger
-            where user_id = $1
-              and biz_type in ('game_bet', 'game_bet_refund')
-              and biz_id like $2
-              and not exists (
-                select 1 from ledger r
-                 where r.biz_type = 'game_bet_release' and r.user_id = $1 and r.biz_id = $3
-              )`,
-          [
-            entry.playerId,
-            `${settlement.settlementId}:${entry.playerId}:%`,
-            `${settlement.settlementId}:${entry.playerId}:return`,
-          ],
-        );
-        const staked = Number(stakedRes.rows[0]?.staked ?? 0);
-        const credit = entry.delta - staked;
-
-        // 锁钱包行后复核是否已结算，再按「实际能扣到的金额」入账。
-        // 旧实现用 greatest(balance+x, 0) 静默截断，账本里记的 delta 与
-        // balance_after 会对不上，事后无法对账。
-        const walletRes = await client.query<{ balance: string }>(
-          'select balance from wallets where user_id = $1 for update',
-          [entry.playerId],
-        );
-        if (walletRes.rowCount === 0) continue;
-        const balanceBefore = Number(walletRes.rows[0]?.balance ?? 0);
-
-        const settled = await client.query(
-          `select 1 from ledger
-            where biz_type = 'game_settle' and biz_id = $1 and user_id = $2`,
-          [settlement.settlementId, entry.playerId],
-        );
-        if (settled.rowCount && settled.rowCount > 0) continue;
-
-        // 余额不允许为负：扣款最多扣到 0，账本记录实际发生的变动
-        const appliedDelta = Math.max(credit, -balanceBefore);
-        const balanceAfter = balanceBefore + appliedDelta;
-
-        await client.query(
-          'update wallets set balance = $2, version = version + 1 where user_id = $1',
-          [entry.playerId, balanceAfter],
-        );
-        await client.query(
-          `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
-           values ($1, $2, $3, $4, 'game_settle', $5)`,
-          [entry.playerId, entry.currency, appliedDelta, balanceAfter, settlement.settlementId],
-        );
-        if (staked < 0) {
-          await client.query(
-            `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
-             values ($1, 'coin', $2, $3, 'game_bet_return', $4)
-             on conflict (biz_type, biz_id, user_id) do nothing`,
-            [entry.playerId, -staked, balanceAfter, `${settlement.settlementId}:${entry.playerId}:return`],
-          );
-        }
-
-        await this.bumpTaskTx(client, entry.playerId, 'daily_play', dayKey, 1);
-        if (entry.delta > 0) {
-          await this.bumpTaskTx(client, entry.playerId, 'daily_win', dayKey, 1);
-        }
-        // 记录当日玩过的游戏种类（多面手）与单局大赢（大杀四方）
-        await this.bumpTaskTx(client, entry.playerId, `game_${settlement.gameId}`, dayKey, 1);
-        if (entry.delta >= 500) {
-          await this.bumpTaskTx(client, entry.playerId, 'daily_bigwin', dayKey, 1);
-        }
-        // 长期累计：成长任务
-        await this.bumpTaskTx(client, entry.playerId, 'total_play', 'all', 1);
-        if (entry.delta > 0) {
-          await this.bumpTaskTx(client, entry.playerId, 'total_win', 'all', 1);
-        }
-        applied += 1;
-      }
-
-      await client.query(
-        `insert into game_records (settlement_id, room_id, game_id, round, seed, winners, detail)
-         values ($1, $2, $3, $4, $5, $6, $7)
-         on conflict (settlement_id) do nothing`,
-        [
-          settlement.settlementId,
-          settlement.roomId,
-          settlement.gameId,
-          settlement.round,
-          settlement.seed,
-          settlement.winners,
-          JSON.stringify(settlement),
-        ],
-      );
-
-      await client.query('COMMIT');
-      // 无真人流水的结算单（纯氛围机器人局）只记战报，不判为重复
-      return applied > 0 || settlement.entries.length === 0 ? 'applied' : 'duplicate';
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+  applySettlement(settlement: Settlement): Promise<SettlementResult> {
+    return applySettlement(this.pool, settlement);
   }
 
-  async listRecords(userId: string, limit: number): Promise<GameRecordView[]> {
-    const res = await this.pool.query<{
-      settlement_id: string;
-      room_id: string;
-      game_id: string;
-      round: number;
-      seed: string;
-      winners: string[];
-      detail: { entries: GameRecordView['entries']; finishedAt: number };
-    }>(
-      `select settlement_id, room_id, game_id, round, seed, winners, detail
-         from game_records
-        where exists (
-          select 1 from jsonb_array_elements(detail->'entries') e
-           where e->>'playerId' = $1
-        )
-        order by created_at desc
-        limit $2`,
-      [userId, limit],
-    );
-
-    return res.rows.map((row) => ({
-      settlementId: row.settlement_id,
-      roomId: row.room_id,
-      gameId: row.game_id,
-      round: row.round,
-      seed: row.seed,
-      winners: row.winners,
-      entries: row.detail?.entries ?? [],
-      finishedAt: row.detail?.finishedAt ?? 0,
-    }));
+  listRecords(userId: string, limit: number): Promise<GameRecordView[]> {
+    return listGameRecords(this.pool, userId, limit);
   }
 
-  async credit(userId: string, amount: number, bizType: string, bizId: string): Promise<number> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const updated = await client.query<{ balance: string }>(
-        `update wallets
-            set balance = balance + $2, version = version + 1
-          where user_id = $1
-            and balance + $2 >= 0
-            and not exists (
-              select 1 from ledger where biz_type = $3 and biz_id = $4 and user_id = $1
-            )
-        returning balance`,
-        [userId, amount, bizType, bizId],
-      );
-
-      if (updated.rowCount === 0) {
-        const dup = await client.query(
-          'select 1 from ledger where biz_type = $1 and biz_id = $2 and user_id = $3',
-          [bizType, bizId, userId],
-        );
-        const current = await client.query<{ balance: string }>(
-          'select balance from wallets where user_id = $1',
-          [userId],
-        );
-        await client.query('COMMIT');
-        // 幂等重复：返回当前余额；否则就是余额不足，不能静默截断成 0
-        if (dup.rowCount && dup.rowCount > 0) return Number(current.rows[0]?.balance ?? 0);
-        throw new InsufficientFundsError();
-      }
-
-      const balance = Number(updated.rows[0]?.balance ?? 0);
-      await client.query(
-        `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
-         values ($1, 'coin', $2, $3, $4, $5)
-         on conflict (biz_type, biz_id, user_id) do nothing`,
-        [userId, amount, balance, bizType, bizId],
-      );
-      await client.query('COMMIT');
-      return balance;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+  credit(userId: string, amount: number, bizType: string, bizId: string): Promise<number> {
+    return creditWallet(this.pool, userId, amount, bizType, bizId);
   }
 
-  async getTaskRows(userId: string, periodKeys: string[]): Promise<TaskProgressRow[]> {
-    const res = await this.pool.query<{
-      task_key: string;
-      period_key: string;
-      progress: number;
-      claimed: boolean;
-    }>(
-      `select task_key, period_key, progress, (claimed_at is not null) as claimed
-         from task_progress
-        where user_id = $1 and period_key = any($2::text[])`,
-      [userId, periodKeys],
-    );
-    return res.rows.map((row) => ({
-      taskKey: row.task_key,
-      periodKey: row.period_key,
-      progress: row.progress,
-      claimed: row.claimed,
-    }));
+  getTaskRows(userId: string, periodKeys: string[]): Promise<TaskProgressRow[]> {
+    return getTaskRows(this.pool, userId, periodKeys);
   }
 
-  async bumpTask(userId: string, taskKey: string, periodKey: string, delta: number): Promise<number> {
-    const res = await this.bumpTaskTx(this.pool, userId, taskKey, periodKey, delta);
-    return res;
+  bumpTask(userId: string, taskKey: string, periodKey: string, delta: number): Promise<number> {
+    return bumpTask(this.pool, userId, taskKey, periodKey, delta);
   }
 
-  async claimTask(userId: string, taskKey: string, periodKey: string): Promise<boolean> {
-    const res = await this.pool.query(
-      `insert into task_progress (user_id, task_key, period_key, progress, claimed_at)
-       values ($1, $2, $3, 0, now())
-       on conflict (user_id, task_key, period_key)
-       do update set claimed_at = now()
-        where task_progress.claimed_at is null
-       returning claimed_at`,
-      [userId, taskKey, periodKey],
-    );
-    return (res.rowCount ?? 0) > 0;
+  claimTask(userId: string, taskKey: string, periodKey: string): Promise<boolean> {
+    return claimTask(this.pool, userId, taskKey, periodKey);
   }
 
-  async leaderboard(limit: number): Promise<LeaderboardRow[]> {
-    const res = await this.pool.query<{ user_id: string; nickname: string; balance: string }>(
-      `select w.user_id, u.nickname, w.balance
-         from wallets w
-         join users u on u.id = w.user_id
-        where w.currency = 'coin'
-        order by w.balance desc, u.created_at asc
-        limit $1`,
-      [limit],
-    );
-    return res.rows.map((row) => ({
-      userId: row.user_id,
-      nickname: row.nickname,
-      balance: Number(row.balance),
-    }));
+  leaderboard(limit: number): Promise<LeaderboardRow[]> {
+    return getLeaderboard(this.pool, limit);
   }
 
-  async leaderboardRank(userId: string): Promise<number | null> {
-    // 名次 = 1 + 排在自己前面的人数。比全表窗口排序便宜得多，
-    // 而且 /api/profile 每次都会调用它。
-    const res = await this.pool.query<{ rnk: string | null }>(
-      `with me as (
-         select w.balance, u.created_at
-           from wallets w
-           join users u on u.id = w.user_id
-          where w.user_id = $1 and w.currency = 'coin'
-       )
-       select case
-                when (select count(*) from me) = 0 then null
-                else 1 + (
-                  select count(*)
-                    from wallets w2
-                    join users u2 on u2.id = w2.user_id
-                    cross join me
-                   where w2.currency = 'coin'
-                     and (w2.balance > me.balance
-                          or (w2.balance = me.balance and u2.created_at < me.created_at))
-                )
-              end as rnk`,
-      [userId],
-    );
-    const value = res.rows[0]?.rnk;
-    return value === null || value === undefined ? null : Number(value);
+  leaderboardRank(userId: string): Promise<number | null> {
+    return getLeaderboardRank(this.pool, userId);
   }
 
-  async settleDailyLeaderboard(dayKey: string): Promise<number> {
-    const rows = await this.leaderboard(LEADERBOARD_SIZE);
-    let total = 0;
-    for (const [index, row] of rows.entries()) {
-      const reward = rewardForRank(index + 1);
-      if (reward <= 0) continue;
-      // 幂等键必须含 userId：只带名次的话，重跑时会把奖励发给「新的第 1 名」
-      const balance = await this.credit(row.userId, reward, 'leaderboard_daily', `${dayKey}:${row.userId}`);
-      await this.pool.query(
-        `insert into leaderboard_daily_snapshots (period_key, user_id, nickname, rank, balance, reward)
-         values ($1, $2, $3, $4, $5, $6)
-         on conflict (period_key, user_id) do nothing`,
-        [dayKey, row.userId, row.nickname, index + 1, balance, reward],
-      );
-      total += reward;
-    }
-    return total;
+  settleDailyLeaderboard(dayKey: string): Promise<number> {
+    return settleDailyLeaderboard(this.pool, dayKey);
   }
 
-  async listDailySnapshot(dayKey: string): Promise<LeaderboardSnapshotRow[]> {
-    const res = await this.pool.query<{
-      user_id: string;
-      nickname: string;
-      rank: number;
-      balance: string;
-      reward: number;
-    }>(
-      `select user_id, nickname, rank, balance, reward
-         from leaderboard_daily_snapshots
-        where period_key = $1
-        order by rank asc`,
-      [dayKey],
-    );
-    return res.rows.map((row) => ({
-      userId: row.user_id,
-      nickname: row.nickname,
-      rank: row.rank,
-      balance: Number(row.balance),
-      reward: row.reward,
-    }));
+  listDailySnapshot(dayKey: string): Promise<LeaderboardSnapshotRow[]> {
+    return listDailySnapshot(this.pool, dayKey);
   }
 
-  async dailyWinners(limit: number): Promise<DailyWinnerRow[]> {
-    const res = await this.pool.query<{
-      user_id: string;
-      nickname: string;
-      net: string;
-      rounds: string;
-    }>(
-      `select l.user_id,
-              u.nickname,
-              sum(l.delta)::bigint as net,
-              count(*)::int as rounds
-         from ledger l
-         join users u on u.id = l.user_id
-        where l.currency = 'coin'
-          and l.biz_type = 'game_settle'
-          and l.created_at >= (date_trunc('day', now() at time zone 'Asia/Shanghai') at time zone 'Asia/Shanghai')
-        group by l.user_id, u.nickname
-       having sum(l.delta) > 0
-        order by net desc
-        limit $1`,
-      [limit],
-    );
-    return res.rows.map((row) => ({
-      userId: row.user_id,
-      nickname: row.nickname,
-      net: Number(row.net),
-      rounds: Number(row.rounds),
-    }));
+  dailyWinners(limit: number): Promise<DailyWinnerRow[]> {
+    return getDailyWinners(this.pool, limit);
   }
 
-  async listAnnouncements(limit: number): Promise<Announcement[]> {
-    const res = await this.pool.query<{
-      id: string;
-      title: string;
-      content: string;
-      kind: string;
-      created_at: Date;
-    }>(
-      `select id, title, content, kind, created_at
-         from announcements
-        order by created_at desc
-        limit $1`,
-      [Math.min(Math.max(1, limit), 50)],
-    );
-    return res.rows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      content: row.content,
-      kind: row.kind as Announcement['kind'],
-      createdAt: new Date(row.created_at).getTime(),
-    }));
+  listAnnouncements(limit: number): Promise<Announcement[]> {
+    return listAnnouncements(this.pool, limit);
   }
 
-  async createAnnouncement(input: {
+  createAnnouncement(input: {
     title: string;
     content: string;
     kind: Announcement['kind'];
   }): Promise<Announcement> {
-    const id = randomUUID();
-    const res = await this.pool.query<{ created_at: Date }>(
-      `insert into announcements (id, title, content, kind)
-       values ($1, $2, $3, $4)
-       returning created_at`,
-      [id, input.title, input.content, input.kind],
-    );
-    const created = res.rows[0]?.created_at;
-    return { id, ...input, createdAt: created ? new Date(created).getTime() : Date.now() };
+    return createAnnouncement(this.pool, input);
   }
 
-  async deleteAnnouncement(id: string): Promise<boolean> {
-    const res = await this.pool.query('delete from announcements where id = $1', [id]);
-    return (res.rowCount ?? 0) > 0;
+  deleteAnnouncement(id: string): Promise<boolean> {
+    return deleteAnnouncement(this.pool, id);
   }
 
   async close(): Promise<void> {
     await this.pool.end();
   }
 
-  // ---------- 个人资料 ----------
-
-  async getProfile(userId: string): Promise<PlayerProfile | null> {
-    const res = await this.pool.query<{
-      id: string;
-      nickname: string;
-      username: string | null;
-      bio: string | null;
-      avatar: string | null;
-    }>(
-      `select u.id, u.nickname, u.username, p.bio, p.avatar
-         from users u
-         left join user_profiles p on p.user_id = u.id
-        where u.id = $1`,
-      [userId],
-    );
-    const row = res.rows[0];
-    if (!row) return null;
-    return {
-      userId: row.id,
-      nickname: row.nickname,
-      username: row.username,
-      bio: row.bio ?? '',
-      avatar: row.avatar ?? null,
-    };
+  getAvatar(userId: string): Promise<string | null> {
+    return getAvatar(this.pool, userId);
   }
 
-  async updateProfile(userId: string, patch: ProfilePatch): Promise<PlayerProfile> {
-    if (patch.nickname !== undefined) {
-      const nickname = patch.nickname.trim();
-      if (nickname.length < 2 || nickname.length > 16) throw new Error('昵称需 2-16 个字符');
-      try {
-        await this.pool.query('update users set nickname = $2 where id = $1', [userId, nickname]);
-      } catch (error) {
-        // 唯一索引兜底；老库没有索引时下面的显式查询也能拦住重名
-        if ((error as { code?: string }).code === '23505') {
-          throw new Error('该昵称已被其他玩家使用');
-        }
-        throw error;
-      }
-    }
-
-    if (patch.bio !== undefined || patch.avatar !== undefined) {
-      await this.pool.query(
-        `insert into user_profiles (user_id, bio, avatar, updated_at)
-         values ($1, coalesce($2, ''), $3, now())
-         on conflict (user_id) do update
-            set bio = coalesce($2, user_profiles.bio),
-                avatar = case when $4 then $3 else user_profiles.avatar end,
-                updated_at = now()`,
-        // $4 标记本次是否显式传了 avatar，避免只改签名时把头像清空
-        [userId, patch.bio ?? null, patch.avatar ?? null, patch.avatar !== undefined],
-      );
-    }
-
-    return (await this.getProfile(userId)) as PlayerProfile;
+  getProfile(userId: string): Promise<PlayerProfile | null> {
+    return getProfile(this.pool, userId);
   }
 
-  async searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]> {
-    const q = `%${keyword.trim()}%`;
-    const res = await this.pool.query<{
-      id: string;
-      nickname: string;
-      username: string | null;
-      bio: string | null;
-      avatar: string | null;
-      is_friend: boolean;
-      request_pending: boolean;
-    }>(
-      `select u.id, u.nickname, u.username, p.bio, p.avatar,
-              exists (select 1 from friendships f
-                       where f.user_id = $2 and f.friend_id = u.id) as is_friend,
-              exists (select 1 from friend_requests r
-                       where r.from_id = $2 and r.to_id = u.id and r.status = 'pending') as request_pending
-         from users u
-         left join user_profiles p on p.user_id = u.id
-        where u.id <> $2
-          and ($1 = '%%' or u.nickname ilike $1 or coalesce(u.username, '') ilike $1)
-        order by u.created_at desc
-        limit $3`,
-      [q, excludeUserId, limit],
-    );
-    return res.rows.map((row) => ({
-      userId: row.id,
-      nickname: row.nickname,
-      username: row.username,
-      bio: row.bio ?? '',
-      avatar: row.avatar ?? null,
-      isFriend: row.is_friend,
-      requestPending: row.request_pending,
-    }));
+  updateProfile(userId: string, patch: ProfilePatch): Promise<PlayerProfile> {
+    return updateProfile(this.pool, userId, patch);
   }
 
-  // ---------- 好友 ----------
-
-  async listFriends(userId: string): Promise<PlayerProfile[]> {
-    const res = await this.pool.query<{
-      id: string;
-      nickname: string;
-      username: string | null;
-      bio: string | null;
-      avatar: string | null;
-    }>(
-      `select u.id, u.nickname, u.username, p.bio, p.avatar
-         from friendships f
-         join users u on u.id = f.friend_id
-         left join user_profiles p on p.user_id = u.id
-        where f.user_id = $1
-        order by u.nickname asc`,
-      [userId],
-    );
-    return res.rows.map((row) => ({
-      userId: row.id,
-      nickname: row.nickname,
-      username: row.username,
-      bio: row.bio ?? '',
-      avatar: row.avatar ?? null,
-      isFriend: true,
-    }));
+  searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]> {
+    return searchUsers(this.pool, keyword, excludeUserId, limit);
   }
 
-  async createFriendRequest(
+  listFriends(userId: string): Promise<PlayerProfile[]> {
+    return listFriends(this.pool, userId);
+  }
+
+  createFriendRequest(
     fromId: string,
     toId: string,
     message: string | null,
   ): Promise<FriendRequestView> {
-    if (fromId === toId) throw new Error('不能添加自己为好友');
-    const target = await this.getProfile(toId);
-    if (!target) throw new Error('该玩家不存在');
-    if (await this.areFriends(fromId, toId)) throw new Error('你们已经是好友了');
-
-    const pending = await this.pool.query<{ id: string }>(
-      `select id from friend_requests
-        where from_id = $1 and to_id = $2 and status = 'pending'`,
-      [fromId, toId],
-    );
-    if (pending.rowCount && pending.rowCount > 0) throw new Error('已发送过申请，请等待对方处理');
-
-    // 对方先发过申请时，双方直接成为好友
-    const reverse = await this.pool.query<{ id: string }>(
-      `update friend_requests set status = 'accepted'
-        where from_id = $2 and to_id = $1 and status = 'pending'
-        returning id`,
-      [fromId, toId],
-    );
-    if (reverse.rowCount && reverse.rowCount > 0) {
-      await this.linkFriends(fromId, toId);
-    }
-
-    const status: FriendRequestStatus = reverse.rowCount && reverse.rowCount > 0 ? 'accepted' : 'pending';
-    const id = randomUUID();
-    if (status === 'pending') {
-      await this.pool.query(
-        `insert into friend_requests (id, from_id, to_id, message, status)
-         values ($1, $2, $3, $4, 'pending')`,
-        [id, fromId, toId, message],
-      );
-    }
-
-    const from = (await this.getProfile(fromId)) as PlayerProfile;
-    return {
-      id,
-      fromId,
-      fromNickname: from.nickname,
-      fromAvatar: from.avatar,
-      toId,
-      toNickname: target.nickname,
-      toAvatar: target.avatar,
-      message,
-      status,
-      createdAt: Date.now(),
-    };
+    return createFriendRequest(this.pool, fromId, toId, message);
   }
 
-  async listFriendRequests(userId: string): Promise<{
+  listFriendRequests(userId: string): Promise<{
     incoming: FriendRequestView[];
     outgoing: FriendRequestView[];
   }> {
-    const res = await this.pool.query<{
-      id: string;
-      from_id: string;
-      from_nickname: string;
-      from_avatar: string | null;
-      to_id: string;
-      to_nickname: string;
-      to_avatar: string | null;
-      message: string | null;
-      status: FriendRequestStatus;
-      created_at: Date;
-    }>(
-      `select r.id, r.from_id, fu.nickname as from_nickname, fp.avatar as from_avatar,
-              r.to_id, tu.nickname as to_nickname, tp.avatar as to_avatar,
-              r.message, r.status, r.created_at
-         from friend_requests r
-         join users fu on fu.id = r.from_id
-         join users tu on tu.id = r.to_id
-         left join user_profiles fp on fp.user_id = r.from_id
-         left join user_profiles tp on tp.user_id = r.to_id
-        where r.status = 'pending' and (r.from_id = $1 or r.to_id = $1)
-        order by r.created_at desc`,
-      [userId],
-    );
-
-    const rows = res.rows.map<FriendRequestView>((row) => ({
-      id: row.id,
-      fromId: row.from_id,
-      fromNickname: row.from_nickname,
-      fromAvatar: row.from_avatar,
-      toId: row.to_id,
-      toNickname: row.to_nickname,
-      toAvatar: row.to_avatar,
-      message: row.message,
-      status: row.status,
-      createdAt: new Date(row.created_at).getTime(),
-    }));
-
-    return {
-      incoming: rows.filter((row) => row.toId === userId),
-      outgoing: rows.filter((row) => row.fromId === userId),
-    };
+    return listFriendRequests(this.pool, userId);
   }
 
-  async acceptFriendRequest(requestId: string, userId: string): Promise<boolean> {
-    const res = await this.pool.query<{ from_id: string }>(
-      `update friend_requests set status = 'accepted'
-        where id = $1 and to_id = $2 and status = 'pending'
-        returning from_id`,
-      [requestId, userId],
-    );
-    const fromId = res.rows[0]?.from_id;
-    if (!fromId) return false;
-    await this.linkFriends(fromId, userId);
-    return true;
+  acceptFriendRequest(requestId: string, userId: string): Promise<boolean> {
+    return acceptFriendRequest(this.pool, requestId, userId);
   }
 
-  async rejectFriendRequest(requestId: string, userId: string): Promise<boolean> {
-    const res = await this.pool.query(
-      `update friend_requests set status = 'rejected'
-        where id = $1 and to_id = $2 and status = 'pending'`,
-      [requestId, userId],
-    );
-    return (res.rowCount ?? 0) > 0;
+  rejectFriendRequest(requestId: string, userId: string): Promise<boolean> {
+    return rejectFriendRequest(this.pool, requestId, userId);
   }
 
-  async removeFriend(userId: string, friendId: string): Promise<boolean> {
-    const res = await this.pool.query(
-      `delete from friendships
-        where (user_id = $1 and friend_id = $2) or (user_id = $2 and friend_id = $1)`,
-      [userId, friendId],
-    );
-    return (res.rowCount ?? 0) > 0;
+  removeFriend(userId: string, friendId: string): Promise<boolean> {
+    return removeFriend(this.pool, userId, friendId);
   }
 
-  async areFriends(userId: string, friendId: string): Promise<boolean> {
-    const res = await this.pool.query(
-      'select 1 from friendships where user_id = $1 and friend_id = $2',
-      [userId, friendId],
-    );
-    return (res.rowCount ?? 0) > 0;
-  }
-
-  private async linkFriends(a: string, b: string): Promise<void> {
-    await this.pool.query(
-      `insert into friendships (user_id, friend_id)
-       values ($1, $2), ($2, $1)
-       on conflict do nothing`,
-      [a, b],
-    );
-  }
-
-  private async bumpTaskTx(
-    client: pg.Pool | pg.PoolClient,
-    userId: string,
-    taskKey: string,
-    periodKey: string,
-    delta: number,
-  ): Promise<number> {
-    const res = await client.query<{ progress: number }>(
-      `insert into task_progress (user_id, task_key, period_key, progress)
-       values ($1, $2, $3, $4)
-       on conflict (user_id, task_key, period_key)
-       do update set progress = task_progress.progress + $4
-       returning progress`,
-      [userId, taskKey, periodKey, delta],
-    );
-    return res.rows[0]?.progress ?? 0;
+  areFriends(userId: string, friendId: string): Promise<boolean> {
+    return areFriends(this.pool, userId, friendId);
   }
 }

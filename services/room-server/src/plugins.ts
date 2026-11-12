@@ -1,41 +1,98 @@
-import { GomokuPlugin } from '@cc/game-gomoku';
-import { DoudizhuPlugin } from '@cc/game-doudizhu';
-import { PaodekuaiPlugin } from '@cc/game-paodekuai';
-import { TuizhuanziPlugin } from '@cc/game-tuizhuanzi';
-import { TexasPlugin } from '@cc/game-texas';
-import { DicePlugin } from '@cc/game-dice';
-import { BaccaratPlugin } from '@cc/game-baccarat';
-import { NiuniuPlugin } from '@cc/game-niuniu';
-import { BlackjackPlugin } from '@cc/game-blackjack';
-import { StudPlugin } from '@cc/game-stud';
-import { GoldenFlowerPlugin } from '@cc/game-goldenflower';
-import { ChessPlugin } from '@cc/game-chess';
-import { XiangqiPlugin } from '@cc/game-xiangqi';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { GamePlugin } from '@cc/game-sdk';
 import { PLATFORM_ROOMS_INITIAL, type RoomManager } from './registry';
 
-/** 常驻玩法：无玩家也持续开局，需要预先创建房间 */
-const PERSISTENT_GAMES = ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack'];
+type PluginConstructor = new () => GamePlugin;
+
+interface DiscoveryEntry {
+  specifier: string;
+  pkgName: string;
+}
+
+function isPluginConstructor(value: unknown): value is PluginConstructor {
+  return (
+    typeof value === 'function' &&
+    typeof value.prototype === 'object' &&
+    value.prototype !== null &&
+    typeof (value.prototype as { getSnapshot?: unknown }).getSnapshot === 'function'
+  );
+}
+
+function resolvePluginConstructor(mod: Record<string, unknown>, pkgName: string): PluginConstructor {
+  if (isPluginConstructor(mod.default)) return mod.default;
+
+  for (const [key, value] of Object.entries(mod)) {
+    if (key.endsWith('Plugin') && isPluginConstructor(value)) return value;
+  }
+  for (const value of Object.values(mod)) {
+    if (isPluginConstructor(value)) return value;
+  }
+  throw new Error(`插件包 ${pkgName} 未导出合法的 GamePlugin 类`);
+}
+
+function discoverPluginPackages(): DiscoveryEntry[] {
+  const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
+    dependencies?: Record<string, string>;
+  };
+
+  const entries = new Map<string, DiscoveryEntry>();
+  for (const dep of Object.keys(pkg.dependencies ?? {})) {
+    if (dep.startsWith('@cc/game-') && dep !== '@cc/game-sdk') {
+      entries.set(dep, { specifier: dep, pkgName: dep });
+    }
+  }
+
+  // 兜底发现同仓 `services/games/*` 下未写入 package.json 的扩展插件
+  const gamesRoot = join(dirname(pkgPath), '..', 'games');
+  if (existsSync(gamesRoot)) {
+    for (const dirent of readdirSync(gamesRoot, { withFileTypes: true })) {
+      if (!dirent.isDirectory()) continue;
+      const manifestPath = join(gamesRoot, dirent.name, 'package.json');
+      if (!existsSync(manifestPath)) continue;
+      const gamePkg = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+        name?: string;
+        main?: string;
+        exports?: string | Record<string, string>;
+      };
+      const name = gamePkg.name;
+      if (!name || !name.startsWith('@cc/game-') || name === '@cc/game-sdk' || entries.has(name)) {
+        continue;
+      }
+      const rawEntry =
+        typeof gamePkg.exports === 'string'
+          ? gamePkg.exports
+          : typeof gamePkg.exports?.['.'] === 'string'
+            ? gamePkg.exports['.']
+            : (gamePkg.main ?? './src/index.ts');
+      const fullEntry = join(gamesRoot, dirent.name, rawEntry);
+      entries.set(name, { specifier: pathToFileURL(fullEntry).href, pkgName: name });
+    }
+  }
+
+  return [...entries.values()].sort((a, b) => a.pkgName.localeCompare(b.pkgName));
+}
 
 /**
- * 内置游戏注册表。
- * 新增游戏：安装依赖 → 在此注册一行 → 重新部署游戏服。
+ * 动态扫描并注册所有内置及扩展游戏插件。
+ * 新增 `@cc/game-*` 工作区包无需改动本文件；是否初始化常驻平台房由插件 `meta.persistent` 声明。
  */
-export function registerBuiltinGames(manager: RoomManager): void {
-  manager.register(() => new GomokuPlugin());
-  manager.register(() => new DoudizhuPlugin());
-  manager.register(() => new PaodekuaiPlugin());
-  manager.register(() => new TuizhuanziPlugin());
-  manager.register(() => new TexasPlugin());
-  manager.register(() => new DicePlugin());
-  manager.register(() => new BaccaratPlugin());
-  manager.register(() => new NiuniuPlugin());
-  manager.register(() => new BlackjackPlugin());
-  manager.register(() => new StudPlugin());
-  manager.register(() => new GoldenFlowerPlugin());
-  manager.register(() => new ChessPlugin());
-  manager.register(() => new XiangqiPlugin());
+export async function registerBuiltinGames(manager: RoomManager): Promise<string[]> {
+  const packages = discoverPluginPackages();
+  const loaded: string[] = [];
 
-  for (const gameId of PERSISTENT_GAMES) {
-    manager.ensurePlatformRooms(gameId, PLATFORM_ROOMS_INITIAL);
+  for (const { specifier, pkgName } of packages) {
+    const mod = (await import(specifier)) as Record<string, unknown>;
+    const PluginClass = resolvePluginConstructor(mod, pkgName);
+    const meta = manager.register(() => new PluginClass());
+    loaded.push(meta.gameId);
+
+    if (meta.persistent) {
+      manager.ensurePlatformRooms(meta.gameId, PLATFORM_ROOMS_INITIAL);
+    }
   }
+
+  return loaded;
 }

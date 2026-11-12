@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, type User } from '../api';
+import { api, resolveAvatarUrl, type User } from '../api';
 import { audio } from '../audio';
 import { Chip } from './Chip';
 import { IconBack, IconCrown, IconGift, IconSparkle, IconUser } from './Icons';
@@ -154,7 +154,14 @@ export function ProfileView({ user, onLogout, onGoTasks, onBack, onGoFriends, on
             title="点击更换头像"
             aria-label="更换头像"
           >
-            {avatar ? <img src={avatar} alt="我的头像" draggable={false} /> : <span>{nickname.slice(0, 1)}</span>}
+            {(() => {
+              const avatarSrc = resolveAvatarUrl(avatar);
+              return avatarSrc ? (
+                <img src={avatarSrc} alt="我的头像" draggable={false} />
+              ) : (
+                <span>{nickname.slice(0, 1)}</span>
+              );
+            })()}
             <em className="avatar-edit-badge">更换</em>
           </button>
           <input

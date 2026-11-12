@@ -4,7 +4,6 @@ import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
 import { DEALER_MAIN, GAME_ART } from '../assets';
 import { Chip } from './Chip';
-import { CoinBurst } from './CoinBurst';
 import { InviteFriendsModal } from './InviteFriendsModal';
 import { RulesModal } from './RulesModal';
 import { SettleBubble, type ResultRow } from './SettleBubble';

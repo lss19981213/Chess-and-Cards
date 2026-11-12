@@ -45,7 +45,7 @@ export class RoomManager {
     };
   }
 
-  register(factory: GamePluginFactory): void {
+  register(factory: GamePluginFactory): GameMeta {
     const probe = factory();
     if (probe.apiVersion !== PLUGIN_API_VERSION) {
       throw new Error(
@@ -54,6 +54,7 @@ export class RoomManager {
     }
     this.factories.set(probe.meta.gameId, factory);
     this.metas.set(probe.meta.gameId, probe.meta);
+    return probe.meta;
   }
 
   listGames(): GameMeta[] {

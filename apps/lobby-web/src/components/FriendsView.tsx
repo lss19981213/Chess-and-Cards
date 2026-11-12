@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, type FriendRequestView, type PlayerProfile } from '../api';
+import { api, resolveAvatarUrl, type FriendRequestView, type PlayerProfile } from '../api';
 import { audio } from '../audio';
 import { IconBack, IconUser } from './Icons';
 
@@ -10,10 +10,11 @@ interface Props {
 /** 头像：有自定义图则显示图片，否则用昵称首字 */
 export function PlayerAvatar({ player, size = 44 }: { player: PlayerProfile; size?: number }) {
   const initial = player.nickname?.slice(0, 1) ?? '牌';
+  const src = resolveAvatarUrl(player.avatar);
   return (
     <div className="player-avatar" style={{ width: size, height: size, fontSize: size * 0.42 }}>
-      {player.avatar ? (
-        <img src={player.avatar} alt={player.nickname} draggable={false} />
+      {src ? (
+        <img src={src} alt={player.nickname} draggable={false} loading="lazy" decoding="async" />
       ) : (
         <span>{initial}</span>
       )}

@@ -1,76 +1,35 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
   AppError,
   ErrorCode,
   ServerMsg,
   type BotDifficulty,
-  type PlayerView,
   type RoomStatus,
-  type RoomView,
   type RoomSummary,
-  type Settlement,
-  type TrendMark,
+  type RoomView,
 } from '@cc/protocol';
 import type { GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
-import type { RoomServerConfig } from './config';
-import type { ReleaseClient, WalletClient } from './wallet';
 import { createLogger } from './logger';
+import { reconcileAmbientSeats } from './room/ambient';
+import { applySettlementScores, buildSettlementEnvelope } from './room/settlement';
+import {
+  PLATFORM_CAPACITY,
+  SETTLE_RESET_MS,
+  TICK_MS,
+  sendEnvelope,
+  type RoomDeps,
+  type Seat,
+} from './room/types';
+import { buildRoomSummary, buildRoomView, recentTrendFor, toPlayerContexts } from './room/view';
 
 const roomLog = createLogger('room');
 
-const TICK_MS = 200;
-const SETTLE_RESET_MS = 5_000;
-/** 平台台容量 */
-export const PLATFORM_CAPACITY = 168;
-/** 场内最低氛围人数 */
-const AMBIENT_MIN = 30;
-const AMBIENT_MAX = 50;
-
-const AMBIENT_NAMES = [
-  '夜雨声烦', '老赌徒', '一掷千金', '淡定哥', '风清扬', '南城旧梦', '小赌怡情', '铁头娃',
-  '顺风耳', '稳如老狗', '赌一把', '飘渺孤鸿', '半夜不睡', '老王来了', '暴富梦想', '手气不错',
-  '一见发财', '沉默的羔羊', '不服就干', '春天里', '看牌高手', '好运来', '点背到家', '再来一把',
-  '月下独酌', '浪里白条', '百万富翁', '风继续吹', '佛系玩家', '追梦人', '东方不败', '笑看风云',
-];
-
-interface Seat {
-  playerId: string;
-  nickname: string;
-  seat: number;
-  ready: boolean;
-  score: number;
-  socket: WebSocket | null;
-  graceTimer: NodeJS.Timeout | null;
-  isBot: boolean;
-  botDifficulty?: BotDifficulty;
-}
-
-export interface RoomDeps {
-  config: RoomServerConfig;
-  /** 上报结算到大厅（幂等落库 + 账本） */
-  settle(settlement: Settlement): void;
-  /** 下注即时扣款 / 撤注退款，返回操作后余额 */
-  adjustWallet: WalletClient;
-  /** 房间销毁时释放未结算的下注扣款 */
-  releaseBets: ReleaseClient;
-  /** 空房间回收 */
-  empty(roomId: string): void;
-}
-
-function sendEnvelope(socket: WebSocket | null, t: string, d: unknown): void {
-  if (!socket || socket.readyState !== 1) return;
-  try {
-    socket.send(JSON.stringify({ t, d, ts: Date.now() }));
-  } catch {
-    /* 忽略发送失败，由心跳负责清理 */
-  }
-}
+export { PLATFORM_CAPACITY, type RoomDeps };
 
 /**
  * 通用房间容器：承载任意 GamePlugin。
- * 负责座位、准备、开局、断线重连、快照下发与结算上报，
- * 不包含任何具体游戏规则。
+ * 负责座位、准备、开局、断线重连、快照下发与结算上报，不包含任何具体游戏规则。
  */
 export class GameRoom {
   readonly id: string;
@@ -117,53 +76,53 @@ export class GameRoom {
     this.deps = deps;
     this.persistent = options.persistent === true;
 
-    const self = this;
+    const getConfig = () => ({
+      roomId: this.id,
+      gameId: this.plugin.meta.gameId,
+      mode: this.mode,
+      maxPlayers: this.maxPlayers,
+      round: this.round,
+      seed: this.seed,
+    });
+    const getPlayers = () => toPlayerContexts(this.seats.values());
+
     this.ctx = {
       get config() {
-        return {
-          roomId: self.id,
-          gameId: self.plugin.meta.gameId,
-          mode: self.mode,
-          maxPlayers: self.maxPlayers,
-          round: self.round,
-          seed: self.seed,
-        };
+        return getConfig();
       },
       get players(): readonly PlayerContext[] {
-        return self.playerContexts();
+        return getPlayers();
       },
-      getPlayer: (playerId: string) => self.playerContexts().find((p) => p.playerId === playerId),
+      getPlayer: (playerId: string) => toPlayerContexts(this.seats.values()).find((p) => p.playerId === playerId),
       broadcast: (t: string, d: unknown) => {
-        for (const seat of self.seats.values()) sendEnvelope(seat.socket, t, d);
+        for (const seat of this.seats.values()) sendEnvelope(seat.socket, t, d);
       },
       sendTo: (playerId: string, t: string, d: unknown) => {
-        sendEnvelope(self.seats.get(playerId)?.socket ?? null, t, d);
+        sendEnvelope(this.seats.get(playerId)?.socket ?? null, t, d);
       },
       markDirty: () => {
-        self.dirty = true;
+        this.dirty = true;
       },
-      settle: (input: SettlementInput) => self.handleSettle(input),
+      settle: (input: SettlementInput) => this.handleSettle(input),
       charge: async (playerId: string, amount: number) => {
-        const ref = `${self.id}:${self.round}:${playerId}:${++self.betSeq}`;
-        const balance = await self.deps.adjustWallet({ playerId, amount, action: 'debit', bizId: ref });
-        self.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
+        const ref = `${this.id}:${this.round}:${playerId}:${++this.betSeq}`;
+        const balance = await this.deps.adjustWallet({ playerId, amount, action: 'debit', bizId: ref });
+        this.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
         return ref;
       },
       refund: async (playerId: string, ref: string) => {
-        // 退款金额以大厅侧记录的原始扣款额为准
-        const balance = await self.deps.adjustWallet({ playerId, amount: 0, action: 'refund', bizId: ref });
-        self.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
+        const balance = await this.deps.adjustWallet({ playerId, amount: 0, action: 'refund', bizId: ref });
+        this.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
       },
-      beginRound: () => self.beginRound(),
+      beginRound: () => this.beginRound(),
       log: (message: string, extra?: Record<string, unknown>) => {
-        roomLog.debug(message, { roomId: self.id, ...extra });
+        roomLog.debug(message, { roomId: this.id, ...extra });
       },
     };
 
     this.plugin.onRoomCreate(this.ctx);
     this.tickTimer = setInterval(() => this.tick(), TICK_MS);
 
-    // 常驻房间：无玩家也持续开局
     if (this.persistent) {
       this.status = 'playing';
       this.beginRound();
@@ -174,7 +133,6 @@ export class GameRoom {
     return this.persistent;
   }
 
-  /** 台子容量：平台台固定 168，玩家房按游戏配置 */
   get capacity(): number {
     return this.persistent ? PLATFORM_CAPACITY : this.maxPlayers;
   }
@@ -183,52 +141,11 @@ export class GameRoom {
     this.platformNo = no;
   }
 
-  /** 补足/回收场内氛围玩家：真人少时热闹，真人多时让出容量 */
   private ensureAmbient(): void {
     if (!this.persistent || this.closed) return;
-
-    const seats = [...this.seats.values()];
-    const humans = seats.filter((seat) => !seat.isBot).length;
-    const ambient = seats.filter((seat) => seat.playerId.startsWith('ambient:'));
-
-    const desired =
-      humans < 10
-        ? AMBIENT_MIN + Math.floor(Math.random() * (AMBIENT_MAX - AMBIENT_MIN + 1))
-        : Math.min(this.capacity, humans + 8);
-
-    if (this.seats.size > desired) {
-      for (const seat of ambient) {
-        if (this.seats.size <= desired) break;
-        this.seats.delete(seat.playerId);
-      }
+    if (reconcileAmbientSeats(this.seats, this.capacity, () => this.nextSeatIndex())) {
       this.dirty = true;
-      return;
     }
-    if (this.seats.size >= desired) return;
-
-    const used = new Set([...this.seats.values()].map((seat) => seat.nickname));
-    for (let i = this.seats.size; i < desired; i += 1) {
-      const base = AMBIENT_NAMES[Math.floor(Math.random() * AMBIENT_NAMES.length)] ?? '牌友';
-      let nickname = base;
-      let suffix = 2;
-      while (used.has(nickname)) nickname = `${base}${suffix++}`;
-      used.add(nickname);
-
-      const playerId = `ambient:${randomUUID()}`;
-      const diffs: BotDifficulty[] = ['low', 'medium', 'high'];
-      this.seats.set(playerId, {
-        playerId,
-        nickname,
-        seat: this.nextSeatIndex(),
-        ready: true,
-        score: 0,
-        socket: null,
-        graceTimer: null,
-        isBot: true,
-        botDifficulty: diffs[i % diffs.length]!,
-      });
-    }
-    this.dirty = true;
   }
 
   /** 开启新一局：常驻玩法由插件按时间轴主动调用 */
@@ -237,7 +154,6 @@ export class GameRoom {
     this.round += 1;
     this.seq += 1;
     // 种子必须不可预测：房间号与局数客户端都可见，用它们派生种子等于公开整副牌。
-    // 种子只留在服务端，用于可复现回放，不随快照下发。
     this.seed = randomBytes(16).toString('hex');
     this.status = 'playing';
     this.settledThisRound = false;
@@ -256,7 +172,6 @@ export class GameRoom {
     return this.closed;
   }
 
-  /** 是否还有空位且可加入 */
   get isJoinable(): boolean {
     return !this.closed && this.status === 'waiting' && this.seats.size < this.maxPlayers;
   }
@@ -266,85 +181,31 @@ export class GameRoom {
   }
 
   view(): RoomView {
-    return {
+    return buildRoomView({
       roomId: this.id,
       gameId: this.plugin.meta.gameId,
       mode: this.mode,
       status: this.status,
       round: this.round,
       maxPlayers: this.maxPlayers,
-      players: this.playerViews(),
       hostId: this.hostId,
-    };
-  }
-
-  /** 把各玩法不同的历史结构归一化成 3 个走势标记 */
-  private recentTrend(): TrendMark[] {
-    if (!this.persistent) return [];
-    let history: Array<Record<string, unknown>> = [];
-    try {
-      const snap = this.plugin.getSnapshot(this.ctx, null) as {
-        history?: Array<Record<string, unknown>>;
-      };
-      history = Array.isArray(snap?.history) ? snap.history : [];
-    } catch {
-      return [];
-    }
-
-    return history.slice(-3).map((row) => {
-      const round = Number(row.round ?? 0);
-      const gameId = this.plugin.meta.gameId;
-
-      if (gameId === 'baccarat') {
-        const outcome = String(row.outcome ?? '');
-        return {
-          round,
-          text: outcome === 'player' ? '闲' : outcome === 'banker' ? '庄' : '和',
-          tone: (outcome === 'player' ? 'blue' : outcome === 'banker' ? 'red' : 'green') as TrendMark['tone'],
-        };
-      }
-      if (gameId === 'dice') {
-        if (row.triple === true) return { round, text: '豹', tone: 'green' as const };
-        return {
-          round,
-          text: row.big === true ? '大' : '小',
-          tone: (row.big === true ? 'red' : 'blue') as TrendMark['tone'],
-        };
-      }
-
-      const winners = Array.isArray(row.winningDoors) ? (row.winningDoors as string[]) : [];
-      const label: Record<string, string> = { heaven: '天', earth: '地', human: '人' };
-      if (winners.length === 0) return { round, text: '庄', tone: 'neutral' as const };
-      return {
-        round,
-        text: winners.map((door) => label[door] ?? '').join(''),
-        tone: 'green' as const,
-      };
+      seats: this.seats.values(),
     });
   }
 
-  /** 供选台列表使用 */
   summary(): RoomSummary {
-    const seats = [...this.seats.values()];
-    const host = seats.find((seat) => seat.playerId === this.hostId);
-    const bots = seats.filter((seat) => seat.isBot).length;
-    return {
+    return buildRoomSummary({
       roomId: this.id,
-      gameId: this.plugin.meta.gameId,
-      roomName: this.persistent
-        ? `${this.plugin.meta.name} · ${this.platformNo || 1} 号台`
-        : `${host?.nickname ?? '玩家'}的${this.plugin.meta.name}`,
-      hostId: this.hostId,
-      hostName: this.persistent ? '平台庄' : (host?.nickname ?? '玩家'),
-      players: this.seats.size,
-      humans: seats.length - bots,
-      bots,
-      maxPlayers: this.capacity,
-      status: this.status === 'closed' ? 'settled' : this.status,
+      meta: this.plugin.meta,
       persistent: this.persistent,
-      joinable: this.isJoinable || this.persistent,
-      recent: this.recentTrend(),
-    };
+      platformNo: this.platformNo,
+      hostId: this.hostId,
+      seats: this.seats.values(),
+      capacity: this.capacity,
+      status: this.status,
+      joinable: this.isJoinable,
+      recent: recentTrendFor(this.plugin, this.ctx, this.persistent),
+    });
   }
 
   join(player: { playerId: string; nickname: string }, socket: WebSocket): void {
@@ -353,7 +214,6 @@ export class GameRoom {
       this.attach(player.playerId, socket);
       return;
     }
-    // 常驻下注房不关盘，但受容量限制，玩家随时可进出
     if (!this.persistent) {
       if (this.status !== 'waiting') {
         throw new AppError(ErrorCode.RoomFull, '房间已开局，请等待本局结束');
@@ -390,7 +250,6 @@ export class GameRoom {
     this.dirty = true;
     this.tryStart();
 
-    // 常驻房间开局中：新加入的玩家立刻拿到当前快照
     if (this.persistent && this.status === 'playing') {
       this.pushSnapshots();
     }
@@ -431,7 +290,6 @@ export class GameRoom {
     this.tryStart();
   }
 
-  /** 当前行动的玩家，非对局中返回 null */
   currentActor(): string | null {
     if (this.closed || this.status !== 'playing') return null;
     try {
@@ -449,14 +307,12 @@ export class GameRoom {
     return this.seats.get(playerId)?.botDifficulty ?? 'medium';
   }
 
-  /** 按机器人难度调用本地博弈算法，返回是否成功提交 */
   async actAsBot(playerId: string): Promise<boolean> {
     if (!this.isBot(playerId)) return false;
     try {
       const difficulty = this.botDifficultyOf(playerId);
       const intent = this.plugin.botIntent?.(this.ctx, playerId, difficulty) ?? null;
       if (!intent) return false;
-      // 必须 await：handleIntent 内部会 await 扣款，未捕获的 rejection 会直接打死进程
       await this.handleIntent(playerId, intent.cmd, intent.payload);
       return true;
     } catch (error) {
@@ -479,10 +335,7 @@ export class GameRoom {
     this.ctx.sendTo(playerId, ServerMsg.RoomView, { room: this.view() });
   }
 
-  /**
-   * 连接断开。带上 socket 做身份校验：同账号双端登录时，
-   * 旧页面关闭不能把新连接置空，否则新端会在宽限期后被踢出。
-   */
+  /** 连接断开：校验 socket 引用，避免双端切换时旧连接误删新连接 */
   detach(playerId: string, socket?: WebSocket | null): void {
     const seat = this.seats.get(playerId);
     if (!seat) return;
@@ -499,7 +352,6 @@ export class GameRoom {
     const seat = this.seats.get(playerId);
     if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
 
-    // 结算展示期间点的「准备」先预约下来，回到等待态时自动生效
     if (this.status === 'settled') {
       this.pendingReady.set(playerId, ready);
       if (ready) this.autoReady.add(playerId);
@@ -507,7 +359,6 @@ export class GameRoom {
       return;
     }
     if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '当前不能修改准备状态');
-    // 主动准备即进入连续对局模式，主动取消才退出
     if (ready) this.autoReady.add(playerId);
     else this.autoReady.delete(playerId);
     if (seat.ready === ready) return;
@@ -527,11 +378,9 @@ export class GameRoom {
     const prev = this.intentQueues.get(playerId) ?? Promise.resolve();
     const run = prev.catch(() => undefined).then(async () => {
       try {
-        // 平台玩法/德州下注需要 await 即时扣款，余额不足时会抛错并拒绝下注
         await this.plugin.onIntent(this.ctx, playerId, { cmd, payload });
       } catch (error) {
         if (error instanceof AppError) throw error;
-        // 插件的普通 Error（封盘、注额限制、筹码不足等）原样回传给客户端
         throw new AppError(ErrorCode.IllegalAction, (error as Error).message || '操作失败');
       }
     });
@@ -543,7 +392,6 @@ export class GameRoom {
     }
   }
 
-  /** 客户端主动离开。对局中退出视为认输，由 removeSeat 统一通知插件 */
   leave(playerId: string): void {
     this.removeSeat(playerId);
     this.checkEnoughPlayers();
@@ -566,7 +414,6 @@ export class GameRoom {
     }
     this.seats.clear();
     this.plugin.onDestroy?.(this.ctx);
-    // 本局还没结算就散场，把已扣的下注本金退回，不能让筹码凭空消失
     void this.deps.releaseBets(this.id).catch(() => undefined);
     this.deps.empty(this.id);
   }
@@ -609,36 +456,22 @@ export class GameRoom {
       throw new AppError(ErrorCode.IllegalAction, '本局已结算，不能重复结算');
     }
     this.settledThisRound = true;
-    // 常驻房间由插件接续下一局，状态保持 playing，避免中途加入的玩家看到「已结算」
     this.status = this.persistent ? 'playing' : 'settled';
 
-    const entries = input.entries.filter((e) => {
-      const valid = Number.isInteger(e.delta) && Math.abs(e.delta) <= 1_000_000;
-      if (!valid) console.warn(`[room ${this.id}] 结算条目非法，已丢弃`, e);
-      return valid;
-    });
-    const settlement: Settlement = {
-      settlementId: `${this.id}:${this.round}`,
+    const settlement = buildSettlementEnvelope({
       roomId: this.id,
       gameId: this.plugin.meta.gameId,
       round: this.round,
       seed: this.seed,
-      winners: input.winners,
-      entries,
-      finishedAt: Date.now(),
-    };
-
-    for (const entry of entries) {
-      const seat = this.seats.get(entry.playerId);
-      if (seat) seat.score += entry.delta;
-    }
+      input,
+    });
+    applySettlementScores(this.seats, settlement);
 
     this.ctx.broadcast(ServerMsg.Settlement, { settlement });
     this.deps.settle(settlement);
     this.dirty = true;
     this.pushSnapshots();
 
-    // 常驻玩法由插件自己接续下一局，不回到准备态
     if (!this.persistent) {
       setTimeout(() => this.resetRound(), SETTLE_RESET_MS).unref?.();
     }
@@ -647,8 +480,6 @@ export class GameRoom {
   private resetRound(): void {
     if (this.closed) return;
     this.status = 'waiting';
-    // 机器人没有客户端，结算后自动重新准备，否则只能陪玩一局
-    // 真人若点过「继续」，视为开启连续对局，后续每局都自动准备
     for (const seat of this.seats.values()) {
       seat.ready = seat.isBot || this.autoReady.has(seat.playerId);
     }
@@ -658,7 +489,6 @@ export class GameRoom {
     this.tryStart();
   }
 
-  /** 快捷喊话：白名单文本 + 频率限制，广播给房间内所有人 */
   sendEmote(playerId: string, key: string, text: string): void {
     const seat = this.seats.get(playerId);
     if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
@@ -683,17 +513,11 @@ export class GameRoom {
 
   private checkEnoughPlayers(): void {
     if (this.persistent) return;
-    if (this.seats.size === 0) {
-      this.destroy();
-      return;
-    }
-    // 真人全部离开后，纯机器人房间没有存在意义
-    if (![...this.seats.values()].some((seat) => !seat.isBot)) {
+    if (this.seats.size === 0 || ![...this.seats.values()].some((seat) => !seat.isBot)) {
       this.destroy();
       return;
     }
     if (this.status === 'playing' && this.seats.size < this.plugin.meta.minPlayers) {
-      // 人数不足，中止本局：已扣的下注本金必须退回，否则会永久冻结在账本里
       void this.deps.releaseBets(this.id).catch((error: unknown) => {
         roomLog.error('中止本局退款失败', { roomId: this.id, error: (error as Error).message });
       });
@@ -718,9 +542,7 @@ export class GameRoom {
     const seat = this.seats.get(playerId);
     if (!seat) return;
     if (seat.graceTimer) clearTimeout(seat.graceTimer);
-    // 只有对局中离场才交给插件判定（认输/弃牌）；等待区离开不应触发结算。
-    // 必须在删座位之前通知：插件需要看到「仍在座」的离场者才能正确判负，
-    // 否则 ctx.players 里已经没有这个人，会出现「赢家加钱、输家不扣钱」。
+    // 必须在删座位之前通知插件，否则 ctx.players 里已无此人导致赢家加钱而离场者不扣钱
     if (this.status === 'playing') {
       try {
         this.plugin.onPlayerLeave(this.ctx, playerId);
@@ -743,34 +565,6 @@ export class GameRoom {
       if (!used.has(i)) return i;
     }
     return this.seats.size;
-  }
-
-  private playerContexts(): PlayerContext[] {
-    return [...this.seats.values()]
-      .sort((a, b) => a.seat - b.seat)
-      .map((s) => ({
-        playerId: s.playerId,
-        nickname: s.nickname,
-        seat: s.seat,
-        connected: s.socket !== null || s.isBot,
-        isBot: s.isBot,
-        ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'medium' } : {}),
-      }));
-  }
-
-  private playerViews(): PlayerView[] {
-    return [...this.seats.values()]
-      .sort((a, b) => a.seat - b.seat)
-      .map((s) => ({
-        playerId: s.playerId,
-        nickname: s.nickname,
-        seat: s.seat,
-        ready: s.ready,
-        online: s.socket !== null || s.isBot,
-        score: s.score,
-        isBot: s.isBot,
-        ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'medium' } : {}),
-      }));
   }
 
   private broadcastView(): void {

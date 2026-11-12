@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Announcement, Currency, Settlement } from '@cc/protocol';
 import { periodKeyFor } from '../tasks';
 import { InsufficientFundsError } from './types';
@@ -20,6 +20,12 @@ import type {
   TaskProgressRow,
   UserRecord,
 } from './types';
+
+function avatarUrlFor(userId: string, raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const hash = createHash('md5').update(raw).digest('hex').slice(0, 10);
+  return `/api/avatar/${encodeURIComponent(userId)}?v=${hash}`;
+}
 
 interface TaskCell {
   progress: number;
@@ -314,6 +320,10 @@ export class MemoryRepository implements Repository {
 
   // ---------- 个人资料 ----------
 
+  async getAvatar(userId: string): Promise<string | null> {
+    return this.profiles.get(userId)?.avatar ?? null;
+  }
+
   async getProfile(userId: string): Promise<PlayerProfile | null> {
     const user = this.users.get(userId);
     if (!user) return null;
@@ -323,7 +333,7 @@ export class MemoryRepository implements Repository {
       nickname: user.nickname,
       username: user.username,
       bio: extra?.bio ?? '',
-      avatar: extra?.avatar ?? null,
+      avatar: avatarUrlFor(user.id, extra?.avatar),
     };
   }
 
@@ -371,7 +381,7 @@ export class MemoryRepository implements Repository {
           nickname: user.nickname,
           username: user.username,
           bio: extra?.bio ?? '',
-          avatar: extra?.avatar ?? null,
+          avatar: avatarUrlFor(user.id, extra?.avatar),
           isFriend: this.friendships.has(`${excludeUserId}|${user.id}`),
           requestPending: this.friendRequests.some(
             (r) => r.fromId === excludeUserId && r.toId === user.id && r.status === 'pending',

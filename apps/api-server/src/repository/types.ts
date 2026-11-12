@@ -159,6 +159,7 @@ export interface Repository {
 
   // ---------- 个人资料 ----------
   getProfile(userId: string): Promise<PlayerProfile | null>;
+  getAvatar(userId: string): Promise<string | null>;
   updateProfile(userId: string, patch: ProfilePatch): Promise<PlayerProfile>;
   /** 按昵称或账号搜索玩家，keyword 为空时返回最近注册的玩家 */
   searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]>;

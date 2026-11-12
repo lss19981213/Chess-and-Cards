@@ -46,7 +46,7 @@ const manager = new RoomManager(
   createWalletClient(config),
   releaseBets,
 );
-registerBuiltinGames(manager);
+await registerBuiltinGames(manager);
 
 // 启动时把上一次进程遗留的未投递结算补投出去
 void settlementReporter.flush().catch((error: unknown) => {

@@ -216,7 +216,7 @@ function decomposeHand(hand: readonly Card[], rules: ComboRules): DecomposedGrou
 
     // 三带一或三带二优先吸收最弱散牌（不拆 2 和王）
     for (const tri of tripleCards) {
-      let chosen = [...tri];
+      const chosen = [...tri];
       if (rules.allowTripleWith) {
         const weakSingle = singleRanks.find((r) => r <= 14);
         if (weakSingle !== undefined) {

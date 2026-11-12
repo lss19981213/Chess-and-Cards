@@ -367,7 +367,7 @@ export class BlackjackPlugin extends BaseGamePlugin {
   /** 庄家补牌并结算 */
   private settle(ctx: RoomContext): void {
     const dealer = this.state.dealer;
-    let dealerCards = [...dealer];
+    const dealerCards = [...dealer];
     while (pointsOf(dealerCards) < 17 && dealerCards.length < 6) {
       const deck = shuffleWithSeed(
         createCardDeck([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], false),
