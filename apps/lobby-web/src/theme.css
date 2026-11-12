@@ -4090,7 +4090,7 @@ html, body, #root {
 /* 1. 绝对全屏流体舞台 (自适应任意横屏，彻底消灭黑边与滚动条) */
 html, body, #root {
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   height: 100dvh !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -4100,7 +4100,7 @@ html, body, #root {
 
 .landscape-app-root {
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   height: 100dvh !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -5046,7 +5046,7 @@ html, body, #root {
 
 .lobby--commercial-grade {
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   height: 100dvh !important;
   display: flex !important;
   flex-direction: column !important;
@@ -5708,7 +5708,7 @@ html, body, #root {
 /* 1. PC 1920*1080 根视口与全局舞台 */
 html, body, #root {
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
@@ -5718,7 +5718,7 @@ html, body, #root {
 
 .landscape-app-root {
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
@@ -5736,7 +5736,7 @@ html, body, #root {
 
 .lobby--commercial-grade {
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
@@ -5947,8 +5947,8 @@ html, body, #root {
 .commercial-lobby-stage {
   flex: 1 !important;
   width: 100% !important;
-  height: calc(100vh - 64px) !important;
-  max-height: calc(100vh - 64px) !important;
+  height: calc(100dvh - 64px) !important;
+  max-height: calc(100dvh - 64px) !important;
   display: flex !important;
   align-items: stretch !important;
   padding: 16px 28px 20px 28px !important;
@@ -6176,8 +6176,8 @@ html, body, #root {
 }
 
 .room-viewport {
-  height: calc(100vh - 56px) !important;
-  max-height: calc(100vh - 56px) !important;
+  height: calc(100dvh - 56px) !important;
+  max-height: calc(100dvh - 56px) !important;
 }
 
 /* 扑克手牌放大 (PC 黄金高度 145px) */
@@ -6249,7 +6249,7 @@ html, body, #root {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   background: rgba(4, 7, 16, 0.8) !important;
   backdrop-filter: blur(16px) !important;
   z-index: 99999 !important;
@@ -8600,4 +8600,31 @@ body,
   background: rgba(239, 68, 68, 0.2);
   color: #fca5a5;
   border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+/* iOS 上小于 16px 的输入框聚焦时会自动放大页面，触屏一律按 16px 起步 */
+@media (max-width: 900px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* 键盘焦点环：触屏不显示，键盘操作时清晰可见 */
+:where(a, button, input, textarea, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid #f0b429;
+  outline-offset: 2px;
+}
+
+/* 尊重系统的减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

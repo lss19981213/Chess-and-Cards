@@ -1,7 +1,12 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 
-const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const chromePath =
+  process.env.CHROME_PATH ?? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+// 截图输出目录可用 SHOT_DIR 覆盖，默认写到项目下的 screenshots/
+const OUT_DIR = process.env.SHOT_DIR ?? path.join(process.cwd(), 'screenshots');
+fs.mkdirSync(OUT_DIR, { recursive: true });
 const port = 9226;
 
 async function testAllViews(width, height) {
@@ -66,13 +71,13 @@ async function testAllViews(width, height) {
       });
       await new Promise((r) => setTimeout(r, waitMs));
       const shot = await send('Page.captureScreenshot', { format: 'png' });
-      fs.writeFileSync(`C:/Users/Administrator/.gemini/antigravity/brain/fae149e2-b550-4e8f-b4c3-39f124675ee9/${filename}`, Buffer.from(shot.data, 'base64'));
+      fs.writeFileSync(path.join(OUT_DIR, filename), Buffer.from(shot.data, 'base64'));
       console.log('Saved:', filename);
     };
 
     // 1. Lobby
     const lobbyShot = await send('Page.captureScreenshot', { format: 'png' });
-    fs.writeFileSync(`C:/Users/Administrator/.gemini/antigravity/brain/fae149e2-b550-4e8f-b4c3-39f124675ee9/view_lobby_${width}x${height}.png`, Buffer.from(lobbyShot.data, 'base64'));
+    fs.writeFileSync(path.join(OUT_DIR, `view_lobby_${width}x${height}.png`), Buffer.from(lobbyShot.data, 'base64'));
 
     // 2. Welfare
     await clickAndShot('.top-feature-pill--welfare', `view_tasks_${width}x${height}.png`);

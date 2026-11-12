@@ -1,7 +1,12 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 
-const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+const chromePath =
+  process.env.CHROME_PATH ?? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+// 截图输出目录可用 SHOT_DIR 覆盖，默认写到项目下的 screenshots/
+const OUT_DIR = process.env.SHOT_DIR ?? path.join(process.cwd(), 'screenshots');
+fs.mkdirSync(OUT_DIR, { recursive: true });
 const port = 9225;
 
 async function inspectResolution(width, height, label) {
@@ -115,7 +120,7 @@ async function inspectResolution(width, height, label) {
 
     const shotRes = await send('Page.captureScreenshot', { format: 'png' });
     const buffer = Buffer.from(shotRes.data, 'base64');
-    const outPath = `C:/Users/Administrator/.gemini/antigravity/brain/fae149e2-b550-4e8f-b4c3-39f124675ee9/inspect_${label}.png`;
+    const outPath = path.join(OUT_DIR, `inspect_${label}.png`);
     fs.writeFileSync(outPath, buffer);
     console.log('Saved screenshot:', outPath);
 

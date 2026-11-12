@@ -69,8 +69,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE_PATH}${path}`, { ...init, headers });
   const text = await res.text();
-  const body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  let body: Record<string, unknown> = {};
+  if (text) {
+    try {
+      body = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      body = {};
+    }
+  }
   if (!res.ok) {
+    // 令牌过期或失效时立刻清掉，避免每次启动都拿废 token 请求一遍
+    if (res.status === 401) setToken(null);
     throw new Error(typeof body.error === 'string' ? body.error : `请求失败 (${res.status})`);
   }
   return body as T;
@@ -121,16 +130,17 @@ export const api = {
     token: string,
     input: { title: string; content: string; kind: Announcement['kind'] },
   ) =>
-    request<{ announcement: Announcement }>(`/api/admin/announcements?token=${encodeURIComponent(token)}`, {
+    request<{ announcement: Announcement }>('/api/admin/announcements', {
       method: 'POST',
+      headers: { authorization: `Bearer ${token}` },
       body: JSON.stringify(input),
     }),
 
   adminDeleteAnnouncement: (token: string, id: string) =>
-    request<{ ok: boolean }>(
-      `/api/admin/announcements/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`,
-      { method: 'DELETE' },
-    ),
+    request<{ ok: boolean }>(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${token}` },
+    }),
 
   rooms: (gameId: string) =>
     request<{

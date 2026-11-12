@@ -108,7 +108,8 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 200);
+    // 倒计时以秒为单位，1s 刷新足够
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 

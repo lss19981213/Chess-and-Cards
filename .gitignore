@@ -17,16 +17,19 @@ Thumbs.db
 .cache/
 .turbo/
 tmp/
+scratch/
 generated-images/
+
+# 构建/打包产物，不进版本库
+deploy.tar.gz
+deploy.tar
+
+# 结算 outbox（运行时数据）
+.outbox/
+services/room-server/.outbox/
 
 # GM 工具的本地凭证，绝不入库
 tools/.gm-config.json
 tools/.deploy-profile.json
-deploy.tar.gz
 
-deploy.tar.gz
-deploy.tar
-/*.png
-/*.jpg
 .playwright-cli/
-/*.yaml

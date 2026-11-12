@@ -265,6 +265,7 @@ export class GomokuPlugin extends BaseGamePlugin {
   /** VCF（连续冲四必杀搜索） */
   private searchVCF(cells: number[], side: number, depth: number): { x: number; y: number } | null {
     if (depth <= 0) return null;
+    if (this.timeUp()) return null;
     const opp = side === BLACK ? WHITE : BLACK;
     const candidates = this.getCandidateMoves(cells, side, 10);
 
@@ -302,6 +303,13 @@ export class GomokuPlugin extends BaseGamePlugin {
   }
 
   /** Minimax + Alpha-Beta 剪枝 */
+  /** 搜索时间预算：超时立刻返回当前估值，绝不长时间占住事件循环 */
+  private searchDeadline = 0;
+
+  private timeUp(): boolean {
+    return Date.now() > this.searchDeadline;
+  }
+
   private alphaBeta(
     cells: number[],
     depth: number,
@@ -312,6 +320,8 @@ export class GomokuPlugin extends BaseGamePlugin {
     aiSide: number,
   ): number {
     if (depth <= 0) return this.evaluateBoard(cells, aiSide);
+    // 同步递归会阻塞整个 ws 进程，必须设硬上限
+    if (this.timeUp()) return this.evaluateBoard(cells, aiSide);
 
     const nextSide = turnSide === BLACK ? WHITE : BLACK;
     const moves = this.getCandidateMoves(cells, turnSide, depth >= 3 ? 8 : 6);
@@ -353,6 +363,8 @@ export class GomokuPlugin extends BaseGamePlugin {
   }
 
   private pickMove(side: number, difficulty: BotDifficulty): { x: number; y: number } | null {
+    // 单步思考上限：中低难度 250ms，高难度 400ms（含 VCF）
+    this.searchDeadline = Date.now() + (difficulty === 'high' ? 400 : 250);
     const center = Math.floor(SIZE / 2);
     if (this.state.moveCount === 0 && this.state.cells[center * SIZE + center] === 0) {
       return { x: center, y: center };

@@ -39,13 +39,25 @@ interface Session {
 }
 
 const releaseBets = createReleaseClient(config);
+const settlementReporter = createSettlementReporter(config);
 const manager = new RoomManager(
   config,
-  createSettlementReporter(config),
+  (settlement) => settlementReporter.report(settlement),
   createWalletClient(config),
   releaseBets,
 );
 registerBuiltinGames(manager);
+
+// 启动时把上一次进程遗留的未投递结算补投出去
+void settlementReporter.flush().catch((error: unknown) => {
+  log.error('启动补投结算失败', { error: (error as Error).message });
+});
+
+// 定期重投 outbox：网络恢复后不必等下一次重启就能把积压结算送出去
+const outboxRetryTicker = setInterval(() => {
+  void settlementReporter.flush();
+}, 60_000);
+outboxRetryTicker.unref?.();
 
 // 房间服务重启意味着上一进程的所有房间状态都已作废，未结算的下注本金不可能再等来结算。
 // 大厅可能稍后才就绪，做有限次重试。
@@ -71,15 +83,39 @@ function sendError(ws: WebSocket, code: string, message: string): void {
   send(ws, ServerMsg.Error, { code, message });
 }
 
-function cors(res: import('node:http').ServerResponse): void {
-  res.setHeader('access-control-allow-origin', '*');
+function cors(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): void {
+  const origin = req.headers.origin;
+  // 默认只回显同源请求，避免任意站点跨域读取房间/游戏列表
+  const allowed = config.corsOrigin
+    ? config.corsOrigin
+    : origin && originHostMatches(origin, req.headers.host)
+      ? origin
+      : '';
+  if (allowed) res.setHeader('access-control-allow-origin', allowed);
+  res.setHeader('vary', 'origin');
   res.setHeader('access-control-allow-headers', 'content-type,authorization');
   res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS');
 }
 
+function originHostMatches(origin: string, host?: string): boolean {
+  if (!host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
+/** 浏览器握手必须同源或在白名单内；无 Origin 的客户端（GM 工具/测试脚本）放行 */
+function isOriginAllowed(origin: string | undefined, host: string | undefined): boolean {
+  if (!origin) return true;
+  if (config.allowedOrigins.length > 0) return config.allowedOrigins.includes(origin);
+  return originHostMatches(origin, host);
+}
+
 const httpServer = createServer((req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-  cors(res);
+  cors(req, res);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204).end();
@@ -109,7 +145,20 @@ const httpServer = createServer((req, res) => {
   res.end(JSON.stringify({ error: 'not found' }));
 });
 
-const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+const wss = new WebSocketServer({
+  server: httpServer,
+  path: '/ws',
+  // 默认 100MB 的单帧上限足以被一条超大 JSON 打满内存
+  maxPayload: 64 * 1024,
+  verifyClient: (info, done) => {
+    if (isOriginAllowed(info.origin, info.req.headers.host)) {
+      done(true);
+      return;
+    }
+    log.warn('拒绝跨站 WebSocket 连接', { origin: info.origin });
+    done(false, 403, 'origin not allowed');
+  },
+});
 
 wss.on('connection', (ws) => {
   (ws as AliveSocket).__alive = true;
@@ -145,7 +194,7 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     if (session.authTimer) clearTimeout(session.authTimer);
     if (session.roomId && session.playerId) {
-      manager.get(session.roomId)?.detach(session.playerId);
+      manager.get(session.roomId)?.detach(session.playerId, ws);
     }
   });
 
@@ -197,7 +246,12 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       if (session.roomId) throw new AppError(ErrorCode.AlreadyInRoom, '你已在房间中');
       const gameId = asString(payload.gameId, 'gameId');
       const mode = typeof payload.mode === 'string' ? payload.mode : 'casual';
-      const maxPlayers = typeof payload.maxPlayers === 'number' ? payload.maxPlayers : 2;
+      const rawMax = payload.maxPlayers;
+      // 非法数值（NaN / 负数 / 超大）会造出永远无法加入的房间
+      const maxPlayers =
+        typeof rawMax === 'number' && Number.isInteger(rawMax) && rawMax >= 2 && rawMax <= 16
+          ? rawMax
+          : 2;
       const roomId = typeof payload.roomId === 'string' ? payload.roomId : undefined;
       const create = payload.create === true;
       const player = { playerId: session.playerId, nickname: session.nickname ?? '玩家' };
@@ -331,8 +385,8 @@ const heartbeat = setInterval(() => {
 }, HEARTBEAT_MS);
 heartbeat.unref?.();
 
-httpServer.listen(config.port, () => {
-  log.info('WebSocket 服务已启动', { port: config.port, rooms: manager.list().length });
+httpServer.listen(config.port, config.host, () => {
+  log.info('WebSocket 服务已启动', { host: config.host, port: config.port, rooms: manager.list().length });
   log.info('游戏注册完成', { games: manager.listGames().map((g) => g.gameId) });
 });
 
@@ -340,10 +394,15 @@ function shutdown(): void {
   log.warn('服务正在关闭');
   clearInterval(heartbeat);
   clearInterval(botTicker);
+  clearInterval(outboxRetryTicker);
   manager.shutdown();
   wss.close();
-  httpServer.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 3000).unref();
+  // 退出前尽量把 outbox 里的结算投递出去；失败也没关系，文件会留到下次启动补投
+  const flush = settlementReporter.flush().catch(() => undefined);
+  Promise.race([flush, new Promise((resolve) => setTimeout(resolve, 5000))]).then(() => {
+    httpServer.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 2000).unref();
+  });
 }
 
 process.on('SIGINT', shutdown);

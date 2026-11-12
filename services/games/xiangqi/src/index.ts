@@ -645,7 +645,6 @@ function chooseXiangqiBotMove(state: State, color: Color, difficulty: BotDifficu
 }
 
 export class XiangqiPlugin extends BaseGamePlugin {
-  override readonly apiVersion = 1;
 
   override readonly meta: GameMeta = {
     gameId: 'xiangqi',

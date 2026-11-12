@@ -10,16 +10,23 @@ import { RulesModal } from './RulesModal';
 import { SettleBubble, type ResultRow } from './SettleBubble';
 import { WinCelebration } from './WinCelebration';
 import { DealerTipWidget } from './DealerTipWidget';
-import { Baccarat } from '../games/Baccarat';
-import { Blackjack } from '../games/Blackjack';
-import { BoardGame } from '../games/BoardGame';
-import { CardTable } from '../games/CardTable';
-import { Dice } from '../games/Dice';
-import { Gomoku } from '../games/Gomoku';
-import { Niuniu } from '../games/Niuniu';
-import { ShowdownTable } from '../games/ShowdownTable';
-import { Texas } from '../games/Texas';
-import { Tuizhuanzi } from '../games/Tuizhuanzi';
+import { lazy, Suspense } from 'react';
+
+// 各玩法界面按需加载：首屏只解析大厅，进房后再拉对应模块
+const Baccarat = lazy(() => import('../games/Baccarat').then((m) => ({ default: m.Baccarat })));
+const Blackjack = lazy(() => import('../games/Blackjack').then((m) => ({ default: m.Blackjack })));
+const BoardGame = lazy(() => import('../games/BoardGame').then((m) => ({ default: m.BoardGame })));
+const CardTable = lazy(() => import('../games/CardTable').then((m) => ({ default: m.CardTable })));
+const Dice = lazy(() => import('../games/Dice').then((m) => ({ default: m.Dice })));
+const Gomoku = lazy(() => import('../games/Gomoku').then((m) => ({ default: m.Gomoku })));
+const Niuniu = lazy(() => import('../games/Niuniu').then((m) => ({ default: m.Niuniu })));
+const ShowdownTable = lazy(() =>
+  import('../games/ShowdownTable').then((m) => ({ default: m.ShowdownTable })),
+);
+const Texas = lazy(() => import('../games/Texas').then((m) => ({ default: m.Texas })));
+const Tuizhuanzi = lazy(() =>
+  import('../games/Tuizhuanzi').then((m) => ({ default: m.Tuizhuanzi })),
+);
 
 interface Props {
   room: RoomView;
@@ -418,7 +425,15 @@ export function Room({
           </aside>
 
           {/* 渲染游戏牌桌 */}
-          {renderGame()}
+          <Suspense
+            fallback={
+              <div className="room-view__loading" style={{ padding: 24, opacity: 0.6 }}>
+                正在载入牌桌…
+              </div>
+            }
+          >
+            {renderGame()}
+          </Suspense>
 
           {/* 等待开局专属悬浮就绪控制台（沉浸式牌桌中心，彻底取代旧侧栏） */}
           {room.status === 'waiting' && !isPersistentGame && (

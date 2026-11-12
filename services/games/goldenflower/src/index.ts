@@ -71,7 +71,6 @@ function rankHand(cards: Card[]): { category: number; label: string; high: numbe
 }
 
 export class GoldenFlowerPlugin extends BaseGamePlugin {
-  override readonly apiVersion = 1;
 
   override readonly meta: GameMeta = {
     gameId: 'goldenflower',

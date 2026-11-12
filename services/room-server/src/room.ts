@@ -236,7 +236,9 @@ export class GameRoom {
     if (this.closed) return;
     this.round += 1;
     this.seq += 1;
-    this.seed = `${this.id}-${this.round}`;
+    // 种子必须不可预测：房间号与局数客户端都可见，用它们派生种子等于公开整副牌。
+    // 种子只留在服务端，用于可复现回放，不随快照下发。
+    this.seed = randomBytes(16).toString('hex');
     this.status = 'playing';
     this.settledThisRound = false;
     this.dirty = true;
@@ -448,13 +450,14 @@ export class GameRoom {
   }
 
   /** 按机器人难度调用本地博弈算法，返回是否成功提交 */
-  actAsBot(playerId: string): boolean {
+  async actAsBot(playerId: string): Promise<boolean> {
     if (!this.isBot(playerId)) return false;
     try {
       const difficulty = this.botDifficultyOf(playerId);
       const intent = this.plugin.botIntent?.(this.ctx, playerId, difficulty) ?? null;
       if (!intent) return false;
-      this.handleIntent(playerId, intent.cmd, intent.payload);
+      // 必须 await：handleIntent 内部会 await 扣款，未捕获的 rejection 会直接打死进程
+      await this.handleIntent(playerId, intent.cmd, intent.payload);
       return true;
     } catch (error) {
       console.warn(`[room ${this.id}] 机器人行动失败`, (error as Error).message);
@@ -476,10 +479,14 @@ export class GameRoom {
     this.ctx.sendTo(playerId, ServerMsg.RoomView, { room: this.view() });
   }
 
-  /** 连接断开：等待宽限期后真正移除 */
-  detach(playerId: string): void {
+  /**
+   * 连接断开。带上 socket 做身份校验：同账号双端登录时，
+   * 旧页面关闭不能把新连接置空，否则新端会在宽限期后被踢出。
+   */
+  detach(playerId: string, socket?: WebSocket | null): void {
     const seat = this.seats.get(playerId);
     if (!seat) return;
+    if (socket && seat.socket !== socket) return;
     seat.socket = null;
     if (seat.graceTimer) clearTimeout(seat.graceTimer);
     seat.graceTimer = setTimeout(() => this.removePlayer(playerId), this.deps.config.disconnectGraceMs);
@@ -536,17 +543,10 @@ export class GameRoom {
     }
   }
 
-  /** 客户端主动离开 */
+  /** 客户端主动离开。对局中退出视为认输，由 removeSeat 统一通知插件 */
   leave(playerId: string): void {
-    const inGame = this.status === 'playing';
-    if (inGame) {
-      // 对局中直接退出视为认输，交由插件决定结算
-      this.plugin.onPlayerLeave(this.ctx, playerId);
-      this.removeSeat(playerId);
-      this.checkEnoughPlayers();
-    } else {
-      this.removeSeat(playerId);
-    }
+    this.removeSeat(playerId);
+    this.checkEnoughPlayers();
     this.broadcastView();
     this.dirty = true;
   }
@@ -693,8 +693,12 @@ export class GameRoom {
       return;
     }
     if (this.status === 'playing' && this.seats.size < this.plugin.meta.minPlayers) {
-      // 人数不足，中止本局（不计输赢）
+      // 人数不足，中止本局：已扣的下注本金必须退回，否则会永久冻结在账本里
+      void this.deps.releaseBets(this.id).catch((error: unknown) => {
+        roomLog.error('中止本局退款失败', { roomId: this.id, error: (error as Error).message });
+      });
       this.status = 'waiting';
+      this.settledThisRound = false;
       for (const seat of this.seats.values()) seat.ready = false;
       this.broadcastView();
     }
@@ -714,8 +718,17 @@ export class GameRoom {
     const seat = this.seats.get(playerId);
     if (!seat) return;
     if (seat.graceTimer) clearTimeout(seat.graceTimer);
+    // 只有对局中离场才交给插件判定（认输/弃牌）；等待区离开不应触发结算。
+    // 必须在删座位之前通知：插件需要看到「仍在座」的离场者才能正确判负，
+    // 否则 ctx.players 里已经没有这个人，会出现「赢家加钱、输家不扣钱」。
+    if (this.status === 'playing') {
+      try {
+        this.plugin.onPlayerLeave(this.ctx, playerId);
+      } catch (error) {
+        console.error(`[room ${this.id}] onPlayerLeave 异常`, error);
+      }
+    }
     this.seats.delete(playerId);
-    this.plugin.onPlayerLeave(this.ctx, playerId);
 
     if (this.hostId === playerId) {
       const next = [...this.seats.values()].sort((a, b) => a.seat - b.seat)[0];

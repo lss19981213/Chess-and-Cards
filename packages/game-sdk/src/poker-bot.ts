@@ -190,7 +190,8 @@ export function decidePokerBotAction(input: PokerBotInput): PokerBotDecision {
     const huEq = preflopTexasScore(holeCards);
     equity = Math.pow(huEq, Math.sqrt(oppCount));
   } else {
-    const simCount = difficulty === 'high' ? 220 : 80;
+    // 蒙特卡洛在 ws 主线程同步执行，保持毫秒级；220 次已足够稳定
+    const simCount = difficulty === 'high' ? 120 : 60;
     equity = estimatePokerEquity(mode, holeCards, communityCards, knownDeadCards, oppCount, simCount);
   }
 

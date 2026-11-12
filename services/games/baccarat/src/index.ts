@@ -1,6 +1,14 @@
 import type { GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
-import { BaseGamePlugin, TicketBook, createCardDeck, shuffleWithSeed, type Card } from '@cc/game-sdk';
+import {
+  BET_LIMITS,
+  BaseGamePlugin,
+  TicketBook,
+  assertBetAmount,
+  createCardDeck,
+  shuffleWithSeed,
+  type Card,
+} from '@cc/game-sdk';
 
 /**
  * 百家乐（平台庄家版）
@@ -13,9 +21,7 @@ const BET_MS = 30_000;
 const REVEAL_MS = 5_000;
 const IDLE_MS = 3_000;
 
-const MIN_BET = 10;
-const MAX_BET = 2000;
-const MAX_TOTAL = 6000;
+const { minBet: MIN_BET, maxBet: MAX_BET, maxTotal: MAX_TOTAL } = BET_LIMITS;
 const HISTORY_LIMIT = 30;
 const DECK_COUNT = 8;
 
@@ -102,7 +108,6 @@ function emptyState(): State {
 }
 
 export class BaccaratPlugin extends BaseGamePlugin {
-  override readonly apiVersion = 1;
   override readonly commands = ['bet', 'clear'] as const;
 
   override readonly meta: GameMeta = {
@@ -252,9 +257,7 @@ export class BaccaratPlugin extends BaseGamePlugin {
     const area = String(intent.payload?.area ?? '') as Area;
     if (!['player', 'banker', 'tie'].includes(area)) throw new Error('只能押闲、庄或和');
 
-    const amount = Number(intent.payload?.amount);
-    if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
-    if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
+    const amount = assertBetAmount(intent.payload?.amount);
 
     const before = this.state.bets.get(playerId) ?? { player: 0, banker: 0, tie: 0 };
     if (before.player + before.banker + before.tie + amount > MAX_TOTAL) {
@@ -262,7 +265,15 @@ export class BaccaratPlugin extends BaseGamePlugin {
     }
 
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
+    const roundBefore = this.state.roundNo;
     const ref = isBot ? '' : await ctx.charge(playerId, amount);
+
+    // 扣款是异步的，期间可能已经封盘甚至开下一局。迟到的注必须退回，
+    // 否则本金会落进新一轮而不参与本轮结算。
+    if (this.state.roundNo !== roundBefore || this.state.phase !== 'bet') {
+      if (ref) await ctx.refund(playerId, ref);
+      throw new Error('本局已封盘，请等待下一局');
+    }
 
     const current = this.state.bets.get(playerId) ?? { player: 0, banker: 0, tie: 0 };
     if (current.player + current.banker + current.tie + amount > MAX_TOTAL) {

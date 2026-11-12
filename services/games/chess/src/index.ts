@@ -590,7 +590,6 @@ function chooseChessBotMove(state: State, color: Color, difficulty: BotDifficult
 }
 
 export class ChessPlugin extends BaseGamePlugin {
-  override readonly apiVersion = 1;
 
   override readonly meta: GameMeta = {
     gameId: 'chess',

@@ -13,12 +13,37 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# 载入部署变量（含可选的 NGINX_TARGET_CONF）
-set -a
-. ./.env
-set +a
+# .env 收紧权限，避免同机其他用户读取
+chmod 600 .env 2>/dev/null || true
+
+# 逐行解析部署变量（含可选的 NGINX_TARGET_CONF）。
+# 不能用 `. ./.env`：那会把配置当 shell 执行，一个反引号就能执行任意命令。
+while IFS= read -r line || [ -n "$line" ]; do
+  line="${line%$'\r'}"
+  case "$line" in
+    ''|\#*) continue ;;
+  esac
+  key="${line%%=*}"
+  value="${line#*=}"
+  key="$(printf '%s' "$key" | tr -d '[:space:]')"
+  case "$key" in
+    ''|*[!A-Za-z0-9_]*) continue ;;
+  esac
+  export "$key=$value"
+done < .env
 
 TARGET="${NGINX_TARGET_CONF:-}"
+
+# 生产环境必须配好密钥，否则服务会拒绝启动，提前给出明确提示
+if [ "${NODE_ENV:-}" = "production" ]; then
+  for key in JWT_SECRET INTERNAL_KEY ADMIN_TOKEN; do
+    val="${!key:-}"
+    if [ "${#val}" -lt 32 ]; then
+      echo "$key 未配置或不足 32 位（生成方式：openssl rand -hex 32）" >&2
+      exit 1
+    fi
+  done
+fi
 
 # tar 覆盖式解压只会新增/覆盖，不会删除仓库里已移除的旧文件。
 # 残留的 .ts/.tsx 会被 tsc 编译到，导致 "property does not exist" 之类的构建失败。
@@ -59,6 +84,19 @@ sudo cp infra/cc-room.service /etc/systemd/system/cc-room.service
 sudo systemctl daemon-reload
 sudo systemctl enable cc-api cc-room >/dev/null 2>&1 || true
 sudo systemctl restart cc-api cc-room
+
+echo "==> 健康检查"
+sleep 2
+if ! curl -fsS --max-time 5 "http://127.0.0.1:${PORT:-8080}/health" >/dev/null 2>&1; then
+  echo "cc-api 健康检查失败，最近日志：" >&2
+  sudo journalctl -u cc-api -n 40 --no-pager >&2 || true
+  exit 1
+fi
+if ! curl -fsS --max-time 5 "http://127.0.0.1:${ROOM_PORT:-9000}/health" >/dev/null 2>&1; then
+  echo "cc-room 健康检查失败，最近日志：" >&2
+  sudo journalctl -u cc-room -n 40 --no-pager >&2 || true
+  exit 1
+fi
 
 echo "==> 配置 nginx 片段"
 sudo mkdir -p /etc/nginx/snippets

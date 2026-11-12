@@ -1,13 +1,19 @@
 import type { GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
-import { BaseGamePlugin, TicketBook, createCardDeck, shuffleWithSeed, type Card } from '@cc/game-sdk';
+import {
+  BET_LIMITS,
+  BaseGamePlugin,
+  TicketBook,
+  assertBetAmount,
+  createCardDeck,
+  shuffleWithSeed,
+  type Card,
+} from '@cc/game-sdk';
 
 const BET_MS = 30_000;
 const REVEAL_MS = 5_000;
 const IDLE_MS = 3_000;
-const MIN_BET = 10;
-const MAX_BET = 2000;
-const MAX_TOTAL = 6000;
+const { minBet: MIN_BET, maxBet: MAX_BET, maxTotal: MAX_TOTAL } = BET_LIMITS;
 const HISTORY_LIMIT = 30;
 
 /** 下注区：无牛、牛1~牛9、牛牛 */
@@ -103,7 +109,6 @@ function areaOf(niu: number): Area {
 }
 
 export class NiuniuPlugin extends BaseGamePlugin {
-  override readonly apiVersion = 1;
 
   override readonly meta: GameMeta = {
     gameId: 'niuniu',
@@ -169,9 +174,7 @@ export class NiuniuPlugin extends BaseGamePlugin {
     const area = String(intent.payload?.area ?? '') as Area;
     if (!AREAS.includes(area)) throw new Error('无效的下注区域');
 
-    const amount = Number(intent.payload?.amount);
-    if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
-    if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
+    const amount = assertBetAmount(intent.payload?.amount);
 
     const before = this.state.bets.get(playerId) ?? {};
     let total = 0;
@@ -179,7 +182,14 @@ export class NiuniuPlugin extends BaseGamePlugin {
     if (total + amount > MAX_TOTAL) throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
 
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
+    const roundBefore = this.state.roundNo;
     const ref = isBot ? '' : await ctx.charge(playerId, amount);
+
+    // 扣款是异步的，期间可能已经封盘甚至开下一局，迟到的注必须退回
+    if (this.state.roundNo !== roundBefore || this.state.phase !== 'bet') {
+      if (ref) await ctx.refund(playerId, ref);
+      throw new Error('本局已封盘，请等待下一局');
+    }
 
     const current = this.state.bets.get(playerId) ?? {};
     let currentTotal = 0;

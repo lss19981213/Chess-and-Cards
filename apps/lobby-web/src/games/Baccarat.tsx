@@ -88,7 +88,8 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 200);
+    // 倒计时以秒为单位，1s 刷新足够；200ms 会让整张牌桌每秒重建 5 次
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 

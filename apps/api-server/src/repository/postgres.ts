@@ -82,15 +82,34 @@ export class PostgresRepository implements Repository {
       let released = 0;
       for (const row of groups.rows) {
         const amount = -Number(row.staked);
-        const updated = await client.query<{ balance: string }>(
-          'update wallets set balance = balance + $2, version = version + 1 where user_id = $1 returning balance',
-          [row.user_id, amount],
+        const ledgerId = `${row.hold_id}:return`;
+
+        // 先锁钱包行，再复核是否已释放/已结算，最后才加钱。
+        // 不能像旧实现那样「先加钱再插入账本」：并发或重试时插入被唯一键吞掉，
+        // 钱却已经加过，会重复退款。
+        const walletRes = await client.query<{ balance: string }>(
+          'select balance from wallets where user_id = $1 for update',
+          [row.user_id],
+        );
+        if (walletRes.rowCount === 0) continue;
+        const done = await client.query(
+          `select 1 from ledger
+            where user_id = $1
+              and biz_type in ('game_bet_return', 'game_bet_release')
+              and biz_id = $2`,
+          [row.user_id, ledgerId],
+        );
+        if (done.rowCount && done.rowCount > 0) continue;
+
+        const balance = Number(walletRes.rows[0]?.balance ?? 0) + amount;
+        await client.query(
+          'update wallets set balance = $2, version = version + 1 where user_id = $1',
+          [row.user_id, balance],
         );
         await client.query(
           `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
-           values ($1, 'coin', $2, $3, 'game_bet_release', $4)
-           on conflict (biz_type, biz_id, user_id) do nothing`,
-          [row.user_id, amount, Number(updated.rows[0]?.balance ?? 0), `${row.hold_id}:return`],
+           values ($1, 'coin', $2, $3, 'game_bet_release', $4)`,
+          [row.user_id, amount, balance, ledgerId],
         );
         released += amount;
       }
@@ -179,6 +198,20 @@ export class PostgresRepository implements Repository {
         if (origin.rowCount === 0) throw new Error('原下注凭证不存在');
         // 以实际扣款额为准，不信任调用方传来的金额
         amount = -Number(origin.rows[0]?.delta ?? 0);
+
+        // 该注单若已随房间销毁被批量释放（game_bet_release）或已结算退还
+        // （game_bet_return），这里不能再退一次，否则一份本金退两次。
+        const holdId = `${input.bizId.split(':').slice(0, -1).join(':')}:return`;
+        const settledOrReleased = await client.query(
+          `select 1 from ledger
+            where user_id = $1
+              and biz_type in ('game_bet_return', 'game_bet_release')
+              and biz_id = $2`,
+          [input.userId, holdId],
+        );
+        if (settledOrReleased.rowCount && settledOrReleased.rowCount > 0) {
+          throw new Error('该注单已结算或已释放，不能重复退款');
+        }
       }
 
       const bizType = input.action === 'debit' ? 'game_bet' : 'game_bet_refund';
@@ -255,25 +288,35 @@ export class PostgresRepository implements Repository {
         const staked = Number(stakedRes.rows[0]?.staked ?? 0);
         const credit = entry.delta - staked;
 
-        const updated = await client.query<{ balance: string }>(
-          `update wallets
-              set balance = greatest(balance + $2, 0), version = version + 1
-            where user_id = $1
-              and not exists (
-                select 1 from ledger
-                 where biz_type = 'game_settle' and biz_id = $3 and user_id = $1
-              )
-          returning balance`,
-          [entry.playerId, credit, settlement.settlementId],
+        // 锁钱包行后复核是否已结算，再按「实际能扣到的金额」入账。
+        // 旧实现用 greatest(balance+x, 0) 静默截断，账本里记的 delta 与
+        // balance_after 会对不上，事后无法对账。
+        const walletRes = await client.query<{ balance: string }>(
+          'select balance from wallets where user_id = $1 for update',
+          [entry.playerId],
         );
-        if (updated.rowCount === 0) continue;
-        const balanceAfter = Number(updated.rows[0]?.balance ?? 0);
+        if (walletRes.rowCount === 0) continue;
+        const balanceBefore = Number(walletRes.rows[0]?.balance ?? 0);
+
+        const settled = await client.query(
+          `select 1 from ledger
+            where biz_type = 'game_settle' and biz_id = $1 and user_id = $2`,
+          [settlement.settlementId, entry.playerId],
+        );
+        if (settled.rowCount && settled.rowCount > 0) continue;
+
+        // 余额不允许为负：扣款最多扣到 0，账本记录实际发生的变动
+        const appliedDelta = Math.max(credit, -balanceBefore);
+        const balanceAfter = balanceBefore + appliedDelta;
 
         await client.query(
+          'update wallets set balance = $2, version = version + 1 where user_id = $1',
+          [entry.playerId, balanceAfter],
+        );
+        await client.query(
           `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
-           values ($1, $2, $3, $4, 'game_settle', $5)
-           on conflict (biz_type, biz_id, user_id) do nothing`,
-          [entry.playerId, entry.currency, entry.delta, balanceAfter, settlement.settlementId],
+           values ($1, $2, $3, $4, 'game_settle', $5)`,
+          [entry.playerId, entry.currency, appliedDelta, balanceAfter, settlement.settlementId],
         );
         if (staked < 0) {
           await client.query(
@@ -366,8 +409,9 @@ export class PostgresRepository implements Repository {
       await client.query('BEGIN');
       const updated = await client.query<{ balance: string }>(
         `update wallets
-            set balance = greatest(balance + $2, 0), version = version + 1
+            set balance = balance + $2, version = version + 1
           where user_id = $1
+            and balance + $2 >= 0
             and not exists (
               select 1 from ledger where biz_type = $3 and biz_id = $4 and user_id = $1
             )
@@ -376,12 +420,18 @@ export class PostgresRepository implements Repository {
       );
 
       if (updated.rowCount === 0) {
+        const dup = await client.query(
+          'select 1 from ledger where biz_type = $1 and biz_id = $2 and user_id = $3',
+          [bizType, bizId, userId],
+        );
         const current = await client.query<{ balance: string }>(
           'select balance from wallets where user_id = $1',
           [userId],
         );
         await client.query('COMMIT');
-        return Number(current.rows[0]?.balance ?? 0);
+        // 幂等重复：返回当前余额；否则就是余额不足，不能静默截断成 0
+        if (dup.rowCount && dup.rowCount > 0) return Number(current.rows[0]?.balance ?? 0);
+        throw new InsufficientFundsError();
       }
 
       const balance = Number(updated.rows[0]?.balance ?? 0);
@@ -457,19 +507,31 @@ export class PostgresRepository implements Repository {
   }
 
   async leaderboardRank(userId: string): Promise<number | null> {
-    const res = await this.pool.query<{ rnk: string }>(
-      `select rnk
-         from (
-           select w.user_id,
-                  row_number() over (order by w.balance desc, u.created_at asc) as rnk
-             from wallets w
-             join users u on u.id = w.user_id
-            where w.currency = 'coin'
-         ) t
-        where t.user_id = $1`,
+    // 名次 = 1 + 排在自己前面的人数。比全表窗口排序便宜得多，
+    // 而且 /api/profile 每次都会调用它。
+    const res = await this.pool.query<{ rnk: string | null }>(
+      `with me as (
+         select w.balance, u.created_at
+           from wallets w
+           join users u on u.id = w.user_id
+          where w.user_id = $1 and w.currency = 'coin'
+       )
+       select case
+                when (select count(*) from me) = 0 then null
+                else 1 + (
+                  select count(*)
+                    from wallets w2
+                    join users u2 on u2.id = w2.user_id
+                    cross join me
+                   where w2.currency = 'coin'
+                     and (w2.balance > me.balance
+                          or (w2.balance = me.balance and u2.created_at < me.created_at))
+                )
+              end as rnk`,
       [userId],
     );
-    return res.rows[0] ? Number(res.rows[0].rnk) : null;
+    const value = res.rows[0]?.rnk;
+    return value === null || value === undefined ? null : Number(value);
   }
 
   async settleDailyLeaderboard(dayKey: string): Promise<number> {
@@ -478,7 +540,8 @@ export class PostgresRepository implements Repository {
     for (const [index, row] of rows.entries()) {
       const reward = rewardForRank(index + 1);
       if (reward <= 0) continue;
-      const balance = await this.credit(row.userId, reward, 'leaderboard_daily', `${dayKey}:${index + 1}`);
+      // 幂等键必须含 userId：只带名次的话，重跑时会把奖励发给「新的第 1 名」
+      const balance = await this.credit(row.userId, reward, 'leaderboard_daily', `${dayKey}:${row.userId}`);
       await this.pool.query(
         `insert into leaderboard_daily_snapshots (period_key, user_id, nickname, rank, balance, reward)
          values ($1, $2, $3, $4, $5, $6)
@@ -622,7 +685,15 @@ export class PostgresRepository implements Repository {
     if (patch.nickname !== undefined) {
       const nickname = patch.nickname.trim();
       if (nickname.length < 2 || nickname.length > 16) throw new Error('昵称需 2-16 个字符');
-      await this.pool.query('update users set nickname = $2 where id = $1', [userId, nickname]);
+      try {
+        await this.pool.query('update users set nickname = $2 where id = $1', [userId, nickname]);
+      } catch (error) {
+        // 唯一索引兜底；老库没有索引时下面的显式查询也能拦住重名
+        if ((error as { code?: string }).code === '23505') {
+          throw new Error('该昵称已被其他玩家使用');
+        }
+        throw error;
+      }
     }
 
     if (patch.bio !== undefined || patch.avatar !== undefined) {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ClientMsg,
+  ErrorCode,
   ServerMsg,
   type BotDifficulty,
   type EmotePayload,
@@ -12,6 +13,7 @@ import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
 import { GameSocket } from './ws';
 import { AuthView } from './components/AuthView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { FriendsView } from './components/FriendsView';
 import { GameRooms } from './components/GameRooms';
 import { LeaderboardView } from './components/LeaderboardView';
@@ -79,6 +81,7 @@ function PortraitPrompt() {
 
 export default function App() {
   const [booting, setBooting] = useState(true);
+  const [bootError, setBootError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [games, setGames] = useState<GameMeta[]>([]);
   const [room, setRoom] = useState<RoomView | null>(null);
@@ -160,14 +163,29 @@ export default function App() {
             console.error('Guest init error:', e);
           }
         }
-      } catch {
-        /* 容错 */
+      } catch (error) {
+        console.error('[boot] 初始化失败', error);
+        setBootError('无法连接服务器，请检查网络后重试');
       } finally {
         setBooting(false);
       }
     };
     void bootstrap();
     return () => socketRef.current?.close();
+  }, []);
+
+  // 键盘可达性：role="button" 的 div 支持 Enter / 空格触发点击
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const target = event.target as HTMLElement | null;
+      if (!target || target.getAttribute('role') !== 'button') return;
+      if (target.tagName === 'BUTTON' || target.tagName === 'A') return;
+      event.preventDefault();
+      target.click();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const connectWs = (token: string): void => {
@@ -200,6 +218,10 @@ export default function App() {
       setRoom(payload.room);
       setView('room');
       setJoinError(null);
+      // 记住当前房间：断线重连后会自动 client:reconnect 回到同一张桌子
+      if (userIdRef.current) {
+        s.setRoomRef({ roomId: payload.room.roomId, playerId: userIdRef.current });
+      }
 
       // 极速开局：若在等待中，自动准备并按所选难度自动加满机器人
       if (payload.room.status === 'waiting' && autoStartRef.current) {
@@ -231,10 +253,11 @@ export default function App() {
       if (!actual) return;
 
       setSettlement(actual);
-      audio.play('win');
       if (userIdRef.current && Array.isArray(actual.entries)) {
         const myEntry = actual.entries.find((e) => e.playerId === userIdRef.current);
         if (myEntry) {
+          // 按净盈亏播放胜负音效，别赢了也放、输了也放
+          audio.play(myEntry.delta >= 0 ? 'win' : 'lose');
           setUser((prev) => (prev ? { ...prev, balance: prev.balance + myEntry.delta } : prev));
         }
       }
@@ -248,20 +271,40 @@ export default function App() {
     s.on(ServerMsg.Emote, (data) => {
       const payload = data as EmotePayload;
       setEmotes((prev) => [...prev.slice(-9), payload]);
+      // 气泡 3.5 秒后自动消失，否则会一直叠在牌桌上
+      window.setTimeout(() => {
+        setEmotes((prev) =>
+          prev.filter((item) => !(item.playerId === payload.playerId && item.at === payload.at)),
+        );
+      }, 3500);
     });
 
     s.on(ServerMsg.Error, (data) => {
       const payload = data as { code: string; message: string };
       setJoinError(payload.message || '操作失败');
       showToast(payload.message || '操作失败');
+      // 重连时房间已解散：清掉恢复引用并退回大厅，避免停在一张冻结的牌桌上
+      if (payload.code === ErrorCode.RoomNotFound) {
+        s.setRoomRef(null);
+        setRoom(null);
+        setSnapshot(null);
+        setSettlement(null);
+        setView('lobby');
+      }
     });
 
     s.connect();
   };
 
+  const toastTimerRef = useRef<number | null>(null);
   const showToast = (message: string): void => {
     setToast(message);
-    window.setTimeout(() => setToast(null), 3000);
+    // 连续提示时先清掉旧定时器，避免旧定时器提前把新提示收掉
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => {
+      toastTimerRef.current = null;
+      setToast(null);
+    }, 3000);
   };
 
   const handleAuthSuccess = (token: string, loggedUser: User): void => {
@@ -291,6 +334,7 @@ export default function App() {
     // 如果之前已有房间状态，先离开旧房间
     if (room) {
       socketRef.current?.send(ClientMsg.LeaveRoom, {});
+      socketRef.current?.setRoomRef(null);
       setRoom(null);
     }
 
@@ -320,6 +364,7 @@ export default function App() {
 
     if (room) {
       socketRef.current?.send(ClientMsg.LeaveRoom, {});
+      socketRef.current?.setRoomRef(null);
       setRoom(null);
     }
 
@@ -361,6 +406,8 @@ export default function App() {
 
   const handleLeaveRoom = (): void => {
     socketRef.current?.send(ClientMsg.LeaveRoom, {});
+    // 主动离开后不再自动回到该房间
+    socketRef.current?.setRoomRef(null);
     setRoom(null);
     setSnapshot(null);
     setSettlement(null);
@@ -394,6 +441,30 @@ export default function App() {
       <div className="boot">
         <div className="boot__spinner" />
         <p>正在连接殿堂级娱乐大厅…</p>
+      </div>
+    );
+  }
+
+  if (bootError && games.length === 0) {
+    return (
+      <div className="boot" role="alert">
+        <p>{bootError}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: 16,
+            padding: '10px 24px',
+            borderRadius: 10,
+            border: '1px solid rgba(240,180,41,0.6)',
+            background: 'rgba(240,180,41,0.14)',
+            color: '#f0b429',
+            fontSize: 15,
+            cursor: 'pointer',
+          }}
+        >
+          重新加载
+        </button>
       </div>
     );
   }
@@ -504,7 +575,7 @@ export default function App() {
       <PortraitPrompt />
       {/* 真正自适应所有横屏移动端视口，100% 弹性充满，绝无黑边与留白 */}
       <div className="landscape-stage-container">
-        {renderCurrentView()}
+        <ErrorBoundary onReset={() => setView('lobby')}>{renderCurrentView()}</ErrorBoundary>
       </div>
       {toast && <div className="toast luxury-toast">{toast}</div>}
     </div>

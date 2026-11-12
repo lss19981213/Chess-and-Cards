@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 const scryptAsync = promisify(scrypt) as (
@@ -38,6 +38,67 @@ const captchaStore = new Map<string, CaptchaEntry>();
 
 const CAPTCHA_COLORS = ['#f0b429', '#7b9dff', '#3ecf8e', '#e57ad1', '#ff9f5c'];
 
+/**
+ * 5×7 点阵字形。验证码以路径绘制而不是 <text>，
+ * 避免答案可以从 SVG 源码里直接读出来。
+ */
+const CAPTCHA_GLYPHS: Record<string, string[]> = {
+  A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
+  C: ['.####', '#....', '#....', '#....', '#....', '#....', '.####'],
+  D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
+  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+  F: ['#####', '#....', '#....', '####.', '#....', '#....', '#....'],
+  G: ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.###.'],
+  H: ['#...#', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+  J: ['..###', '...#.', '...#.', '...#.', '...#.', '#..#.', '.##..'],
+  K: ['#...#', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '#...#'],
+  L: ['#....', '#....', '#....', '#....', '#....', '#....', '#####'],
+  M: ['#...#', '##.##', '#.#.#', '#...#', '#...#', '#...#', '#...#'],
+  N: ['#...#', '##..#', '#.#.#', '#..##', '#...#', '#...#', '#...#'],
+  P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+  Q: ['.###.', '#...#', '#...#', '#...#', '#.#.#', '#..#.', '.##.#'],
+  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
+  S: ['.####', '#....', '#....', '.###.', '....#', '....#', '####.'],
+  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+  U: ['#...#', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  V: ['#...#', '#...#', '#...#', '#...#', '#...#', '.#.#.', '..#..'],
+  W: ['#...#', '#...#', '#...#', '#...#', '#.#.#', '##.##', '#...#'],
+  X: ['#...#', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '#...#'],
+  Y: ['#...#', '#...#', '.#.#.', '..#..', '..#..', '..#..', '..#..'],
+  Z: ['#####', '....#', '...#.', '..#..', '.#...', '#....', '#####'],
+  '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
+  '3': ['#####', '...#.', '..#..', '...#.', '....#', '#...#', '.###.'],
+  '4': ['...#.', '..##.', '.#.#.', '#..#.', '#####', '...#.', '...#.'],
+  '5': ['#####', '#....', '####.', '....#', '....#', '#...#', '.###.'],
+  '6': ['..##.', '.#...', '#....', '####.', '#...#', '#...#', '.###.'],
+  '7': ['#####', '....#', '...#.', '..#..', '.#...', '.#...', '.#...'],
+  '8': ['.###.', '#...#', '#...#', '.###.', '#...#', '#...#', '.###.'],
+  '9': ['.###.', '#...#', '#...#', '.####', '....#', '...#.', '.##..'],
+};
+
+const GLYPH_COLS = 5;
+const GLYPH_ROWS = 7;
+
+/** 把一个字形摊成若干带抖动的方块子路径 */
+function glyphPath(char: string, originX: number, originY: number, cell: number): string {
+  const rows = CAPTCHA_GLYPHS[char];
+  if (!rows) return '';
+  let d = '';
+  for (let r = 0; r < GLYPH_ROWS; r += 1) {
+    const row = rows[r] ?? '';
+    for (let c = 0; c < GLYPH_COLS; c += 1) {
+      if (row[c] !== '#') continue;
+      const jx = (Math.random() - 0.5) * 0.4;
+      const jy = (Math.random() - 0.5) * 0.4;
+      const x = originX + c * cell + jx;
+      const y = originY + r * cell + jy;
+      d += `M${x.toFixed(2)} ${y.toFixed(2)}h${cell}v${cell}h-${cell}z`;
+    }
+  }
+  return d;
+}
+
 function renderCaptchaSvg(answer: string): string {
   const width = 120;
   const height = 40;
@@ -52,14 +113,19 @@ function renderCaptchaSvg(answer: string): string {
     );
   }
 
+  const cell = 3;
+  const charW = GLYPH_COLS * cell;
+  const spacing = Math.min(30, (width - 16 - charW) / Math.max(1, answer.length - 1));
   for (let i = 0; i < answer.length; i += 1) {
-    const x = 18 + i * 26 + (Math.random() * 5 - 2.5);
-    const y = 28 + (Math.random() * 6 - 3);
-    const rotate = (Math.random() * 32 - 16).toFixed(1);
+    const originX = 8 + i * spacing;
+    const originY = 8 + (Math.random() * 5 - 2.5);
+    const rotate = (Math.random() * 24 - 12).toFixed(1);
+    const cx = originX + charW / 2;
+    const cy = originY + (GLYPH_ROWS * cell) / 2;
     parts.push(
-      `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="${CAPTCHA_COLORS[i % CAPTCHA_COLORS.length]}" ` +
-        `font-size="23" font-family="Consolas,monospace" font-weight="700" ` +
-        `transform="rotate(${rotate} ${x.toFixed(1)} ${y.toFixed(1)})">${answer[i]}</text>`,
+      `<path d="${glyphPath(answer[i] ?? '', originX, originY, cell)}" ` +
+        `fill="${CAPTCHA_COLORS[i % CAPTCHA_COLORS.length]}" ` +
+        `transform="rotate(${rotate} ${cx.toFixed(1)} ${cy.toFixed(1)})"/>`,
     );
   }
 
@@ -92,7 +158,7 @@ export function createCaptcha(): CaptchaChallenge {
 
   let answer = '';
   for (let i = 0; i < 4; i += 1) {
-    answer += CAPTCHA_CHARS[Math.floor(Math.random() * CAPTCHA_CHARS.length)];
+    answer += CAPTCHA_CHARS[randomInt(CAPTCHA_CHARS.length)] ?? 'A';
   }
 
   const id = randomUUID();
@@ -154,5 +220,12 @@ export class AttemptLimiter {
 }
 
 export const USERNAME_PATTERN = /^[A-Za-z0-9_]{4,20}$/;
-export const PASSWORD_MIN = 6;
+export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 32;
+
+/** 防止账号枚举：用户不存在时也跑一次同等开销的散列 */
+const DUMMY_HASH = await hashPassword(randomBytes(8).toString('hex'));
+
+export async function burnPasswordCheck(password: string): Promise<void> {
+  await verifyPassword(password, DUMMY_HASH);
+}

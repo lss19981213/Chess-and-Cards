@@ -7,19 +7,23 @@ import react from '@vitejs/plugin-react';
  */
 const BASE = '/lobby/';
 
+// 后端地址可用环境变量覆盖，避免换机器就要改代码
+const API_TARGET = process.env.VITE_API_TARGET ?? 'http://127.0.0.1:8080';
+const WS_TARGET = process.env.VITE_WS_TARGET ?? 'ws://127.0.0.1:9000';
+
 export default defineConfig({
   plugins: [react()],
   base: BASE,
   server: {
-    port: 5173,
+    port: Number(process.env.VITE_PORT ?? 5173),
     proxy: {
       '/lobby/api': {
-        target: 'http://127.0.0.1:8080',
+        target: API_TARGET,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/lobby/, ''),
       },
       '/lobby/ws': {
-        target: 'ws://127.0.0.1:9000',
+        target: WS_TARGET,
         ws: true,
         rewrite: (path) => path.replace(/^\/lobby/, ''),
       },
@@ -31,5 +35,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // 各视图/玩法按需加载，CSS 也按 chunk 拆分
+    cssCodeSplit: true,
   },
 });

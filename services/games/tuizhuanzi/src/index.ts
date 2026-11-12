@@ -1,8 +1,10 @@
 import type { GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import {
+  BET_LIMITS,
   BaseGamePlugin,
   TicketBook,
+  assertBetAmount,
   createCardDeck,
   shuffleWithSeed,
   type Card,
@@ -30,9 +32,7 @@ const BET_MS = 30_000;
 const REVEAL_MS = 5_000;
 const IDLE_MS = 3_000;
 
-const MIN_BET = 10;
-const MAX_BET = 2000;
-const MAX_TOTAL = 6000;
+const { minBet: MIN_BET, maxBet: MAX_BET, maxTotal: MAX_TOTAL } = BET_LIMITS;
 const HISTORY_LIMIT = 30;
 
 type Phase = 'bet' | 'reveal' | 'idle';
@@ -114,7 +114,6 @@ function pointsOf(cards: Card[]): number {
 }
 
 export class TuizhuanziPlugin extends BaseGamePlugin {
-  override readonly apiVersion = 1;
   override readonly commands = ['bet', 'clear'] as const;
 
   override readonly meta: GameMeta = {
@@ -211,9 +210,7 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     const area = String(intent.payload?.area ?? '');
     if (!DOORS.includes(area as DoorKey)) throw new Error('只能押天、地、人三门');
 
-    const amount = Number(intent.payload?.amount);
-    if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
-    if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
+    const amount = assertBetAmount(intent.payload?.amount);
 
     const before = this.state.bets.get(playerId) ?? { heaven: 0, earth: 0, human: 0 };
     if (before.heaven + before.earth + before.human + amount > MAX_TOTAL) {
@@ -221,7 +218,14 @@ export class TuizhuanziPlugin extends BaseGamePlugin {
     }
 
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
+    const roundBefore = this.state.roundNo;
     const ref = isBot ? '' : await ctx.charge(playerId, amount);
+
+    // 扣款是异步的，期间可能已经封盘甚至开下一局，迟到的注必须退回
+    if (this.state.roundNo !== roundBefore || this.state.phase !== 'bet') {
+      if (ref) await ctx.refund(playerId, ref);
+      throw new Error('本局已封盘，请等待下一局');
+    }
 
     const current = this.state.bets.get(playerId) ?? { heaven: 0, earth: 0, human: 0 };
     if (current.heaven + current.earth + current.human + amount > MAX_TOTAL) {

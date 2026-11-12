@@ -124,7 +124,7 @@ $txtDir = New-Input 712 54 300 '/opt/chess-and-cards'
 $grpConn.Controls.Add($txtDir)
 
 $grpConn.Controls.Add((New-Label '站点地址（GM 接口用）' 18 90 200))
-$txtSite = New-Input 18 112 420 'http://82.157.54.179/lobby'
+$txtSite = New-Input 18 112 420 'https://你的域名/lobby'
 $grpConn.Controls.Add($txtSite)
 
 $grpConn.Controls.Add((New-Label '管理口令（ADMIN_TOKEN）' 452 90 220))
@@ -366,14 +366,15 @@ function Invoke-GmApi {
   param([string]$Path, [string]$Method = 'GET', $Body = $null)
   $base = Get-ApiBase
   $token = Get-Token
+  # 口令只走 Authorization 头：放进 query 会写进 nginx access log 和代理历史
   $url = "$base$Path"
-  if ($url.Contains('?')) { $url += "&token=$token" } else { $url += "?token=$token" }
 
   $params = @{
     Uri             = $url
     Method          = $Method
     TimeoutSec      = 20
     UseBasicParsing = $true
+    Headers         = @{ Authorization = "Bearer $token" }
   }
   if ($Body) {
     $params.Body = ($Body | ConvertTo-Json -Compress)
@@ -432,6 +433,8 @@ $btnGrant.add_Click({
       userId = $player.userId
       amount = $amount
       reason = $txtReason.Text
+      # 幂等键：同一次点击重试也不会重复发币
+      idempotencyKey = [guid]::NewGuid().ToString()
     }
     Add-Log "已为 $($res.nickname) 调整 $amount，当前余额 $($res.balance)" 'ok'
     $btnSearch.PerformClick()

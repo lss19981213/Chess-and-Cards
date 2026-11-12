@@ -11,9 +11,22 @@ create table if not exists users (
 alter table users add column if not exists username text;
 alter table users add column if not exists password_hash text;
 
--- 账号体系：用户名唯一（历史游客数据 username 为空，不参与唯一约束）
-create unique index if not exists users_username_uniq on users (username) where username is not null;
+-- 账号体系：用户名大小写不敏感唯一（历史游客数据 username 为空，不参与唯一约束）
+-- 登录按 lower(username) 匹配，索引也必须按 lower 建，否则 Alice 与 alice 可并存。
+create unique index if not exists users_username_lower_uniq
+  on users (lower(username)) where username is not null;
+drop index if exists users_username_uniq;
 alter table users drop constraint if exists users_nickname_key;
+
+-- 昵称大小写不敏感唯一，防止冒名。老库若已有重名，索引创建失败但不阻断启动，
+-- 由应用层查询兜底拒绝新的重名。
+do $$
+begin
+  create unique index if not exists users_nickname_lower_uniq on users (lower(nickname));
+exception when unique_violation then
+  raise notice 'users 表存在重复昵称，跳过唯一索引创建';
+end
+$$;
 
 create table if not exists wallets (
   user_id  text primary key references users(id),
@@ -38,6 +51,10 @@ create table if not exists ledger (
 -- 账本幂等：同一业务单据对同一用户只能入账一次
 create unique index if not exists ledger_idempotent
   on ledger (biz_type, biz_id, user_id);
+
+-- 后台按业务类型回看流水（对账、日榜查询）用
+create index if not exists ledger_biz_created_idx on ledger (biz_type, created_at desc);
+create index if not exists ledger_user_created_idx on ledger (user_id, created_at desc);
 
 create table if not exists game_records (
   settlement_id text primary key,

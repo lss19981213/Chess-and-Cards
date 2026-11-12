@@ -39,7 +39,7 @@ export class MemoryRepository implements Repository {
   private readonly staked = new Map<string, number>();
   private readonly records: GameRecordView[] = [];
   private readonly taskCells = new Map<string, TaskCell>();
-  private readonly daily = new Map<string, { net: number; rounds: number }>();
+  private readonly daily = new Map<string, { dayKey: string; net: number; rounds: number }>();
   private readonly announcements: Announcement[] = [];
   /** 每日排行榜结算快照：dayKey -> 行 */
   private readonly snapshots = new Map<string, LeaderboardSnapshotRow[]>();
@@ -114,18 +114,25 @@ export class MemoryRepository implements Repository {
     if (this.betLedger.has(ledgerKey)) return current;
 
     let amount = input.amount;
+    const parts = input.bizId.split(':');
+    const stakeKey = `${parts.slice(0, 2).join(':')}:${input.userId}`;
     if (input.action === 'refund') {
       const original = this.betLedger.get(`game_bet:${input.bizId}:${input.userId}`);
       if (original === undefined) throw new Error('原下注凭证不存在');
       amount = -original;
+      // 与 Postgres 实现保持一致：已随房间销毁释放或已结算退还的注单不再退第二次
+      if (
+        this.appliedKeys.has(`game_bet_release:${stakeKey}:return:${input.userId}`) ||
+        this.appliedKeys.has(`game_bet_return:${stakeKey}:return:${input.userId}`)
+      ) {
+        throw new Error('该注单已结算或已释放，不能重复退款');
+      }
     }
     const delta = input.action === 'debit' ? -amount : amount;
     if (current + delta < 0) throw new InsufficientFundsError();
     const next = current + delta;
     this.balances.set(input.userId, next);
     this.betLedger.set(ledgerKey, delta);
-    const parts = input.bizId.split(':');
-    const stakeKey = `${parts.slice(0, 2).join(':')}:${input.userId}`;
     this.staked.set(stakeKey, (this.staked.get(stakeKey) ?? 0) + delta);
     return next;
   }
@@ -139,8 +146,13 @@ export class MemoryRepository implements Repository {
       const current = this.balances.get(entry.playerId);
       if (current === undefined) continue;
       // 下注时已扣本金，结算时退回本金再按净盈亏入账
-      const staked = this.staked.get(`${settlement.settlementId}:${entry.playerId}`) ?? 0;
+      const stakeKey = `${settlement.settlementId}:${entry.playerId}`;
+      const staked = this.staked.get(stakeKey) ?? 0;
       this.balances.set(entry.playerId, Math.max(0, current + entry.delta - staked));
+      // 结算后本金已归还，必须清零，否则随后的孤儿注单释放会再退一次
+      this.staked.delete(stakeKey);
+      this.appliedKeys.add(`game_bet_return:${stakeKey}:return:${entry.playerId}`);
+
       this.bumpCell(entry.playerId, 'daily_play', dayKey, 1);
       if (entry.delta > 0) this.bumpCell(entry.playerId, 'daily_win', dayKey, 1);
       // 记录当日玩过的游戏种类（多面手任务）与单局大赢（大杀四方任务）
@@ -150,10 +162,12 @@ export class MemoryRepository implements Repository {
       this.bumpCell(entry.playerId, 'total_play', 'all', 1);
       if (entry.delta > 0) this.bumpCell(entry.playerId, 'total_win', 'all', 1);
 
-      const stat = this.daily.get(entry.playerId) ?? { net: 0, rounds: 0 };
-      stat.net += entry.delta;
-      stat.rounds += 1;
-      this.daily.set(entry.playerId, stat);
+      // 当日净收益按自然日隔离，跨天自动从零开始
+      const stat = this.daily.get(entry.playerId);
+      const todayStat = stat && stat.dayKey === dayKey ? stat : { dayKey, net: 0, rounds: 0 };
+      todayStat.net += entry.delta;
+      todayStat.rounds += 1;
+      this.daily.set(entry.playerId, todayStat);
     }
     for (const key of keys) this.appliedKeys.add(key);
 
@@ -182,8 +196,10 @@ export class MemoryRepository implements Repository {
     const key = `${bizType}:${bizId}:${userId}`;
     const current = this.balances.get(userId) ?? 0;
     if (this.appliedKeys.has(key)) return current;
+    const next = current + amount;
+    // 与 Postgres 一致：余额不足时抛错，不静默截断成 0
+    if (next < 0) throw new InsufficientFundsError();
     this.appliedKeys.add(key);
-    const next = Math.max(0, current + amount);
     this.balances.set(userId, next);
     return next;
   }
@@ -235,7 +251,7 @@ export class MemoryRepository implements Repository {
     for (const [index, row] of rows.entries()) {
       const reward = rewardForRank(index + 1);
       if (reward <= 0) continue;
-      const balance = await this.credit(row.userId, reward, 'leaderboard_daily', `${dayKey}:${index + 1}`);
+      const balance = await this.credit(row.userId, reward, 'leaderboard_daily', `${dayKey}:${row.userId}`);
       snapshot.push({
         userId: row.userId,
         nickname: row.nickname,
@@ -254,7 +270,9 @@ export class MemoryRepository implements Repository {
   }
 
   async dailyWinners(limit: number): Promise<DailyWinnerRow[]> {
+    const dayKey = periodKeyFor('daily');
     return [...this.daily.entries()]
+      .filter(([, stat]) => stat.dayKey === dayKey)
       .map(([userId, stat]) => ({
         userId,
         nickname: this.users.get(userId)?.nickname ?? '未知玩家',
@@ -316,6 +334,10 @@ export class MemoryRepository implements Repository {
     if (patch.nickname !== undefined) {
       const nickname = patch.nickname.trim();
       if (nickname.length < 2 || nickname.length > 16) throw new Error('昵称需 2-16 个字符');
+      const taken = [...this.users.values()].some(
+        (item) => item.id !== userId && item.nickname.toLowerCase() === nickname.toLowerCase(),
+      );
+      if (taken) throw new Error('该昵称已被其他玩家使用');
       this.users.set(userId, { ...user, nickname });
     }
     const current = this.profiles.get(userId) ?? { bio: '', avatar: null };

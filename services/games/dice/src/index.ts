@@ -1,6 +1,6 @@
 import type { GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
-import { BaseGamePlugin, TicketBook } from '@cc/game-sdk';
+import { BET_LIMITS, BaseGamePlugin, TicketBook, assertBetAmount } from '@cc/game-sdk';
 
 /**
  * 三颗骰子猜大小（平台庄家版）
@@ -13,9 +13,7 @@ const BET_MS = 30_000;
 const REVEAL_MS = 5_000;
 const IDLE_MS = 3_000;
 
-const MIN_BET = 10;
-const MAX_BET = 2000;
-const MAX_TOTAL = 6000;
+const { minBet: MIN_BET, maxBet: MAX_BET, maxTotal: MAX_TOTAL } = BET_LIMITS;
 const HISTORY_LIMIT = 30;
 
 /** 和值赔率（净赔倍数） */
@@ -133,7 +131,6 @@ function areaWins(area: Area, dice: number[], sum: number, triple: boolean): boo
 }
 
 export class DicePlugin extends BaseGamePlugin {
-  override readonly apiVersion = 1;
   override readonly commands = ['bet', 'clear'] as const;
 
   override readonly meta: GameMeta = {
@@ -230,9 +227,7 @@ export class DicePlugin extends BaseGamePlugin {
     const area = String(intent.payload?.area ?? '') as Area;
     if (![...FIXED_AREAS, ...SUM_AREAS].includes(area)) throw new Error('无效的下注区域');
 
-    const amount = Number(intent.payload?.amount);
-    if (!Number.isInteger(amount) || amount < MIN_BET) throw new Error(`单注至少 ${MIN_BET} 筹码`);
-    if (amount > MAX_BET) throw new Error(`单注最多 ${MAX_BET} 筹码`);
+    const amount = assertBetAmount(intent.payload?.amount);
 
     const before = this.state.bets.get(playerId) ?? {};
     let total = 0;
@@ -241,7 +236,14 @@ export class DicePlugin extends BaseGamePlugin {
 
     // 真人下注即时从钱包扣款，余额不足会抛错，注单不会落地；机器人不参与账本
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
+    const roundBefore = this.state.roundNo;
     const ref = isBot ? '' : await ctx.charge(playerId, amount);
+
+    // 扣款是异步的，期间可能已经封盘甚至开下一局，迟到的注必须退回
+    if (this.state.roundNo !== roundBefore || this.state.phase !== 'bet') {
+      if (ref) await ctx.refund(playerId, ref);
+      throw new Error('本局已封盘，请等待下一局');
+    }
 
     // await 后重新取注单并复核总注，避免并发下注互相覆盖或突破上限
     const current = this.state.bets.get(playerId) ?? {};

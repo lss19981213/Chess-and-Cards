@@ -227,6 +227,9 @@ pnpm dev:web     # http://localhost:5173/lobby/
 ## 测试
 
 ```bash
+# 全量类型检查（CI 与本地提交前都应通过）
+pnpm typecheck
+
 # 游戏规则冒烟（直接驱动插件，不依赖网络）
 pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts
 
@@ -301,6 +304,14 @@ sudo systemctl status cc-api cc-room
 sudo journalctl -u cc-room -f
 ```
 
+数据库每日备份（建议加入 cron）：
+
+```bash
+0 4 * * * /opt/chess-and-cards/infra/backup-db.sh >> /var/log/cc-backup.log 2>&1
+```
+
+结算上报采用「本地 outbox + 幂等重投」：结算先落到 `SETTLEMENT_OUTBOX_DIR`，大厅确认入库后才删除。进程重启或大厅短暂不可用都不会丢结算，未投递的文件会在下次启动时自动补投。
+
 ## 新增一个游戏
 
 1. 复制 `services/games/gomoku` 为新目录；
@@ -314,7 +325,8 @@ sudo journalctl -u cc-room -f
 ## 安全建议
 
 - `.env` 已被 `.gitignore` 排除，**不要**把真实密钥、数据库密码、服务器地址提交进仓库或写进文档。
-- `JWT_SECRET`、`INTERNAL_KEY` 必须使用随机值，禁止复用 `.env.example` 中的占位符。
+- 生产环境必须设置 `NODE_ENV=production`。`JWT_SECRET`、`INTERNAL_KEY`、`ADMIN_TOKEN` 必须是 32 位以上随机值（`openssl rand -hex 32`），否则服务会**拒绝启动**；`.env.example` 中的占位符同样会被拒绝。
+- 游戏服默认只监听 `127.0.0.1`，不要直接对外开放 9000 端口；WebSocket 默认只接受同源连接，跨域需显式配置 `WS_ALLOWED_ORIGINS`。
 - 建议服务器仅允许 SSH 密钥登录，关闭密码登录；数据库账号限制来源为本地回环。
 - 对外暴露前配置 HTTPS，WebSocket 随之走 `wss://`。
 - 定期轮换密钥；发现泄漏立即更换并强制所有会话重新登录。
@@ -333,7 +345,7 @@ sudo journalctl -u cc-room -f
 ## 免责声明
 
 1. 本项目为**开源技术示范工程**，仅用于学习、研究与技术交流，作者未将其作为商业产品运营。
-2. 本项目**不包含**任何充值、提现、兑换、抽水等资金功能，不具备、也不应被用于构建赌博服务。
+2. 本项目**不包含**任何充值、提现、兑换或抽水变现等资金功能（百家乐规则中的「庄赢抽水 5%」只是虚拟记分规则，不产生任何真实收益），不具备、也不应被用于构建赌博服务。
 3. 项目中的游戏名称与榜单称号仅为技术演示所用的通用词汇，不指向任何真实博彩活动。
 4. 任何人将本项目用于商业运营或对外提供服务，须自行确保符合所在地法律法规（包括但不限于游戏版号、备案、支付与反洗钱要求），并独立承担全部法律责任。
 5. 作者不对使用者基于本项目的部署、运营、修改及由此产生的任何直接或间接损失承担责任。

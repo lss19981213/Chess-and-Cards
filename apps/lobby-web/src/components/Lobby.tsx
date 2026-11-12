@@ -181,11 +181,17 @@ export function Lobby({
     return games;
   }, [games, activeTab]);
 
+  // 滚动事件按帧触发，直接 setState 会让整张 13 卡大厅每帧重建
+  const scrollRafRef = useRef<number | null>(null);
   const updateScrollState = () => {
-    if (!carouselRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
-    setCanScrollLeft(scrollLeft > 10);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      if (!carouselRef.current) return;
+      const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
+      setCanScrollLeft(scrollLeft > 10);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    });
   };
 
   useEffect(() => {
@@ -451,7 +457,7 @@ export function Lobby({
             onWheel={handleWheel}
           >
             <div className="commercial-games-strip">
-              {filteredGames.map((game) => {
+              {filteredGames.map((game, index) => {
                 const isLive = game.persistent === true || LIVE_GAMES.has(game.gameId);
                 const artUrl = GAME_ART[game.gameId];
                 const heatText = LIVE_HEAT_MAP[game.gameId] ?? (isLive ? '🎰 万人同台' : '🔥 火热开局');
@@ -473,7 +479,16 @@ export function Lobby({
                       title={`点击极速开玩 ${game.name}`}
                     >
                       {artUrl ? (
-                        <img src={artUrl} alt={game.name} draggable={false} />
+                        <img
+                          src={artUrl}
+                          alt={game.name}
+                          draggable={false}
+                          // 首屏前 3 张立即加载，其余延后，避免一次拉 1.8MB 图片
+                          loading={index < 3 ? 'eager' : 'lazy'}
+                          decoding="async"
+                          width={480}
+                          height={480}
+                        />
                       ) : (
                         <div className="game-card-fallback-icon">{game.icon}</div>
                       )}
@@ -562,7 +577,13 @@ export function Lobby({
 
           {/* 荷官精美半身立绘 */}
           <div className="companion-portrait-wrapper" onClick={handleDealerInteract}>
-            <img src={DEALER_MAIN} alt="首席荷官艾莉丝" draggable={false} />
+            <img
+              src={DEALER_MAIN}
+              alt="首席荷官艾莉丝"
+              draggable={false}
+              loading="lazy"
+              decoding="async"
+            />
             <div className="portrait-glow-halo" />
           </div>
 

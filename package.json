@@ -11,8 +11,8 @@
     "dev:api": "pnpm --filter @cc/api-server dev",
     "dev:room": "pnpm --filter @cc/room-server dev",
     "dev:web": "pnpm --filter @cc/lobby-web dev",
-    "build": "pnpm -r --filter=./packages/* build && pnpm -r --filter=./apps/* --filter=./services/* build",
-    "typecheck": "tsc -b --pretty",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
     "e2e": "tsx scripts/e2e-smoke.ts",
     "gm": "node tools/gm-cli.mjs",
     "clean": "pnpm -r exec rimraf dist node_modules/.cache"

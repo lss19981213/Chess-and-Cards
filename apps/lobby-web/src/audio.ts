@@ -64,6 +64,8 @@ class AudioEngine {
   private el: HTMLAudioElement | null = null;
   private trackIndex = 0;
   private usingSynth = false;
+  /** 播放代次：切歌/关音乐后，旧的 play() Promise 不再影响状态 */
+  private musicToken = 0;
 
   constructor() {
     try {
@@ -86,6 +88,16 @@ class AudioEngine {
         }
       };
       unlockEvents.forEach((evt) => window.addEventListener(evt, onUserGesture, { passive: true }));
+
+      // 页面隐藏/卸载时停止播放，避免后台持续出声与音频节点常驻
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          this.stopMusic();
+        } else if (this.prefs.music) {
+          this.startMusic();
+        }
+      });
+      window.addEventListener('pagehide', () => this.stopMusic());
     }
   }
 
@@ -369,6 +381,7 @@ class AudioEngine {
   private startMusic(): void {
     if (!this.prefs.music) return;
     this.stopMusic();
+    const token = ++this.musicToken;
 
     // 优先尝试使用标准音频元素播放高质量音乐文件
     const track = TRACKS[this.trackIndex];
@@ -382,12 +395,17 @@ class AudioEngine {
         if (playPromise !== undefined) {
           playPromise
             .then(() => {
+              // 期间用户可能已经关掉音乐或切了歌，迟到的 resolve 不能再把音频接回来
+              if (token !== this.musicToken) {
+                el.pause();
+                return;
+              }
               this.el = el;
               this.usingSynth = false;
             })
             .catch(() => {
               // 自动播放被阻拦或文件无法解析，启动高音质合成和弦
-              this.startSynth();
+              if (token === this.musicToken) this.startSynth();
             });
           return;
         }
@@ -400,6 +418,8 @@ class AudioEngine {
   }
 
   private stopMusic(): void {
+    // 让所有在途的 play() Promise 失效
+    this.musicToken += 1;
     if (this.timer !== null) {
       window.clearInterval(this.timer);
       this.timer = null;
