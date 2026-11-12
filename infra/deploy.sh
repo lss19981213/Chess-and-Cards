@@ -20,6 +20,31 @@ set +a
 
 TARGET="${NGINX_TARGET_CONF:-}"
 
+# tar 覆盖式解压只会新增/覆盖，不会删除仓库里已移除的旧文件。
+# 残留的 .ts/.tsx 会被 tsc 编译到，导致 "property does not exist" 之类的构建失败。
+# 因此按归档清单清理掉已经不在版本控制中的源码文件。
+echo "==> 同步删除已移除的源码"
+ARCHIVE_LIST=/tmp/cc-archive-files.txt
+LOCAL_LIST=/tmp/cc-local-files.txt
+if [ -f /tmp/cc-deploy.tar.gz ]; then
+  tar -tzf /tmp/cc-deploy.tar.gz \
+    | grep -E '^(apps|packages|services|scripts|infra)/' \
+    | sed 's#/$##' | sort -u > "$ARCHIVE_LIST"
+
+  find apps packages services scripts infra -type f \
+    -not -path '*/node_modules/*' -not -path '*/dist/*' \
+    \( -name '*.ts' -o -name '*.tsx' -o -name '*.css' -o -name '*.mjs' \
+       -o -name '*.js' -o -name '*.json' -o -name '*.svg' -o -name '*.jpg' \
+       -o -name '*.png' -o -name '*.sh' -o -name '*.conf' -o -name '*.service' \) \
+    2>/dev/null | sort -u > "$LOCAL_LIST"
+
+  REMOVED=$(comm -23 "$LOCAL_LIST" "$ARCHIVE_LIST" | wc -l)
+  if [ "$REMOVED" -gt 0 ]; then
+    echo "    清理 $REMOVED 个已移除文件"
+    comm -23 "$LOCAL_LIST" "$ARCHIVE_LIST" | while IFS= read -r file; do rm -f -- "$file"; done
+  fi
+fi
+
 echo "==> 安装依赖"
 pnpm install --frozen-lockfile
 
