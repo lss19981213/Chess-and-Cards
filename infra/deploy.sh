@@ -38,10 +38,12 @@ if [ -f /tmp/cc-deploy.tar.gz ]; then
        -o -name '*.png' -o -name '*.sh' -o -name '*.conf' -o -name '*.service' \) \
     2>/dev/null | sort -u > "$LOCAL_LIST"
 
-  REMOVED=$(comm -23 "$LOCAL_LIST" "$ARCHIVE_LIST" | wc -l)
+  # grep -Fvx 不依赖排序，避免不同 locale 下 comm 误报 "not in sorted order"
+  grep -Fvx -f "$ARCHIVE_LIST" "$LOCAL_LIST" > /tmp/cc-stale-files.txt || true
+  REMOVED=$(wc -l < /tmp/cc-stale-files.txt)
   if [ "$REMOVED" -gt 0 ]; then
     echo "    清理 $REMOVED 个已移除文件"
-    comm -23 "$LOCAL_LIST" "$ARCHIVE_LIST" | while IFS= read -r file; do rm -f -- "$file"; done
+    while IFS= read -r file; do rm -f -- "$file"; done < /tmp/cc-stale-files.txt
   fi
 fi
 
