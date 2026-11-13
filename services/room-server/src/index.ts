@@ -221,6 +221,162 @@ async function handleHttp(
     return;
   }
 
+  if (url.pathname.startsWith('/admin/rooms/') && url.pathname.endsWith('/detail') && req.method === 'GET') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    const roomId = decodeURIComponent(url.pathname.slice('/admin/rooms/'.length, -'/detail'.length));
+    const room = manager.get(roomId);
+    if (!room) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: '房间不存在' }));
+      return;
+    }
+    const view = room.view();
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        ok: true,
+        room: {
+          ...view,
+          currentActor: room.currentActor(),
+          isPlatform: room.isPlatform,
+        },
+      }),
+    );
+    return;
+  }
+
+  if (url.pathname.startsWith('/admin/rooms/') && url.pathname.endsWith('/kick') && req.method === 'POST') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    const roomId = decodeURIComponent(url.pathname.slice('/admin/rooms/'.length, -'/kick'.length));
+    const room = manager.get(roomId);
+    if (!room) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: '房间不存在' }));
+      return;
+    }
+    const body = await readJsonBody(req);
+    const playerId = String(body.playerId ?? '');
+    if (!playerId) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: '缺少 playerId' }));
+      return;
+    }
+    room.leave(playerId);
+    log.info('GM 踢出玩家', { roomId, playerId });
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (url.pathname.startsWith('/admin/rooms/') && url.pathname.endsWith('/bot') && req.method === 'POST') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    const roomId = decodeURIComponent(url.pathname.slice('/admin/rooms/'.length, -'/bot'.length));
+    const room = manager.get(roomId);
+    if (!room) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: '房间不存在' }));
+      return;
+    }
+    const body = await readJsonBody(req);
+    const action = String(body.action ?? 'add');
+    if (action === 'remove') {
+      const targetBot = room
+        .view()
+        .players.find((p) => room.isBot(p.playerId) && (!body.botId || p.playerId === body.botId));
+      if (!targetBot) {
+        res.writeHead(404, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: '房间内未找到机器人' }));
+        return;
+      }
+      room.leave(targetBot.playerId);
+      log.info('GM 移除机器人', { roomId, botId: targetBot.playerId });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, removed: targetBot.playerId }));
+      return;
+    }
+    const rawDiff = body.difficulty;
+    const difficulty: BotDifficulty =
+      rawDiff === 'low' || rawDiff === 'high' ? rawDiff : 'medium';
+    const used = new Set(room.view().players.map((p) => p.nickname));
+    const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
+    const nickname =
+      free[Math.floor(Math.random() * free.length)] ?? `机器人${room.view().players.length + 1}`;
+    const botId = `bot:${randomUUID()}`;
+    room.addBot(botId, `🤖 ${nickname}`, difficulty);
+    log.info('GM 添加机器人', { roomId, botId, nickname, difficulty });
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, botId, nickname, difficulty }));
+    return;
+  }
+
+  if (url.pathname.startsWith('/admin/rooms/') && url.pathname.endsWith('/reset') && req.method === 'POST') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    const roomId = decodeURIComponent(url.pathname.slice('/admin/rooms/'.length, -'/reset'.length));
+    const room = manager.get(roomId);
+    if (!room) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: '房间不存在' }));
+      return;
+    }
+    room.forceReset();
+    log.warn('GM 强制重置房间', { roomId });
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (url.pathname === '/admin/broadcast' && req.method === 'POST') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    const body = await readJsonBody(req);
+    const text = String(body.text ?? '').trim();
+    if (!text) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: '缺少广播内容' }));
+      return;
+    }
+    const message = JSON.stringify({
+      type: ServerMsg.Notice,
+      payload: {
+        id: randomUUID(),
+        title: String(body.title ?? '系统通知'),
+        content: text,
+        kind: 'bulletin',
+        createdAt: Date.now(),
+      },
+    });
+    let sentCount = 0;
+    for (const client of wss.clients) {
+      if (client.readyState === 1) {
+        client.send(message);
+        sentCount += 1;
+      }
+    }
+    log.info('GM 全服广播跑马灯', { text, sentCount });
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, sentCount }));
+    return;
+  }
+
   res.writeHead(404, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ error: 'not found' }));
 }

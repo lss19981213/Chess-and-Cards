@@ -6,11 +6,13 @@ import { LEADERBOARD_SIZE, rewardForRank } from '../leaderboard';
 import type {
   BetAdjustment,
   AuthUser,
+  EconomyOverview,
   LeaderboardSnapshotRow,
   DailyWinnerRow,
   FriendRequestView,
   GameRecordView,
   LeaderboardRow,
+  LedgerRow,
   PlayerProfile,
   ProfilePatch,
   RegisterInput,
@@ -55,6 +57,8 @@ export class MemoryRepository implements Repository {
   /** 好友关系，双向各存一条：`${userId}|${friendId}` */
   private readonly friendships = new Set<string>();
   private readonly friendRequests: FriendRequestView[] = [];
+  /** 资金流水明细（GM 控制台与账本透视） */
+  private readonly ledgerHistory: LedgerRow[] = [];
 
   constructor(initialCoins: number) {
     this.initialCoins = initialCoins;
@@ -69,6 +73,7 @@ export class MemoryRepository implements Repository {
       nickname: input.nickname,
       username: input.username,
       createdAt: Date.now(),
+      banned: false,
     };
     this.users.set(user.id, user);
     this.credentials.set(user.id, input.passwordHash);
@@ -106,8 +111,20 @@ export class MemoryRepository implements Repository {
       if (this.appliedKeys.has(releaseKey)) continue;
       this.appliedKeys.add(releaseKey);
       const amount = -staked;
-      this.balances.set(userId, Math.max(0, (this.balances.get(userId) ?? 0) + amount));
+      const nextBalance = Math.max(0, (this.balances.get(userId) ?? 0) + amount);
+      this.balances.set(userId, nextBalance);
       this.staked.set(key, 0);
+      this.ledgerHistory.unshift({
+        id: randomUUID(),
+        userId,
+        currency: 'coin',
+        delta: amount,
+        balanceAfter: nextBalance,
+        bizType: 'game_bet_release',
+        bizId: key,
+        createdAt: Date.now(),
+      });
+      if (this.ledgerHistory.length > 5000) this.ledgerHistory.length = 5000;
       released += amount;
     }
     return released;
@@ -140,6 +157,17 @@ export class MemoryRepository implements Repository {
     this.balances.set(input.userId, next);
     this.betLedger.set(ledgerKey, delta);
     this.staked.set(stakeKey, (this.staked.get(stakeKey) ?? 0) + delta);
+    this.ledgerHistory.unshift({
+      id: randomUUID(),
+      userId: input.userId,
+      currency: 'coin',
+      delta,
+      balanceAfter: next,
+      bizType,
+      bizId: input.bizId,
+      createdAt: Date.now(),
+    });
+    if (this.ledgerHistory.length > 5000) this.ledgerHistory.length = 5000;
     return next;
   }
 
@@ -154,10 +182,24 @@ export class MemoryRepository implements Repository {
       // 下注时已扣本金，结算时退回本金再按净盈亏入账
       const stakeKey = `${settlement.settlementId}:${entry.playerId}`;
       const staked = this.staked.get(stakeKey) ?? 0;
-      this.balances.set(entry.playerId, Math.max(0, current + entry.delta - staked));
+      const nextBalance = Math.max(0, current + entry.delta - staked);
+      this.balances.set(entry.playerId, nextBalance);
       // 结算后本金已归还，必须清零，否则随后的孤儿注单释放会再退一次
       this.staked.delete(stakeKey);
       this.appliedKeys.add(`game_bet_return:${stakeKey}:return:${entry.playerId}`);
+
+      const netDelta = entry.delta - staked;
+      this.ledgerHistory.unshift({
+        id: randomUUID(),
+        userId: entry.playerId,
+        currency: 'coin',
+        delta: netDelta,
+        balanceAfter: nextBalance,
+        bizType: 'game_settle',
+        bizId: `${settlement.roomId}:${settlement.round}`,
+        createdAt: settlement.finishedAt || Date.now(),
+      });
+      if (this.ledgerHistory.length > 5000) this.ledgerHistory.length = 5000;
 
       this.bumpCell(entry.playerId, 'daily_play', dayKey, 1);
       if (entry.delta > 0) this.bumpCell(entry.playerId, 'daily_win', dayKey, 1);
@@ -207,6 +249,17 @@ export class MemoryRepository implements Repository {
     if (next < 0) throw new InsufficientFundsError();
     this.appliedKeys.add(key);
     this.balances.set(userId, next);
+    this.ledgerHistory.unshift({
+      id: randomUUID(),
+      userId,
+      currency: 'coin',
+      delta: amount,
+      balanceAfter: next,
+      bizType,
+      bizId,
+      createdAt: Date.now(),
+    });
+    if (this.ledgerHistory.length > 5000) this.ledgerHistory.length = 5000;
     return next;
   }
 
@@ -334,6 +387,7 @@ export class MemoryRepository implements Repository {
       username: user.username,
       bio: extra?.bio ?? '',
       avatar: avatarUrlFor(user.id, extra?.avatar),
+      banned: user.banned ?? false,
     };
   }
 
@@ -386,6 +440,7 @@ export class MemoryRepository implements Repository {
           requestPending: this.friendRequests.some(
             (r) => r.fromId === excludeUserId && r.toId === user.id && r.status === 'pending',
           ),
+          banned: user.banned ?? false,
         };
       });
   }
@@ -476,6 +531,70 @@ export class MemoryRepository implements Repository {
 
   async areFriends(userId: string, friendId: string): Promise<boolean> {
     return this.friendships.has(`${userId}|${friendId}`);
+  }
+
+  // ---------- GM 运营管理 ----------
+
+  async setUserStatus(userId: string, banned: boolean): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    user.banned = banned;
+    return true;
+  }
+
+  async resetUserPassword(userId: string, passwordHash: string): Promise<boolean> {
+    if (!this.users.has(userId)) return false;
+    this.credentials.set(userId, passwordHash);
+    return true;
+  }
+
+  async listUserLedger(userId: string, limit: number): Promise<LedgerRow[]> {
+    return this.ledgerHistory
+      .filter((r) => r.userId === userId)
+      .slice(0, Math.min(Math.max(1, limit), 200));
+  }
+
+  async getEconomyOverview(): Promise<EconomyOverview> {
+    const totalUsers = this.users.size;
+    let totalBalance = 0;
+    for (const bal of this.balances.values()) {
+      totalBalance += bal;
+    }
+
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    let todayBet = 0;
+    let todaySettle = 0;
+    let todayTip = 0;
+    let todayRelief = 0;
+    let todayGmGrant = 0;
+
+    for (const item of this.ledgerHistory) {
+      if (item.createdAt >= startOfDay) {
+        if (item.bizType === 'game_bet') {
+          todayBet += Math.abs(item.delta);
+        } else if (item.bizType === 'game_settle') {
+          todaySettle += item.delta;
+        } else if (item.bizType === 'dealer_tip') {
+          todayTip += Math.abs(item.delta);
+        } else if (item.bizType === 'task' && item.bizId.startsWith('relief:')) {
+          todayRelief += item.delta;
+        } else if (item.bizType === 'gm_grant') {
+          todayGmGrant += item.delta;
+        }
+      }
+    }
+
+    return {
+      totalUsers,
+      totalBalance,
+      todayBet,
+      todaySettle,
+      todayTip,
+      todayRelief,
+      todayGmGrant,
+    };
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {

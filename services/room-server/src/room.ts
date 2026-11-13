@@ -168,6 +168,10 @@ export class GameRoom {
     return this.plugin.meta.gameId;
   }
 
+  get isPlatform(): boolean {
+    return this.persistent;
+  }
+
   get isClosed(): boolean {
     return this.closed;
   }
@@ -487,6 +491,19 @@ export class GameRoom {
     this.broadcastView();
     this.dirty = true;
     this.tryStart();
+  }
+
+  forceReset(): void {
+    if (this.closed) return;
+    void this.deps.releaseBets(this.id).catch((error: unknown) => {
+      roomLog.error('GM 中止本局退款失败', { roomId: this.id, error: (error as Error).message });
+    });
+    this.status = 'waiting';
+    this.settledThisRound = false;
+    for (const seat of this.seats.values()) seat.ready = seat.isBot;
+    this.pendingReady.clear();
+    this.broadcastView();
+    this.dirty = true;
   }
 
   sendEmote(playerId: string, key: string, text: string): void {

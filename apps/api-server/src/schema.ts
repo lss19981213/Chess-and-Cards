@@ -10,6 +10,7 @@ create table if not exists users (
 -- 老库升级：补齐账号体系字段
 alter table users add column if not exists username text;
 alter table users add column if not exists password_hash text;
+alter table users add column if not exists banned boolean not null default false;
 
 -- 账号体系：用户名大小写不敏感唯一（历史游客数据 username 为空，不参与唯一约束）
 -- 登录按 lower(username) 匹配，索引也必须按 lower 建，否则 Alice 与 alice 可并存。

@@ -5,10 +5,12 @@ import type {
   AuthUser,
   BetAdjustment,
   DailyWinnerRow,
+  EconomyOverview,
   FriendRequestView,
   GameRecordView,
   LeaderboardRow,
   LeaderboardSnapshotRow,
+  LedgerRow,
   PlayerProfile,
   ProfilePatch,
   RegisterInput,
@@ -57,6 +59,12 @@ import {
   searchUsers,
   updateProfile,
 } from './pg/social';
+import {
+  getEconomyOverview,
+  listUserLedger,
+  resetUserPassword,
+  setUserStatus,
+} from './pg/admin';
 
 const { Pool } = pg;
 
@@ -211,5 +219,21 @@ export class PostgresRepository implements Repository {
 
   areFriends(userId: string, friendId: string): Promise<boolean> {
     return areFriends(this.pool, userId, friendId);
+  }
+
+  setUserStatus(userId: string, banned: boolean): Promise<boolean> {
+    return setUserStatus(this.pool, userId, banned);
+  }
+
+  resetUserPassword(userId: string, passwordHash: string): Promise<boolean> {
+    return resetUserPassword(this.pool, userId, passwordHash);
+  }
+
+  listUserLedger(userId: string, limit: number): Promise<LedgerRow[]> {
+    return listUserLedger(this.pool, userId, limit);
+  }
+
+  getEconomyOverview(): Promise<EconomyOverview> {
+    return getEconomyOverview(this.pool);
   }
 }

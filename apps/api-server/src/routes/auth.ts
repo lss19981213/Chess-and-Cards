@@ -120,6 +120,10 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
       throw httpError('账号或密码错误', 401);
     }
 
+    if (user.banned) {
+      throw httpError('该账号已被管理员封禁，如有疑问请联系客服', 403);
+    }
+
     ipLimiter.reset(ipKey);
     accountLimiter.reset(accountKey);
 
@@ -136,6 +140,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     const claims = authHeader(req);
     const user = await repo.getUser(claims.sub);
     if (!user) throw httpError('用户不存在', 404);
+    if (user.banned) throw httpError('该账号已被管理员封禁', 403);
     const balance = await repo.getBalance(user.id, 'coin');
     return { user: { ...user, balance } };
   });

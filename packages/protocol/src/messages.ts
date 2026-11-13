@@ -30,6 +30,8 @@ export const ServerMsg = {
   Pong: 'server:pong',
   /** 广播的快捷喊话 */
   Emote: 'server:emote',
+  /** 全服系统公告与跑马灯通知 */
+  Notice: 'server:notice',
 } as const;
 
 export type ServerMsgType = (typeof ServerMsg)[keyof typeof ServerMsg];

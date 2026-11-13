@@ -40,7 +40,7 @@ export async function registerUser(
 
 export async function findUserByUsername(pool: pg.Pool, username: string): Promise<AuthUser | null> {
   const res = await pool.query<UserRow>(
-    `select id, nickname, username, password_hash, created_at
+    `select id, nickname, username, password_hash, created_at, coalesce(banned, false) as banned
        from users
       where lower(username) = lower($1)
       limit 1`,
@@ -53,7 +53,7 @@ export async function findUserByUsername(pool: pg.Pool, username: string): Promi
 
 export async function getUserById(pool: pg.Pool, id: string): Promise<UserRecord | null> {
   const res = await pool.query<UserRow>(
-    'select id, nickname, username, created_at from users where id = $1',
+    'select id, nickname, username, created_at, coalesce(banned, false) as banned from users where id = $1',
     [id],
   );
   const row = res.rows[0];

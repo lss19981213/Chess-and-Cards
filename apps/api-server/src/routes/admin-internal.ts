@@ -5,7 +5,7 @@ import { getLastSettlementAt, markSettlement, recentEvents, recordEvent } from '
 import { clientIp, httpError, safeEqual } from '../http-utils';
 import type { createLogger } from '../logger';
 import { InsufficientFundsError, type Repository } from '../repository/types';
-import { AttemptLimiter } from '../security';
+import { AttemptLimiter, hashPassword } from '../security';
 import { periodKeyFor } from '../tasks';
 
 type Logger = ReturnType<typeof createLogger>;
@@ -93,6 +93,12 @@ export function registerAdminAndInternalRoutes(
     };
   });
 
+  app.get('/api/admin/economy', async (req) => {
+    requireAdmin(req);
+    const overview = await repo.getEconomyOverview();
+    return { overview };
+  });
+
   app.get('/api/admin/players', async (req) => {
     requireAdmin(req);
     const query = req.query as { q?: string };
@@ -106,6 +112,55 @@ export function registerAdminAndInternalRoutes(
       })),
     );
     return { players };
+  });
+
+  app.get('/api/admin/players/:userId/ledger', async (req) => {
+    requireAdmin(req);
+    const userId = String((req.params as { userId?: string }).userId ?? '');
+    const query = req.query as { limit?: string };
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
+    const ledger = await repo.listUserLedger(userId, limit);
+    return { ledger };
+  });
+
+  app.post('/api/admin/players/:userId/status', async (req) => {
+    requireAdmin(req);
+    const userId = String((req.params as { userId?: string }).userId ?? '');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const banned = Boolean(body.banned);
+    const ok = await repo.setUserStatus(userId, banned);
+    if (!ok) throw httpError('玩家不存在', 404);
+    apiLog.warn(`GM 变更玩家状态 userId=${userId} banned=${banned}`);
+    recordEvent('warn', 'player', `GM 变更玩家状态 ${userId} banned=${banned}`, { userId, banned });
+    return { ok: true, banned };
+  });
+
+  app.post('/api/admin/players/:userId/reset-password', async (req) => {
+    requireAdmin(req);
+    const userId = String((req.params as { userId?: string }).userId ?? '');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const newPassword = String(body.newPassword ?? '');
+    if (newPassword.length < 6 || newPassword.length > 32) {
+      throw httpError('新密码长度需在 6-32 位之间', 400);
+    }
+    const hash = await hashPassword(newPassword);
+    const ok = await repo.resetUserPassword(userId, hash);
+    if (!ok) throw httpError('玩家不存在', 404);
+    apiLog.warn(`GM 重置玩家密码 userId=${userId}`);
+    recordEvent('warn', 'player', `GM 重置玩家密码 ${userId}`, { userId });
+    return { ok: true };
+  });
+
+  app.post('/api/admin/players/:userId/update', async (req) => {
+    requireAdmin(req);
+    const userId = String((req.params as { userId?: string }).userId ?? '');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const patch: { nickname?: string; bio?: string } = {};
+    if (typeof body.nickname === 'string') patch.nickname = body.nickname;
+    if (typeof body.bio === 'string') patch.bio = body.bio;
+    const profile = await repo.updateProfile(userId, patch);
+    apiLog.info(`GM 更新玩家资料 userId=${userId}`, patch);
+    return { ok: true, profile };
   });
 
   // GM 发放 / 扣除筹码，走账本幂等入账
@@ -240,6 +295,66 @@ export function registerAdminAndInternalRoutes(
     apiLog.info(`GM 销毁房间 roomId=${roomId}`);
     recordEvent('warn', 'room', `GM 销毁房间 ${roomId}`, { roomId });
     return { ok: true };
+  });
+
+  app.get('/api/admin/rooms/:roomId/detail', async (req) => {
+    requireAdmin(req);
+    const roomId = String((req.params as { roomId?: string }).roomId ?? '');
+    const { data } = await roomAdmin(`/admin/rooms/${encodeURIComponent(roomId)}/detail`, {
+      method: 'GET',
+    });
+    return data;
+  });
+
+  app.post('/api/admin/rooms/:roomId/kick', async (req) => {
+    requireAdmin(req);
+    const roomId = String((req.params as { roomId?: string }).roomId ?? '');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const { data } = await roomAdmin(`/admin/rooms/${encodeURIComponent(roomId)}/kick`, {
+      method: 'POST',
+      body,
+    });
+    recordEvent('warn', 'room', `GM 从房间 ${roomId} 踢出玩家 ${String(body.playerId ?? '')}`);
+    return data;
+  });
+
+  app.post('/api/admin/rooms/:roomId/bot', async (req) => {
+    requireAdmin(req);
+    const roomId = String((req.params as { roomId?: string }).roomId ?? '');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const { data } = await roomAdmin(`/admin/rooms/${encodeURIComponent(roomId)}/bot`, {
+      method: 'POST',
+      body,
+    });
+    return data;
+  });
+
+  app.post('/api/admin/rooms/:roomId/reset', async (req) => {
+    requireAdmin(req);
+    const roomId = String((req.params as { roomId?: string }).roomId ?? '');
+    const { data } = await roomAdmin(`/admin/rooms/${encodeURIComponent(roomId)}/reset`, {
+      method: 'POST',
+    });
+    recordEvent('warn', 'room', `GM 强制流局退款重置房间 ${roomId}`);
+    return data;
+  });
+
+  app.post('/api/admin/broadcast', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const text = String(body.text ?? '').trim();
+    if (!text) throw httpError('缺少广播内容', 400);
+    const { data } = await roomAdmin('/admin/broadcast', { method: 'POST', body });
+    recordEvent('info', 'broadcast', `GM 发送全服广播: ${text}`, { text });
+    return data;
+  });
+
+  app.post('/api/admin/security/clear-limits', async (req) => {
+    requireAdmin(req);
+    adminLimiter.reset(clientIp(req));
+    adminFailLimiter.reset(clientIp(req));
+    recordEvent('info', 'security', 'GM 清理限流白名单');
+    return { ok: true, message: '限流白名单已刷新' };
   });
 
   // ---- 公告列表（GM 工具展示与删除）----

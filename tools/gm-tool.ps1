@@ -1,5 +1,5 @@
-﻿# Chess & Cards · GM 桌面工具
-# 双击根目录的「GM工具.bat」启动。原生 Windows 窗口，不经过浏览器。
+﻿# Chess & Cards · GM 运营管理中台
+# 双击根目录的「GM工具.bat」启动。原生 Windows 桌面客户端，不依赖第三方组件。
 # 服务器密码只保存在本机 tools/.gm-config.json，不会进入仓库。
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -10,7 +10,7 @@ trap {
   $detail = ($_ | Out-String)
   $path = Join-Path $env:TEMP 'cc-gm-tool-error.txt'
   Set-Content -Path $path -Value $detail -Encoding UTF8
-  [System.Windows.Forms.MessageBox]::Show("GM 工具启动失败：`r`n$($_.Exception.Message)`r`n`r`n详细信息：$path", 'Chess & Cards GM')
+  [System.Windows.Forms.MessageBox]::Show("GM 工具启动失败：`r`n$($_.Exception.Message)`r`n`r`n详细错误已保存至：$path", 'Chess & Cards GM', 'OK', 'Error')
   break
 }
 
@@ -23,33 +23,43 @@ $script:Proc = $null
 $script:Players = @()
 $script:Rooms = @()
 $script:Notices = @()
+$script:ActiveNav = 'dashboard'
 
-# ---------- 配色 ----------
-$C_BG = [System.Drawing.Color]::FromArgb(14, 18, 26)
-$C_PANEL = [System.Drawing.Color]::FromArgb(22, 28, 38)
-$C_INPUT = [System.Drawing.Color]::FromArgb(9, 13, 19)
-$C_TEXT = [System.Drawing.Color]::FromArgb(232, 236, 244)
-$C_MUTED = [System.Drawing.Color]::FromArgb(146, 156, 174)
-$C_GOLD = [System.Drawing.Color]::FromArgb(216, 162, 74)
-$C_OK = [System.Drawing.Color]::FromArgb(126, 214, 174)
-$C_ERR = [System.Drawing.Color]::FromArgb(255, 138, 128)
-$C_LINE = [System.Drawing.Color]::FromArgb(48, 58, 74)
+# ---------- 极致奢华暗黑鎏金主题色板 ----------
+$C_CANVAS   = [System.Drawing.Color]::FromArgb(11, 14, 20)      # 主背景
+$C_SURFACE  = [System.Drawing.Color]::FromArgb(18, 24, 34)     # 面板底色
+$C_CARD     = [System.Drawing.Color]::FromArgb(24, 32, 46)     # 卡片底色
+$C_INPUT    = [System.Drawing.Color]::FromArgb(13, 17, 24)     # 输入框底色
+$C_HOVER    = [System.Drawing.Color]::FromArgb(32, 43, 62)     # 悬停色
+$C_LINE     = [System.Drawing.Color]::FromArgb(36, 48, 68)     # 边框线
+$C_LINE_HI  = [System.Drawing.Color]::FromArgb(60, 80, 110)    # 高亮边框线
+$C_TEXT     = [System.Drawing.Color]::FromArgb(240, 244, 248)  # 主文字
+$C_MUTED    = [System.Drawing.Color]::FromArgb(142, 157, 181)  # 次要文字
+$C_GOLD     = [System.Drawing.Color]::FromArgb(245, 197, 66)   # 鎏金高光
+$C_GOLD_DARK= [System.Drawing.Color]::FromArgb(216, 162, 40)   # 鎏金深调
+$C_GREEN    = [System.Drawing.Color]::FromArgb(56, 211, 159)   # 成功/在线绿
+$C_RED      = [System.Drawing.Color]::FromArgb(255, 94, 98)    # 危险/封禁红
+$C_BLUE     = [System.Drawing.Color]::FromArgb(59, 130, 246)   # 科技蓝
 
-$FONT_UI = New-Object System.Drawing.Font('Microsoft YaHei UI', 9)
-$FONT_TITLE = New-Object System.Drawing.Font('Microsoft YaHei UI', 10, [System.Drawing.FontStyle]::Bold)
-$FONT_MONO = New-Object System.Drawing.Font('Consolas', 9)
+# ---------- 字体 ----------
+$FONT_UI    = New-Object System.Drawing.Font('Microsoft YaHei UI', 9)
+$FONT_BOLD  = New-Object System.Drawing.Font('Microsoft YaHei UI', 9, [System.Drawing.FontStyle]::Bold)
+$FONT_TITLE = New-Object System.Drawing.Font('Microsoft YaHei UI', 11, [System.Drawing.FontStyle]::Bold)
+$FONT_BIG   = New-Object System.Drawing.Font('Microsoft YaHei UI', 16, [System.Drawing.FontStyle]::Bold)
+$FONT_MONO  = New-Object System.Drawing.Font('Consolas', 9)
 
-# ---------- 窗体 ----------
+# ---------- 主窗体 ----------
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'Chess & Cards · GM 控制台'
-$form.Size = New-Object System.Drawing.Size(1120, 820)
-$form.MinimumSize = New-Object System.Drawing.Size(1000, 720)
+$form.Text = 'Chess & Cards · GM 运营管理中台 (Obsidian Gold Edition)'
+$form.Size = New-Object System.Drawing.Size(1260, 860)
+$form.MinimumSize = New-Object System.Drawing.Size(1100, 740)
 $form.StartPosition = 'CenterScreen'
-$form.BackColor = $C_BG
+$form.BackColor = $C_CANVAS
 $form.ForeColor = $C_TEXT
 $form.Font = $FONT_UI
 
-function New-Label($text, $x, $y, $w, $h = 18, $color = $C_MUTED, $font = $FONT_UI) {
+# ---------- 常用组件构造函数 ----------
+function New-CustomLabel($text, $x, $y, $w, $h = 20, $color = $C_MUTED, $font = $FONT_UI) {
   $l = New-Object System.Windows.Forms.Label
   $l.Text = $text
   $l.Location = New-Object System.Drawing.Point($x, $y)
@@ -60,7 +70,7 @@ function New-Label($text, $x, $y, $w, $h = 18, $color = $C_MUTED, $font = $FONT_
   return $l
 }
 
-function New-Input($x, $y, $w, $text = '', $isPassword = $false, $h = 24) {
+function New-CustomInput($x, $y, $w, $text = '', $isPassword = $false, $h = 24) {
   $t = New-Object System.Windows.Forms.TextBox
   $t.Location = New-Object System.Drawing.Point($x, $y)
   $t.Size = New-Object System.Drawing.Size($w, $h)
@@ -73,20 +83,31 @@ function New-Input($x, $y, $w, $text = '', $isPassword = $false, $h = 24) {
   return $t
 }
 
-function New-Button($text, $x, $y, $w, $h = 30, $primary = $false) {
+function New-CustomButton($text, $x, $y, $w, $h = 30, $style = 'normal') {
   $b = New-Object System.Windows.Forms.Button
   $b.Text = $text
   $b.Location = New-Object System.Drawing.Point($x, $y)
   $b.Size = New-Object System.Drawing.Size($w, $h)
   $b.FlatStyle = 'Flat'
-  $b.Font = New-Object System.Drawing.Font('Microsoft YaHei UI', 9, [System.Drawing.FontStyle]::Bold)
-  $b.Cursor = 'Hand'
-  if ($primary) {
+  $b.Font = $FONT_BOLD
+  $b.Cursor = [System.Windows.Forms.Cursors]::Hand
+  if ($style -eq 'gold') {
     $b.BackColor = $C_GOLD
-    $b.ForeColor = [System.Drawing.Color]::FromArgb(34, 24, 8)
+    $b.ForeColor = [System.Drawing.Color]::FromArgb(26, 18, 0)
     $b.FlatAppearance.BorderSize = 0
+  } elseif ($style -eq 'danger') {
+    $b.BackColor = [System.Drawing.Color]::FromArgb(44, 22, 26)
+    $b.ForeColor = $C_RED
+    $b.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(120, 40, 48)
+    $b.FlatAppearance.BorderSize = 1
+  } elseif ($style -eq 'nav') {
+    $b.BackColor = [System.Drawing.Color]::Transparent
+    $b.ForeColor = $C_MUTED
+    $b.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $b.FlatAppearance.BorderSize = 0
+    $b.Padding = New-Object System.Windows.Forms.Padding(12, 0, 0, 0)
   } else {
-    $b.BackColor = [System.Drawing.Color]::FromArgb(32, 40, 54)
+    $b.BackColor = $C_CARD
     $b.ForeColor = $C_TEXT
     $b.FlatAppearance.BorderColor = $C_LINE
     $b.FlatAppearance.BorderSize = 1
@@ -94,26 +115,13 @@ function New-Button($text, $x, $y, $w, $h = 30, $primary = $false) {
   return $b
 }
 
-function New-Combo($x, $y, $w, $items = @()) {
-  $c = New-Object System.Windows.Forms.ComboBox
-  $c.Location = New-Object System.Drawing.Point($x, $y)
-  $c.Size = New-Object System.Drawing.Size($w, 24)
-  $c.DropDownStyle = 'DropDownList'
-  $c.BackColor = $C_INPUT
-  $c.ForeColor = $C_TEXT
-  $c.FlatStyle = 'Flat'
-  foreach ($i in $items) { [void]$c.Items.Add($i) }
-  if ($c.Items.Count -gt 0) { $c.SelectedIndex = 0 }
-  return $c
-}
-
-function New-ListView($x, $y, $w, $h, $columns) {
+function New-CustomListView($x, $y, $w, $h, $columns) {
   $lv = New-Object System.Windows.Forms.ListView
   $lv.Location = New-Object System.Drawing.Point($x, $y)
   $lv.Size = New-Object System.Drawing.Size($w, $h)
   $lv.View = 'Details'
   $lv.FullRowSelect = $true
-  $lv.GridLines = $false
+  $lv.GridLines = $true
   $lv.MultiSelect = $false
   $lv.HideSelection = $false
   $lv.BackColor = $C_INPUT
@@ -126,280 +134,503 @@ function New-ListView($x, $y, $w, $h, $columns) {
   return $lv
 }
 
-function New-Panel($x, $y, $w, $h) {
+# ---------- 顶部导航与快捷连接栏 ----------
+$topBar = New-Object System.Windows.Forms.Panel
+$topBar.Location = New-Object System.Drawing.Point(0, 0)
+$topBar.Size = New-Object System.Drawing.Size(1260, 92)
+$topBar.Dock = [System.Windows.Forms.DockStyle]::Top
+$topBar.BackColor = $C_SURFACE
+$form.Controls.Add($topBar)
+
+$topBar.Controls.Add((New-CustomLabel '👑 CHESS & CARDS · GM 运营管理中台' 16 12 340 24 $C_GOLD $FONT_TITLE))
+$topBar.Controls.Add((New-CustomLabel '实时桌况透视 · 玩家账本审计 · 宏观调控中心' 16 34 320 18 $C_MUTED))
+
+# 连接参数
+$topBar.Controls.Add((New-CustomLabel 'SSH 主机' 360 8 70 16 $C_MUTED))
+$txtHost = New-CustomInput 360 26 130
+$topBar.Controls.Add($txtHost)
+
+$topBar.Controls.Add((New-CustomLabel '端口' 498 8 40 16 $C_MUTED))
+$txtPort = New-CustomInput 498 26 46 '22'
+$topBar.Controls.Add($txtPort)
+
+$topBar.Controls.Add((New-CustomLabel '用户名' 552 8 60 16 $C_MUTED))
+$txtUser = New-CustomInput 552 26 80 'ubuntu'
+$topBar.Controls.Add($txtUser)
+
+$topBar.Controls.Add((New-CustomLabel 'SSH 密码' 640 8 70 16 $C_MUTED))
+$txtPass = New-CustomInput 640 26 100 '' $true
+$topBar.Controls.Add($txtPass)
+
+$topBar.Controls.Add((New-CustomLabel '站点地址' 748 8 80 16 $C_MUTED))
+$txtSite = New-CustomInput 748 26 180 'http://82.157.54.179/lobby'
+$topBar.Controls.Add($txtSite)
+
+$topBar.Controls.Add((New-CustomLabel 'GM 口令 (ADMIN_TOKEN)' 936 8 160 16 $C_MUTED))
+$txtToken = New-CustomInput 936 26 140 '' $true
+$topBar.Controls.Add($txtToken)
+
+# 顶部操作按钮
+$btnSaveCfg = New-CustomButton '保存配置' 1084 24 74 26 'normal'
+$topBar.Controls.Add($btnSaveCfg)
+
+$btnTestConn = New-CustomButton '⚡ 测试连接' 1164 24 80 26 'gold'
+$topBar.Controls.Add($btnTestConn)
+
+$lblConnStatus = New-CustomLabel '● 准备就绪' 360 62 400 18 $C_MUTED
+$topBar.Controls.Add($lblConnStatus)
+
+$btnOpenWebGM = New-CustomButton '🌐 打开 Web GM 后台' 860 58 150 26 'gold'
+$topBar.Controls.Add($btnOpenWebGM)
+
+$btnOpenLobby = New-CustomButton '🎮 浏览器打开大厅' 1020 58 130 26 'normal'
+$topBar.Controls.Add($btnOpenLobby)
+
+$btnRefreshAll = New-CustomButton '🔄 全局刷新' 1160 58 84 26 'normal'
+$topBar.Controls.Add($btnRefreshAll)
+
+# ---------- 左侧导航栏 ----------
+$leftBar = New-Object System.Windows.Forms.Panel
+$leftBar.Location = New-Object System.Drawing.Point(0, 92)
+$leftBar.Size = New-Object System.Drawing.Size(200, 720)
+$leftBar.Dock = [System.Windows.Forms.DockStyle]::Left
+$leftBar.BackColor = $C_SURFACE
+$form.Controls.Add($leftBar)
+
+$navButtons = @{}
+$navItems = @(
+  @{ id = 'dashboard'; text = '📊  大盘总览' },
+  @{ id = 'players';   text = '👥  玩家管控与流水' },
+  @{ id = 'rooms';     text = '🎲  房间实时透视' },
+  @{ id = 'broadcast'; text = '📢  全服广播与公告' },
+  @{ id = 'security';  text = '🛡️  安全风控与解限' },
+  @{ id = 'ops';       text = '🚀  运维与部署控制' }
+)
+
+$btnY = 16
+foreach ($item in $navItems) {
+  $nb = New-CustomButton $item.text 10 $btnY 180 44 'nav'
+  $nb.Font = $FONT_BOLD
+  $navButtons[$item.id] = $nb
+  $leftBar.Controls.Add($nb)
+  $btnY += 50
+}
+
+# ---------- 主视口面板 (Card Deck) ----------
+$mainDeck = New-Object System.Windows.Forms.Panel
+$mainDeck.Location = New-Object System.Drawing.Point(200, 92)
+$mainDeck.Size = New-Object System.Drawing.Size(1060, 720)
+$mainDeck.Dock = [System.Windows.Forms.DockStyle]::Fill
+$mainDeck.BackColor = $C_CANVAS
+$form.Controls.Add($mainDeck)
+
+$views = @{}
+foreach ($item in $navItems) {
+  $v = New-Object System.Windows.Forms.Panel
+  $v.Dock = [System.Windows.Forms.DockStyle]::Fill
+  $v.BackColor = $C_CANVAS
+  $v.Visible = ($item.id -eq 'dashboard')
+  $views[$item.id] = $v
+  $mainDeck.Controls.Add($v)
+}
+
+function Switch-View($targetId) {
+  $script:ActiveNav = $targetId
+  foreach ($key in $navButtons.Keys) {
+    if ($key -eq $targetId) {
+      $navButtons[$key].BackColor = [System.Drawing.Color]::FromArgb(40, 245, 197, 66)
+      $navButtons[$key].ForeColor = $C_GOLD
+    } else {
+      $navButtons[$key].BackColor = [System.Drawing.Color]::Transparent
+      $navButtons[$key].ForeColor = $C_MUTED
+    }
+  }
+  foreach ($key in $views.Keys) {
+    $views[$key].Visible = ($key -eq $targetId)
+  }
+
+  if ($targetId -eq 'dashboard') { Refresh-Economy; Refresh-Overview }
+  if ($targetId -eq 'players')   { Refresh-Players }
+  if ($targetId -eq 'rooms')     { Refresh-Rooms; Get-GameList }
+  if ($targetId -eq 'broadcast') { Refresh-Notices }
+  if ($targetId -eq 'security')  { Refresh-Events }
+}
+
+foreach ($item in $navItems) {
+  $id = $item.id
+  $navButtons[$id].add_Click({ Switch-View $id })
+}
+
+# ================================================================
+# VIEW 1: 大盘总览 (Dashboard)
+# ================================================================
+$vDash = $views['dashboard']
+
+# KPI 卡片容器
+$kpiPanel = New-Object System.Windows.Forms.Panel
+$kpiPanel.Location = New-Object System.Drawing.Point(16, 16)
+$kpiPanel.Size = New-Object System.Drawing.Size(1020, 110)
+$kpiPanel.BackColor = [System.Drawing.Color]::Transparent
+$vDash.Controls.Add($kpiPanel)
+
+function Create-KpiCard($parent, $x, $y, $w, $h, $title, $sub) {
   $p = New-Object System.Windows.Forms.Panel
   $p.Location = New-Object System.Drawing.Point($x, $y)
   $p.Size = New-Object System.Drawing.Size($w, $h)
-  $p.BackColor = $C_PANEL
-  return $p
+  $p.BackColor = $C_SURFACE
+  $p.BorderStyle = 'FixedSingle'
+  $parent.Controls.Add($p)
+
+  $p.Controls.Add((New-CustomLabel $title 12 10 ($w - 24) 18 $C_MUTED))
+  $lblVal = New-CustomLabel '--' 12 32 ($w - 24) 36 $C_TEXT $FONT_BIG
+  $p.Controls.Add($lblVal)
+  $p.Controls.Add((New-CustomLabel $sub 12 76 ($w - 24) 18 $C_MUTED))
+  return $lblVal
 }
 
-# ---------- 顶部连接区 ----------
-$panelConn = New-Panel 12 10 1080 108
-$form.Controls.Add($panelConn)
+$lblKpiUsers   = Create-KpiCard $kpiPanel 0   0 160 100 '全服总玩家' '已注册有效账号'
+$lblKpiBalance = Create-KpiCard $kpiPanel 172 0 160 100 '筹码流通存量' '玩家金币总额'
+$lblKpiBet     = Create-KpiCard $kpiPanel 344 0 160 100 '今日下注流水' '今日累计押注'
+$lblKpiSettle  = Create-KpiCard $kpiPanel 516 0 160 100 '今日结算净值' '今日派奖净额'
+$lblKpiTip     = Create-KpiCard $kpiPanel 688 0 150 100 '今日荷官打赏' '爱心赠礼总额'
+$lblKpiRelief  = Create-KpiCard $kpiPanel 850 0 160 100 '今日救济产出' '破产保护福利'
 
-$panelConn.Controls.Add((New-Label 'SSH 主机' 14 10 80))
-$txtHost = New-Input 14 30 170
-$panelConn.Controls.Add($txtHost)
+$lblKpiBalance.ForeColor = $C_GOLD
+$lblKpiBet.ForeColor     = $C_BLUE
+$lblKpiSettle.ForeColor  = $C_GREEN
+$lblKpiTip.ForeColor     = $C_GOLD
 
-$panelConn.Controls.Add((New-Label '端口' 194 10 50))
-$txtPort = New-Input 194 30 60 '22'
-$panelConn.Controls.Add($txtPort)
+# 下半部双栏：今日盈利榜 Top 10 + 实时系统事件
+$vDash.Controls.Add((New-CustomLabel '🏆 今日盈利榜 Top 10' 16 136 240 20 $C_GOLD $FONT_BOLD))
+$lvWinners = New-CustomListView 16 162 480 440 @(
+  @{ name = '名次'; width = 60 },
+  @{ name = '玩家昵称'; width = 160 },
+  @{ name = '今日净胜筹码'; width = 130 },
+  @{ name = '对局局数'; width = 100 }
+)
+$vDash.Controls.Add($lvWinners)
 
-$panelConn.Controls.Add((New-Label '用户名' 264 10 70))
-$txtUser = New-Input 264 30 110 'ubuntu'
-$panelConn.Controls.Add($txtUser)
+$vDash.Controls.Add((New-CustomLabel '📡 实时风控与系统动态事件' 512 136 300 20 $C_BLUE $FONT_BOLD))
+$txtDashEvents = New-Object System.Windows.Forms.RichTextBox
+$txtDashEvents.Location = New-Object System.Drawing.Point(512, 162)
+$txtDashEvents.Size = New-Object System.Drawing.Size(524, 440)
+$txtDashEvents.BackColor = $C_INPUT
+$txtDashEvents.ForeColor = $C_TEXT
+$txtDashEvents.BorderStyle = 'FixedSingle'
+$txtDashEvents.Font = $FONT_MONO
+$txtDashEvents.ReadOnly = $true
+$vDash.Controls.Add($txtDashEvents)
 
-$panelConn.Controls.Add((New-Label '密码' 384 10 60))
-$txtPass = New-Input 384 30 140 '' $true
-$panelConn.Controls.Add($txtPass)
+# ================================================================
+# VIEW 2: 玩家管控与账本 (Players & Ledger)
+# ================================================================
+$vPlayers = $views['players']
 
-$panelConn.Controls.Add((New-Label '站点地址' 534 10 80))
-$txtSite = New-Input 534 30 230 'http://82.157.54.179/lobby'
-$panelConn.Controls.Add($txtSite)
+$vPlayers.Controls.Add((New-CustomLabel '按 UID / 昵称 / 账号搜索玩家：' 16 16 220 20 $C_MUTED))
+$txtPlayerSearch = New-CustomInput 230 14 260
+$vPlayers.Controls.Add($txtPlayerSearch)
 
-$panelConn.Controls.Add((New-Label 'GM 口令（ADMIN_TOKEN）' 774 10 200))
-$txtToken = New-Input 774 30 180 '' $true
-$panelConn.Controls.Add($txtToken)
+$btnPlayerSearch = New-CustomButton '🔍 搜索' 500 12 70 28 'gold'
+$vPlayers.Controls.Add($btnPlayerSearch)
 
-$btnSave = New-Button '保存配置' 964 28 100 28
-$panelConn.Controls.Add($btnSave)
+$btnPlayerShowAll = New-CustomButton '查看全部' 580 12 80 28 'normal'
+$vPlayers.Controls.Add($btnPlayerShowAll)
 
-$lblConn = New-Label '未连接' 14 66 500 18 $C_MUTED
-$panelConn.Controls.Add($lblConn)
+# 玩家表格 (左)
+$lvPlayers = New-CustomListView 16 52 640 580 @(
+  @{ name = '昵称'; width = 130 },
+  @{ name = '筹码余额'; width = 100 },
+  @{ name = '账号'; width = 100 },
+  @{ name = '状态'; width = 70 },
+  @{ name = 'UID'; width = 110 },
+  @{ name = '注册时间'; width = 110 }
+)
+$vPlayers.Controls.Add($lvPlayers)
 
-$btnPing = New-Button '测试连接' 14 74 100 26
-$panelConn.Controls.Add($btnPing)
+# 玩家操作抽屉 (右)
+$pPlayerDrawer = New-Object System.Windows.Forms.Panel
+$pPlayerDrawer.Location = New-Object System.Drawing.Point(670, 52)
+$pPlayerDrawer.Size = New-Object System.Drawing.Size(366, 580)
+$pPlayerDrawer.BackColor = $C_SURFACE
+$pPlayerDrawer.BorderStyle = 'FixedSingle'
+$vPlayers.Controls.Add($pPlayerDrawer)
 
-$btnLoadCfg = New-Button '重新读取配置' 120 74 120 26
-$panelConn.Controls.Add($btnLoadCfg)
+$pPlayerDrawer.Controls.Add((New-CustomLabel '👤 玩家详细资料' 16 16 200 24 $C_GOLD $FONT_BOLD))
+$lblPlayerDetail = New-CustomLabel "请在左侧列表中点击选择一位玩家`r`n以查看详细资料与进行管控。" 16 48 334 110 $C_MUTED
+$pPlayerDrawer.Controls.Add($lblPlayerDetail)
 
-# ---------- 选项卡 ----------
-$tabs = New-Object System.Windows.Forms.TabControl
-$tabs.Location = New-Object System.Drawing.Point(12, 126)
-$tabs.Size = New-Object System.Drawing.Size(1080, 606)
-$tabs.Font = $FONT_TITLE
-$tabs.ItemSize = New-Object System.Drawing.Size(112, 30)
-$tabs.Padding = New-Object System.Drawing.Point(12, 6)
-$form.Controls.Add($tabs)
+# 操作区：封禁/解封
+$btnBanPlayer = New-CustomButton '🚫 封禁账号' 16 160 160 32 'danger'
+$pPlayerDrawer.Controls.Add($btnBanPlayer)
 
-function New-TabPage($text) {
-  $page = New-Object System.Windows.Forms.TabPage
-  $page.Text = $text
-  $page.BackColor = $C_BG
-  $page.ForeColor = $C_TEXT
-  return $page
-}
+$btnUnbanPlayer = New-CustomButton '✅ 解封账号' 188 160 160 32 'gold'
+$pPlayerDrawer.Controls.Add($btnUnbanPlayer)
 
-# ================= 房间 =================
-$pageRooms = New-TabPage '  房间  '
-$tabs.TabPages.Add($pageRooms)
+# 操作区：修改资料与密码
+$btnEditNickname = New-CustomButton '✏️ 修改昵称' 16 204 160 32 'normal'
+$pPlayerDrawer.Controls.Add($btnEditNickname)
 
-$panelCreate = New-Panel 12 12 330 560
-$pageRooms.Controls.Add($panelCreate)
-$panelCreate.Controls.Add((New-Label '新建平台坐庄房间' 14 12 260 22 $C_GOLD $FONT_TITLE))
-$panelCreate.Controls.Add((New-Label '平台庄玩法无人也持续开局，玩家可随时入座' 14 36 300 34))
+$btnResetPass = New-CustomButton '🔑 重置登录密码' 188 204 160 32 'normal'
+$pPlayerDrawer.Controls.Add($btnResetPass)
 
-$panelCreate.Controls.Add((New-Label '游戏' 14 78 60))
-$cboGame = New-Combo 14 98 296
-$panelCreate.Controls.Add($cboGame)
+# 筹码调整区
+$pPlayerDrawer.Controls.Add((New-CustomLabel '💰 增发 / 扣除筹码' 16 250 200 20 $C_GOLD $FONT_BOLD))
+$pPlayerDrawer.Controls.Add((New-CustomLabel '金额 (正数增发，负数扣除)：' 16 274 200 18 $C_MUTED))
+$txtGrantAmount = New-CustomInput 16 294 332 '10000'
+$pPlayerDrawer.Controls.Add($txtGrantAmount)
 
-$panelCreate.Controls.Add((New-Label '开几间（1-10）' 14 134 140))
-$numCount = New-Object System.Windows.Forms.NumericUpDown
-$numCount.Location = New-Object System.Drawing.Point(14, 154)
-$numCount.Size = New-Object System.Drawing.Size(90, 24)
-$numCount.Minimum = 1
-$numCount.Maximum = 10
-$numCount.Value = 1
-$numCount.BackColor = $C_INPUT
-$numCount.ForeColor = $C_TEXT
-$panelCreate.Controls.Add($numCount)
+$pPlayerDrawer.Controls.Add((New-CustomLabel '调整原因备注：' 16 324 200 18 $C_MUTED))
+$txtGrantReason = New-CustomInput 16 344 332 'GM 奖励发放'
+$pPlayerDrawer.Controls.Add($txtGrantReason)
 
-$btnCreateRoom = New-Button '创建房间' 116 152 194 30 $true
-$panelCreate.Controls.Add($btnCreateRoom)
+$btnDoGrant = New-CustomButton '⚡ 执行调账 (幂等安全入账)' 16 376 332 34 'gold'
+$pPlayerDrawer.Controls.Add($btnDoGrant)
 
-$lblRoomHint = New-Label '提示：非平台庄玩法也可开台，但不会自动续局' 14 196 300 34 $C_MUTED
-$panelCreate.Controls.Add($lblRoomHint)
+# 资金账本流水抽屉按钮
+$btnViewLedger = New-CustomButton '📜 调阅该玩家资金流水明细账本' 16 430 332 36 'normal'
+$pPlayerDrawer.Controls.Add($btnViewLedger)
 
-$btnRefreshRooms = New-Button '刷新房间列表' 14 248 140 30
-$panelCreate.Controls.Add($btnRefreshRooms)
+# ================================================================
+# VIEW 3: 房间实时透视与调度 (Rooms Deep Inspector)
+# ================================================================
+$vRooms = $views['rooms']
 
-$btnDestroyRoom = New-Button '销毁选中房间' 164 248 146 30
-$panelCreate.Controls.Add($btnDestroyRoom)
+$vRooms.Controls.Add((New-CustomLabel '选择游戏筛选：' 16 16 100 20 $C_MUTED))
+$cboGameFilter = New-Object System.Windows.Forms.ComboBox
+$cboGameFilter.Location = New-Object System.Drawing.Point(120, 14)
+$cboGameFilter.Size = New-Object System.Drawing.Size(180, 24)
+$cboGameFilter.DropDownStyle = 'DropDownList'
+$cboGameFilter.BackColor = $C_INPUT
+$cboGameFilter.ForeColor = $C_TEXT
+$vRooms.Controls.Add($cboGameFilter)
 
-$lblRoomStat = New-Label '尚未加载' 14 292 300 40 $C_MUTED
-$panelCreate.Controls.Add($lblRoomStat)
+$btnRefreshRooms = New-CustomButton '🔄 刷新房间' 310 12 90 28 'gold'
+$vRooms.Controls.Add($btnRefreshRooms)
 
-$lvRooms = New-ListView 354 12 700 560 @(
-  @{ name = '房间'; width = 150 },
-  @{ name = '游戏'; width = 110 },
-  @{ name = '人数'; width = 70 },
-  @{ name = '状态'; width = 80 },
+$btnDestroyRoom = New-CustomButton '销毁房间' 410 12 80 28 'danger'
+$vRooms.Controls.Add($btnDestroyRoom)
+
+# 批量创建平台庄
+$vRooms.Controls.Add((New-CustomLabel '创建平台庄房数量：' 510 16 130 20 $C_MUTED))
+$numCreateCount = New-Object System.Windows.Forms.NumericUpDown
+$numCreateCount.Location = New-Object System.Drawing.Point(644, 14)
+$numCreateCount.Size = New-Object System.Drawing.Size(50, 24)
+$numCreateCount.BackColor = $C_INPUT
+$numCreateCount.ForeColor = $C_TEXT
+$numCreateCount.Minimum = 1
+$numCreateCount.Maximum = 10
+$numCreateCount.Value = 1
+$vRooms.Controls.Add($numCreateCount)
+
+$btnCreatePlatform = New-CustomButton '➕ 批量创建平台庄' 704 12 140 28 'gold'
+$vRooms.Controls.Add($btnCreatePlatform)
+
+# 房间列表 (左)
+$lvRooms = New-CustomListView 16 52 530 580 @(
+  @{ name = '房间名称'; width = 130 },
+  @{ name = '游戏'; width = 90 },
+  @{ name = '人数'; width = 60 },
+  @{ name = '状态'; width = 70 },
+  @{ name = '类型'; width = 70 },
+  @{ name = '房间号'; width = 90 }
+)
+$vRooms.Controls.Add($lvRooms)
+
+# 实时桌况透视面板 (右)
+$pInspectDrawer = New-Object System.Windows.Forms.Panel
+$pInspectDrawer.Location = New-Object System.Drawing.Point(560, 52)
+$pInspectDrawer.Size = New-Object System.Drawing.Size(476, 580)
+$pInspectDrawer.BackColor = $C_SURFACE
+$pInspectDrawer.BorderStyle = 'FixedSingle'
+$vRooms.Controls.Add($pInspectDrawer)
+
+$pInspectDrawer.Controls.Add((New-CustomLabel '🔍 实时桌况透视与干预' 16 14 200 24 $C_GOLD $FONT_BOLD))
+$lblInspectHead = New-CustomLabel "← 点击左侧房间查看内部玩家席位与对局状态" 16 42 440 36 $C_MUTED
+$pInspectDrawer.Controls.Add($lblInspectHead)
+
+# 桌内玩家席位列表
+$lvInspectPlayers = New-CustomListView 16 80 444 320 @(
+  @{ name = '座号'; width = 50 },
+  @{ name = '昵称 / 标识'; width = 130 },
   @{ name = '类型'; width = 80 },
-  @{ name = '可加入'; width = 70 },
-  @{ name = '房号'; width = 120 }
+  @{ name = '准备'; width = 60 },
+  @{ name = '当前得分'; width = 100 }
 )
-$pageRooms.Controls.Add($lvRooms)
+$pInspectDrawer.Controls.Add($lvInspectPlayers)
 
-# ================= 玩家 =================
-$pagePlayers = New-TabPage '  玩家  '
-$tabs.TabPages.Add($pagePlayers)
+# 干预控制工具箱
+$pInspectDrawer.Controls.Add((New-CustomLabel '🛠️ GM 即时调度干预：' 16 410 160 20 $C_GOLD $FONT_BOLD))
 
-$panelPFind = New-Panel 12 12 330 560
-$pagePlayers.Controls.Add($panelPFind)
-$panelPFind.Controls.Add((New-Label '玩家查询与调整' 14 12 240 22 $C_GOLD $FONT_TITLE))
+$btnKickPlayer = New-CustomButton '👢 踢出选中玩家' 16 434 130 32 'danger'
+$pInspectDrawer.Controls.Add($btnKickPlayer)
 
-$panelPFind.Controls.Add((New-Label '昵称或账号关键字（留空列出最近玩家）' 14 40 300 20))
-$txtSearch = New-Input 14 62 296
-$panelPFind.Controls.Add($txtSearch)
+$cboBotDiff = New-Object System.Windows.Forms.ComboBox
+$cboBotDiff.Location = New-Object System.Drawing.Point(156, 438)
+$cboBotDiff.Size = New-Object System.Drawing.Size(90, 24)
+$cboBotDiff.DropDownStyle = 'DropDownList'
+$cboBotDiff.BackColor = $C_INPUT
+$cboBotDiff.ForeColor = $C_TEXT
+[void]$cboBotDiff.Items.Add('中级')
+[void]$cboBotDiff.Items.Add('初级')
+[void]$cboBotDiff.Items.Add('高级')
+$cboBotDiff.SelectedIndex = 0
+$pInspectDrawer.Controls.Add($cboBotDiff)
 
-$btnSearch = New-Button '搜索' 14 94 140 28
-$panelPFind.Controls.Add($btnSearch)
+$btnAddBot = New-CustomButton '🤖 添加机器人' 254 434 100 32 'gold'
+$pInspectDrawer.Controls.Add($btnAddBot)
 
-$btnPlayerAll = New-Button '全部玩家' 164 94 146 28
-$panelPFind.Controls.Add($btnPlayerAll)
+$btnRemoveBot = New-CustomButton '➖ 移除机器人' 362 434 98 32 'normal'
+$pInspectDrawer.Controls.Add($btnRemoveBot)
 
-$panelPFind.Controls.Add((New-Label '调整额度（正数发放 / 负数扣除）' 14 136 300 20))
-$txtAmount = New-Input 14 158 140 '1000'
-$panelPFind.Controls.Add($txtAmount)
+$btnForceReset = New-CustomButton '🔄 强制流局并全额退款重置房间' 16 480 444 36 'danger'
+$pInspectDrawer.Controls.Add($btnForceReset)
 
-$txtReason = New-Input 164 158 146 'GM 补偿'
-$panelPFind.Controls.Add($txtReason)
+# ================================================================
+# VIEW 4: 全服广播与公告 (Broadcast & Notices)
+# ================================================================
+$vBroadcast = $views['broadcast']
 
-$btnGrant = New-Button '执行调整' 14 192 296 32 $true
-$panelPFind.Controls.Add($btnGrant)
+$vBroadcast.Controls.Add((New-CustomLabel '📢 全服即时跑马灯广播' 16 16 260 24 $C_GOLD $FONT_BOLD))
+$vBroadcast.Controls.Add((New-CustomLabel '推送内容将即时下发至在线所有玩家的大厅跑马灯与牌桌屏幕顶部：' 16 42 500 18 $C_MUTED))
+$txtMarquee = New-CustomInput 16 66 700 '' $false 28
+$vBroadcast.Controls.Add($txtMarquee)
 
-$lblPlayerDetail = New-Label '选中玩家后显示详情' 14 238 300 300 $C_MUTED
-$panelPFind.Controls.Add($lblPlayerDetail)
+$btnSendMarquee = New-CustomButton '🚀 即刻全服推送' 726 64 140 30 'gold'
+$vBroadcast.Controls.Add($btnSendMarquee)
 
-$lvPlayers = New-ListView 354 12 700 560 @(
-  @{ name = '昵称'; width = 170 },
-  @{ name = '余额'; width = 110 },
-  @{ name = '账号'; width = 140 },
-  @{ name = '签名'; width = 200 },
-  @{ name = '玩家 ID'; width = 70 }
-)
-$pagePlayers.Controls.Add($lvPlayers)
+$vBroadcast.Controls.Add((New-CustomLabel '📜 系统公告管理' 16 116 200 24 $C_GOLD $FONT_BOLD))
 
-# ================= 公告 =================
-$pageNotices = New-TabPage '  公告  '
-$tabs.TabPages.Add($pageNotices)
+# 发布新公告面板 (左)
+$pPublishNotice = New-Object System.Windows.Forms.Panel
+$pPublishNotice.Location = New-Object System.Drawing.Point(16, 148)
+$pPublishNotice.Size = New-Object System.Drawing.Size(320, 480)
+$pPublishNotice.BackColor = $C_SURFACE
+$pPublishNotice.BorderStyle = 'FixedSingle'
+$vBroadcast.Controls.Add($pPublishNotice)
 
-$panelNEdit = New-Panel 12 12 330 560
-$pageNotices.Controls.Add($panelNEdit)
-$panelNEdit.Controls.Add((New-Label '发布公告' 14 12 200 22 $C_GOLD $FONT_TITLE))
+$pPublishNotice.Controls.Add((New-CustomLabel '发布新公告' 16 14 200 20 $C_GOLD $FONT_BOLD))
+$pPublishNotice.Controls.Add((New-CustomLabel '标题 (1-40 字)：' 16 42 200 18 $C_MUTED))
+$txtNoticeTitle = New-CustomInput 16 64 286
+$pPublishNotice.Controls.Add($txtNoticeTitle)
 
-$panelNEdit.Controls.Add((New-Label '标题' 14 42 60))
-$txtNoticeTitle = New-Input 14 62 296
-$panelNEdit.Controls.Add($txtNoticeTitle)
+$pPublishNotice.Controls.Add((New-CustomLabel '公告类型：' 16 98 200 18 $C_MUTED))
+$cboNoticeKind = New-Object System.Windows.Forms.ComboBox
+$cboNoticeKind.Location = New-Object System.Drawing.Point(16, 120)
+$cboNoticeKind.Size = New-Object System.Drawing.Size(286, 24)
+$cboNoticeKind.DropDownStyle = 'DropDownList'
+$cboNoticeKind.BackColor = $C_INPUT
+$cboNoticeKind.ForeColor = $C_TEXT
+[void]$cboNoticeKind.Items.Add('notice - 普通公告')
+[void]$cboNoticeKind.Items.Add('event - 庆典活动')
+[void]$cboNoticeKind.Items.Add('maintenance - 系统维护')
+$cboNoticeKind.SelectedIndex = 0
+$pPublishNotice.Controls.Add($cboNoticeKind)
 
-$panelNEdit.Controls.Add((New-Label '内容' 14 96 60))
+$pPublishNotice.Controls.Add((New-CustomLabel '公告正文内容：' 16 156 200 18 $C_MUTED))
 $txtNoticeBody = New-Object System.Windows.Forms.TextBox
-$txtNoticeBody.Location = New-Object System.Drawing.Point(14, 116)
-$txtNoticeBody.Size = New-Object System.Drawing.Size(296, 120)
+$txtNoticeBody.Location = New-Object System.Drawing.Point(16, 178)
+$txtNoticeBody.Size = New-Object System.Drawing.Size(286, 200)
 $txtNoticeBody.Multiline = $true
 $txtNoticeBody.BackColor = $C_INPUT
 $txtNoticeBody.ForeColor = $C_TEXT
 $txtNoticeBody.BorderStyle = 'FixedSingle'
-$panelNEdit.Controls.Add($txtNoticeBody)
+$pPublishNotice.Controls.Add($txtNoticeBody)
 
-$panelNEdit.Controls.Add((New-Label '类型' 14 250 60))
-$cboKind = New-Combo 14 270 150 @('notice', 'event', 'maintenance')
-$panelNEdit.Controls.Add($cboKind)
+$btnPublishNotice = New-CustomButton '发布并推送公告' 16 392 286 36 'gold'
+$pPublishNotice.Controls.Add($btnPublishNotice)
 
-$btnNoticePublish = New-Button '发布' 14 306 296 32 $true
-$panelNEdit.Controls.Add($btnNoticePublish)
+# 公告列表 (右)
+$vBroadcast.Controls.Add((New-CustomLabel '已有有效公告列表：' 350 118 200 20 $C_MUTED))
+$btnDeleteNotice = New-CustomButton '下架删除选中公告' 880 112 150 28 'danger'
+$vBroadcast.Controls.Add($btnDeleteNotice)
 
-$btnNoticeRefresh = New-Button '刷新列表' 14 350 140 28
-$panelNEdit.Controls.Add($btnNoticeRefresh)
-
-$btnNoticeDelete = New-Button '删除选中' 164 350 146 28
-$panelNEdit.Controls.Add($btnNoticeDelete)
-
-$lvNotices = New-ListView 354 12 700 560 @(
-  @{ name = '标题'; width = 240 },
-  @{ name = '类型'; width = 100 },
-  @{ name = '内容'; width = 240 },
-  @{ name = '时间'; width = 110 }
+$lvNotices = New-CustomListView 350 148 680 480 @(
+  @{ name = '标题'; width = 160 },
+  @{ name = '类型'; width = 80 },
+  @{ name = '内容正文'; width = 300 },
+  @{ name = '发布时间'; width = 120 }
 )
-$pageNotices.Controls.Add($lvNotices)
+$vBroadcast.Controls.Add($lvNotices)
 
-# ================= 部署运维 =================
-$pageOps = New-TabPage '  部署运维  '
-$tabs.TabPages.Add($pageOps)
+# ================================================================
+# VIEW 5: 安全风控与解限中心 (Security & Risk)
+# ================================================================
+$vSecurity = $views['security']
 
-$panelOps = New-Panel 12 12 1056 96
-$pageOps.Controls.Add($panelOps)
+$vSecurity.Controls.Add((New-CustomLabel '🛡️ 安全风控审计与解限中心' 16 16 260 24 $C_GOLD $FONT_BOLD))
+$btnClearLimits = New-CustomButton '🔓 一键清空防暴力限流锁定' 780 14 240 32 'gold'
+$vSecurity.Controls.Add($btnClearLimits)
 
-$btnDeploy = New-Button '一键部署到服务器' 16 16 240 56 $true
-$panelOps.Controls.Add($btnDeploy)
+$vSecurity.Controls.Add((New-CustomLabel '当 GM 口令输入错误或账号遭遇防暴力破解机制锁定时，点击上方按钮可立即清空白名单恢复访问。' 16 46 800 18 $C_MUTED))
 
-$btnStatus = New-Button '检查服务状态' 268 16 160 56
-$panelOps.Controls.Add($btnStatus)
+$txtSecurityEvents = New-Object System.Windows.Forms.RichTextBox
+$txtSecurityEvents.Location = New-Object System.Drawing.Point(16, 76)
+$txtSecurityEvents.Size = New-Object System.Drawing.Size(1010, 550)
+$txtSecurityEvents.BackColor = $C_INPUT
+$txtSecurityEvents.ForeColor = $C_TEXT
+$txtSecurityEvents.BorderStyle = 'FixedSingle'
+$txtSecurityEvents.Font = $FONT_MONO
+$txtSecurityEvents.ReadOnly = $true
+$vSecurity.Controls.Add($txtSecurityEvents)
 
-$btnRestart = New-Button '重启服务' 440 16 160 56
-$panelOps.Controls.Add($btnRestart)
+# ================================================================
+# VIEW 6: 运维与部署控制台 (DevOps & Deploy)
+# ================================================================
+$vOps = $views['ops']
 
-$lblOpsHint = New-Label '部署流程：打包当前版本 → SFTP 上传 → 远程执行 deploy.sh → 轮询健康检查' 616 30 420 40 $C_MUTED
-$panelOps.Controls.Add($lblOpsHint)
+$vOps.Controls.Add((New-CustomLabel '🚀 远程服务状态与一键部署' 16 16 260 24 $C_GOLD $FONT_BOLD))
+
+$btnDeploy = New-CustomButton '📦 一键云端构建并部署' 16 50 180 34 'gold'
+$vOps.Controls.Add($btnDeploy)
+
+$btnRestart = New-CustomButton '🔄 重启远程服务' 206 50 140 34 'danger'
+$vOps.Controls.Add($btnRestart)
+
+$btnStatus = New-CustomButton '🔍 检查服务器状态' 356 50 140 34 'normal'
+$vOps.Controls.Add($btnStatus)
 
 $txtDeployLog = New-Object System.Windows.Forms.RichTextBox
-$txtDeployLog.Location = New-Object System.Drawing.Point(12, 118)
-$txtDeployLog.Size = New-Object System.Drawing.Size(1056, 454)
-$txtDeployLog.BackColor = [System.Drawing.Color]::FromArgb(6, 9, 13)
+$txtDeployLog.Location = New-Object System.Drawing.Point(16, 96)
+$txtDeployLog.Size = New-Object System.Drawing.Size(1010, 530)
+$txtDeployLog.BackColor = $C_INPUT
 $txtDeployLog.ForeColor = $C_TEXT
+$txtDeployLog.BorderStyle = 'FixedSingle'
 $txtDeployLog.Font = $FONT_MONO
 $txtDeployLog.ReadOnly = $true
-$txtDeployLog.BorderStyle = 'None'
-$pageOps.Controls.Add($txtDeployLog)
+$vOps.Controls.Add($txtDeployLog)
 
-# ================= 操作日志 =================
-$pageLog = New-TabPage '  操作日志  '
-$tabs.TabPages.Add($pageLog)
-
-$txtLog = New-Object System.Windows.Forms.RichTextBox
-$txtLog.Location = New-Object System.Drawing.Point(12, 12)
-$txtLog.Size = New-Object System.Drawing.Size(1056, 560)
-$txtLog.BackColor = [System.Drawing.Color]::FromArgb(6, 9, 13)
-$txtLog.ForeColor = $C_TEXT
-$txtLog.Font = $FONT_MONO
-$txtLog.ReadOnly = $true
-$txtLog.BorderStyle = 'None'
-$pageLog.Controls.Add($txtLog)
-
-# ---------- 状态条 ----------
-$statusBar = New-Object System.Windows.Forms.StatusStrip
-$statusBar.BackColor = $C_PANEL
-$statusBar.ForeColor = $C_MUTED
+# ---------- 底部状态栏 ----------
+$statusStrip = New-Object System.Windows.Forms.StatusStrip
+$statusStrip.BackColor = $C_SURFACE
+$statusStrip.ForeColor = $C_MUTED
 $statusLabel = New-Object System.Windows.Forms.ToolStripStatusLabel
 $statusLabel.Text = '就绪'
-$statusBar.Items.Add($statusLabel) | Out-Null
-$form.Controls.Add($statusBar)
+$statusStrip.Items.Add($statusLabel) | Out-Null
+$form.Controls.Add($statusStrip)
 
-# ---------- 日志 ----------
-function Add-Log($text, $kind = 'info') {
+# ---------- 核心网络与业务逻辑 ----------
+function Add-LogMsg($box, $text, $kind = 'info') {
   if (-not $text) { return }
   $color = switch ($kind) {
-    'err' { $C_ERR }
-    'ok' { $C_OK }
-    'done' { $C_GOLD }
-    'remote' { [System.Drawing.Color]::FromArgb(186, 196, 212) }
+    'err' { $C_RED }
+    'ok' { $C_GREEN }
+    'gold' { $C_GOLD }
     default { $C_MUTED }
   }
   $stamp = (Get-Date).ToString('HH:mm:ss')
-  $txtLog.SelectionStart = $txtLog.TextLength
-  $txtLog.SelectionColor = $color
-  $txtLog.AppendText("[$stamp] $text`r`n")
-  $txtLog.SelectionStart = $txtLog.TextLength
-  $txtLog.ScrollToCaret()
+  $box.SelectionStart = $box.TextLength
+  $box.SelectionColor = $color
+  $box.AppendText("[$stamp] $text`r`n")
+  $box.SelectionStart = $box.TextLength
+  $box.ScrollToCaret()
 }
 
-function Set-Status($text, $isError = $false) {
+function Set-TopStatus($text, $isError = $false) {
+  $lblConnStatus.Text = $text
+  $lblConnStatus.ForeColor = if ($isError) { $C_RED } else { $C_GREEN }
   $statusLabel.Text = $text
-  $statusLabel.ForeColor = if ($isError) { $C_ERR } else { $C_MUTED }
 }
 
-# ---------- 配置 ----------
 function Load-Config {
   if (-not (Test-Path $script:ConfigPath)) { return }
   try {
@@ -410,9 +641,7 @@ function Load-Config {
     if ($cfg.password) { $txtPass.Text = $cfg.password }
     if ($cfg.site) { $txtSite.Text = $cfg.site }
     if ($cfg.adminToken) { $txtToken.Text = $cfg.adminToken }
-  } catch {
-    Add-Log '配置文件损坏，已忽略' 'err'
-  }
+  } catch { }
 }
 
 function Save-Config {
@@ -422,13 +651,12 @@ function Save-Config {
     username   = $txtUser.Text.Trim()
     password   = $txtPass.Text
     site       = $txtSite.Text.Trim()
-    adminToken = $txtToken.Text
+    adminToken = $txtToken.Text.Trim()
   }
   ($cfg | ConvertTo-Json) | Set-Content -Path $script:ConfigPath -Encoding UTF8
-  Add-Log '配置已保存到本机 tools/.gm-config.json' 'ok'
+  Set-TopStatus '配置已保存至 tools/.gm-config.json'
 }
 
-# ---------- GM 接口 ----------
 function Invoke-GmApi {
   param([string]$Path, [string]$Method = 'GET', $Body = $null)
 
@@ -452,26 +680,70 @@ function Invoke-GmApi {
   return Invoke-RestMethod @params
 }
 
-function Get-GameList {
+function Refresh-Economy {
   try {
-    $base = $txtSite.Text.Trim().TrimEnd('/')
-    if (-not $base) { return }
-    $res = Invoke-RestMethod -Uri "$base/api/games" -TimeoutSec 15 -UseBasicParsing
-    $cboGame.Items.Clear()
-    foreach ($g in $res.games) {
-      $tag = if ($g.persistent) { '（平台庄）' } else { '' }
-      [void]$cboGame.Items.Add("$($g.gameId) - $($g.title)$tag")
+    $res = Invoke-GmApi '/api/admin/economy'
+    $eco = $res.overview
+    $lblKpiUsers.Text   = ('{0:N0}' -f [double]$eco.totalUsers)
+    $lblKpiBalance.Text = ('{0:N0}' -f [double]$eco.totalBalance)
+    $lblKpiBet.Text     = ('{0:N0}' -f [double]$eco.todayBet)
+    $lblKpiSettle.Text  = ('{0:N0}' -f [double]$eco.todaySettle)
+    $lblKpiTip.Text     = ('{0:N0}' -f [double]$eco.todayTip)
+    $lblKpiRelief.Text  = ('{0:N0}' -f [double]$eco.todayRelief)
+  } catch { }
+}
+
+function Refresh-Overview {
+  try {
+    $res = Invoke-GmApi '/api/admin/overview'
+    $lvWinners.Items.Clear()
+    $daily = @($res.daily)
+    $idx = 1
+    foreach ($d in $daily) {
+      $item = New-Object System.Windows.Forms.ListViewItem("#$idx")
+      [void]$item.SubItems.Add([string]$d.nickname)
+      [void]$item.SubItems.Add(('{0:N0}' -f [double]$d.net))
+      [void]$item.SubItems.Add("$($d.rounds) 局")
+      [void]$lvWinners.Items.Add($item)
+      $idx += 1
     }
-    if ($cboGame.Items.Count -gt 0) { $cboGame.SelectedIndex = 0 }
-    Add-Log "已加载 $($res.games.Count) 款游戏" 'ok'
+    Set-TopStatus "大盘已更新 · 活跃房间 $($res.summary.rooms) · 在线玩家 $($res.summary.humans)"
   } catch {
-    Add-Log "加载游戏列表失败：$($_.Exception.Message)" 'err'
+    Set-TopStatus "拉取总览失败: $($_.Exception.Message)" $true
+  }
+}
+
+function Refresh-Players {
+  try {
+    $k = $txtPlayerSearch.Text.Trim()
+    $res = Invoke-GmApi "/api/admin/players?q=$([uri]::EscapeDataString($k))"
+    $script:Players = @($res.players)
+    $lvPlayers.Items.Clear()
+    foreach ($p in $script:Players) {
+      $item = New-Object System.Windows.Forms.ListViewItem([string]$p.nickname)
+      [void]$item.SubItems.Add(('{0:N0}' -f [double]$p.balance))
+      [void]$item.SubItems.Add([string]$p.username)
+      $status = if ($p.banned) { '🚫 封禁' } else { '正常' }
+      [void]$item.SubItems.Add($status)
+      [void]$item.SubItems.Add([string]$p.userId.Substring(0, 8))
+      $time = if ($p.createdAt) { ([DateTimeOffset]::FromUnixTimeMilliseconds([int64]$p.createdAt)).LocalDateTime.ToString('yyyy-MM-dd') } else { '-' }
+      [void]$item.SubItems.Add($time)
+      $item.Tag = $p
+      [void]$lvPlayers.Items.Add($item)
+    }
+  } catch {
+    Set-TopStatus "刷新玩家失败: $($_.Exception.Message)" $true
   }
 }
 
 function Refresh-Rooms {
   try {
-    $res = Invoke-GmApi '/api/admin/rooms'
+    $gameId = ''
+    if ($cboGameFilter.SelectedItem -and $cboGameFilter.SelectedItem -ne '全部游戏') {
+      $gameId = ($cboGameFilter.SelectedItem -split ' ')[0]
+    }
+    $path = if ($gameId) { "/api/admin/rooms?gameId=$gameId" } else { '/api/admin/rooms' }
+    $res = Invoke-GmApi $path
     $script:Rooms = @($res.rooms)
     $lvRooms.Items.Clear()
     foreach ($r in $script:Rooms) {
@@ -480,37 +752,34 @@ function Refresh-Rooms {
       [void]$item.SubItems.Add("$($r.players)/$($r.maxPlayers)")
       [void]$item.SubItems.Add([string]$r.status)
       [void]$item.SubItems.Add($(if ($r.persistent) { '平台庄' } else { '玩家房' }))
-      [void]$item.SubItems.Add($(if ($r.joinable) { '可' } else { '否' }))
-      [void]$item.SubItems.Add([string]$r.roomId)
+      [void]$item.SubItems.Add([string]$r.roomId.Substring(0, 8))
       $item.Tag = $r
       [void]$lvRooms.Items.Add($item)
     }
-    $platform = ($script:Rooms | Where-Object { $_.persistent }).Count
-    $lblRoomStat.Text = "共 $($script:Rooms.Count) 间房，其中平台庄 $platform 间"
-    Add-Log "房间列表已刷新：$($script:Rooms.Count) 间" 'ok'
   } catch {
-    Add-Log "刷新房间失败：$($_.Exception.Message)" 'err'
+    Set-TopStatus "刷新房间失败: $($_.Exception.Message)" $true
   }
 }
 
-function Refresh-Players {
-  param([string]$Keyword = '')
+function Inspect-Room($roomId) {
   try {
-    $res = Invoke-GmApi "/api/admin/players?q=$([uri]::EscapeDataString($Keyword))"
-    $script:Players = @($res.players)
-    $lvPlayers.Items.Clear()
-    foreach ($p in $script:Players) {
-      $item = New-Object System.Windows.Forms.ListViewItem([string]$p.nickname)
-      [void]$item.SubItems.Add(('{0:N0}' -f [double]$p.balance))
-      [void]$item.SubItems.Add([string]$p.username)
-      [void]$item.SubItems.Add([string]$p.bio)
-      [void]$item.SubItems.Add($p.userId.Substring(0, 8))
+    $res = Invoke-GmApi "/api/admin/rooms/$roomId/detail"
+    $r = $res.room
+    $lblInspectHead.Text = "房间: $($r.roomId)`r`n游戏: $($r.gameId) · 局数: 第 $($r.round) 局 · 行动者: $($r.currentActor)"
+    $lvInspectPlayers.Items.Clear()
+    foreach ($p in @($r.players)) {
+      $item = New-Object System.Windows.Forms.ListViewItem("#$($p.seat)")
+      [void]$item.SubItems.Add([string]$p.nickname)
+      $type = if ($p.isBot) { "🤖 $($p.botDifficulty)" } else { "👤 真人" }
+      [void]$item.SubItems.Add($type)
+      $ready = if ($p.ready) { '已准备' } else { '等待' }
+      [void]$item.SubItems.Add($ready)
+      [void]$item.SubItems.Add(('{0:N0}' -f [double]$p.score))
       $item.Tag = $p
-      [void]$lvPlayers.Items.Add($item)
+      [void]$lvInspectPlayers.Items.Add($item)
     }
-    Add-Log "查询到 $($script:Players.Count) 位玩家" 'ok'
   } catch {
-    Add-Log "查询玩家失败：$($_.Exception.Message)" 'err'
+    $lblInspectHead.Text = "透视失败: $($_.Exception.Message)"
   }
 }
 
@@ -523,20 +792,341 @@ function Refresh-Notices {
       $item = New-Object System.Windows.Forms.ListViewItem([string]$n.title)
       [void]$item.SubItems.Add([string]$n.kind)
       [void]$item.SubItems.Add([string]$n.content)
-      [void]$item.SubItems.Add(([DateTimeOffset]::FromUnixTimeMilliseconds([int64]$n.createdAt)).LocalDateTime.ToString('MM-dd HH:mm'))
+      $time = ([DateTimeOffset]::FromUnixTimeMilliseconds([int64]$n.createdAt)).LocalDateTime.ToString('MM-dd HH:mm')
+      [void]$item.SubItems.Add($time)
       $item.Tag = $n
       [void]$lvNotices.Items.Add($item)
     }
-    Add-Log "公告列表已刷新：$($script:Notices.Count) 条" 'ok'
-  } catch {
-    Add-Log "刷新公告失败：$($_.Exception.Message)" 'err'
-  }
+  } catch { }
 }
 
-# ---------- 外部进程（部署） ----------
+function Refresh-Events {
+  try {
+    $res = Invoke-GmApi '/api/admin/events?limit=80'
+    $txtSecurityEvents.Clear()
+    $txtDashEvents.Clear()
+    foreach ($e in @($res.events)) {
+      $time = ([DateTimeOffset]::FromUnixTimeMilliseconds([int64]$e.timestamp)).LocalDateTime.ToString('HH:mm:ss')
+      $kind = if ($e.level -eq 'warn') { 'err' } elseif ($e.level -eq 'info') { 'ok' } else { 'gold' }
+      Add-LogMsg $txtSecurityEvents "[$time] [$($e.category.ToUpper())] $($e.message)" $kind
+      Add-LogMsg $txtDashEvents "[$time] [$($e.category.ToUpper())] $($e.message)" $kind
+    }
+  } catch { }
+}
+
+function Get-GameList {
+  try {
+    $res = Invoke-GmApi '/api/admin/overview'
+    $cboGameFilter.Items.Clear()
+    [void]$cboGameFilter.Items.Add('全部游戏')
+    foreach ($g in @($res.games)) {
+      [void]$cboGameFilter.Items.Add("$($g.gameId) - $($g.title)")
+    }
+    $cboGameFilter.SelectedIndex = 0
+  } catch { }
+}
+
+# ---------- 事件监听绑定 ----------
+$btnSaveCfg.add_Click({ Save-Config })
+$btnTestConn.add_Click({
+  try {
+    Save-Config
+    Refresh-Economy
+    Refresh-Overview
+    Set-TopStatus '● 连通成功！API 与房间服务正常响应'
+  } catch {
+    Set-TopStatus "连接失败: $($_.Exception.Message)" $true
+  }
+})
+$btnRefreshAll.add_Click({
+  Refresh-Economy
+  Refresh-Overview
+  Refresh-Players
+  Refresh-Rooms
+  Refresh-Notices
+  Refresh-Events
+})
+
+$btnOpenWebGM.add_Click({
+  $webPath = Join-Path $script:Root 'tools\web-admin\index.html'
+  if (Test-Path $webPath) {
+    Start-Process $webPath
+  }
+})
+
+$btnOpenLobby.add_Click({
+  $site = $txtSite.Text.Trim()
+  if ($site) { Start-Process $site }
+})
+
+# 玩家点击与操作
+$lvPlayers.add_SelectedIndexChanged({
+  if ($lvPlayers.SelectedItems.Count -eq 0) { return }
+  $p = $lvPlayers.SelectedItems[0].Tag
+  $statusText = if ($p.banned) { '🚫 已封禁' } else { '✅ 正常' }
+  $lblPlayerDetail.Text = "玩家昵称：$($p.nickname)`r`n登录账号：$($p.username)`r`n筹码余额：$('{0:N0}' -f [double]$p.balance)`r`n账号状态：$statusText`r`n玩家 UID：`r`n$($p.userId)"
+})
+
+$btnPlayerSearch.add_Click({ Refresh-Players })
+$btnPlayerShowAll.add_Click({ $txtPlayerSearch.Text = ''; Refresh-Players })
+
+$btnBanPlayer.add_Click({
+  if ($lvPlayers.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先在列表中选中一位玩家'); return }
+  $p = $lvPlayers.SelectedItems[0].Tag
+  if ([System.Windows.Forms.MessageBox]::Show("确认封禁玩家 $($p.nickname)？", '封禁确认', 'YesNo', 'Warning') -ne 'Yes') { return }
+  try {
+    Invoke-GmApi "/api/admin/players/$($p.userId)/status" 'POST' @{ banned = $true } | Out-Null
+    Set-TopStatus "已成功封禁玩家 $($p.nickname)"
+    Refresh-Players
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("封禁失败: $($_.Exception.Message)")
+  }
+})
+
+$btnUnbanPlayer.add_Click({
+  if ($lvPlayers.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先在列表中选中一位玩家'); return }
+  $p = $lvPlayers.SelectedItems[0].Tag
+  try {
+    Invoke-GmApi "/api/admin/players/$($p.userId)/status" 'POST' @{ banned = $false } | Out-Null
+    Set-TopStatus "已成功解封玩家 $($p.nickname)"
+    Refresh-Players
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("解封失败: $($_.Exception.Message)")
+  }
+})
+
+$btnEditNickname.add_Click({
+  if ($lvPlayers.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先在列表中选中一位玩家'); return }
+  $p = $lvPlayers.SelectedItems[0].Tag
+  $newNick = [Microsoft.VisualBasic.Interaction]::InputBox("请输入玩家 $($p.nickname) 的新昵称：", '修改玩家昵称', $p.nickname)
+  if (-not $newNick -or $newNick.Trim().Length -lt 2) { return }
+  try {
+    Invoke-GmApi "/api/admin/players/$($p.userId)/update" 'POST' @{ nickname = $newNick.Trim() } | Out-Null
+    Set-TopStatus "玩家昵称已更新为 $newNick"
+    Refresh-Players
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("更新昵称失败: $($_.Exception.Message)")
+  }
+})
+
+$btnResetPass.add_Click({
+  if ($lvPlayers.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先在列表中选中一位玩家'); return }
+  $p = $lvPlayers.SelectedItems[0].Tag
+  $newPass = [Microsoft.VisualBasic.Interaction]::InputBox("请输入玩家 $($p.nickname) 的新登录密码 (6-32 位)：", '重置密码', '')
+  if (-not $newPass -or $newPass.Length -lt 6) { return }
+  try {
+    Invoke-GmApi "/api/admin/players/$($p.userId)/reset-password" 'POST' @{ newPassword = $newPass } | Out-Null
+    [System.Windows.Forms.MessageBox]::Show("玩家 $($p.nickname) 的登录密码已重置成功！", '重置成功', 'OK', 'Information')
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("重置密码失败: $($_.Exception.Message)")
+  }
+})
+
+$btnDoGrant.add_Click({
+  if ($lvPlayers.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先在列表中选中一位玩家'); return }
+  $p = $lvPlayers.SelectedItems[0].Tag
+  $amount = [int]$txtGrantAmount.Text
+  if ($amount -eq 0) { [System.Windows.Forms.MessageBox]::Show('金额不能为 0'); return }
+  try {
+    $idempotencyKey = "gui_$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())_$([Guid]::NewGuid().ToString().Substring(0, 8))"
+    $res = Invoke-GmApi '/api/admin/grant' 'POST' @{
+      userId = $p.userId
+      amount = $amount
+      reason = $txtGrantReason.Text
+      idempotencyKey = $idempotencyKey
+    }
+    Set-TopStatus "已为 $($res.nickname) 调整 $amount，最新余额 $('{0:N0}' -f [double]$res.balance)"
+    Refresh-Players
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("调账失败: $($_.Exception.Message)")
+  }
+})
+
+# 玩家流水明细弹窗
+$btnViewLedger.add_Click({
+  if ($lvPlayers.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先在列表中选中一位玩家'); return }
+  $p = $lvPlayers.SelectedItems[0].Tag
+  try {
+    $res = Invoke-GmApi "/api/admin/players/$($p.userId)/ledger?limit=100"
+    $rows = @($res.ledger)
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text = "📜 资金账本流水明细 · $($p.nickname) ($($p.userId))"
+    $dlg.Size = New-Object System.Drawing.Size(860, 560)
+    $dlg.StartPosition = 'CenterParent'
+    $dlg.BackColor = $C_CANVAS
+    $dlg.ForeColor = $C_TEXT
+    $dlg.Font = $FONT_UI
+
+    $lvL = New-CustomListView 16 16 812 480 @(
+      @{ name = '发生时间'; width = 140 },
+      @{ name = '业务类型'; width = 120 },
+      @{ name = '变动 Delta'; width = 100 },
+      @{ name = '变动后结余'; width = 110 },
+      @{ name = '关联业务单号 (BizId)'; width = 310 }
+    )
+    foreach ($r in $rows) {
+      $time = ([DateTimeOffset]::FromUnixTimeMilliseconds([int64]$r.createdAt)).LocalDateTime.ToString('yyyy-MM-dd HH:mm:ss')
+      $item = New-Object System.Windows.Forms.ListViewItem($time)
+      [void]$item.SubItems.Add([string]$r.bizType)
+      $deltaStr = if ($r.delta -ge 0) { "+$('{0:N0}' -f [double]$r.delta)" } else { ('{0:N0}' -f [double]$r.delta) }
+      [void]$item.SubItems.Add($deltaStr)
+      [void]$item.SubItems.Add(('{0:N0}' -f [double]$r.balanceAfter))
+      [void]$item.SubItems.Add([string]$r.bizId)
+      [void]$lvL.Items.Add($item)
+    }
+    $dlg.Controls.Add($lvL)
+    $dlg.ShowDialog($form) | Out-Null
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("拉取账本失败: $($_.Exception.Message)")
+  }
+})
+
+# 房间实时透视与干预
+$lvRooms.add_SelectedIndexChanged({
+  if ($lvRooms.SelectedItems.Count -eq 0) { return }
+  $r = $lvRooms.SelectedItems[0].Tag
+  Inspect-Room $r.roomId
+})
+
+$btnRefreshRooms.add_Click({ Refresh-Rooms })
+$cboGameFilter.add_SelectedIndexChanged({ Refresh-Rooms })
+
+$btnCreatePlatform.add_Click({
+  $sel = [string]$cboGameFilter.SelectedItem
+  if (-not $sel -or $sel -eq '全部游戏') { [System.Windows.Forms.MessageBox]::Show('请先选择具体游戏品类'); return }
+  $gameId = ($sel -split ' - ')[0].Trim()
+  $count = [int]$numCreateCount.Value
+  try {
+    $res = Invoke-GmApi '/api/admin/rooms' 'POST' @{ gameId = $gameId; count = $count }
+    Set-TopStatus "已成功创建 $($res.created.Count) 间 $gameId 平台庄房间"
+    Refresh-Rooms
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("创建房间失败: $($_.Exception.Message)")
+  }
+})
+
+$btnDestroyRoom.add_Click({
+  if ($lvRooms.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先选中一间房'); return }
+  $r = $lvRooms.SelectedItems[0].Tag
+  if ([System.Windows.Forms.MessageBox]::Show("确认销毁房间 $($r.roomName)？", '销毁确认', 'YesNo', 'Warning') -ne 'Yes') { return }
+  try {
+    Invoke-GmApi "/api/admin/rooms/$($r.roomId)" 'DELETE' | Out-Null
+    Set-TopStatus "已销毁房间 $($r.roomId)"
+    Refresh-Rooms
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("销毁失败: $($_.Exception.Message)")
+  }
+})
+
+$btnKickPlayer.add_Click({
+  if ($lvRooms.SelectedItems.Count -eq 0) { return }
+  $r = $lvRooms.SelectedItems[0].Tag
+  if ($lvInspectPlayers.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先在座席列表中选中一位玩家'); return }
+  $p = $lvInspectPlayers.SelectedItems[0].Tag
+  try {
+    Invoke-GmApi "/api/admin/rooms/$($r.roomId)/kick" 'POST' @{ playerId = $p.playerId } | Out-Null
+    Set-TopStatus "已从房间 $($r.roomId) 踢出玩家 $($p.nickname)"
+    Inspect-Room $r.roomId
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("踢人失败: $($_.Exception.Message)")
+  }
+})
+
+$btnAddBot.add_Click({
+  if ($lvRooms.SelectedItems.Count -eq 0) { return }
+  $r = $lvRooms.SelectedItems[0].Tag
+  $diffMap = @{ '初级' = 'low'; '中级' = 'medium'; '高级' = 'high' }
+  $diff = $diffMap[[string]$cboBotDiff.SelectedItem]
+  try {
+    Invoke-GmApi "/api/admin/rooms/$($r.roomId)/bot" 'POST' @{ action = 'add'; difficulty = $diff } | Out-Null
+    Set-TopStatus "已向房间 $($r.roomId) 添加机器人"
+    Inspect-Room $r.roomId
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("添加机器人失败: $($_.Exception.Message)")
+  }
+})
+
+$btnRemoveBot.add_Click({
+  if ($lvRooms.SelectedItems.Count -eq 0) { return }
+  $r = $lvRooms.SelectedItems[0].Tag
+  try {
+    Invoke-GmApi "/api/admin/rooms/$($r.roomId)/bot" 'POST' @{ action = 'remove' } | Out-Null
+    Set-TopStatus "已从房间 $($r.roomId) 移除机器人"
+    Inspect-Room $r.roomId
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("移除机器人失败: $($_.Exception.Message)")
+  }
+})
+
+$btnForceReset.add_Click({
+  if ($lvRooms.SelectedItems.Count -eq 0) { return }
+  $r = $lvRooms.SelectedItems[0].Tag
+  if ([System.Windows.Forms.MessageBox]::Show("【警告】强制流局将退还本局所有已下注筹码并重置房间状态，确认继续？", '强制流局退款', 'YesNo', 'Warning') -ne 'Yes') { return }
+  try {
+    Invoke-GmApi "/api/admin/rooms/$($r.roomId)/reset" 'POST' | Out-Null
+    Set-TopStatus "房间 $($r.roomId) 已成功强制流局退款重置"
+    Inspect-Room $r.roomId
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("重置失败: $($_.Exception.Message)")
+  }
+})
+
+# 全服跑马灯与公告
+$btnSendMarquee.add_Click({
+  $msg = $txtMarquee.Text.Trim()
+  if (-not $msg) { [System.Windows.Forms.MessageBox]::Show('请输入跑马灯广播内容'); return }
+  try {
+    $res = Invoke-GmApi '/api/admin/broadcast' 'POST' @{ text = $msg }
+    Set-TopStatus "跑马灯已成功广播至在线 $($res.sentCount) 个客户端！"
+    $txtMarquee.Text = ''
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("广播失败: $($_.Exception.Message)")
+  }
+})
+
+$btnPublishNotice.add_Click({
+  $title = $txtNoticeTitle.Text.Trim()
+  $body = $txtNoticeBody.Text.Trim()
+  if (-not $title -or -not $body) { [System.Windows.Forms.MessageBox]::Show('标题和正文均不能为空'); return }
+  $kind = ([string]$cboNoticeKind.SelectedItem -split ' - ')[0]
+  try {
+    Invoke-GmApi '/api/admin/announcements' 'POST' @{ title = $title; content = $body; kind = $kind } | Out-Null
+    Set-TopStatus "公告已成功发布：$title"
+    $txtNoticeTitle.Text = ''
+    $txtNoticeBody.Text = ''
+    Refresh-Notices
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("发布失败: $($_.Exception.Message)")
+  }
+})
+
+$btnDeleteNotice.add_Click({
+  if ($lvNotices.SelectedItems.Count -eq 0) { [System.Windows.Forms.MessageBox]::Show('请先选中一条公告'); return }
+  $n = $lvNotices.SelectedItems[0].Tag
+  if ([System.Windows.Forms.MessageBox]::Show("确认删除公告 $($n.title)？", '删除确认', 'YesNo') -ne 'Yes') { return }
+  try {
+    Invoke-GmApi "/api/admin/announcements/$($n.id)" 'DELETE' | Out-Null
+    Set-TopStatus "已删除公告 $($n.title)"
+    Refresh-Notices
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("删除失败: $($_.Exception.Message)")
+  }
+})
+
+# 安全解限
+$btnClearLimits.add_Click({
+  try {
+    $res = Invoke-GmApi '/api/admin/security/clear-limits' 'POST'
+    [System.Windows.Forms.MessageBox]::Show($res.message, '限流重置成功', 'OK', 'Information')
+    Refresh-Events
+  } catch {
+    [System.Windows.Forms.MessageBox]::Show("清空限流失败: $($_.Exception.Message)")
+  }
+})
+
+# 运维与外部任务
 $script:Timer = New-Object System.Windows.Forms.Timer
 $script:Timer.Interval = 400
-
 $script:Timer.add_Tick({
   if (Test-Path $script:ProcLog) {
     try {
@@ -553,15 +1143,10 @@ $script:Timer.add_Tick({
         if (-not $trim) { continue }
         try {
           $obj = $trim | ConvertFrom-Json
-          $color = switch ($obj.kind) { 'err' { $C_ERR } 'ok' { $C_OK } 'done' { $C_GOLD } default { $C_TEXT } }
-          $txtDeployLog.SelectionStart = $txtDeployLog.TextLength
-          $txtDeployLog.SelectionColor = $color
-          $txtDeployLog.AppendText("$($obj.text)`r`n")
-          $txtDeployLog.SelectionStart = $txtDeployLog.TextLength
-          $txtDeployLog.ScrollToCaret()
-          if ($obj.kind -eq 'err') { Add-Log $obj.text 'err' }
+          $kind = switch ($obj.kind) { 'err' { 'err' } 'ok' { 'ok' } default { 'gold' } }
+          Add-LogMsg $txtDeployLog $obj.text $kind
         } catch {
-          $txtDeployLog.AppendText("$trim`r`n")
+          Add-LogMsg $txtDeployLog $trim
         }
       }
     } catch { }
@@ -570,25 +1155,20 @@ $script:Timer.add_Tick({
   if ($script:Proc -and $script:Proc.HasExited) {
     $script:Timer.Stop()
     $script:Proc = $null
-    Set-Status '就绪'
+    Set-TopStatus '外部任务执行完毕'
     $btnDeploy.Enabled = $true
-    $btnStatus.Enabled = $true
     $btnRestart.Enabled = $true
+    $btnStatus.Enabled = $true
   }
 })
 
-function Invoke-Node {
-  param([string]$Action)
-
+function Invoke-ExternalOps($action) {
   if ($script:Proc -and -not $script:Proc.HasExited) {
-    Add-Log '已有任务在执行，请稍候' 'err'
-    return
+    [System.Windows.Forms.MessageBox]::Show('已有部署任务在执行，请稍候'); return
   }
   if (-not $txtHost.Text.Trim() -or -not $txtUser.Text.Trim() -or -not $txtPass.Text) {
-    Add-Log '请先填写 SSH 主机、用户名与密码' 'err'
-    return
+    [System.Windows.Forms.MessageBox]::Show('请先在顶部填写 SSH 主机、用户名与密码'); return
   }
-
   Save-Config
   if (Test-Path $script:ProcLog) { Remove-Item $script:ProcLog -Force -ErrorAction SilentlyContinue }
   $script:LogOffset = 0
@@ -596,7 +1176,7 @@ function Invoke-Node {
 
   $nodeArgs = @(
     (Join-Path $script:Root 'tools\gm-cli.mjs'),
-    $Action,
+    $action,
     '--host', $txtHost.Text.Trim(),
     '--port', $txtPort.Text.Trim(),
     '--user', $txtUser.Text.Trim(),
@@ -605,144 +1185,24 @@ function Invoke-Node {
   )
 
   $btnDeploy.Enabled = $false
-  $btnStatus.Enabled = $false
   $btnRestart.Enabled = $false
-  Set-Status "执行中：$Action"
+  $btnStatus.Enabled = $false
+  Set-TopStatus "正在执行云端运维: $action"
 
   $script:Proc = Start-Process -FilePath 'node' -ArgumentList $nodeArgs `
     -WorkingDirectory $script:Root -NoNewWindow -PassThru `
     -RedirectStandardOutput $script:ProcLog `
     -RedirectStandardError "$script:ProcLog.err"
 
-  $tabs.SelectedTab = $pageOps
+  Switch-View 'ops'
   $script:Timer.Start()
 }
 
-# ---------- 事件 ----------
-$btnSave.add_Click({ Save-Config })
-$btnLoadCfg.add_Click({ Load-Config; Add-Log '已重新读取本地配置' 'ok' })
+$btnDeploy.add_Click({ Invoke-ExternalOps 'deploy' })
+$btnRestart.add_Click({ Invoke-ExternalOps 'restart' })
+$btnStatus.add_Click({ Invoke-ExternalOps 'status' })
 
-$btnPing.add_Click({
-  try {
-    $base = $txtSite.Text.Trim().TrimEnd('/')
-    $res = Invoke-RestMethod -Uri "$base/api/games" -TimeoutSec 15 -UseBasicParsing
-    $lblConn.Text = "已连通：$base，共 $($res.games.Count) 款游戏"
-    $lblConn.ForeColor = $C_OK
-    Add-Log "站点连通：$base" 'ok'
-    Get-GameList
-    Refresh-Rooms
-  } catch {
-    $lblConn.Text = "连接失败：$($_.Exception.Message)"
-    $lblConn.ForeColor = $C_ERR
-    Add-Log "站点连接失败：$($_.Exception.Message)" 'err'
-  }
-})
-
-$btnCreateRoom.add_Click({
-  try {
-    $sel = [string]$cboGame.SelectedItem
-    if (-not $sel) { throw '请先选择游戏' }
-    $gameId = ($sel -split ' - ')[0].Trim()
-    $count = [int]$numCount.Value
-    $res = Invoke-GmApi '/api/admin/rooms' 'POST' @{ gameId = $gameId; count = $count }
-    Add-Log "已创建 $($res.created.Count) 间 $gameId 平台庄房间" 'ok'
-    Refresh-Rooms
-  } catch {
-    Add-Log "创建房间失败：$($_.Exception.Message)" 'err'
-  }
-})
-
-$btnRefreshRooms.add_Click({ Refresh-Rooms })
-
-$btnDestroyRoom.add_Click({
-  try {
-    if ($lvRooms.SelectedItems.Count -eq 0) { throw '请先选中一间房' }
-    $room = $lvRooms.SelectedItems[0].Tag
-    $confirm = [System.Windows.Forms.MessageBox]::Show(
-      "确认销毁房间 $($room.roomName)（$($room.roomId)）？`r`n房内玩家会被移出。",
-      '确认销毁', 'YesNo', 'Warning')
-    if ($confirm -ne 'Yes') { return }
-    Invoke-GmApi "/api/admin/rooms/$($room.roomId)" 'DELETE' | Out-Null
-    Add-Log "已销毁房间 $($room.roomId)" 'ok'
-    Refresh-Rooms
-  } catch {
-    Add-Log "销毁失败：$($_.Exception.Message)" 'err'
-  }
-})
-
-$lvRooms.add_SelectedIndexChanged({
-  if ($lvRooms.SelectedItems.Count -eq 0) { return }
-  $r = $lvRooms.SelectedItems[0].Tag
-  $lblRoomStat.Text = "房间 $($r.roomId)`r`n游戏 $($r.gameId)　状态 $($r.status)`r`n人数 $($r.players)/$($r.maxPlayers)　庄家 $($r.hostName)"
-})
-
-$btnSearch.add_Click({ Refresh-Players $txtSearch.Text.Trim() })
-$btnPlayerAll.add_Click({ $txtSearch.Text = ''; Refresh-Players '' })
-
-$lvPlayers.add_SelectedIndexChanged({
-  if ($lvPlayers.SelectedItems.Count -eq 0) { return }
-  $p = $lvPlayers.SelectedItems[0].Tag
-  $lblPlayerDetail.Text = "昵称：$($p.nickname)`r`n账号：$($p.username)`r`n余额：$('{0:N0}' -f [double]$p.balance)`r`n签名：$($p.bio)`r`n`r`n玩家 ID：`r`n$($p.userId)"
-})
-
-$btnGrant.add_Click({
-  try {
-    if ($lvPlayers.SelectedItems.Count -eq 0) { throw '请先选中一位玩家' }
-    $p = $lvPlayers.SelectedItems[0].Tag
-    $amount = [int]$txtAmount.Text
-    if ($amount -eq 0) { throw '额度不能为 0' }
-    $res = Invoke-GmApi '/api/admin/grant' 'POST' @{
-      userId = $p.userId
-      amount = $amount
-      reason = $txtReason.Text
-    }
-    Add-Log "已为 $($res.nickname) 调整 $amount，当前余额 $($res.balance)" 'ok'
-    Refresh-Players $txtSearch.Text.Trim()
-  } catch {
-    Add-Log "调整失败：$($_.Exception.Message)" 'err'
-  }
-})
-
-$btnNoticePublish.add_Click({
-  try {
-    $title = $txtNoticeTitle.Text.Trim()
-    $content = $txtNoticeBody.Text.Trim()
-    if (-not $title -or -not $content) { throw '标题和内容都要填写' }
-    Invoke-GmApi '/api/admin/announcements' 'POST' @{
-      title = $title
-      content = $content
-      kind = [string]$cboKind.SelectedItem
-    } | Out-Null
-    Add-Log "公告已发布：$title" 'ok'
-    $txtNoticeTitle.Text = ''
-    $txtNoticeBody.Text = ''
-    Refresh-Notices
-  } catch {
-    Add-Log "发布失败：$($_.Exception.Message)" 'err'
-  }
-})
-
-$btnNoticeRefresh.add_Click({ Refresh-Notices })
-
-$btnNoticeDelete.add_Click({
-  try {
-    if ($lvNotices.SelectedItems.Count -eq 0) { throw '请先选中一条公告' }
-    $n = $lvNotices.SelectedItems[0].Tag
-    Invoke-GmApi "/api/admin/announcements/$($n.id)" 'DELETE' | Out-Null
-    Add-Log "已删除公告：$($n.title)" 'ok'
-    Refresh-Notices
-  } catch {
-    Add-Log "删除失败：$($_.Exception.Message)" 'err'
-  }
-})
-
-$btnDeploy.add_Click({ Invoke-Node 'deploy' })
-$btnStatus.add_Click({ Invoke-Node 'status' })
-$btnRestart.add_Click({ Invoke-Node 'restart' })
-
-# ---------- 启动 ----------
+# ---------- 启动初始化 ----------
 Load-Config
-Add-Log 'GM 控制台上线。填写连接信息后可管理房间、玩家、公告，并一键部署。' 'done'
-Add-Log '密码仅存于本机 tools/.gm-config.json；GM 口令在服务器 .env 的 ADMIN_TOKEN。'
-
+Switch-View 'dashboard'
 [void]$form.ShowDialog()

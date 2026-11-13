@@ -3673,6 +3673,8 @@ button.secondary:hover:not(:disabled) {
   background: rgba(240, 180, 41, 0.1);
   border: 1px solid rgba(240, 180, 41, 0.28);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .app-top__wallet strong {

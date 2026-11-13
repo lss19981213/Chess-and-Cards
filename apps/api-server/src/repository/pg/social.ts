@@ -62,8 +62,9 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     username: string | null;
     bio: string | null;
     avatar_url: string | null;
+    banned: boolean;
   }>(
-    `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url
+    `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url, coalesce(u.banned, false) as banned
        from users u
        left join user_profiles p on p.user_id = u.id
       where u.id = $1`,
@@ -77,6 +78,7 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     username: row.username,
     bio: row.bio ?? '',
     avatar: row.avatar_url ?? null,
+    banned: Boolean(row.banned),
   };
 }
 
@@ -126,10 +128,12 @@ export async function searchUsers(
     username: string | null;
     bio: string | null;
     avatar_url: string | null;
+    banned: boolean;
     is_friend: boolean;
     request_pending: boolean;
   }>(
     `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url,
+            coalesce(u.banned, false) as banned,
             exists (select 1 from friendships f
                      where f.user_id = $2 and f.friend_id = u.id) as is_friend,
             exists (select 1 from friend_requests r
@@ -148,6 +152,7 @@ export async function searchUsers(
     username: row.username,
     bio: row.bio ?? '',
     avatar: row.avatar_url ?? null,
+    banned: Boolean(row.banned),
     isFriend: row.is_friend,
     requestPending: row.request_pending,
   }));

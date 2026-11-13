@@ -9,6 +9,7 @@ export interface UserRow {
   username: string | null;
   created_at: Date;
   password_hash?: string;
+  banned?: boolean;
 }
 
 export function mapUser(row: UserRow): UserRecord {
@@ -17,6 +18,7 @@ export function mapUser(row: UserRow): UserRecord {
     nickname: row.nickname,
     username: row.username,
     createdAt: new Date(row.created_at).getTime(),
+    banned: Boolean(row.banned),
   };
 }
 

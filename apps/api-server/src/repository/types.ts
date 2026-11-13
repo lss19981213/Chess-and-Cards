@@ -5,6 +5,7 @@ export interface UserRecord {
   nickname: string;
   username: string | null;
   createdAt: number;
+  banned?: boolean;
 }
 
 export interface UserProfile extends UserRecord {
@@ -88,10 +89,32 @@ export interface PlayerProfile {
   username: string | null;
   bio: string;
   avatar: string | null;
+  banned?: boolean;
   /** 是否已与当前登录用户互为好友 */
   isFriend?: boolean;
   /** 我是否已向对方发出待处理申请 */
   requestPending?: boolean;
+}
+
+export interface LedgerRow {
+  id: string;
+  userId: string;
+  currency: string;
+  delta: number;
+  balanceAfter: number;
+  bizType: string;
+  bizId: string;
+  createdAt: number;
+}
+
+export interface EconomyOverview {
+  totalUsers: number;
+  totalBalance: number;
+  todayBet: number;
+  todaySettle: number;
+  todayTip: number;
+  todayRelief: number;
+  todayGmGrant: number;
 }
 
 export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
@@ -174,4 +197,10 @@ export interface Repository {
   rejectFriendRequest(requestId: string, userId: string): Promise<boolean>;
   removeFriend(userId: string, friendId: string): Promise<boolean>;
   areFriends(userId: string, friendId: string): Promise<boolean>;
+
+  // ---------- GM 运营管理 ----------
+  setUserStatus(userId: string, banned: boolean): Promise<boolean>;
+  resetUserPassword(userId: string, passwordHash: string): Promise<boolean>;
+  listUserLedger(userId: string, limit: number): Promise<LedgerRow[]>;
+  getEconomyOverview(): Promise<EconomyOverview>;
 }
