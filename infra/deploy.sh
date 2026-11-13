@@ -86,17 +86,20 @@ sudo systemctl enable cc-api cc-room >/dev/null 2>&1 || true
 sudo systemctl restart cc-api cc-room
 
 echo "==> 健康检查"
-sleep 2
-if ! curl -fsS --max-time 5 "http://127.0.0.1:${PORT:-8080}/health" >/dev/null 2>&1; then
-  echo "cc-api 健康检查失败，最近日志：" >&2
-  sudo journalctl -u cc-api -n 40 --no-pager >&2 || true
-  exit 1
-fi
-if ! curl -fsS --max-time 5 "http://127.0.0.1:${ROOM_PORT:-9000}/health" >/dev/null 2>&1; then
-  echo "cc-room 健康检查失败，最近日志：" >&2
-  sudo journalctl -u cc-room -n 40 --no-pager >&2 || true
-  exit 1
-fi
+# 重启后 tsx / PostgreSQL 首次启动可能要数秒，轮询等待而非常量 sleep
+wait_health() {
+  local url="$1" name="$2" unit="$3" i
+  for i in $(seq 1 15); do
+    if curl -fsS --max-time 5 "$url" >/dev/null 2>&1; then return 0; fi
+    sleep 2
+  done
+  echo "$name 健康检查失败，最近日志：" >&2
+  sudo journalctl -u "$unit" -n 40 --no-pager >&2 || true
+  return 1
+}
+
+wait_health "http://127.0.0.1:${PORT:-8080}/health" "cc-api" "cc-api" || exit 1
+wait_health "http://127.0.0.1:${ROOM_PORT:-9000}/health" "cc-room" "cc-room" || exit 1
 
 echo "==> 配置 nginx 片段"
 sudo mkdir -p /etc/nginx/snippets
