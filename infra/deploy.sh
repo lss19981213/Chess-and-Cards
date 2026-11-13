@@ -119,7 +119,9 @@ elif [ ! -f "$TARGET" ]; then
 elif sudo grep -q 'snippets/lobby.conf' "$TARGET"; then
   echo "    include 已存在，跳过"
 else
-  sudo cp "$TARGET" "${TARGET}.bak.$(date +%Y%m%d%H%M%S)"
+  # 备份不能留在 sites-enabled/ 内：nginx 的 include 通配会把它当作站点加载，
+  # 造成 "duplicate default server"。统一放到 /etc/nginx/ 根目录。
+  sudo cp "$TARGET" "/etc/nginx/$(basename "$TARGET").bak.$(date +%Y%m%d%H%M%S)"
   sudo sed -i '0,/server {/s|server {|server {\n  include /etc/nginx/snippets/lobby.conf;|' "$TARGET"
   echo "    已注入 include（原配置已备份）"
 fi
