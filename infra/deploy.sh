@@ -105,7 +105,13 @@ echo "==> 配置 nginx 片段"
 sudo mkdir -p /etc/nginx/snippets
 sudo cp infra/nginx-lobby.conf "$SNIPPET"
 
-if [ -z "$TARGET" ]; then
+BT_NGINX_CONF=/www/server/nginx/conf/nginx.conf
+BT_VHOST_DIR=/www/server/panel/vhost/nginx
+if [ -f "$BT_NGINX_CONF" ] && [ -d "$BT_VHOST_DIR" ]; then
+  # 宝塔的 server 块分行书写，sed 注入不生效，改用独立 default_server
+  echo "    检测到宝塔面板，安装独立 vhost"
+  sudo cp infra/nginx-bt-lobby.conf "$BT_VHOST_DIR/cc-lobby.conf"
+elif [ -z "$TARGET" ]; then
   echo "    未设置 NGINX_TARGET_CONF，跳过自动注入。"
   echo "    请手动在目标 server 块内加入：include /etc/nginx/snippets/lobby.conf;"
 elif [ ! -f "$TARGET" ]; then
