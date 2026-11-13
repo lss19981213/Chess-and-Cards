@@ -113,7 +113,36 @@ function isOriginAllowed(origin: string | undefined, host: string | undefined): 
   return originHostMatches(origin, host);
 }
 
-const httpServer = createServer((req, res) => {
+/** 读取 JSON 请求体，限制 32KB 防止恶意大包 */
+function readJsonBody(req: import('node:http').IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (raw.length > 32 * 1024) reject(new Error('body too large'));
+    });
+    req.on('end', () => {
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw) as Record<string, unknown>);
+      } catch {
+        reject(new Error('invalid json'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+/** GM 管理接口鉴权：只认内部密钥，公网无法直达（9000 仅监听本机） */
+function isInternal(req: import('node:http').IncomingMessage): boolean {
+  const key = req.headers['x-internal-key'];
+  return Boolean(config.internalKey) && key === config.internalKey;
+}
+
+async function handleHttp(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+): Promise<void> {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
   cors(req, res);
 
@@ -141,8 +170,69 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
+  // ---- GM 管理接口 ----
+  if (url.pathname === '/admin/rooms' && req.method === 'POST') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    try {
+      const body = await readJsonBody(req);
+      const gameId = String(body.gameId ?? '');
+      const count = Math.min(Math.max(Number(body.count ?? 1) || 1, 1), 10);
+      if (!manager.hasGame(gameId)) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: `游戏不存在: ${gameId}` }));
+        return;
+      }
+      const created: unknown[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const room = manager.createPlatform(gameId);
+        if (room) created.push(room.summary());
+      }
+      log.info('GM 创建平台庄房间', { gameId, count, created: created.length });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, created }));
+    } catch (error) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: (error as Error).message }));
+    }
+    return;
+  }
+
+  if (url.pathname.startsWith('/admin/rooms/') && req.method === 'DELETE') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    const roomId = decodeURIComponent(url.pathname.slice('/admin/rooms/'.length));
+    const room = manager.get(roomId);
+    if (!room) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: '房间不存在' }));
+      return;
+    }
+    room.destroy();
+    log.info('GM 销毁房间', { roomId });
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
   res.writeHead(404, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ error: 'not found' }));
+}
+
+const httpServer = createServer((req, res) => {
+  void handleHttp(req, res).catch((error: unknown) => {
+    log.error('HTTP 处理异常', { error: (error as Error).message });
+    if (!res.headersSent) {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'internal error' }));
+    }
+  });
 });
 
 const wss = new WebSocketServer({

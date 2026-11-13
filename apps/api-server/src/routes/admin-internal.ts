@@ -176,6 +176,79 @@ export function registerAdminAndInternalRoutes(
     return { events: recentEvents(limit) };
   });
 
+  // ---- 房间管理：平台坐庄房间的创建与销毁 ----
+
+  /** 调用房间服的内部管理接口 */
+  async function roomAdmin(
+    path: string,
+    init: { method: string; body?: unknown },
+  ): Promise<{ ok: boolean; data: Record<string, unknown> }> {
+    try {
+      const res = await fetch(`${config.roomServerUrl}${path}`, {
+        method: init.method,
+        headers: {
+          'x-internal-key': config.internalKey,
+          ...(init.body ? { 'content-type': 'application/json' } : {}),
+        },
+        body: init.body ? JSON.stringify(init.body) : undefined,
+        signal: AbortSignal.timeout(4000),
+      });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) throw httpError(String(data.error ?? `房间服返回 ${res.status}`), 400);
+      return { ok: true, data };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw httpError('房间服无响应，请检查 cc-room 是否在线', 503);
+      }
+      throw error;
+    }
+  }
+
+  app.get('/api/admin/rooms', async (req) => {
+    requireAdmin(req);
+    const query = req.query as { gameId?: string };
+    try {
+      const url = new URL(`${config.roomServerUrl}/rooms`);
+      if (query.gameId) url.searchParams.set('gameId', query.gameId);
+      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      const data = (await res.json()) as { rooms?: unknown[] };
+      return { rooms: data.rooms ?? [] };
+    } catch {
+      throw httpError('房间服无响应，请检查 cc-room 是否在线', 503);
+    }
+  });
+
+  app.post('/api/admin/rooms', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const gameId = typeof body.gameId === 'string' ? body.gameId : '';
+    const count = Math.min(Math.max(Number(body.count ?? 1) || 1, 1), 10);
+    if (!gameId) throw httpError('缺少 gameId', 400);
+
+    const { data } = await roomAdmin('/admin/rooms', { method: 'POST', body: { gameId, count } });
+    const created = (data.created as unknown[] | undefined)?.length ?? 0;
+    apiLog.info(`GM 创建平台庄房间 gameId=${gameId} count=${created}`);
+    recordEvent('info', 'room', `GM 创建 ${created} 间平台庄房间`, { gameId, created });
+    return { ok: true, created: data.created ?? [] };
+  });
+
+  app.delete('/api/admin/rooms/:roomId', async (req) => {
+    requireAdmin(req);
+    const roomId = String((req.params as { roomId?: string }).roomId ?? '');
+    if (!roomId) throw httpError('缺少房间号', 400);
+    await roomAdmin(`/admin/rooms/${encodeURIComponent(roomId)}`, { method: 'DELETE' });
+    apiLog.info(`GM 销毁房间 roomId=${roomId}`);
+    recordEvent('warn', 'room', `GM 销毁房间 ${roomId}`, { roomId });
+    return { ok: true };
+  });
+
+  // ---- 公告列表（GM 工具展示与删除）----
+  app.get('/api/admin/announcements', async (req) => {
+    requireAdmin(req);
+    const announcements = await repo.listAnnouncements(50);
+    return { announcements };
+  });
+
   /** 下注即时扣款 / 撤注退款 */
   app.post('/internal/wallet', async (req, reply) => {
     if (req.headers['x-internal-key'] !== config.internalKey) {
