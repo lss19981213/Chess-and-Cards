@@ -245,3 +245,24 @@ export function IconRules({ size = 18 }: { size?: number }) {
     </svg>
   );
 }
+
+export function IconMail({ size = 18, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={`ico-svg ${className}`}>
+      <path
+        d="M3 5h18a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1z"
+        stroke="#f7d483"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 6.5l9 6.5 9-6.5"
+        stroke="#f7d483"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

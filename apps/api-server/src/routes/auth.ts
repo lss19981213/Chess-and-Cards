@@ -127,12 +127,22 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     ipLimiter.reset(ipKey);
     accountLimiter.reset(accountKey);
 
-    const balance = await repo.getBalance(user.id, 'coin');
+    const [balance, profile] = await Promise.all([
+      repo.getBalance(user.id, 'coin'),
+      repo.getProfile(user.id),
+    ]);
     await repo.bumpTask(user.id, 'daily_login', periodKeyFor('daily'), 1);
     const token = signToken(config.jwtSecret, { sub: user.id, name: user.nickname }, config.tokenTtlSeconds);
     return {
       token,
-      user: { id: user.id, nickname: user.nickname, username: user.username, createdAt: user.createdAt, balance },
+      user: {
+        id: user.id,
+        nickname: user.nickname,
+        username: user.username,
+        createdAt: user.createdAt,
+        balance,
+        avatar: profile?.avatar ?? null,
+      },
     };
   });
 
@@ -141,7 +151,16 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     const user = await repo.getUser(claims.sub);
     if (!user) throw httpError('用户不存在', 404);
     if (user.banned) throw httpError('该账号已被管理员封禁', 403);
-    const balance = await repo.getBalance(user.id, 'coin');
-    return { user: { ...user, balance } };
+    const [balance, profile] = await Promise.all([
+      repo.getBalance(user.id, 'coin'),
+      repo.getProfile(user.id),
+    ]);
+    return {
+      user: {
+        ...user,
+        balance,
+        avatar: profile?.avatar ?? null,
+      },
+    };
   });
 }

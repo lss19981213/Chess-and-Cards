@@ -364,6 +364,71 @@ export function registerAdminAndInternalRoutes(
     return { announcements };
   });
 
+  // ---- 邮箱系统（GM 发送与管理）----
+  app.get('/api/admin/mail', async (req) => {
+    requireAdmin(req);
+    const query = req.query as { limit?: string };
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
+    const mails = await repo.listAdminMails(limit);
+    return { mails };
+  });
+
+  app.post('/api/admin/mail', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const targetType = body.targetType === 'user' ? 'user' : 'all';
+    let targetUserId = typeof body.targetUserId === 'string' ? body.targetUserId.trim() : null;
+    const targetUsername = typeof body.targetUsername === 'string' ? body.targetUsername.trim() : '';
+
+    if (targetType === 'user') {
+      if (!targetUserId && targetUsername) {
+        const u = await repo.findByUsername(targetUsername);
+        if (!u) throw httpError(`未找到账号为「${targetUsername}」的玩家`, 404);
+        targetUserId = u.id;
+      }
+      if (!targetUserId) throw httpError('定向邮件必须指定玩家 UID 或账号', 400);
+      const targetUser = await repo.getUser(targetUserId);
+      if (!targetUser) throw httpError('玩家不存在', 404);
+    }
+
+    const title = String(body.title ?? '').trim();
+    const content = String(body.content ?? '').trim();
+    const rewardCoins = Math.max(0, Math.floor(Number(body.rewardCoins ?? 0)));
+    const sender = typeof body.sender === 'string' && body.sender.trim() ? body.sender.trim() : '系统管理员';
+
+    if (!title || title.length > 40) throw httpError('邮件标题需在 1-40 字之间', 400);
+    if (!content || content.length > 500) throw httpError('邮件内容需在 1-500 字之间', 400);
+    if (rewardCoins > 10_000_000) throw httpError('单封邮件附带筹码不能超过 1000 万', 400);
+
+    const mail = await repo.sendMail({
+      targetType,
+      targetUserId,
+      sender,
+      title,
+      content,
+      rewardCoins,
+    });
+
+    const targetDesc = targetType === 'all' ? '全服玩家' : `玩家 ${targetUserId}`;
+    apiLog.info(`GM 发送邮件: title="${title}" target=${targetDesc} coins=${rewardCoins}`);
+    recordEvent(
+      'info',
+      'mail',
+      `GM 发送邮件「${title}」给 ${targetDesc}${rewardCoins > 0 ? `，附带 ${rewardCoins} 筹码` : ''}`,
+    );
+
+    return { ok: true, mail };
+  });
+
+  app.delete('/api/admin/mail/:id', async (req) => {
+    requireAdmin(req);
+    const { id } = req.params as { id: string };
+    const ok = await repo.deleteAdminMail(id);
+    if (!ok) throw httpError('邮件不存在', 404);
+    recordEvent('warn', 'mail', `GM 撤回/删除邮件 ${id}`);
+    return { ok: true };
+  });
+
   /** 下注即时扣款 / 撤注退款 */
   app.post('/internal/wallet', async (req, reply) => {
     if (req.headers['x-internal-key'] !== config.internalKey) {

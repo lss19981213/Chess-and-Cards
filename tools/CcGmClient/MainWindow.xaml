@@ -1,0 +1,1049 @@
+﻿<Window x:Class="CcGmClient.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CcGmClient"
+        mc:Ignorable="d"
+        Title="Chess &amp; Cards · GM 运营管理中台 (Obsidian Gold Edition)"
+        Height="880" Width="1380"
+        MinHeight="760" MinWidth="1160"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="False"
+        Background="{StaticResource BrushCanvas}"
+        Foreground="{StaticResource BrushText}"
+        FontFamily="{StaticResource FontMain}">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="48"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"/>
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <!-- 主网格分三层：顶栏、主工作区、底栏状态条 -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="32"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== 顶部导航与快捷连接栏 ==================== -->
+        <Border Grid.Row="0" Background="{StaticResource BrushHeaderGrad}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1">
+            <Grid Margin="16,0,12,0">
+                <Grid.ColumnDefinitions>
+                    <!-- 左侧：Logo 与标题 -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- 中间：服务器快速配置与连接 -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- 右侧：快捷工具与窗口控制 -->
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 品牌标识 -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="32" Height="32" Background="{StaticResource BrushGoldGrad}" CornerRadius="6" Margin="0,0,12,0">
+                        <TextBlock Text="👑" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="CHESS &amp; CARDS" FontWeight="Bold" FontSize="14" Foreground="{StaticResource BrushGold}"/>
+                            <Border Background="#25354B" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="GM 运营中台" FontSize="11" Foreground="#FFE28A" FontWeight="SemiBold"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="OBSIDIAN GOLD EDITION · WPF NATIVE" FontSize="10" Foreground="{StaticResource BrushTextDim}" Margin="0,1,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 中间：服务器与口令快速连接栏 -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <TextBlock Text="服务器:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                    <ComboBox x:Name="CmbServerUrl" Width="200" Height="30" IsEditable="True" Margin="0,0,12,0" VerticalContentAlignment="Center">
+                        <ComboBoxItem Content="http://82.157.54.179" IsSelected="True"/>
+                        <ComboBoxItem Content="http://127.0.0.1:3000"/>
+                        <ComboBoxItem Content="http://localhost:3000"/>
+                    </ComboBox>
+
+                    <TextBlock Text="GM口令:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                    <PasswordBox x:Name="TxtAdminToken" Width="180" Height="30" Margin="0,0,12,0" VerticalContentAlignment="Center"/>
+
+                    <Button x:Name="BtnConnect" Style="{StaticResource BtnGold}" Content="⚡ 连接服务" Click="BtnConnect_Click" Height="30" Padding="14,0" Margin="0,0,10,0"/>
+
+                    <!-- 连接状态指示灯 -->
+                    <Border x:Name="BadgeConnStatus" CornerRadius="12" Padding="8,3" Background="#162332" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="DotConn" Width="8" Height="8" Fill="{StaticResource BrushRed}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtConnStatus" Text="未连接" FontSize="11" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- 右侧：快捷入口与窗口原生控制按钮 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource BtnSecondary}" Content="🌐 打开大厅" Click="BtnOpenLobby_Click" Height="30" Padding="10,0" Margin="0,0,16,0" ToolTip="在浏览器中打开玩家大厅"/>
+
+                    <!-- 窗口控制 -->
+                    <Button Style="{StaticResource BtnGhost}" Content="—" Width="36" Height="32" FontSize="14" Click="BtnMinimize_Click" ToolTip="最小化"/>
+                    <Button Style="{StaticResource BtnGhost}" Content="🗖" Width="36" Height="32" FontSize="12" Click="BtnMaximize_Click" ToolTip="最大化/还原"/>
+                    <Button Style="{StaticResource BtnGhost}" Content="✕" Width="36" Height="32" FontSize="13" Foreground="#FF5E62" Click="BtnClose_Click" ToolTip="关闭"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ==================== 主工作区：左侧导航 + 右侧主内容 ==================== -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧导航栏 -->
+            <Border Grid.Column="0" Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="10,16,10,16">
+                            <TextBlock Text="核心运营管控" FontSize="11" Foreground="{StaticResource BrushTextDim}" FontWeight="SemiBold" Margin="12,0,0,10"/>
+
+                            <RadioButton x:Name="NavDashboard" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📊  大盘总览" IsChecked="True" Checked="Nav_Checked" Tag="dashboard" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavPlayers" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="👥  玩家管控与流水" Checked="Nav_Checked" Tag="players" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavRooms" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎲  房间实时透视" Checked="Nav_Checked" Tag="rooms" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavMailbox" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📬  全服邮箱发放" Checked="Nav_Checked" Tag="mailbox" Margin="0,0,0,6"/>
+
+                            <Border Height="1" Background="{StaticResource BrushBorder}" Margin="8,12,8,12"/>
+
+                            <TextBlock Text="服控与风控运维" FontSize="11" Foreground="{StaticResource BrushTextDim}" FontWeight="SemiBold" Margin="12,0,0,10"/>
+                            <RadioButton x:Name="NavBroadcast" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📢  跑马灯与公告" Checked="Nav_Checked" Tag="broadcast" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavSecurity" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🛡️  安全风控解限" Checked="Nav_Checked" Tag="security" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavDevOps" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🚀  运维与远程部署" Checked="Nav_Checked" Tag="devops" Margin="0,0,0,6"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- 左侧底部运行环境状态 -->
+                    <Border Grid.Row="1" Background="#0E141D" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0" Padding="14,10">
+                        <StackPanel>
+                            <TextBlock Text=".NET 10.0 WPF 运营中台" FontSize="11" Foreground="{StaticResource BrushGold}" FontWeight="SemiBold"/>
+                            <TextBlock Text="纯原生极速架构 · 无卡顿" FontSize="10" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- 右侧视口区 -->
+            <Grid Grid.Column="1" Background="{StaticResource BrushCanvas}">
+                <!-- 顶层工具栏：当前模块标题 + 自动刷新开关 + 刷新按钮 -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="46"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Background="{StaticResource BrushSurfaceAlt}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" Padding="18,0">
+                    <Grid VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtCurrentViewTitle" Text="📊 大盘总览与经济流动" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushText}" VerticalAlignment="Center"/>
+                            <Border Background="#25354B" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtAutoRefreshBadge" Text="实时轮询" FontSize="11" Foreground="{StaticResource BrushGreen}"/>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <CheckBox x:Name="ChkAutoRefresh" Content="自动轮询 (10s)" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,16,0" IsChecked="True" Checked="ChkAutoRefresh_Changed" Unchecked="ChkAutoRefresh_Changed"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="🔄 立即刷新" Click="BtnRefreshCurrent_Click" Height="28" Padding="12,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 视口容器：使用切换器承载各模块 -->
+                <Grid Grid.Row="1" Margin="16">
+
+                    <!-- ==================== 1. 大盘总览 (Dashboard) ==================== -->
+                    <Grid x:Name="ViewDashboard" Visibility="Visible">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 6大核心经济 KPI 卡片 -->
+                        <Grid Grid.Row="0" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 卡片1: 注册玩家 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="👥 累计注册玩家" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTotalUsers" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="KpiOnlineInfo" Text="当前在房: -- 人" FontSize="11" Foreground="{StaticResource BrushGreen}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片2: 筹码总量 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="💰 筹码流通总量" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTotalCoins" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="全服经济流动盘" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片3: 今日下注 -->
+                            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="🎰 今日有效下注" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTodayBets" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="博弈活跃度指标" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片4: 今日派彩 -->
+                            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="⚖️ 今日派彩结算" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTodaySettle" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushGreen}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="系统吞吐净值" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片5: 荷官打赏 -->
+                            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="🎁 今日荷官打赏" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTodayTips" Text="--" FontSize="22" FontWeight="Bold" Foreground="#FFE28A" Margin="0,6,0,0"/>
+                                    <TextBlock Text="玩家沉浸互动金" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片6: 救济金 -->
+                            <Border Grid.Column="5" Style="{StaticResource CardPanel}" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="🛡️ 破产救济发放" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTodayRelief" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushBlue}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="保障留存保底发放" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- 下半部分：富豪榜与实时审计日志 -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="420"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 今日赢家榜 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                        <TextBlock Text="🏆 今日牌王 / 赢家榜 (Top 10)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                                        <TextBlock Text="根据今日净胜筹码降序排列" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <DataGrid x:Name="DgDailyWinners" Grid.Row="1">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="UID" Binding="{Binding UserId}" Width="90"/>
+                                            <DataGridTextColumn Header="玩家昵称" Binding="{Binding Nickname}" Width="*"/>
+                                            <DataGridTextColumn Header="今日净胜" Binding="{Binding DisplayProfit}" Width="100">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource BrushGreen}"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="胜局" Binding="{Binding WinCount}" Width="50"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+
+                            <!-- 实时平台操作与风控事件流 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="📜 全服实时审计与风控事件流" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                            <TextBlock Text="记录管理员操作、安全限流预警、资金变动及异常追踪" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="刷新" Click="BtnRefreshEvents_Click" HorizontalAlignment="Right" VerticalAlignment="Center" Height="26" Padding="8,0"/>
+                                    </Grid>
+                                    <DataGrid x:Name="DgAuditEvents" Grid.Row="1">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="时间" Binding="{Binding DisplayTime}" Width="80"/>
+                                            <DataGridTextColumn Header="等级" Binding="{Binding Level}" Width="70">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="Text" Value="warn">
+                                                                <Setter Property="Foreground" Value="{StaticResource BrushRed}"/>
+                                                            </Trigger>
+                                                            <Trigger Property="Text" Value="info">
+                                                                <Setter Property="Foreground" Value="{StaticResource BrushBlue}"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="标签" Binding="{Binding Tag}" Width="90"/>
+                                            <DataGridTextColumn Header="详细内容" Binding="{Binding Message}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ==================== 2. 玩家管控与流水 (Players) ==================== -->
+                    <Grid x:Name="ViewPlayers" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 搜索栏 -->
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12" Padding="14,10">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="快速检索:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="TxtPlayerSearch" Width="260" Height="32" VerticalContentAlignment="Center" KeyDown="TxtPlayerSearch_KeyDown"/>
+                                    <Button Style="{StaticResource BtnGold}" Content="🔍 搜索玩家" Click="BtnSearchPlayers_Click" Height="32" Margin="10,0,0,0" Padding="16,0"/>
+                                    <Button Style="{StaticResource BtnSecondary}" Content="重置全量" Click="BtnResetPlayersSearch_Click" Height="32" Margin="8,0,0,0" Padding="12,0"/>
+                                </StackPanel>
+                                <TextBlock Text="支持按 UID、账号名、昵称模糊查询" Foreground="{StaticResource BrushTextDim}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- 左右分栏：玩家列表 + 玩家详情与快捷操作 -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="65*"/>
+                                <ColumnDefinition Width="35*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 玩家列表 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                                <DataGrid x:Name="DgPlayers" SelectionChanged="DgPlayers_SelectionChanged">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="UID" Binding="{Binding UserId}" Width="100"/>
+                                        <DataGridTextColumn Header="账号" Binding="{Binding Username}" Width="110"/>
+                                        <DataGridTextColumn Header="玩家昵称" Binding="{Binding Nickname}" Width="*"/>
+                                        <DataGridTextColumn Header="欢乐豆余额" Binding="{Binding FormattedBalance}" Width="120">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="80">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="Text" Value="已封禁">
+                                                            <Setter Property="Foreground" Value="{StaticResource BrushRed}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="Text" Value="正常">
+                                                            <Setter Property="Foreground" Value="{StaticResource BrushGreen}"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="注册时间" Binding="{Binding DisplayDate}" Width="130"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
+
+                            <!-- 选中玩家操作卡片 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <TextBlock Text="🎯 玩家深度管控面板" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,12"/>
+
+                                        <!-- 当前选中玩家信息简报 -->
+                                        <Border Background="#121A26" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
+                                            <StackPanel>
+                                                <TextBlock x:Name="TxtSelectedPlayerName" Text="请选择左侧玩家" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                                <TextBlock x:Name="TxtSelectedPlayerUid" Text="UID: -" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                    <TextBlock Text="当前余额: " Foreground="{StaticResource BrushTextMuted}"/>
+                                                    <TextBlock x:Name="TxtSelectedPlayerBalance" Text="0" Foreground="{StaticResource BrushGold}" FontWeight="Bold" FontSize="14"/>
+                                                    <TextBlock Text=" 豆" Foreground="{StaticResource BrushTextMuted}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- 操作1: 筹码直充/扣除 -->
+                                        <TextBlock Text="💰 筹码调整 (正数为加，负数为扣)" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,4,0,6"/>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtGrantAmount" Text="10000" VerticalContentAlignment="Center" Height="30"/>
+                                            <Button Grid.Column="1" Style="{StaticResource BtnGold}" Content="立即调账" Click="BtnExecuteGrant_Click" Height="30" Margin="8,0,0,0" Padding="12,0"/>
+                                        </Grid>
+                                        <!-- 快捷金额选择 -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+1万" Click="BtnQuickAmount_Click" Tag="10000" Padding="8,3" Margin="0,0,4,0"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+5万" Click="BtnQuickAmount_Click" Tag="50000" Padding="8,3" Margin="0,0,4,0"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+10万" Click="BtnQuickAmount_Click" Tag="100000" Padding="8,3" Margin="0,0,4,0"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="-1万" Click="BtnQuickAmount_Click" Tag="-10000" Padding="8,3" Margin="0,0,4,0"/>
+                                        </StackPanel>
+                                        <TextBox x:Name="TxtGrantReason" Text="GM 管理员调账补偿" Height="28" Margin="0,0,0,14" ToolTip="调账原因/流水备注"/>
+
+                                        <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,4,0,14"/>
+
+                                        <!-- 操作2: 查看资金明细流水 -->
+                                        <Button Style="{StaticResource BtnSecondary}" Content="📜 查阅此玩家资金流水账本" Click="BtnViewLedger_Click" Height="34" Margin="0,0,0,12"/>
+
+                                        <!-- 操作3: 封禁/解封状态切换 -->
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="BtnBanPlayer" Grid.Column="0" Style="{StaticResource BtnDanger}" Content="🚫 封禁账号" Click="BtnBanPlayer_Click" Height="32" Margin="0,0,4,0"/>
+                                            <Button x:Name="BtnUnbanPlayer" Grid.Column="1" Style="{StaticResource BtnSecondary}" Content="🟢 解除封禁" Click="BtnUnbanPlayer_Click" Height="32" Margin="4,0,0,0"/>
+                                        </Grid>
+
+                                        <!-- 操作4: 重置密码 -->
+                                        <TextBlock Text="🔑 重置登录密码" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,4,0,6"/>
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtNewPassword" Text="123456" Height="30" VerticalContentAlignment="Center"/>
+                                            <Button Grid.Column="1" Style="{StaticResource BtnSecondary}" Content="重置密码" Click="BtnResetPassword_Click" Height="30" Margin="8,0,0,0" Padding="12,0"/>
+                                        </Grid>
+
+                                        <!-- 操作5: 修改昵称 -->
+                                        <TextBlock Text="✏️ 修改玩家昵称" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,4,0,6"/>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtNewNickname" Height="30" VerticalContentAlignment="Center"/>
+                                            <Button Grid.Column="1" Style="{StaticResource BtnSecondary}" Content="保存昵称" Click="BtnUpdateNickname_Click" Height="30" Margin="8,0,0,0" Padding="12,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ==================== 3. 房间实时透视 (Rooms) ==================== -->
+                    <Grid x:Name="ViewRooms" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 顶部筛选栏与批量开台工具 -->
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12" Padding="14,10">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="游戏筛选:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="CmbGameFilter" Width="160" Height="30" VerticalContentAlignment="Center" SelectionChanged="CmbGameFilter_SelectionChanged">
+                                        <ComboBoxItem Content="全部对局" IsSelected="True"/>
+                                        <ComboBoxItem Content="斗地主" Tag="doudizhu"/>
+                                        <ComboBoxItem Content="跑得快" Tag="paodekuai"/>
+                                        <ComboBoxItem Content="五子棋" Tag="gomoku"/>
+                                        <ComboBoxItem Content="21点" Tag="blackjack"/>
+                                        <ComboBoxItem Content="斗牛" Tag="niuniu"/>
+                                        <ComboBoxItem Content="骰宝" Tag="dice"/>
+                                        <ComboBoxItem Content="炸金花" Tag="zhajinhua"/>
+                                        <ComboBoxItem Content="百人牛牛" Tag="bainiu"/>
+                                        <ComboBoxItem Content="德州扑克" Tag="texas"/>
+                                        <ComboBoxItem Content="中国象棋" Tag="xiangqi"/>
+                                        <ComboBoxItem Content="国际象棋" Tag="chess"/>
+                                        <ComboBoxItem Content="推筒子" Tag="tuizhuanzi"/>
+                                    </ComboBox>
+
+                                    <Button Style="{StaticResource BtnSecondary}" Content="🔄 刷新列表" Click="BtnRefreshRooms_Click" Height="30" Margin="12,0,0,0" Padding="12,0"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource BtnGold}" Content="➕ 批量创建官方房间" Click="BtnOpenBatchRoomModal_Click" Height="30" Padding="14,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- 左右分栏：房间列表 + 深度透视面板 -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="55*"/>
+                                <ColumnDefinition Width="45*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 房间列表 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                                <DataGrid x:Name="DgRooms" SelectionChanged="DgRooms_SelectionChanged">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="房间号" Binding="{Binding Id}" Width="100"/>
+                                        <DataGridTextColumn Header="游戏名称" Binding="{Binding DisplayGame}" Width="100"/>
+                                        <DataGridTextColumn Header="房间模式" Binding="{Binding DisplayMode}" Width="100"/>
+                                        <DataGridTextColumn Header="人数比" Binding="{Binding PlayerRatio}" Width="120"/>
+                                        <DataGridTextColumn Header="阶段" Binding="{Binding DisplayStage}" Width="80">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Border>
+
+                            <!-- 深度透视卡片 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 房间状态抬头 -->
+                                    <Border Grid.Row="0" Background="#121A26" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtInspectorRoomTitle" Text="请选择左侧房间以进行深度透视" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <TextBlock x:Name="TxtInspectorRoomStage" Text="状态: -" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,16,0"/>
+                                                <TextBlock x:Name="TxtInspectorRoomRound" Text="轮次: -" Foreground="{StaticResource BrushTextMuted}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 在座玩家与机器人列表 -->
+                                    <Grid Grid.Row="1" Margin="0,0,0,10">
+                                        <DataGrid x:Name="DgSeatedPlayers">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="座位" Binding="{Binding Seat}" Width="45"/>
+                                                <DataGridTextColumn Header="UID / 昵称" Binding="{Binding Nickname}" Width="*"/>
+                                                <DataGridTextColumn Header="身份类型" Binding="{Binding RoleBadge}" Width="120">
+                                                    <DataGridTextColumn.ElementStyle>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="Text" Value="👤 真实玩家">
+                                                                    <Setter Property="Foreground" Value="{StaticResource BrushBlue}"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </DataGridTextColumn.ElementStyle>
+                                                </DataGridTextColumn>
+                                                <DataGridTextColumn Header="准备" Binding="{Binding ReadyText}" Width="60"/>
+                                                <DataGridTextColumn Header="筹码" Binding="{Binding FormattedChips}" Width="80"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+
+                                    <!-- 实时动作操作栏 -->
+                                    <StackPanel Grid.Row="2">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- 添加机器人难度选择 -->
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="AI难度:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                                                <ComboBox x:Name="CmbBotLevel" Width="100" Height="28" VerticalContentAlignment="Center">
+                                                    <ComboBoxItem Content="低级 (练手)" Tag="low"/>
+                                                    <ComboBoxItem Content="中级 (稳健)" Tag="medium" IsSelected="True"/>
+                                                    <ComboBoxItem Content="高级 (大师)" Tag="high"/>
+                                                </ComboBox>
+                                                <Button Style="{StaticResource BtnSecondary}" Content="🤖 添加机器人" Click="BtnAddBot_Click" Height="28" Margin="6,0,0,0" Padding="8,0"/>
+                                            </StackPanel>
+
+                                            <Button Grid.Column="1" Style="{StaticResource BtnSecondary}" Content="🤖❌ 移除机器人" Click="BtnRemoveBot_Click" Height="28" Margin="8,0,0,0" Padding="8,0"/>
+                                            <Button Grid.Column="2" Style="{StaticResource BtnDanger}" Content="🥾 踢出在座玩家" Click="BtnKickPlayer_Click" Height="28" Margin="8,0,0,0" Padding="8,0"/>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Style="{StaticResource BtnSecondary}" Content="🔄 强制流局重置与退款" Click="BtnResetRoom_Click" Height="32" Margin="0,0,4,0" ToolTip="遇到卡局异常时安全重置并原路退回下注"/>
+                                            <Button Grid.Column="1" Style="{StaticResource BtnDanger}" Content="💥 强制解散销毁房间" Click="BtnDeleteRoom_Click" Height="32" Margin="4,0,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ==================== 4. 📬 全服邮箱发放与管控 (Mailbox - NEW!) ==================== -->
+                    <Grid x:Name="ViewMailbox" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="42*"/>
+                            <ColumnDefinition Width="58*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 左侧：新建信件与筹码发放 -->
+                        <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <TextBlock Text="✉️ 发起新邮件与筹码发放" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="邮件入库后即时触达玩家邮箱，玩家可一键查收并提取附赠筹码。" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,0,0,16"/>
+
+                                    <!-- 目标模式选择 -->
+                                    <TextBlock Text="发送目标" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,6"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <RadioButton x:Name="RadioMailAll" Content="🌐 全服玩家广播" IsChecked="True" Foreground="{StaticResource BrushText}" Margin="0,0,20,0" Checked="RadioMailTarget_Changed"/>
+                                        <RadioButton x:Name="RadioMailUser" Content="👤 定向指定玩家" Foreground="{StaticResource BrushText}" Checked="RadioMailTarget_Changed"/>
+                                    </StackPanel>
+
+                                    <!-- 定向目标输入框 -->
+                                    <StackPanel x:Name="PanelMailTargetUser" Visibility="Collapsed" Margin="0,0,0,12">
+                                        <TextBlock Text="目标玩家 UID 或账号:" Foreground="{StaticResource BrushTextMuted}" FontSize="12" Margin="0,0,0,4"/>
+                                        <TextBox x:Name="TxtMailTargetUserId" Height="30" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <!-- 邮件标题 -->
+                                    <TextBlock Text="邮件标题:" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TxtMailTitle" Text="【官方福利】全服维护更新礼包" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,12"/>
+
+                                    <!-- 邮件内容 -->
+                                    <TextBlock Text="邮件正文内容:" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TxtMailContent" Text="亲爱的牌友，感谢您对游戏的支持与陪伴！特奉上全服专属福利，祝您旗开得胜，金玉满堂！" Height="90" TextWrapping="Wrap" AcceptsReturn="True" Margin="0,0,0,12"/>
+
+                                    <!-- 附赠筹码 -->
+                                    <TextBlock Text="附赠筹码数额 (0 表示纯通知信件):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TxtMailRewardCoins" Text="10000" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,6"/>
+
+                                    <!-- 快捷筹码选项 -->
+                                    <WrapPanel Margin="0,0,0,14">
+                                        <Button Style="{StaticResource BtnSecondary}" Content="0 (纯通知)" Click="BtnQuickMailCoins_Click" Tag="0" Padding="8,4" Margin="0,0,4,4"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="1,000" Click="BtnQuickMailCoins_Click" Tag="1000" Padding="8,4" Margin="0,0,4,4"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="10,000" Click="BtnQuickMailCoins_Click" Tag="10000" Padding="8,4" Margin="0,0,4,4"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="50,000" Click="BtnQuickMailCoins_Click" Tag="50000" Padding="8,4" Margin="0,0,4,4"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="100,000" Click="BtnQuickMailCoins_Click" Tag="100000" Padding="8,4" Margin="0,0,4,4"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="1,000,000" Click="BtnQuickMailCoins_Click" Tag="1000000" Padding="8,4" Margin="0,0,4,4"/>
+                                    </WrapPanel>
+
+                                    <!-- 发件人签名 -->
+                                    <TextBlock Text="发件人署名:" FontSize="12" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TxtMailSender" Text="系统管理员" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,18"/>
+
+                                    <!-- 发送按钮 -->
+                                    <Button Style="{StaticResource BtnGold}" Content="🚀 确认发放并发送邮件" Click="BtnSendMail_Click" Height="38" FontSize="14"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <!-- 右侧：历史邮件管理列表 -->
+                        <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="📬 历史邮件与发放记录" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                        <TextBlock Text="查阅已发出的系统邮件及玩家领取统计，支持一键撤销/删除" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <Button Style="{StaticResource BtnSecondary}" Content="🔄 刷新信箱" Click="BtnRefreshMails_Click" HorizontalAlignment="Right" VerticalAlignment="Center" Height="28" Padding="10,0"/>
+                                </Grid>
+
+                                <DataGrid x:Name="DgMails" Grid.Row="1" Margin="0,0,0,10">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="邮件ID" Binding="{Binding Id}" Width="80"/>
+                                        <DataGridTextColumn Header="发送目标" Binding="{Binding TargetDisplay}" Width="130"/>
+                                        <DataGridTextColumn Header="邮件标题" Binding="{Binding Title}" Width="*"/>
+                                        <DataGridTextColumn Header="附赠筹码" Binding="{Binding FormattedReward}" Width="120">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="已领人数" Binding="{Binding ClaimedCount}" Width="70"/>
+                                        <DataGridTextColumn Header="发送时间" Binding="{Binding DisplayDate}" Width="130"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!-- 邮件快捷撤回 -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Style="{StaticResource BtnDanger}" Content="🗑️ 撤回 / 删除选中邮件" Click="BtnDeleteMail_Click" Height="32" Padding="14,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ==================== 5. 跑马灯与公告 (Broadcast) ==================== -->
+                    <Grid x:Name="ViewBroadcast" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 上部分：即时全服滚动跑马灯 -->
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="📢 即时全服滚动跑马灯 (Live Marquee)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,4"/>
+                                <TextBlock Text="发送后即时飘过所有正在玩游戏的牌桌顶部及大厅首页，无需刷新。" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtBroadcastContent" Text="【系统通知】今晚 20:00 斗地主狂欢争霸赛火热开赛，丰厚筹码大礼等你来赢！" Height="34" VerticalContentAlignment="Center"/>
+                                    <Button Grid.Column="1" Style="{StaticResource BtnGold}" Content="🚀 推送跑马灯" Click="BtnPushBroadcast_Click" Height="34" Margin="10,0,0,0" Padding="18,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 下部分：系统公告发布与管理 -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="38*"/>
+                                <ColumnDefinition Width="62*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 左：发布公告 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                                <StackPanel>
+                                    <TextBlock Text="📜 发布新系统公告" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,0,0,10"/>
+
+                                    <TextBlock Text="公告标题:" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                    <TextBox x:Name="TxtAnnounceTitle" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,10"/>
+
+                                    <TextBlock Text="公告类型:" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                    <ComboBox x:Name="CmbAnnounceKind" Height="30" Margin="0,0,0,10" VerticalContentAlignment="Center">
+                                        <ComboBoxItem Content="📢 常规通知 (notice)" Tag="notice" IsSelected="True"/>
+                                        <ComboBoxItem Content="🎉 活动公告 (event)" Tag="event"/>
+                                        <ComboBoxItem Content="⚠️ 停机维护 (maintenance)" Tag="maintenance"/>
+                                    </ComboBox>
+
+                                    <TextBlock Text="公告内容:" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                    <TextBox x:Name="TxtAnnounceContent" Height="100" TextWrapping="Wrap" AcceptsReturn="True" Margin="0,0,0,14"/>
+
+                                    <Button Style="{StaticResource BtnGold}" Content="发布此公告" Click="BtnPublishAnnouncement_Click" Height="34"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 右：历史公告列表 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                                        <TextBlock Text="已发布系统公告列表" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="刷新" Click="BtnRefreshAnnouncements_Click" HorizontalAlignment="Right" Height="26" Padding="10,0"/>
+                                    </Grid>
+
+                                    <DataGrid x:Name="DgAnnouncements" Grid.Row="1" Margin="0,0,0,10">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="80"/>
+                                            <DataGridTextColumn Header="类型" Binding="{Binding KindDisplay}" Width="100"/>
+                                            <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="160"/>
+                                            <DataGridTextColumn Header="内容" Binding="{Binding Content}" Width="*"/>
+                                            <DataGridTextColumn Header="发布时间" Binding="{Binding DisplayDate}" Width="120"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <Button Grid.Row="2" Style="{StaticResource BtnDanger}" Content="🗑️ 删除选中公告" Click="BtnDeleteAnnouncement_Click" HorizontalAlignment="Right" Height="30" Padding="14,0"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ==================== 6. 安全风控与解限 (Security) ==================== -->
+                    <Grid x:Name="ViewSecurity" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 上部分：风控解除卡片 -->
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,14">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="🛡️ 接口防刷与全员限流解封" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="若有管理员或玩家因密码输错多次被暂时锁定，可一键重置全服限流计数器。" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                </StackPanel>
+                                <Button Style="{StaticResource BtnGold}" Content="🔓 一键解除所有限流拦截 (Clear Rate-Limits)" Click="BtnClearSecurityLimits_Click" HorizontalAlignment="Right" VerticalAlignment="Center" Height="36" Padding="18,0"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- 下部分：实时安全拦截与预警流 -->
+                        <Border Grid.Row="1" Style="{StaticResource CardPanel}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="🚨 实时安全防护与登录审计日志" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,0,0,10"/>
+                                <DataGrid x:Name="DgSecurityEvents" Grid.Row="1">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="时间" Binding="{Binding DisplayTime}" Width="90"/>
+                                        <DataGridTextColumn Header="等级" Binding="{Binding Level}" Width="80"/>
+                                        <DataGridTextColumn Header="标签" Binding="{Binding Tag}" Width="100"/>
+                                        <DataGridTextColumn Header="详细日志" Binding="{Binding Message}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ==================== 7. 运维与远程部署 (DevOps) ==================== -->
+                    <Grid x:Name="ViewDevOps" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 上部分：SSH 远程配置与操作面板 -->
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="🚀 远程服务器 SSH 运维与持续部署" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,10"/>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                        <TextBlock Text="主机 IP:" Foreground="{StaticResource BrushTextMuted}" FontSize="11"/>
+                                        <TextBox x:Name="TxtSshHost" Height="28" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="0,0,10,0" Width="60">
+                                        <TextBlock Text="端口:" Foreground="{StaticResource BrushTextMuted}" FontSize="11"/>
+                                        <TextBox x:Name="TxtSshPort" Text="22" Height="28" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Margin="0,0,10,0" Width="100">
+                                        <TextBlock Text="用户名:" Foreground="{StaticResource BrushTextMuted}" FontSize="11"/>
+                                        <TextBox x:Name="TxtSshUser" Height="28" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3" Margin="0,0,10,0" Width="140">
+                                        <TextBlock Text="密码:" Foreground="{StaticResource BrushTextMuted}" FontSize="11"/>
+                                        <PasswordBox x:Name="TxtSshPass" Height="28" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="4" Style="{StaticResource BtnSecondary}" Content="保存配置" Click="BtnSaveSshConfig_Click" Height="28" VerticalAlignment="Bottom" Padding="12,0"/>
+                                </Grid>
+
+                                <!-- 常用运维指令动作按钮 -->
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <Button Style="{StaticResource BtnSecondary}" Content="⚡ API 探活诊断" Click="BtnDiagnoseHealth_Click" Height="30" Margin="0,0,8,0" Padding="12,0"/>
+                                    <Button Style="{StaticResource BtnSecondary}" Content="📊 PM2 状态查看" Click="BtnSshPm2Status_Click" Height="30" Margin="0,0,8,0" Padding="12,0"/>
+                                    <Button Style="{StaticResource BtnGold}" Content="🔄 重启云端游戏微服务" Click="BtnSshRestartServices_Click" Height="30" Margin="0,0,8,0" Padding="14,0"/>
+                                    <Button Style="{StaticResource BtnSecondary}" Content="🚀 Git Pull 并重新编译" Click="BtnSshGitPull_Click" Height="30" Margin="0,0,8,0" Padding="12,0"/>
+                                    <Button Style="{StaticResource BtnDanger}" Content="清空输出控制台" Click="BtnClearTerminal_Click" Height="30" HorizontalAlignment="Right" Padding="12,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 下部分：实时终端输出控制台 -->
+                        <Border Grid.Row="1" Background="#080C12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="💻 远程运维终端交互输出 (SSH Live Stream)" FontSize="12" Foreground="{StaticResource BrushTextDim}" FontFamily="{StaticResource FontMono}" Margin="0,0,0,6"/>
+                                <ScrollViewer x:Name="ScrollTerminal" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <TextBox x:Name="TxtTerminalOutput"
+                                             Background="Transparent"
+                                             Foreground="#38D39F"
+                                             FontFamily="{StaticResource FontMono}"
+                                             FontSize="12"
+                                             IsReadOnly="True"
+                                             BorderThickness="0"
+                                             TextWrapping="Wrap"/>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ==================== 底部状态栏 ==================== -->
+        <Border Grid.Row="2" Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,1,0,0" Padding="16,0">
+            <Grid VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="当前状态:" Foreground="{StaticResource BrushTextDim}" FontSize="11" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="TxtBottomStatus" Text="系统就绪" Foreground="{StaticResource BrushTextMuted}" FontSize="11"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <TextBlock Text="最后刷新:" Foreground="{StaticResource BrushTextDim}" FontSize="11" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="TxtLastRefreshTime" Text="--" Foreground="{StaticResource BrushTextMuted}" FontSize="11" Margin="0,0,16,0"/>
+                    <TextBlock Text="Chess &amp; Cards v2.4.0 · GM WPF Native" Foreground="{StaticResource BrushTextDim}" FontSize="11"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ==================== 弹窗遮罩：玩家资金流水抽屉弹窗 ==================== -->
+        <Grid x:Name="ModalLedger" Background="#CC000000" Visibility="Collapsed">
+            <Border Width="820" Height="580" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock x:Name="TxtLedgerTitle" Text="📜 玩家资金变动明细账本" FontSize="16" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                            <TextBlock x:Name="TxtLedgerSubtitle" Text="展示此玩家最新 100 笔资金变动流水" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Button Style="{StaticResource BtnGhost}" Content="✕" Width="30" Height="30" FontSize="14" Click="BtnCloseLedgerModal_Click" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <DataGrid x:Name="DgUserLedger" Grid.Row="1" Margin="0,0,0,12">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="流水ID" Binding="{Binding Id}" Width="80"/>
+                            <DataGridTextColumn Header="变动金额" Binding="{Binding FormattedDelta}" Width="120">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Foreground" Value="{Binding FormattedDelta, Converter={StaticResource NumberColorConv}}"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="变动后余额" Binding="{Binding FormattedBalance}" Width="120">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="业务类型" Binding="{Binding BizType}" Width="100"/>
+                            <DataGridTextColumn Header="说明 / 备注" Binding="{Binding Note}" Width="*"/>
+                            <DataGridTextColumn Header="时间" Binding="{Binding DisplayDate}" Width="130"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Button Grid.Row="2" Style="{StaticResource BtnSecondary}" Content="关闭" Click="BtnCloseLedgerModal_Click" HorizontalAlignment="Right" Width="90" Height="32"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ==================== 弹窗遮罩：批量开台对话框 ==================== -->
+        <Grid x:Name="ModalBatchRooms" Background="#CC000000" Visibility="Collapsed">
+            <Border Width="460" Height="320" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <TextBlock Text="➕ 批量创建官方平台庄房间" FontSize="16" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                        <Button Style="{StaticResource BtnGhost}" Content="✕" Width="30" Height="30" FontSize="14" Click="BtnCloseBatchRoomModal_Click" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <StackPanel Grid.Row="1">
+                        <TextBlock Text="选择游戏类型:" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="CmbBatchGame" Height="32" Margin="0,0,0,14" VerticalContentAlignment="Center">
+                            <ComboBoxItem Content="斗地主 (doudizhu)" Tag="doudizhu" IsSelected="True"/>
+                            <ComboBoxItem Content="跑得快 (paodekuai)" Tag="paodekuai"/>
+                            <ComboBoxItem Content="五子棋 (gomoku)" Tag="gomoku"/>
+                            <ComboBoxItem Content="21点 (blackjack)" Tag="blackjack"/>
+                            <ComboBoxItem Content="斗牛 (niuniu)" Tag="niuniu"/>
+                            <ComboBoxItem Content="骰宝 (dice)" Tag="dice"/>
+                            <ComboBoxItem Content="炸金花 (zhajinhua)" Tag="zhajinhua"/>
+                            <ComboBoxItem Content="百人牛牛 (bainiu)" Tag="bainiu"/>
+                            <ComboBoxItem Content="德州扑克 (texas)" Tag="texas"/>
+                            <ComboBoxItem Content="中国象棋 (xiangqi)" Tag="xiangqi"/>
+                            <ComboBoxItem Content="国际象棋 (chess)" Tag="chess"/>
+                            <ComboBoxItem Content="推筒子 (tuizhuanzi)" Tag="tuizhuanzi"/>
+                        </ComboBox>
+
+                        <TextBlock Text="开台数量 (1~10 桌):" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="TxtBatchCount" Text="3" Height="32" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
+                        <TextBlock Text="批量生成的平台庄房间将常驻在大厅房间列表中，供玩家即入即玩。" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Style="{StaticResource BtnSecondary}" Content="取消" Click="BtnCloseBatchRoomModal_Click" Width="80" Height="32" Margin="0,0,10,0"/>
+                        <Button Style="{StaticResource BtnGold}" Content="立即开台" Click="BtnExecuteBatchRoom_Click" Width="100" Height="32"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+
+    <!-- 导航 RadioButton 模板 -->
+    <Window.Resources>
+        <ControlTemplate x:Key="NavRadioTemplate" TargetType="{x:Type RadioButton}">
+            <Border x:Name="b" Background="Transparent" CornerRadius="6" Padding="12,10" Cursor="Hand">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="4"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="pill" Grid.Column="0" Background="{StaticResource BrushGoldGrad}" CornerRadius="2" Width="4" Height="16" Visibility="Collapsed" HorizontalAlignment="Left"/>
+                    <ContentPresenter Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <ContentPresenter.Resources>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="13"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushTextMuted}"/>
+                                <Setter Property="FontWeight" Value="Normal"/>
+                            </Style>
+                        </ContentPresenter.Resources>
+                    </ContentPresenter>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="b" Property="Background" Value="#172233"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="b" Property="Background" Value="#1E2B3E"/>
+                    <Setter TargetName="pill" Property="Visibility" Value="Visible"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+    </Window.Resources>
+</Window>

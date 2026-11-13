@@ -138,6 +138,47 @@ export interface ProfilePatch {
   avatar?: string | null;
 }
 
+export interface MailRecord {
+  id: string;
+  targetType: 'user' | 'all';
+  targetUserId: string | null;
+  sender: string;
+  title: string;
+  content: string;
+  rewardCoins: number;
+  createdAt: number;
+  expireAt: number;
+}
+
+export interface PlayerMailView {
+  id: string;
+  sender: string;
+  title: string;
+  content: string;
+  rewardCoins: number;
+  createdAt: number;
+  isRead: boolean;
+  isClaimed: boolean;
+  claimedAt: number | null;
+}
+
+export interface SendMailInput {
+  targetType: 'user' | 'all';
+  targetUserId?: string | null;
+  sender?: string;
+  title: string;
+  content: string;
+  rewardCoins?: number;
+  expireDays?: number;
+}
+
+export interface ClaimMailResult {
+  ok: boolean;
+  rewardCoins: number;
+  balance: number;
+  reason?: string;
+}
+
 export type RegisterResult = { ok: true; user: UserRecord } | { ok: false; reason: 'username_taken' };
 
 export interface Repository {
@@ -203,4 +244,13 @@ export interface Repository {
   resetUserPassword(userId: string, passwordHash: string): Promise<boolean>;
   listUserLedger(userId: string, limit: number): Promise<LedgerRow[]>;
   getEconomyOverview(): Promise<EconomyOverview>;
+
+  // ---------- 邮箱系统 ----------
+  sendMail(input: SendMailInput): Promise<MailRecord>;
+  listPlayerMails(userId: string): Promise<PlayerMailView[]>;
+  markMailRead(mailId: string, userId: string): Promise<boolean>;
+  claimMailReward(mailId: string, userId: string): Promise<ClaimMailResult>;
+  deletePlayerMail(mailId: string, userId: string): Promise<boolean>;
+  listAdminMails(limit: number): Promise<MailRecord[]>;
+  deleteAdminMail(mailId: string): Promise<boolean>;
 }

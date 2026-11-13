@@ -6,6 +6,7 @@ export interface User {
   username: string | null;
   balance: number;
   createdAt?: number;
+  avatar?: string | null;
 }
 
 export interface Captcha {
@@ -238,7 +239,29 @@ export const api = {
 
   dismissInvite: (id: string) =>
     request<{ ok: boolean }>(`/api/rooms/invites/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // ---------- 邮箱系统 ----------
+  listMails: () => request<{ mails: PlayerMailView[]; unreadCount: number }>('/api/mail'),
+  readMail: (id: string) => request<{ ok: boolean }>(`/api/mail/${encodeURIComponent(id)}/read`, { method: 'POST' }),
+  claimMail: (id: string) =>
+    request<{ ok: boolean; rewardCoins: number; balance: number }>(`/api/mail/${encodeURIComponent(id)}/claim`, {
+      method: 'POST',
+    }),
+  deleteMail: (id: string) =>
+    request<{ ok: boolean }>(`/api/mail/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };
+
+export interface PlayerMailView {
+  id: string;
+  sender: string;
+  title: string;
+  content: string;
+  rewardCoins: number;
+  createdAt: number;
+  isRead: boolean;
+  isClaimed: boolean;
+  claimedAt: number | null;
+}
 
 export interface RoomInviteView {
   id: string;

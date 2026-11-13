@@ -8,13 +8,14 @@ function IconBolt() {
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Announcement, BotDifficulty, GameMeta } from '@cc/protocol';
-import { api, type User } from '../api';
+import { api, resolveAvatarUrl, type User } from '../api';
 import { audio } from '../audio';
 import { DEALER_MAIN, GAME_ART, HERO_BG } from '../assets';
 import { Chip } from './Chip';
 import { DealerTipWidget } from './DealerTipWidget';
 import {
   IconGift,
+  IconMail,
   IconMusic,
   IconNext,
   IconNotice,
@@ -34,6 +35,7 @@ interface Props {
   onLeaderboard: () => void;
   onProfile: () => void;
   onNotices: () => void;
+  onMail?: () => void;
   onRules: () => void;
   botDifficulty: BotDifficulty;
   onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
@@ -122,6 +124,7 @@ export function Lobby({
   onLeaderboard,
   onProfile,
   onNotices,
+  onMail,
   onRules,
   botDifficulty,
   onChangeBotDifficulty,
@@ -276,7 +279,16 @@ export function Lobby({
             title={user ? '点击查看个人资产' : '点击登录'}
           >
             <div className="app-avatar-wrapper">
-              <span className="app-avatar">{user ? user.nickname.slice(0, 1) : '牌'}</span>
+              {user?.avatar ? (
+                <img
+                  className="app-avatar-img"
+                  src={resolveAvatarUrl(user.avatar) ?? ''}
+                  alt={user.nickname}
+                  draggable={false}
+                />
+              ) : (
+                <span className="app-avatar">{user ? user.nickname.slice(0, 1) : '牌'}</span>
+              )}
               <span className="app-avatar-badge">{user ? 'VIP' : 'GUEST'}</span>
             </div>
             <div className="app-top__id">
@@ -338,6 +350,13 @@ export function Lobby({
             <IconTrophy size={15} />
             <span>榜单</span>
           </button>
+
+          {onMail && (
+            <button type="button" className="top-feature-pill" onClick={onMail} title="个人邮箱与福利信件">
+              <IconMail size={15} />
+              <span>信箱</span>
+            </button>
+          )}
 
           <div className="bot-diff-switch top-diff-switch" title="选择机器人对战难度">
             <span className="bot-diff-switch__label">难度</span>

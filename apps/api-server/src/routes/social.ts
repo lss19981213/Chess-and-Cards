@@ -212,5 +212,35 @@ export function registerSocialRoutes(app: FastifyInstance, repo: Repository): ()
     return { ok: index >= 0 };
   });
 
+  // ---------- 玩家邮箱模块 ----------
+  app.get('/api/mail', async (req) => {
+    const claims = authHeader(req);
+    const mails = await repo.listPlayerMails(claims.sub);
+    const unreadCount = mails.filter((m) => !m.isRead).length;
+    return { mails, unreadCount };
+  });
+
+  app.post('/api/mail/:id/read', async (req) => {
+    const claims = authHeader(req);
+    const { id } = req.params as { id: string };
+    const ok = await repo.markMailRead(id, claims.sub);
+    return { ok };
+  });
+
+  app.post('/api/mail/:id/claim', async (req) => {
+    const claims = authHeader(req);
+    const { id } = req.params as { id: string };
+    const res = await repo.claimMailReward(id, claims.sub);
+    if (!res.ok) throw httpError(res.reason ?? '领取附件失败', 400);
+    return res;
+  });
+
+  app.delete('/api/mail/:id', async (req) => {
+    const claims = authHeader(req);
+    const { id } = req.params as { id: string };
+    const ok = await repo.deletePlayerMail(id, claims.sub);
+    return { ok };
+  });
+
   return pruneInvites;
 }

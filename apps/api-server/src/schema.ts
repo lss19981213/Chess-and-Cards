@@ -155,4 +155,30 @@ create table if not exists friendships (
   created_at timestamptz not null default now(),
   primary key (user_id, friend_id)
 );
+
+-- 系统与运营邮件
+create table if not exists mails (
+  id             text primary key,
+  target_type    text not null,
+  target_user_id text references users(id) on delete cascade,
+  sender         text not null default '系统管理员',
+  title          text not null,
+  content        text not null,
+  reward_coins   bigint not null default 0,
+  created_at     timestamptz not null default now(),
+  expire_at      timestamptz not null default (now() + interval '30 days')
+);
+
+create index if not exists mails_target_idx on mails (target_type, target_user_id, created_at desc);
+
+-- 玩家邮件读取与领奖状态
+create table if not exists mail_user_status (
+  mail_id        text not null references mails(id) on delete cascade,
+  user_id        text not null references users(id) on delete cascade,
+  is_read        boolean not null default false,
+  is_claimed     boolean not null default false,
+  claimed_at     timestamptz,
+  deleted        boolean not null default false,
+  primary key (mail_id, user_id)
+);
 `;

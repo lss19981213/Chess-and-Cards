@@ -65,6 +65,21 @@ import {
   resetUserPassword,
   setUserStatus,
 } from './pg/admin';
+import {
+  claimMailReward,
+  deleteAdminMail,
+  deletePlayerMail,
+  listAdminMails,
+  listPlayerMails,
+  markMailRead,
+  sendMail,
+} from './pg/mail';
+import type {
+  ClaimMailResult,
+  MailRecord,
+  PlayerMailView,
+  SendMailInput,
+} from './types';
 
 const { Pool } = pg;
 
@@ -235,5 +250,34 @@ export class PostgresRepository implements Repository {
 
   getEconomyOverview(): Promise<EconomyOverview> {
     return getEconomyOverview(this.pool);
+  }
+
+  // ---------- 邮箱系统 ----------
+  sendMail(input: SendMailInput): Promise<MailRecord> {
+    return sendMail(this.pool, input);
+  }
+
+  listPlayerMails(userId: string): Promise<PlayerMailView[]> {
+    return listPlayerMails(this.pool, userId);
+  }
+
+  markMailRead(mailId: string, userId: string): Promise<boolean> {
+    return markMailRead(this.pool, mailId, userId);
+  }
+
+  claimMailReward(mailId: string, userId: string): Promise<ClaimMailResult> {
+    return claimMailReward(this.pool, mailId, userId);
+  }
+
+  deletePlayerMail(mailId: string, userId: string): Promise<boolean> {
+    return deletePlayerMail(this.pool, mailId, userId);
+  }
+
+  listAdminMails(limit: number): Promise<MailRecord[]> {
+    return listAdminMails(this.pool, limit);
+  }
+
+  deleteAdminMail(mailId: string): Promise<boolean> {
+    return deleteAdminMail(this.pool, mailId);
   }
 }

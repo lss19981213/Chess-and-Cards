@@ -6,6 +6,7 @@ import { LEADERBOARD_SIZE, rewardForRank } from '../leaderboard';
 import type {
   BetAdjustment,
   AuthUser,
+  ClaimMailResult,
   EconomyOverview,
   LeaderboardSnapshotRow,
   DailyWinnerRow,
@@ -13,11 +14,14 @@ import type {
   GameRecordView,
   LeaderboardRow,
   LedgerRow,
+  MailRecord,
+  PlayerMailView,
   PlayerProfile,
   ProfilePatch,
   RegisterInput,
   RegisterResult,
   Repository,
+  SendMailInput,
   SettlementResult,
   TaskProgressRow,
   UserRecord,
@@ -59,6 +63,13 @@ export class MemoryRepository implements Repository {
   private readonly friendRequests: FriendRequestView[] = [];
   /** 资金流水明细（GM 控制台与账本透视） */
   private readonly ledgerHistory: LedgerRow[] = [];
+  /** 系统与运营邮件 */
+  private readonly mails = new Map<string, MailRecord>();
+  /** 玩家邮件阅读与领奖状态：`${mailId}|${userId}` */
+  private readonly mailUserStatuses = new Map<
+    string,
+    { isRead: boolean; isClaimed: boolean; claimedAt: number | null; deleted: boolean }
+  >();
 
   constructor(initialCoins: number) {
     this.initialCoins = initialCoins;
@@ -595,6 +606,118 @@ export class MemoryRepository implements Repository {
       todayRelief,
       todayGmGrant,
     };
+  }
+
+  // ---------- 邮箱系统 ----------
+
+  async sendMail(input: SendMailInput): Promise<MailRecord> {
+    const id = randomUUID();
+    const now = Date.now();
+    const expireDays = Math.max(1, Math.min(input.expireDays ?? 30, 365));
+    const expireAt = now + expireDays * 86400_000;
+    const record: MailRecord = {
+      id,
+      targetType: input.targetType,
+      targetUserId: input.targetType === 'user' ? (input.targetUserId ?? null) : null,
+      sender: input.sender?.trim() || '系统管理员',
+      title: input.title.trim(),
+      content: input.content.trim(),
+      rewardCoins: Math.max(0, Math.floor(input.rewardCoins ?? 0)),
+      createdAt: now,
+      expireAt,
+    };
+    this.mails.set(id, record);
+    return record;
+  }
+
+  async listPlayerMails(userId: string): Promise<PlayerMailView[]> {
+    const now = Date.now();
+    const results: PlayerMailView[] = [];
+    for (const mail of this.mails.values()) {
+      if (mail.expireAt <= now) continue;
+      if (mail.targetType === 'user' && mail.targetUserId !== userId) continue;
+      const status = this.mailUserStatuses.get(`${mail.id}|${userId}`) ?? {
+        isRead: false,
+        isClaimed: false,
+        claimedAt: null,
+        deleted: false,
+      };
+      if (status.deleted) continue;
+      results.push({
+        id: mail.id,
+        sender: mail.sender,
+        title: mail.title,
+        content: mail.content,
+        rewardCoins: mail.rewardCoins,
+        createdAt: mail.createdAt,
+        isRead: status.isRead,
+        isClaimed: status.isClaimed,
+        claimedAt: status.claimedAt,
+      });
+    }
+    return results.sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async markMailRead(mailId: string, userId: string): Promise<boolean> {
+    const mail = this.mails.get(mailId);
+    if (!mail) return false;
+    const key = `${mailId}|${userId}`;
+    const current = this.mailUserStatuses.get(key) ?? {
+      isRead: false,
+      isClaimed: false,
+      claimedAt: null,
+      deleted: false,
+    };
+    this.mailUserStatuses.set(key, { ...current, isRead: true });
+    return true;
+  }
+
+  async claimMailReward(mailId: string, userId: string): Promise<ClaimMailResult> {
+    const mail = this.mails.get(mailId);
+    const balance = await this.getBalance(userId, 'coin');
+    if (!mail) return { ok: false, rewardCoins: 0, balance, reason: '邮件不存在' };
+    if (mail.expireAt <= Date.now()) return { ok: false, rewardCoins: 0, balance, reason: '邮件已过期' };
+    if (mail.targetType === 'user' && mail.targetUserId !== userId) {
+      return { ok: false, rewardCoins: 0, balance, reason: '无权领取此邮件' };
+    }
+    if (mail.rewardCoins <= 0) {
+      return { ok: false, rewardCoins: 0, balance, reason: '该邮件无附带筹码' };
+    }
+    const key = `${mailId}|${userId}`;
+    const current = this.mailUserStatuses.get(key) ?? {
+      isRead: false,
+      isClaimed: false,
+      claimedAt: null,
+      deleted: false,
+    };
+    if (current.isClaimed) {
+      return { ok: false, rewardCoins: 0, balance, reason: '附件已领取，请勿重复操作' };
+    }
+    this.mailUserStatuses.set(key, { ...current, isRead: true, isClaimed: true, claimedAt: Date.now() });
+    const nextBalance = await this.credit(userId, mail.rewardCoins, 'mail_reward', `mail:${mailId}:${userId}`);
+    return { ok: true, rewardCoins: mail.rewardCoins, balance: nextBalance };
+  }
+
+  async deletePlayerMail(mailId: string, userId: string): Promise<boolean> {
+    const key = `${mailId}|${userId}`;
+    const current = this.mailUserStatuses.get(key) ?? {
+      isRead: false,
+      isClaimed: false,
+      claimedAt: null,
+      deleted: false,
+    };
+    this.mailUserStatuses.set(key, { ...current, deleted: true });
+    return true;
+  }
+
+  async listAdminMails(limit: number): Promise<MailRecord[]> {
+    return [...this.mails.values()]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, Math.min(Math.max(1, limit), 200));
+  }
+
+  async deleteAdminMail(mailId: string): Promise<boolean> {
+    return this.mails.delete(mailId);
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {

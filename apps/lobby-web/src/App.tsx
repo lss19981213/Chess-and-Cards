@@ -18,6 +18,7 @@ import { FriendsView } from './components/FriendsView';
 import { GameRooms } from './components/GameRooms';
 import { LeaderboardView } from './components/LeaderboardView';
 import { Lobby } from './components/Lobby';
+import { MailView } from './components/MailView';
 import { NoticesView } from './components/NoticesView';
 import { ProfileView } from './components/ProfileView';
 import { Room } from './components/Room';
@@ -43,6 +44,7 @@ export type AppView =
   | 'profile'
   | 'notices'
   | 'rules'
+  | 'mail'
   | 'auth';
 
 function PortraitPrompt() {
@@ -258,14 +260,20 @@ export default function App() {
         if (myEntry) {
           // 按净盈亏播放胜负音效，别赢了也放、输了也放
           audio.play(myEntry.delta >= 0 ? 'win' : 'lose');
-          setUser((prev) => (prev ? { ...prev, balance: prev.balance + myEntry.delta } : prev));
         }
       }
+
+      // 结算后主动与服务端对账刷新，彻底杜绝下注游戏重复扣款及产生负数金额
+      window.setTimeout(() => {
+        void api.me().then((res) => {
+          setUser((prev) => (prev ? { ...prev, balance: Math.max(0, res.user.balance) } : res.user));
+        }).catch(() => {});
+      }, 100);
     });
 
     s.on(ServerMsg.Wallet, (data) => {
       const payload = data as { balance: number };
-      setUser((prev) => (prev ? { ...prev, balance: payload.balance } : prev));
+      setUser((prev) => (prev ? { ...prev, balance: Math.max(0, payload.balance) } : prev));
     });
 
     s.on(ServerMsg.Emote, (data) => {
@@ -433,7 +441,7 @@ export default function App() {
   };
 
   const handleBalanceChange = useCallback((newBalance: number) => {
-    setUser((prev) => (prev ? { ...prev, balance: newBalance } : prev));
+    setUser((prev) => (prev ? { ...prev, balance: Math.max(0, Math.floor(newBalance)) } : prev));
   }, []);
 
   if (booting) {
@@ -525,7 +533,15 @@ export default function App() {
           onGoTasks={() => setView('tasks')}
           onGoFriends={() => setView('friends')}
           onProfileChange={(patch) =>
-            setUser((prev) => (prev ? { ...prev, nickname: patch.nickname ?? prev.nickname } : prev))
+            setUser((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    nickname: patch.nickname ?? prev.nickname,
+                    avatar: patch.avatar !== undefined ? patch.avatar : prev.avatar,
+                  }
+                : prev,
+            )
           }
           onBack={() => setView('lobby')}
         />
@@ -534,6 +550,15 @@ export default function App() {
 
     if (view === 'notices') {
       return <NoticesView onBack={() => setView('lobby')} />;
+    }
+
+    if (view === 'mail') {
+      return (
+        <MailView
+          onBack={() => setView('lobby')}
+          onBalanceChange={handleBalanceChange}
+        />
+      );
     }
 
     if (view === 'rules') {
@@ -562,6 +587,7 @@ export default function App() {
         onLeaderboard={() => setView('leaderboard')}
         onProfile={() => (user ? setView('profile') : setView('auth'))}
         onNotices={() => setView('notices')}
+        onMail={() => setView('mail')}
         onRules={() => setView('rules')}
         botDifficulty={botDifficulty}
         onChangeBotDifficulty={updateBotDifficulty}

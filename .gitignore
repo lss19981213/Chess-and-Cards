@@ -31,5 +31,8 @@ services/room-server/.outbox/
 # GM 工具的本地凭证，绝不入库
 tools/.gm-config.json
 tools/.deploy-profile.json
+tools/CcGmClient/bin/
+tools/CcGmClient/obj/
+tools/CcGmClient/**/.gm-config.json
 
 .playwright-cli/
