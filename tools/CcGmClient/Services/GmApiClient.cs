@@ -34,13 +34,23 @@ namespace CcGmClient.Services
 
         public void Configure(string baseUrl, string token)
         {
-            BaseUrl = baseUrl;
+            var clean = (baseUrl ?? "").Trim().TrimEnd('/');
+            if (clean.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
+            {
+                clean = clean[..^4];
+            }
+            BaseUrl = clean;
             AdminToken = token;
         }
 
         private HttpRequestMessage CreateRequest(HttpMethod method, string path, object? body = null)
         {
-            var url = $"{_baseUrl}{path}";
+            var cleanPath = path.StartsWith('/') ? path : $"/{path}";
+            if (_baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase) && cleanPath.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+            {
+                cleanPath = cleanPath[4..];
+            }
+            var url = $"{_baseUrl}{cleanPath}";
             var req = new HttpRequestMessage(method, url);
             if (!string.IsNullOrEmpty(_adminToken))
             {
@@ -94,7 +104,28 @@ namespace CcGmClient.Services
         // ---------- 1. 探活与概览 ----------
         public async Task<OverviewResponse> GetOverviewAsync()
         {
-            return await SendAsync<OverviewResponse>(HttpMethod.Get, "/api/admin/overview");
+            try
+            {
+                return await SendAsync<OverviewResponse>(HttpMethod.Get, "/api/admin/overview");
+            }
+            catch (Exception ex) when (ex.Message.Contains("404") || ex.Message.Contains("NotFound"))
+            {
+                if (!_baseUrl.EndsWith("/lobby", StringComparison.OrdinalIgnoreCase))
+                {
+                    var oldBase = _baseUrl;
+                    _baseUrl = $"{oldBase}/lobby";
+                    try
+                    {
+                        return await SendAsync<OverviewResponse>(HttpMethod.Get, "/api/admin/overview");
+                    }
+                    catch
+                    {
+                        _baseUrl = oldBase;
+                        throw;
+                    }
+                }
+                throw;
+            }
         }
 
         public async Task<EconomyOverview?> GetEconomyAsync()

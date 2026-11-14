@@ -35,8 +35,10 @@ namespace CcGmClient
             CmbServerUrl.ItemsSource = new List<string>
             {
                 "http://82.157.54.179",
-                "http://127.0.0.1:3000",
-                "http://localhost:3000"
+                "http://82.157.54.179/lobby",
+                "http://127.0.0.1:8080",
+                "http://localhost:8080",
+                "http://127.0.0.1:3000"
             };
             CmbServerUrl.Text = !string.IsNullOrEmpty(_config.ServerUrl) ? _config.ServerUrl : "http://82.157.54.179";
             TxtAdminToken.Password = !string.IsNullOrEmpty(_config.AdminToken) ? _config.AdminToken : "2f6f6fe8e5cced301026985a44a26192fcf1b6f1cf2ef218";
@@ -68,7 +70,7 @@ namespace CcGmClient
 
         private async void BtnSwitchLocal_Click(object sender, RoutedEventArgs e)
         {
-            CmbServerUrl.Text = "http://127.0.0.1:3000";
+            CmbServerUrl.Text = "http://127.0.0.1:8080";
             await ConnectServerAsync();
         }
 
