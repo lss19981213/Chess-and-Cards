@@ -110,7 +110,7 @@ function kingSquare(board: Array<Piece | null>, color: Color): Square | null {
 }
 
 function isAttacked(board: Array<Piece | null>, sq: Square, by: Color): boolean {
-  // 车 / 炮的直线
+  // 车 / 炮的直线攻击
   for (const [dc, dr] of [
     [1, 0],
     [-1, 0],
@@ -135,68 +135,64 @@ function isAttacked(board: Array<Piece | null>, sq: Square, by: Color): boolean 
       r += dr;
     }
   }
-  // 马（含蹩马腿）
-  const KNIGHT: Array<[number, number, number, number]> = [
-    [1, 2, 0, 1],
-    [2, 1, 1, 0],
-    [2, -1, 1, 0],
-    [1, -2, 0, -1],
-    [-1, -2, 0, -1],
-    [-2, -1, -1, 0],
-    [-2, 1, -1, 0],
-    [-1, 2, 0, 1],
-  ];
-  for (const [dc, dr, lc, lr] of KNIGHT) {
-    const c = sq.c + dc;
-    const r = sq.r + dr;
-    const piece = at(board, c, r);
-    if (!piece || piece.color !== by || piece.type !== 'n') continue;
-    const leg = at(board, sq.c + lc, sq.r + lr);
-    if (!leg) return true;
-  }
-  // 象 / 相（含塞象眼）
+
+  // 马攻击：检查能跳到 sq 的对方马并检验蹩马腿
   for (const [dc, dr] of [
-    [2, 2],
-    [2, -2],
-    [-2, 2],
-    [-2, -2],
+    [1, 2], [1, -2], [-1, 2], [-1, -2],
+    [2, 1], [2, -1], [-2, 1], [-2, -1],
   ] as Array<[number, number]>) {
-    const c = sq.c + dc;
-    const r = sq.r + dr;
-    const piece = at(board, c, r);
-    if (!piece || piece.color !== by || piece.type !== 'b') continue;
-    if (!crossedRiver(by, r)) continue;
-    const eye = at(board, sq.c + dc / 2, sq.r + dr / 2);
-    if (!eye) return true;
+    const horseC = sq.c + dc;
+    const horseR = sq.r + dr;
+    const piece = at(board, horseC, horseR);
+    if (!piece || piece.color !== by || piece.type !== 'n') continue;
+    // 马腿位置：从马的位置沿长轴朝 sq 迈出 1 格
+    const legC = Math.abs(dc) === 2 ? horseC - Math.sign(dc) : horseC;
+    const legR = Math.abs(dr) === 2 ? horseR - Math.sign(dr) : horseR;
+    if (!at(board, legC, legR)) return true;
   }
-  // 士 / 仕
+
+  // 象 / 相攻击（含塞象眼，象不能过河）
   for (const [dc, dr] of [
-    [1, 1],
-    [1, -1],
-    [-1, 1],
-    [-1, -1],
+    [2, 2], [2, -2], [-2, 2], [-2, -2],
+  ] as Array<[number, number]>) {
+    const elephantC = sq.c + dc;
+    const elephantR = sq.r + dr;
+    const piece = at(board, elephantC, elephantR);
+    if (!piece || piece.color !== by || piece.type !== 'b') continue;
+    if (crossedRiver(by, sq.r)) continue; // 象不可过河
+    const eyeC = sq.c + dc / 2;
+    const eyeR = sq.r + dr / 2;
+    if (!at(board, eyeC, eyeR)) return true;
+  }
+
+  // 士 / 仕攻击（九宫斜走）
+  for (const [dc, dr] of [
+    [1, 1], [1, -1], [-1, 1], [-1, -1],
   ] as Array<[number, number]>) {
     const piece = at(board, sq.c + dc, sq.r + dr);
     if (piece && piece.color === by && piece.type === 'a') return true;
   }
-  // 将 / 帅（直线一步，含对脸）
+
+  // 将 / 帅攻击（九宫直走一步）
   for (const [dc, dr] of [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
+    [1, 0], [-1, 0], [0, 1], [0, -1],
   ] as Array<[number, number]>) {
     const piece = at(board, sq.c + dc, sq.r + dr);
     if (piece && piece.color === by && piece.type === 'k') return true;
   }
-  // 兵 / 卒
+
+  // 兵 / 卒攻击：前进方向为 pawnDir，只能前进一步；过河后可横走一步
   const pawnDir = by === 'r' ? -1 : 1;
-  for (const dc of [-1, 1]) {
-    const piece = at(board, sq.c + dc, sq.r + pawnDir);
-    if (piece && piece.color === by && piece.type === 'p') return true;
+  const fromFront = at(board, sq.c, sq.r - pawnDir);
+  if (fromFront && fromFront.color === by && fromFront.type === 'p') return true;
+
+  if (crossedRiver(by, sq.r)) {
+    for (const dc of [-1, 1]) {
+      const fromSide = at(board, sq.c + dc, sq.r);
+      if (fromSide && fromSide.color === by && fromSide.type === 'p') return true;
+    }
   }
-  const forward = at(board, sq.c, sq.r + pawnDir);
-  if (forward && forward.color === by && forward.type === 'p') return true;
+
   return false;
 }
 
@@ -300,6 +296,7 @@ function pseudoMoves(state: State, from: Square): Move[] {
       break;
     }
     case 'b': {
+      // 象飞田，不能过河，塞象眼不能走
       for (const [dc, dr] of [
         [2, 2],
         [2, -2],
@@ -308,14 +305,15 @@ function pseudoMoves(state: State, from: Square): Move[] {
       ] as Array<[number, number]>) {
         const c = from.c + dc;
         const r = from.r + dr;
-        if (!crossedRiver(piece.color, r)) continue;
+        if (crossedRiver(piece.color, r)) continue; // 象不能过河！
         const eye = at(state.board, from.c + dc / 2, from.r + dr / 2);
-        if (eye) continue;
+        if (eye) continue; // 塞象眼
         push(c, r);
       }
       break;
     }
     case 'a': {
+      // 士走斜线，不出九宫
       for (const [dc, dr] of [
         [1, 1],
         [1, -1],
@@ -330,6 +328,7 @@ function pseudoMoves(state: State, from: Square): Move[] {
       break;
     }
     case 'k': {
+      // 将帅走直步，不出九宫
       for (const [dc, dr] of [
         [1, 0],
         [-1, 0],
@@ -344,17 +343,12 @@ function pseudoMoves(state: State, from: Square): Move[] {
       break;
     }
     case 'p': {
+      // 兵卒前进一步，吃子与移动同向；过河后可左右移动一步，绝不可走两步
       const dir = piece.color === 'r' ? -1 : 1;
-      const startRow = piece.color === 'r' ? 6 : 3;
-      const c = from.c;
-      const r = from.r + dir;
-      if (r >= 0 && r <= 9 && !state.board[idx({ c, r })]) push(c, r);
-      if (from.r === startRow) {
-        const two = from.r + dir * 2;
-        if (two >= 0 && two <= 9 && !state.board[idx({ c, r: two })]) push(c, two);
-      }
+      push(from.c, from.r + dir);
       if (crossedRiver(piece.color, from.r)) {
-        for (const dc of [-1, 1]) push(from.c + dc, from.r);
+        push(from.c - 1, from.r);
+        push(from.c + 1, from.r);
       }
       break;
     }

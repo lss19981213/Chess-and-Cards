@@ -17,7 +17,7 @@ const BIG_BLIND = 100;
 const RAISE_UNIT = 100;
 const MAX_RAISES = 5;
 /** 自定义加注上限，防止一次把底池顶爆 */
-const MAX_RAISE_ADD = 5000;
+const MAX_RAISE_ADD = Number.MAX_SAFE_INTEGER;
 
 type Phase = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
 
@@ -186,7 +186,6 @@ export class TexasPlugin extends BaseGamePlugin {
           if (!Number.isInteger(add) || add < RAISE_UNIT) {
             throw badRequest(`加注至少 ${RAISE_UNIT}`);
           }
-          if (add > MAX_RAISE_ADD) throw badRequest(`单次加注最多 ${MAX_RAISE_ADD}`);
           target = this.state.currentBet + add;
         }
 

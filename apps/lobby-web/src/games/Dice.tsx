@@ -32,60 +32,67 @@ interface Props {
 const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 const SUM_KEYS = ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17'];
 
-const FACE_DOTS: Record<number, number[][]> = {
-  1: [[0, 0]],
-  2: [
-    [-1, -1],
-    [1, 1],
-  ],
-  3: [
-    [-1, -1],
-    [0, 0],
-    [1, 1],
-  ],
-  4: [
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ],
-  5: [
-    [-1, -1],
-    [1, -1],
-    [0, 0],
-    [-1, 1],
-    [1, 1],
-  ],
-  6: [
-    [-1, -1],
-    [1, -1],
-    [-1, 0],
-    [1, 0],
-    [-1, 1],
-    [1, 1],
-  ],
-};
-
-function Die({ value, rolling }: { value: number; rolling?: boolean }) {
-  const dots = FACE_DOTS[value] ?? [];
+function PhysicalDie({ value, rolling }: { value: number; rolling?: boolean }) {
+  const isHidden = value <= 0;
   return (
-    <div className={`die-cube ${rolling ? 'is-rolling' : ''}`} data-face={value}>
-      <div className="die-face">
-        {dots.map((dot, idx) => {
-          const x = dot[0] ?? 0;
-          const y = dot[1] ?? 0;
-          return (
-            <span
-              key={idx}
-              className={`die-pip die-pip--${value === 1 ? 'red' : value === 4 ? 'red' : 'dark'}`}
-              style={{
-                left: `${50 + x * 28}%`,
-                top: `${50 + y * 28}%`,
-              }}
-            />
-          );
-        })}
-      </div>
+    <div className={`dice-3d-die ${rolling ? 'is-rolling' : ''}`}>
+      {isHidden ? (
+        <span style={{ fontSize: '26px', color: 'rgba(255,255,255,0.3)', fontWeight: 800 }}>?</span>
+      ) : (
+        <svg viewBox="0 0 64 64" width="60" height="60">
+          <defs>
+            <radialGradient id={`redPip-${value}`} cx="40%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="#ff4d4f" />
+              <stop offset="100%" stopColor="#b30006" />
+            </radialGradient>
+            <radialGradient id={`darkPip-${value}`} cx="40%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="#3d4e68" />
+              <stop offset="100%" stopColor="#141a26" />
+            </radialGradient>
+          </defs>
+          {value === 1 && <circle cx="32" cy="32" r="11" fill={`url(#redPip-${value})`} />}
+          {value === 2 && (
+            <>
+              <circle cx="20" cy="20" r="5.5" fill={`url(#darkPip-${value})`} />
+              <circle cx="44" cy="44" r="5.5" fill={`url(#darkPip-${value})`} />
+            </>
+          )}
+          {value === 3 && (
+            <>
+              <circle cx="18" cy="18" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="32" cy="32" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="46" cy="46" r="5" fill={`url(#darkPip-${value})`} />
+            </>
+          )}
+          {value === 4 && (
+            <>
+              <circle cx="20" cy="20" r="5.5" fill={`url(#redPip-${value})`} />
+              <circle cx="44" cy="20" r="5.5" fill={`url(#redPip-${value})`} />
+              <circle cx="20" cy="44" r="5.5" fill={`url(#redPip-${value})`} />
+              <circle cx="44" cy="44" r="5.5" fill={`url(#redPip-${value})`} />
+            </>
+          )}
+          {value === 5 && (
+            <>
+              <circle cx="18" cy="18" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="46" cy="18" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="32" cy="32" r="6" fill={`url(#redPip-${value})`} />
+              <circle cx="18" cy="46" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="46" cy="46" r="5" fill={`url(#darkPip-${value})`} />
+            </>
+          )}
+          {value === 6 && (
+            <>
+              <circle cx="20" cy="16" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="44" cy="16" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="20" cy="32" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="44" cy="32" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="20" cy="48" r="5" fill={`url(#darkPip-${value})`} />
+              <circle cx="44" cy="48" r="5" fill={`url(#darkPip-${value})`} />
+            </>
+          )}
+        </svg>
+      )}
     </div>
   );
 }
@@ -164,21 +171,28 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
         </div>
 
         <div className="dice-stage">
-          <div className="dice-stage__tray">
-            {[0, 1, 2].map((index) => (
-              <Die key={index} value={revealed ? data.dice[index] ?? 0 : 0} rolling={revealed} />
-            ))}
+          <div className="dice-real-tray">
+            {revealed ? (
+              [0, 1, 2].map((index) => (
+                <PhysicalDie key={index} value={data.dice[index] ?? 1} rolling={data.phase === 'reveal'} />
+              ))
+            ) : (
+              <div className="dice-cup-shaker">
+                <span className="dice-cup-icon">🎲</span>
+                <span className="dice-cup-text">摇骰封盅中 · 请下注</span>
+              </div>
+            )}
           </div>
           <div className="dice-stage__sum">
             {revealed && data.sum !== null ? (
               <>
-                <strong>{data.sum}</strong>
+                <strong>{data.sum} 点</strong>
                 <span className={data.triple ? 'is-triple' : data.big ? 'is-big' : 'is-small'}>
-                  {data.triple ? '豹子通吃' : data.big ? '大' : '小'}
+                  {data.triple ? '豹子通吃' : data.big ? '大 (11~17)' : '小 (4~10)'}
                 </span>
               </>
             ) : (
-              <span className="muted">等待开盅</span>
+              <span className="muted">开盅后揭晓 3 颗骰子点数</span>
             )}
           </div>
         </div>
@@ -198,13 +212,13 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 <span className="dice-zone__odds">1:{zone.odds}</span>
                 {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
                   <span className="dice-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
-                    共押 {data.zoneTotals[zone.key]}
+                    全台 {data.zoneTotals[zone.key]}
                   </span>
                 )}
-                {bet > 0 && (
+                {bet > 0 ? (
                   <span className="dice-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
-                    {bet}
+                    <span>我押 {bet}</span>
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -226,6 +240,8 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                       </span>
                     )}
                   </span>
+                ) : (
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>未下注</span>
                 )}
               </button>
             );
@@ -235,6 +251,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
         <div className="dice-sums">
           {SUM_KEYS.map((key) => {
             const bet = data.myBet[`sum-${key}`] ?? 0;
+            const pool = data.zoneTotals?.[`sum-${key}`] ?? 0;
             return (
               <button
                 key={key}
@@ -242,10 +259,15 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 className={`dice-sum ${bet > 0 ? 'is-bet' : ''}`}
                 disabled={!canPlace}
                 onClick={() => onBet(`sum-${key}`, amount)}
-                title={`押和值 ${key}，赔率 1:${data.odds.sums[key]}`}
+                title={`押和值 ${key}，赔率 1:${data.odds.sums[key]}${pool > 0 ? `，全台已押 ${pool}` : ''}`}
               >
                 <strong>{key}</strong>
                 <span>1:{data.odds.sums[key]}</span>
+                {bet > 0 ? (
+                  <span className="dice-sum__mybet">已押 {bet}</span>
+                ) : pool > 0 ? (
+                  <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>台{pool}</span>
+                ) : null}
               </button>
             );
           })}
@@ -275,7 +297,6 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
             <input
               type="number"
               min={data.limits.min}
-              max={data.limits.max}
               step={10}
               value={amount}
               onChange={(event) => {
@@ -284,7 +305,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
               }}
             />
             <span className="bet-controls__hint">
-              {data.limits.min}–{data.limits.max} / 区
+              底注 {data.limits.min} · 无上限自由下注
             </span>
           </div>
         </div>

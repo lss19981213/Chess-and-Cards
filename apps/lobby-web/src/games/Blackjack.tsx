@@ -163,6 +163,65 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
           </div>
         )}
 
+        {/* 21点下注区域：醒目高亮展示，常驻可见，清晰显示每个选项已下注金额 */}
+        <div className="bj-bet-zones bj-bet-zones--prominent">
+          {(data.areas ?? [
+            { area: 'win', label: '闲胜 (Win)', odds: 1 },
+            { area: 'lose', label: '庄胜 (Lose)', odds: 1 },
+            { area: 'tie', label: '和局 (Push)', odds: 8 },
+            { area: 'bj', label: '21点 (Blackjack)', odds: 2 },
+          ]).map((area) => {
+            const bet = data.myBet[area.area] ?? 0;
+            const pool = data.zoneTotals?.[area.area] ?? 0;
+            return (
+              <button
+                key={area.area}
+                type="button"
+                className={`bj-zone-btn ${bet > 0 ? 'is-bet' : ''}`}
+                disabled={!canPlace}
+                onClick={() => {
+                  audio.play('chip_clack');
+                  onBet(area.area, amount);
+                }}
+              >
+                <div className="bj-zone-header">
+                  <span className="bj-zone-label">{area.label}</span>
+                  <span className="bj-zone-odds">1:{area.odds}</span>
+                </div>
+                {pool > 0 && <span className="bj-zone-pool">全台 {pool}</span>}
+                {bet > 0 ? (
+                  <span className="bj-zone-mybet">
+                    <img src={chipArt(bet)} alt="" />
+                    <span>我已押 {bet}</span>
+                    {canBet && (
+                      <span
+                        className="bet-cancel"
+                        role="button"
+                        tabIndex={0}
+                        title="取消该选项下注"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onClear(area.area);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.stopPropagation();
+                            onClear(area.area);
+                          }
+                        }}
+                      >
+                        ×
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="bj-zone-empty">{canBet ? '点击下注' : '未下注'}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* 下注控制区 */}
         <div className="bet-controls">
           <div className="bet-controls__chips">
@@ -182,27 +241,6 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
             ))}
           </div>
 
-          {canBet && (
-            <div className="bj-bet-zones">
-              {(data.areas ?? [{ area: 'main', label: '主注', odds: 1 }]).map((area) => (
-                <button
-                  key={area.area}
-                  type="button"
-                  className={`door ${data.myBet[area.area] ? 'is-bet' : ''}`}
-                  disabled={!canPlace}
-                  onClick={() => {
-                    audio.play('chip_clack');
-                    onBet(area.area, amount);
-                  }}
-                >
-                  <span className="door__label">{area.label}</span>
-                  <span className="door__points">1:{area.odds}</span>
-                  {data.myBet[area.area] ? <span className="door__bet">我押 {data.myBet[area.area]}</span> : null}
-                </button>
-              ))}
-            </div>
-          )}
-
           {canBet && betting > 0 && (
             <button
               type="button"
@@ -215,6 +253,23 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
               清空下注
             </button>
           )}
+
+          <div className="bet-controls__custom">
+            <span>自定义</span>
+            <input
+              type="number"
+              min={data.limits.min}
+              step={10}
+              value={amount}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setAmount(Number.isFinite(next) ? Math.max(0, Math.floor(next)) : 0);
+              }}
+            />
+            <span className="bet-controls__hint">
+              底注 {data.limits.min} · 无上限自由下注
+            </span>
+          </div>
         </div>
 
         {/* 结果栏 */}

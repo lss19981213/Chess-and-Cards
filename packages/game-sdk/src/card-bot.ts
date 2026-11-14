@@ -270,7 +270,7 @@ function decomposeHand(hand: readonly Card[], rules: ComboRules): DecomposedGrou
 }
 
 /** 构造所有合法的压制组合，按出牌成本从小到大排序（不轻易拆炸弹和长顺） */
-function findAllBeatingMoves(hand: readonly Card[], prev: Combo, rules: ComboRules): Array<{ combo: Combo; isBomb: boolean }> {
+export function findAllBeatingMoves(hand: readonly Card[], prev: Combo, rules: ComboRules): Array<{ combo: Combo; isBomb: boolean }> {
   const results: Array<{ combo: Combo; isBomb: boolean }> = [];
   const map = groupByRank(hand);
   const ranks = [...map.keys()].sort((a, b) => a - b);

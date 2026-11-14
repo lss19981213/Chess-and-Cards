@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 196" width="140" height="196">
+  <defs>
+    <linearGradient id="jokerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="3" y="3" width="134" height="190" rx="12" fill="url(#jokerBg)" stroke="#1a202c" stroke-width="1.6"/>
+  <rect x="7" y="7" width="126" height="182" rx="8" fill="none" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,3"/>
+
+  <!-- Left JOKER text -->
+  <g transform="translate(14, 28)">
+    <text x="0" y="0" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">J</text>
+<text x="0" y="15" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">O</text>
+<text x="0" y="30" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">K</text>
+<text x="0" y="45" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">E</text>
+<text x="0" y="60" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">R</text>
+  </g>
+
+  <!-- Center Grand Star & Jester Mask -->
+  <g transform="translate(70, 98)">
+    <circle cx="0" cy="0" r="44" fill="#fff1f2" stroke="#f59e0b" stroke-width="1.5"/>
+    <polygon points="0,-36 9,-10 36,-10 14,6 22,32 0,16 -22,32 -14,6 -36,-10 -9,-10" fill="#f59e0b" opacity="0.4"/>
+    <circle cx="0" cy="2" r="22" fill="#d32027"/>
+    <text x="0" y="9" font-family="serif" font-size="20" font-weight="900" text-anchor="middle" fill="#ffffff">★</text>
+    <text x="0" y="36" font-family="'Cinzel', serif" font-size="12" font-weight="800" text-anchor="middle" fill="#d32027">大王 JOKER</text>
+  </g>
+
+  <!-- Right JOKER text -->
+  <g transform="translate(126, 168) rotate(180)">
+    <text x="0" y="0" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">J</text>
+<text x="0" y="15" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">O</text>
+<text x="0" y="30" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">K</text>
+<text x="0" y="45" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">E</text>
+<text x="0" y="60" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#d32027">R</text>
+  </g>
+</svg>

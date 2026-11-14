@@ -32,6 +32,10 @@ interface ShowdownSnapshot {
     cards: CardView[];
   }>;
   handSize: number;
+  looked?: boolean;
+  lookedPlayers?: string[];
+  street?: number;
+  allIn?: string[];
 }
 
 interface Props {
@@ -82,7 +86,7 @@ export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Pro
           <strong>{data.pot}</strong>
         </span>
         <span className="pot-display__meta">
-          当前注 {data.currentBet} · 我的投入 {data.myTotalBet}
+          {data.street ? `第 ${data.street} 轮(${data.street === 1 ? "1底1明" : data.street + 1 + "张"}) · ` : ""}当前注 {data.currentBet} · 我的投入 {data.myTotalBet}
         </span>
       </div>
 
@@ -109,17 +113,46 @@ export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Pro
                   ))}
             </div>
             <span className="showdown__bet">投入 {player.totalBet}</span>
-            {player.folded && <span className="muted">已弃牌</span>}
+            {player.folded ? <span className="muted">已弃牌</span> : data.lookedPlayers?.includes(player.playerId) ? <span style={{ color: "#d4af37", fontSize: "11px" }}>[明注]</span> : <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "11px" }}>[暗注]</span>}
           </div>
         ))}
       </div>
 
-      <div className="showdown__hand">
-        {data.myCards.map((card) => (
-          <span key={card.id} className={`pcard pcard--lg ${isRedCard(card) ? 'is-red' : ''}`}>
-            <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
-          </span>
-        ))}
+      <div className="showdown__hand-wrap">
+        <div className="showdown__hand">
+          {data.myCards.length > 0 ? (
+            data.myCards.map((card) => (
+              <span key={card.id} className={`pcard pcard--lg ${isRedCard(card) ? 'is-red' : ''}`}>
+                <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
+              </span>
+            ))
+          ) : (
+            Array.from({ length: data.handSize || 3 }).map((_, index) => (
+              <span key={`back-${index}`} className="pcard pcard--lg pcard--back">
+                <img src={cardArt('back')} alt="" draggable={false} />
+              </span>
+            ))
+          )}
+        </div>
+        {!showResults && !me?.folded && (
+          <div className="showdown__look-bar">
+            {data.looked ? (
+              <span className="looked-badge">👁️ 已看牌 (明注 2 倍)</span>
+            ) : (
+              <button
+                type="button"
+                className="action-btn action-btn--hint"
+                style={{ padding: '6px 18px', fontSize: '14px', background: 'linear-gradient(135deg, #d4af37, #aa7c11)', color: '#000', fontWeight: 800 }}
+                onClick={() => {
+                  audio.play('click');
+                  onAction('look');
+                }}
+              >
+                👁️ 翻开看牌 (当前为暗注)
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {showResults ? (
@@ -174,6 +207,18 @@ export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Pro
               加注 +{raiseAdd}
             </button>
           </div>
+          <button
+            type="button"
+            className="action-btn action-btn--play"
+            style={{ background: 'linear-gradient(135deg, #ff416c, #ff4b2b)', color: '#fff', fontWeight: 800, border: '1px solid #ff416c', boxShadow: '0 0 12px rgba(255, 65, 108, 0.4)' }}
+            disabled={!isMyTurn}
+            onClick={() => {
+              audio.play('chip_clack');
+              onAction('allin');
+            }}
+          >
+            ⚡ 梭哈 (All-In)
+          </button>
         </div>
       )}
 

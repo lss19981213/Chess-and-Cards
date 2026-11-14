@@ -2,18 +2,19 @@ import type { BotDifficulty, GameMeta, GameSnapshot } from '@cc/protocol';
 import type { GameIntent, RoomContext } from '@cc/game-sdk';
 import {
   BaseGamePlugin,
-  createPokerDeck,
+  compareHandRank,
+  createCardDeck,
   decidePokerBotAction,
   evaluateBestHand,
   shuffleWithSeed,
+  type BestHand,
   type Card,
 } from '@cc/game-sdk';
 
 const ANTE = 50;
 const RAISE_UNIT = 100;
-const MAX_RAISES = 5;
-const MAX_RAISE_ADD = 5000;
-const HAND_SIZE = 5;
+const MAX_RAISES = 10;
+const MAX_RAISE_ADD = Number.MAX_SAFE_INTEGER;
 
 interface ResultRow {
   playerId: string;
@@ -26,29 +27,34 @@ interface ResultRow {
 
 interface State {
   deck: Card[];
+  deckCursor: number;
+  street: 1 | 2 | 3 | 4; // 1: 2张(1底1明), 2: 3张, 3: 4张, 4: 5张决战
   hands: Map<string, Card[]>;
   totalBet: Map<string, number>;
   roundBet: Map<string, number>;
   folded: Set<string>;
   acted: Set<string>;
+  allIn: Set<string>;
   raises: Map<string, number>;
   currentBet: number;
   turn: string | null;
   dealerIndex: number;
   settled: boolean;
   results: ResultRow[];
-  /** 本局已即时扣款的真人玩家 */
   charged: Set<string>;
 }
 
 function emptyState(): State {
   return {
     deck: [],
+    deckCursor: 0,
+    street: 1,
     hands: new Map(),
     totalBet: new Map(),
     roundBet: new Map(),
     folded: new Set(),
     acted: new Set(),
+    allIn: new Set(),
     raises: new Map(),
     currentBet: 0,
     turn: null,
@@ -59,22 +65,33 @@ function emptyState(): State {
   };
 }
 
-export class StudPlugin extends BaseGamePlugin {
+/** 港式五张经典28张牌：8, 9, 10, J, Q, K, A 四门 */
+function buildStudDeck(): Card[] {
+  return createCardDeck([8, 9, 10, 11, 12, 13, 14], false);
+}
 
+const SUIT_WEIGHT: Record<string, number> = { S: 4, H: 3, C: 2, D: 1 };
+
+function compareCards(a: Card, b: Card): number {
+  if (a.rank !== b.rank) return a.rank - b.rank;
+  return (SUIT_WEIGHT[a.suit] ?? 0) - (SUIT_WEIGHT[b.suit] ?? 0);
+}
+
+export class StudPlugin extends BaseGamePlugin {
   override readonly meta: GameMeta = {
     gameId: 'stud',
     name: '梭哈',
-    description: '五张牌比牌型，底池越大越刺激',
+    description: '港式五张经典对决，分轮发牌，暗牌偷鸡，一键梭哈',
     icon: '🎴',
     minPlayers: 2,
     maxPlayers: 6,
     version: '1.0.0',
     clientBundle: '',
-    tags: ['牌类', '多人', '竞技'],
+    tags: ['牌类', '多人', '竞技', '梭哈'],
     category: 'table',
   };
 
-  override readonly commands = ['fold', 'check', 'call', 'raise'] as const;
+  override readonly commands = ['fold', 'check', 'call', 'raise', 'allin'] as const;
 
   private state: State = emptyState();
 
@@ -88,22 +105,50 @@ export class StudPlugin extends BaseGamePlugin {
 
     this.state = emptyState();
     this.state.dealerIndex = (ctx.config.round - 1) % players.length;
-    this.state.deck = shuffleWithSeed(createPokerDeck(), ctx.config.seed);
+    this.state.deck = shuffleWithSeed(buildStudDeck(), ctx.config.seed);
+    this.state.street = 1;
 
     let cursor = 0;
+    // 第1轮发2张牌：第1张底牌(暗)，第2张明牌
     for (const player of players) {
-      const cards: Card[] = [];
-      for (let i = 0; i < HAND_SIZE; i += 1) {
-        cards.push(this.state.deck[cursor++]!);
-      }
+      const cards: Card[] = [this.state.deck[cursor++]!, this.state.deck[cursor++]!];
       this.state.hands.set(player.playerId, cards);
       this.state.totalBet.set(player.playerId, ANTE);
       this.state.roundBet.set(player.playerId, ANTE);
       this.state.raises.set(player.playerId, 0);
     }
+    this.state.deckCursor = cursor;
     this.state.currentBet = ANTE;
-    this.state.turn = this.nextAlive(ctx, this.state.dealerIndex);
+
+    // 明牌(第2张牌)最大者首位行动
+    this.state.turn = this.findLeadPlayer(ctx);
     ctx.markDirty();
+  }
+
+  private findLeadPlayer(ctx: RoomContext): string {
+    const alive = this.aliveIds(ctx);
+    let bestPlayer = alive[0]!;
+    let bestScore = -1;
+
+    for (const id of alive) {
+      const hand = this.state.hands.get(id) ?? [];
+      const upcards = hand.slice(1);
+      if (upcards.length === 0) continue;
+      // 评估可见明牌组合
+      const evalResult = upcards.length >= 5 ? evaluateBestHand(upcards) : null;
+      let score = 0;
+      if (evalResult) {
+        score = evalResult.category * 1000 + (evalResult.values[0] ?? 0);
+      } else {
+        const topCard = [...upcards].sort(compareCards).reverse()[0];
+        if (topCard) score = topCard.rank * 10 + (SUIT_WEIGHT[topCard.suit] ?? 0);
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestPlayer = id;
+      }
+    }
+    return bestPlayer;
   }
 
   override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
@@ -111,7 +156,7 @@ export class StudPlugin extends BaseGamePlugin {
     if (this.state.folded.has(playerId)) throw new Error('你已弃牌');
     if (this.state.turn !== playerId) throw new Error('还没轮到你行动');
 
-    const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
+    const toCall = Math.max(0, this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0));
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
     const pay = async (amount: number): Promise<void> => {
       if (isBot || amount <= 0) return;
@@ -139,19 +184,31 @@ export class StudPlugin extends BaseGamePlugin {
         const used = this.state.raises.get(playerId) ?? 0;
         if (used >= MAX_RAISES) throw new Error('本局加注次数已达上限');
         const rawAdd = intent.payload?.amount;
-        let target = this.state.currentBet + RAISE_UNIT;
+        let add = RAISE_UNIT;
         if (rawAdd !== undefined && rawAdd !== null) {
-          const add = Number(rawAdd);
+          add = Number(rawAdd);
           if (!Number.isInteger(add) || add < RAISE_UNIT) throw new Error(`加注至少 ${RAISE_UNIT}`);
-          if (add > MAX_RAISE_ADD) throw new Error(`单次加注最多 ${MAX_RAISE_ADD}`);
-          target = this.state.currentBet + add;
         }
+        const target = this.state.currentBet + add;
         const delta = target - (this.state.roundBet.get(playerId) ?? 0);
         if (delta <= 0) throw new Error('加注金额不合法');
         await pay(delta);
         this.commit(playerId, delta);
         this.state.currentBet = target;
         this.state.raises.set(playerId, used + 1);
+        this.state.acted.clear();
+        this.state.acted.add(playerId);
+        break;
+      }
+      case 'allin': {
+        // 梭哈！推入大注
+        const allInAdd = Math.max(500, RAISE_UNIT * 5);
+        const target = this.state.currentBet + allInAdd;
+        const delta = target - (this.state.roundBet.get(playerId) ?? 0);
+        await pay(delta);
+        this.commit(playerId, delta);
+        this.state.currentBet = target;
+        this.state.allIn.add(playerId);
         this.state.acted.clear();
         this.state.acted.add(playerId);
         break;
@@ -184,14 +241,12 @@ export class StudPlugin extends BaseGamePlugin {
   }
 
   private nextAlive(ctx: RoomContext, fromIndex: number): string | null {
-    const ids = this.aliveIds(ctx);
-    if (ids.length === 0) return null;
     const order = [...ctx.players].sort((a, b) => a.seat - b.seat).map((p) => p.playerId);
     for (let step = 1; step <= order.length; step += 1) {
       const id = order[(fromIndex + step) % order.length]!;
       if (!this.state.folded.has(id)) return id;
     }
-    return ids[0] ?? null;
+    return null;
   }
 
   private afterAction(ctx: RoomContext, playerId: string): void {
@@ -200,19 +255,51 @@ export class StudPlugin extends BaseGamePlugin {
       this.settleShowdown(ctx);
       return;
     }
+
+    // 检查本轮是否所有活人均已行动且下注平齐
     const allActed = alive.every((id) => this.state.acted.has(id));
     const matched = alive.every((id) => (this.state.roundBet.get(id) ?? 0) === this.state.currentBet);
+
     if (allActed && matched) {
-      this.settleShowdown(ctx);
-      return;
+      // 本轮下注结束，判断是否继续发下一张明牌
+      if (this.state.street < 4) {
+        this.advanceToNextStreet(ctx);
+        return;
+      } else {
+        // 第4轮(共5张)下注结束，开牌比胜负
+        this.settleShowdown(ctx);
+        return;
+      }
     }
-    this.state.turn = this.nextAlive(ctx, this.turnIndex(ctx, playerId));
+
+    const order = [...ctx.players].sort((a, b) => a.seat - b.seat).map((p) => p.playerId);
+    this.state.turn = this.nextAlive(ctx, Math.max(0, order.indexOf(playerId)));
     ctx.markDirty();
   }
 
-  private turnIndex(ctx: RoomContext, playerId: string): number {
-    const order = [...ctx.players].sort((a, b) => a.seat - b.seat).map((p) => p.playerId);
-    return Math.max(0, order.indexOf(playerId));
+  private advanceToNextStreet(ctx: RoomContext): void {
+    this.state.street = (this.state.street + 1) as 1 | 2 | 3 | 4;
+    const alive = this.aliveIds(ctx);
+
+    // 为存活玩家各发 1 张明牌
+    let cursor = this.state.deckCursor;
+    for (const id of alive) {
+      const hand = this.state.hands.get(id) ?? [];
+      if (cursor < this.state.deck.length) {
+        hand.push(this.state.deck[cursor++]!);
+      }
+      this.state.hands.set(id, hand);
+    }
+    this.state.deckCursor = cursor;
+
+    // 重置本轮注额
+    this.state.roundBet.clear();
+    this.state.acted.clear();
+    this.state.currentBet = 0;
+
+    // 明牌最大者先行
+    this.state.turn = this.findLeadPlayer(ctx);
+    ctx.markDirty();
   }
 
   private settleShowdown(ctx: RoomContext): void {
@@ -221,16 +308,17 @@ export class StudPlugin extends BaseGamePlugin {
 
     const pot = [...this.state.totalBet.values()].reduce((sum, value) => sum + value, 0);
     const alive = this.aliveIds(ctx);
-    let best: { category: number; label: string } | null = null;
+    let bestHand: BestHand | null = null;
     const winners: string[] = [];
+
     for (const id of alive) {
       const hand = this.state.hands.get(id) ?? [];
-      const evalResult = evaluateBestHand(hand);
-      if (!best || evalResult.category > best.category) {
-        best = { category: evalResult.category, label: evalResult.label };
+      const ev = evaluateBestHand(hand);
+      if (!bestHand || compareHandRank(ev, bestHand) > 0) {
+        bestHand = ev;
         winners.length = 0;
         winners.push(id);
-      } else if (evalResult.category === best.category) {
+      } else if (compareHandRank(ev, bestHand) === 0) {
         winners.push(id);
       }
     }
@@ -238,14 +326,14 @@ export class StudPlugin extends BaseGamePlugin {
     const share = winners.length > 0 ? Math.floor(pot / winners.length) : 0;
     const results: ResultRow[] = [...ctx.players].map((p) => {
       const hand = this.state.hands.get(p.playerId) ?? [];
-      const evalResult = evaluateBestHand(hand);
+      const ev = evaluateBestHand(hand);
       const bet = this.state.totalBet.get(p.playerId) ?? 0;
       const isWinner = winners.includes(p.playerId);
       return {
         playerId: p.playerId,
         nickname: p.nickname,
         delta: (isWinner ? share : 0) - bet,
-        handLabel: evalResult.label,
+        handLabel: ev.label,
         cards: hand,
         folded: this.state.folded.has(p.playerId),
       };
@@ -254,7 +342,12 @@ export class StudPlugin extends BaseGamePlugin {
 
     const entries = results
       .filter((r) => (r.delta !== 0 || this.state.charged.has(r.playerId)) && ctx.getPlayer(r.playerId)?.isBot !== true)
-      .map((r) => ({ playerId: r.playerId, currency: 'coin' as const, delta: r.delta, reason: 'stud.result' }));
+      .map((r) => ({
+        playerId: r.playerId,
+        currency: 'coin' as const,
+        delta: r.delta,
+        reason: 'stud.result',
+      }));
 
     ctx.markDirty();
     ctx.settle({ entries, winners });
@@ -263,7 +356,8 @@ export class StudPlugin extends BaseGamePlugin {
   override botIntent(ctx: RoomContext, playerId: string, difficulty: BotDifficulty = 'medium'): GameIntent | null {
     if (this.state.settled || this.state.turn !== playerId) return null;
     if (this.state.folded.has(playerId)) return null;
-    const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
+
+    const toCall = Math.max(0, this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0));
     const hand = this.state.hands.get(playerId) ?? [];
     const pot = [...this.state.totalBet.values()].reduce((sum, value) => sum + value, 0);
     const canRaise = (this.state.raises.get(playerId) ?? 0) < MAX_RAISES;
@@ -271,8 +365,8 @@ export class StudPlugin extends BaseGamePlugin {
 
     return decidePokerBotAction({
       mode: 'stud',
-      holeCards: hand,
-      communityCards: [],
+      holeCards: hand.slice(0, 1),
+      communityCards: hand.slice(1),
       knownDeadCards: hand,
       pot,
       toCall,
@@ -300,10 +394,12 @@ export class StudPlugin extends BaseGamePlugin {
       })),
       myTotalBet: viewerId ? this.state.totalBet.get(viewerId) ?? 0 : 0,
       toCall: viewerId
-        ? this.state.currentBet - (this.state.roundBet.get(viewerId) ?? 0)
+        ? Math.max(0, this.state.currentBet - (this.state.roundBet.get(viewerId) ?? 0))
         : this.state.currentBet,
       raiseUnit: RAISE_UNIT,
       maxRaiseAdd: MAX_RAISE_ADD,
+      street: this.state.street,
+      allIn: [...this.state.allIn],
       players: ctx.players.map((p) => {
         const hand = this.state.hands.get(p.playerId) ?? [];
         return {
@@ -312,9 +408,13 @@ export class StudPlugin extends BaseGamePlugin {
           seat: p.seat,
           isBot: p.isBot,
           folded: this.state.folded.has(p.playerId),
-          cards: revealAll || p.playerId === viewerId
-            ? hand.map((c) => ({ id: c.id, rank: c.rank, suit: c.suit }))
-            : [],
+          cards: hand.map((c, idx) => {
+            // 第1张(idx === 0)是暗牌底牌，仅本人或结算时可见
+            if (revealAll || p.playerId === viewerId || idx > 0) {
+              return { id: c.id, rank: c.rank, suit: c.suit };
+            }
+            return { id: 'back', rank: 0, suit: '' };
+          }),
           cardCount: hand.length,
           totalBet: this.state.totalBet.get(p.playerId) ?? 0,
         };
@@ -327,7 +427,7 @@ export class StudPlugin extends BaseGamePlugin {
         folded: r.folded,
         cards: r.cards.map((c) => ({ id: c.id, rank: c.rank, suit: c.suit })),
       })),
-      handSize: HAND_SIZE,
+      handSize: 5,
     };
   }
 

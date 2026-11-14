@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="100" height="140">
+  <defs>
+    <linearGradient id="ivoryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="50%" stop-color="#fdfbf7"/>
+      <stop offset="100%" stop-color="#ece5d8"/>
+    </linearGradient>
+    <linearGradient id="jadeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1b5e3a"/>
+      <stop offset="100%" stop-color="#0b3820"/>
+    </linearGradient>
+    <radialGradient id="dotRed" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#ff4d4f"/>
+      <stop offset="100%" stop-color="#b91c1c"/>
+    </radialGradient>
+    <radialGradient id="dotGreen" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </radialGradient>
+    <radialGradient id="dotBlue" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 3D Tile Shadow & Thickness -->
+  <rect x="3" y="5" width="94" height="134" rx="12" fill="#0b3820" opacity="0.3"/>
+  <rect x="2" y="2" width="96" height="136" rx="10" fill="url(#ivoryGrad)" stroke="#c4b59d" stroke-width="1.6"/>
+  <rect x="6" y="6" width="88" height="128" rx="7" fill="none" stroke="#d5cbba" stroke-width="1" opacity="0.8"/>
+
+  <!-- Engraved Face Content -->
+  <text x="50" y="92" font-family="'KaiTi', 'SimSun', serif" font-size="62" font-weight="900" text-anchor="middle" fill="#047857">發</text>
+</svg>

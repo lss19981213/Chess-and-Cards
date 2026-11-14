@@ -5,6 +5,7 @@ import {
   PAODEKUAI_RULES,
   canBeat,
   createCardDeck,
+  findAllBeatingMoves,
   decideCardBotAction,
   parseCombo,
   shuffleWithSeed,
@@ -13,9 +14,6 @@ import {
   type GameIntent,
   type RoomContext,
 } from '@cc/game-sdk';
-
-const WIN_COIN = 200;
-const LOSE_COIN = 100;
 
 interface State {
   hands: Map<string, Card[]>;
@@ -27,6 +25,8 @@ interface State {
   settled: boolean;
   /** 本局已打出的全部牌，供高难度记牌 */
   playedCards: Card[];
+  firstTrick: boolean;
+  leadCardId: string | null;
 }
 
 function emptyState(): State {
@@ -39,6 +39,8 @@ function emptyState(): State {
     finished: [],
     settled: false,
     playedCards: [],
+    firstTrick: false,
+    leadCardId: null,
   };
 }
 
@@ -89,9 +91,30 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
       this.state.hands.set(player.playerId, hand);
     });
 
-    // 由种子决定首家，保证每局可复现
-    const startIndex = Number.parseInt(ctx.config.seed.slice(0, 2), 16) % Math.max(players.length, 1);
-    this.state.turn = players[startIndex]?.playerId ?? null;
+    // 跑得快经典首出规则：手持黑桃3（若无则红桃3）的玩家首发，且首出的一手牌必须带此牌
+    let leadPlayerId = players[0]?.playerId ?? null;
+    let leadCardId: string | null = null;
+    for (const [pid, hand] of this.state.hands) {
+      const sp3 = hand.find((c) => c.rank === 3 && c.suit === 'S');
+      if (sp3) {
+        leadPlayerId = pid;
+        leadCardId = sp3.id;
+        break;
+      }
+    }
+    if (!leadCardId) {
+      for (const [pid, hand] of this.state.hands) {
+        const h3 = hand.find((c) => c.rank === 3 && c.suit === 'H');
+        if (h3) {
+          leadPlayerId = pid;
+          leadCardId = h3.id;
+          break;
+        }
+      }
+    }
+    this.state.turn = leadPlayerId;
+    this.state.firstTrick = true;
+    this.state.leadCardId = leadCardId;
     ctx.markDirty();
   }
 
@@ -102,6 +125,12 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
     if (intent.cmd === 'pass') {
       if (!this.state.lastCombo || this.state.lastPlayerId === playerId) {
         throw illegalAction('新一轮必须出牌');
+      }
+      // 跑得快核心规则：能管必管，手中有可压制的牌型时不得过牌
+      const myHand = this.state.hands.get(playerId) ?? [];
+      const beating = findAllBeatingMoves(myHand, this.state.lastCombo, PAODEKUAI_RULES);
+      if (beating.length > 0) {
+        throw illegalAction('跑得快规则：能管必管，手中有牌可以大过上家，不能过牌');
       }
       this.state.passCount += 1;
 
@@ -133,14 +162,37 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
 
     const combo = parseCombo(chosen, PAODEKUAI_RULES);
     if (!combo) {
-      // 回滚
       for (const card of chosen) hand.push(card);
       throw illegalAction('牌型不合法');
     }
+
+    // 首出必须包含先手黑桃/红桃3
+    if (this.state.firstTrick && this.state.leadCardId) {
+      const hasLead = chosen.some((c) => c.id === this.state.leadCardId);
+      if (!hasLead) {
+        for (const card of chosen) hand.push(card);
+        throw illegalAction('跑得快首出规则：首出的一手牌必须包含黑桃/红桃3');
+      }
+    }
+
     if (!canBeat(combo, this.state.lastCombo)) {
       for (const card of chosen) hand.push(card);
       throw illegalAction('出的牌压不过上家');
     }
+
+    // 跑得快报单顶大规则：下家只剩1张牌时，出单张必须出手中最大的单张
+    const nextPid = this.nextPlayer(ctx, playerId);
+    const nextHand = nextPid ? this.state.hands.get(nextPid) ?? [] : [];
+    if (nextHand.length === 1 && combo.kind === 'single') {
+      const remainingSingles = hand.map((c) => c.rank);
+      const maxSingleInHand = Math.max(combo.main, ...remainingSingles);
+      if (combo.main < maxSingleInHand) {
+        for (const card of chosen) hand.push(card);
+        throw illegalAction('跑得快规则：下家已报单，出单张必须出手中最大的牌（报单顶大）');
+      }
+    }
+
+    this.state.firstTrick = false;
 
     this.state.hands.set(playerId, hand);
     this.state.lastCombo = combo;
@@ -225,10 +277,24 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
   private settleWin(ctx: RoomContext, winnerId: string): void {
     if (this.state.settled) return;
     this.state.settled = true;
+    const BASE_PER_CARD = 10;
+    let totalWin = 0;
+    const loserDeltas = new Map<string, number>();
+
+    for (const p of ctx.players) {
+      if (p.playerId === winnerId) continue;
+      const leftCount = (this.state.hands.get(p.playerId) ?? []).length;
+      // 若一张未出（全关/关门），扣分翻倍
+      const multiplier = leftCount >= 16 ? 2 : 1;
+      const loss = leftCount * BASE_PER_CARD * multiplier;
+      loserDeltas.set(p.playerId, -loss);
+      totalWin += loss;
+    }
+
     const entries: SettlementEntry[] = ctx.players.map((p) => ({
       playerId: p.playerId,
       currency: 'coin' as const,
-      delta: p.playerId === winnerId ? WIN_COIN : -LOSE_COIN,
+      delta: p.playerId === winnerId ? totalWin : (loserDeltas.get(p.playerId) ?? -100),
       reason: 'paodekuai.result',
     }));
     ctx.settle({ entries, winners: [winnerId] });

@@ -5,7 +5,7 @@ import { BaseGamePlugin, createPokerDeck, decidePokerBotAction, shuffleWithSeed,
 const ANTE = 50;
 const RAISE_UNIT = 100;
 const MAX_RAISES = 5;
-const MAX_RAISE_ADD = 5000;
+const MAX_RAISE_ADD = Number.MAX_SAFE_INTEGER;
 const HAND_SIZE = 3;
 
 interface ResultRow {
@@ -31,6 +31,7 @@ interface State {
   settled: boolean;
   results: ResultRow[];
   charged: Set<string>;
+  looked: Set<string>;
 }
 
 function emptyState(): State {
@@ -48,6 +49,7 @@ function emptyState(): State {
     settled: false,
     results: [],
     charged: new Set(),
+    looked: new Set(),
   };
 }
 
@@ -85,7 +87,7 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     category: 'table',
   };
 
-  override readonly commands = ['fold', 'check', 'call', 'raise'] as const;
+  override readonly commands = ['fold', 'check', 'call', 'raise', 'look'] as const;
 
   private state: State = emptyState();
 
@@ -118,9 +120,21 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
   override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
     if (this.state.settled) throw new Error('本局已结束');
     if (this.state.folded.has(playerId)) throw new Error('你已弃牌');
+
+    // 看牌可在任意时刻由存活玩家触发，看牌后下注翻倍（明注）
+    if (intent.cmd === 'look') {
+      if (this.state.looked.has(playerId)) throw new Error('你已经看过手牌了');
+      this.state.looked.add(playerId);
+      ctx.markDirty();
+      return;
+    }
+
     if (this.state.turn !== playerId) throw new Error('还没轮到你行动');
 
-    const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
+    const mult = this.state.looked.has(playerId) ? 2 : 1;
+    const reqBet = this.state.currentBet * mult;
+    const toCall = Math.max(0, reqBet - (this.state.roundBet.get(playerId) ?? 0));
+
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
     const pay = async (amount: number): Promise<void> => {
       if (isBot || amount <= 0) return;
@@ -148,18 +162,18 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
         const used = this.state.raises.get(playerId) ?? 0;
         if (used >= MAX_RAISES) throw new Error('本局加注次数已达上限');
         const rawAdd = intent.payload?.amount;
-        let target = this.state.currentBet + RAISE_UNIT;
+        let add = RAISE_UNIT;
         if (rawAdd !== undefined && rawAdd !== null) {
-          const add = Number(rawAdd);
+          add = Number(rawAdd);
           if (!Number.isInteger(add) || add < RAISE_UNIT) throw new Error(`加注至少 ${RAISE_UNIT}`);
-          if (add > MAX_RAISE_ADD) throw new Error(`单次加注最多 ${MAX_RAISE_ADD}`);
-          target = this.state.currentBet + add;
         }
+        const nextBase = this.state.currentBet + add;
+        const target = nextBase * mult;
         const delta = target - (this.state.roundBet.get(playerId) ?? 0);
         if (delta <= 0) throw new Error('加注金额不合法');
         await pay(delta);
         this.commit(playerId, delta);
-        this.state.currentBet = target;
+        this.state.currentBet = nextBase;
         this.state.raises.set(playerId, used + 1);
         this.state.acted.clear();
         this.state.acted.add(playerId);
@@ -295,14 +309,18 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
       turn: this.state.turn,
       currentBet: this.state.currentBet,
       pot: [...this.state.totalBet.values()].reduce((sum, value) => sum + value, 0),
-      myCards: (viewerId ? this.state.hands.get(viewerId) ?? [] : []).map((c) => ({
-        id: c.id,
-        rank: c.rank,
-        suit: c.suit,
-      })),
+      myCards: (revealAll || (viewerId && this.state.looked.has(viewerId)))
+        ? (viewerId ? this.state.hands.get(viewerId) ?? [] : []).map((c) => ({
+            id: c.id,
+            rank: c.rank,
+            suit: c.suit,
+          }))
+        : [],
+      looked: viewerId ? this.state.looked.has(viewerId) : false,
+      lookedPlayers: [...this.state.looked],
       myTotalBet: viewerId ? this.state.totalBet.get(viewerId) ?? 0 : 0,
       toCall: viewerId
-        ? this.state.currentBet - (this.state.roundBet.get(viewerId) ?? 0)
+        ? Math.max(0, this.state.currentBet * (this.state.looked.has(viewerId) ? 2 : 1) - (this.state.roundBet.get(viewerId) ?? 0))
         : this.state.currentBet,
       raiseUnit: RAISE_UNIT,
       maxRaiseAdd: MAX_RAISE_ADD,

@@ -7552,3 +7552,754 @@ button.secondary:hover:not(:disabled) {
   background: #38151B;
   border-color: #FF5E62;
 }
+
+
+/* ================================================================
+   21点增强投注区 (Blackjack Prominent Betting Zones)
+   ================================================================ */
+.bj-bet-zones--prominent {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.bj-zone-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 8px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(22, 32, 46, 0.95), rgba(13, 20, 30, 0.98));
+  border: 1.5px solid rgba(240, 180, 41, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  min-height: 84px;
+}
+
+.bj-zone-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(240, 180, 41, 0.7);
+  box-shadow: 0 6px 20px rgba(240, 180, 41, 0.25);
+}
+
+.bj-zone-btn.is-bet {
+  border-color: rgba(240, 180, 41, 0.9);
+  background: linear-gradient(180deg, rgba(38, 48, 64, 0.95), rgba(20, 28, 42, 0.98));
+  box-shadow: 0 0 16px rgba(240, 180, 41, 0.35), inset 0 0 12px rgba(240, 180, 41, 0.15);
+}
+
+.bj-zone-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.bj-zone-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.bj-zone-odds {
+  font-size: 11px;
+  color: var(--gold);
+  background: rgba(240, 180, 41, 0.15);
+  padding: 1px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(240, 180, 41, 0.3);
+}
+
+.bj-zone-pool {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 4px;
+}
+
+.bj-zone-mybet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(240, 180, 41, 0.2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 180, 41, 0.4);
+}
+
+.bj-zone-mybet img {
+  width: 14px;
+  height: 14px;
+}
+
+.bj-zone-empty {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ================================================================
+   百家乐 6 区域辅助提示
+   ================================================================ */
+.bac-zone__hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ================================================================
+   斗牛精美投注按钮 (Niuniu Luxury Betting Cards)
+   ================================================================ */
+.niuniu-doors--luxury {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.niuniu-door-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(26, 32, 44, 0.95), rgba(15, 20, 28, 0.98));
+  border: 1.5px solid rgba(240, 180, 41, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 80px;
+  position: relative;
+}
+
+.niuniu-door-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(240, 180, 41, 0.7);
+  box-shadow: 0 6px 18px rgba(240, 180, 41, 0.25);
+}
+
+.niuniu-door-card.is-bet {
+  border-color: rgba(240, 180, 41, 0.95);
+  background: linear-gradient(180deg, rgba(42, 50, 68, 0.95), rgba(22, 28, 40, 0.98));
+  box-shadow: 0 0 16px rgba(240, 180, 41, 0.4), inset 0 0 10px rgba(240, 180, 41, 0.18);
+}
+
+.niuniu-door-card.is-niuniu {
+  border-color: rgba(255, 77, 79, 0.6);
+  background: linear-gradient(180deg, rgba(60, 20, 25, 0.95), rgba(30, 10, 15, 0.98));
+}
+
+.niuniu-door-card.is-niuniu.is-bet {
+  border-color: #ff4d4f;
+  box-shadow: 0 0 20px rgba(255, 77, 79, 0.5);
+}
+
+.niuniu-door-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+.niuniu-door-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.niuniu-door-payout {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(240, 180, 41, 0.15);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(240, 180, 41, 0.35);
+}
+
+.niuniu-door-pool {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 3px;
+}
+
+.niuniu-door-mybet {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(240, 180, 41, 0.22);
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 180, 41, 0.4);
+}
+
+.niuniu-door-mybet img {
+  width: 13px;
+  height: 13px;
+}
+
+.niuniu-door-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ================================================================
+   骰宝真实物理 3D 骰子与下注显示
+   ================================================================ */
+.dice-real-tray {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 18px 36px;
+  border-radius: 24px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(20, 60, 35, 0.95), rgba(8, 22, 14, 0.98));
+  border: 2px solid rgba(240, 180, 41, 0.35);
+  box-shadow: inset 0 0 45px rgba(0, 0, 0, 0.8), 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.dice-3d-die {
+  width: 68px;
+  height: 68px;
+  background: linear-gradient(145deg, #ffffff 0%, #f6f3eb 60%, #e2dac9 100%);
+  border-radius: 14px;
+  position: relative;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.95), inset 0 -2px 3px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(220, 210, 190, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.dice-3d-die.is-rolling {
+  animation: dice-shake 0.6s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes dice-shake {
+  0% { transform: scale(0.6) rotate(-45deg) translateY(-20px); opacity: 0.3; }
+  50% { transform: scale(1.1) rotate(15deg) translateY(-6px); }
+  100% { transform: scale(1) rotate(0deg) translateY(0); opacity: 1; }
+}
+
+.dice-cup-shaker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+}
+
+.dice-cup-icon {
+  font-size: 48px;
+  filter: drop-shadow(0 4px 12px rgba(240, 180, 41, 0.4));
+  animation: shaker-rock 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes shaker-rock {
+  0% { transform: rotate(-8deg); }
+  100% { transform: rotate(8deg); }
+}
+
+.dice-cup-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+
+.dice-sum__mybet {
+  font-size: 10px;
+  color: var(--gold);
+  font-weight: 700;
+  background: rgba(240, 180, 41, 0.25);
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+
+/* ================================================================
+   麻将专属 3D 骨牌与长沙麻将牌桌 (Mahjong Tiles & CsMahjong Table)
+   ================================================================ */
+.mahjong-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  cursor: pointer;
+  transition: transform 0.16s ease, filter 0.16s ease;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}
+
+.mahjong-tile:hover {
+  transform: translateY(-4px);
+  filter: drop-shadow(0 8px 12px rgba(240, 180, 41, 0.35));
+}
+
+.mahjong-tile.is-active {
+  transform: translateY(-12px);
+  filter: drop-shadow(0 10px 16px rgba(240, 180, 41, 0.6));
+}
+
+.mahjong-tile__body img {
+  display: block;
+  pointer-events: none;
+}
+
+.mahjong-tile--sm .mahjong-tile__body img {
+  width: 32px;
+  height: 45px;
+}
+
+.mahjong-tile--md .mahjong-tile__body img {
+  width: 48px;
+  height: 67px;
+}
+
+.mahjong-tile--lg .mahjong-tile__body img {
+  width: 60px;
+  height: 84px;
+}
+
+.mahjong-table {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 480px;
+  width: 100%;
+  padding: 16px;
+  background: radial-gradient(circle at 50% 50%, #175433 0%, #0d361f 70%, #061a0e 100%);
+  border-radius: 24px;
+  border: 4px solid #3d2b17;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.7), 0 10px 30px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+.mahjong-opponents {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  gap: 16px;
+}
+
+.mahjong-player-seat {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.mahjong-player-seat.is-turn {
+  border-color: #d4af37;
+  box-shadow: 0 0 16px rgba(212, 175, 55, 0.4);
+}
+
+.mahjong-seat-header {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.mahjong-discards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 140px;
+  min-height: 46px;
+}
+
+.mahjong-center-pot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.last-discard-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 14px;
+  border: 1px solid rgba(240, 180, 41, 0.4);
+}
+
+.last-discard-label {
+  font-size: 11px;
+  color: var(--gold);
+}
+
+.mahjong-table-logo {
+  font-size: 26px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 4px;
+}
+
+.my-mahjong-hand {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mahjong-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.mj-action-btn {
+  padding: 8px 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.mj-btn-hu {
+  background: linear-gradient(135deg, #ff416c, #ff4b2b);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(255, 65, 108, 0.6);
+}
+
+.mj-btn-pong {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.5);
+}
+
+.mj-btn-pass {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.mj-action-hint {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.mahjong-settle-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.mahjong-settle-card {
+  background: #111827;
+  border: 2px solid #d4af37;
+  border-radius: 18px;
+  padding: 24px;
+  min-width: 320px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+
+.birds-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.birds-label {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+
+/* ================================================================
+   疯狂老虎机机台 (Slots Vegas Cabinet & Reels)
+   ================================================================ */
+.slots-jackpot-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.jackpot-tag {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--gold);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.jackpot-counter {
+  font-size: 32px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  color: #ffdd44;
+  background: #110505;
+  border: 2px solid #d4af37;
+  padding: 6px 28px;
+  border-radius: 12px;
+  box-shadow: 0 0 24px rgba(240, 180, 41, 0.4), inset 0 0 12px rgba(255, 200, 0, 0.3);
+  text-shadow: 0 0 10px #ffdd44;
+}
+
+.slots-cabinet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(180deg, #2b1116 0%, #170709 100%);
+  border: 4px solid #d4af37;
+  border-radius: 20px;
+  padding: 16px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), inset 0 2px 6px rgba(255, 255, 255, 0.15);
+}
+
+.slots-marquee {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.marquee-title {
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px #f59e0b;
+}
+
+.marquee-bulb {
+  color: #ffd700;
+  font-size: 14px;
+  animation: bulb-blink 0.8s infinite alternate;
+}
+
+@keyframes bulb-blink {
+  0% { opacity: 0.3; text-shadow: none; }
+  100% { opacity: 1; text-shadow: 0 0 10px #ffd700; }
+}
+
+.slots-reels-container {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  background: #090304;
+  padding: 12px;
+  border-radius: 14px;
+  border: 2px solid #451b22;
+  width: 100%;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9);
+}
+
+.slots-reel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slots-reel.is-spinning {
+  animation: reel-blur 0.3s infinite linear;
+}
+
+@keyframes reel-blur {
+  0% { transform: translateY(0); filter: blur(2px); }
+  50% { transform: translateY(-10px); filter: blur(3px); }
+  100% { transform: translateY(0); filter: blur(2px); }
+}
+
+.slots-symbol-cell {
+  background: linear-gradient(180deg, #1f1418, #130a0d);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 80px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.symbol-icon {
+  font-size: 32px;
+}
+
+.symbol-label {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.slots-win-bar {
+  margin-top: 14px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.slots-win-alert {
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffdd44;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.line-win-pill {
+  font-size: 11px;
+  background: rgba(240, 180, 41, 0.2);
+  border: 1px solid rgba(240, 180, 41, 0.4);
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.slots-prompt-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.slots-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.slots-chips-selector,
+.slots-lines-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.controls-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.line-btn {
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.line-btn.is-active {
+  background: #d4af37;
+  color: #000;
+  border-color: #ffd700;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+
+.slots-bet-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.unlimited-hint {
+  font-size: 12px;
+  color: var(--gold);
+  background: rgba(240, 180, 41, 0.15);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(240, 180, 41, 0.3);
+}
+
+.slots-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.auto-spin-btn {
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auto-spin-btn.is-active {
+  background: #ef4444;
+  border-color: #ff6b6b;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+}
+
+.spin-btn-lever {
+  padding: 14px 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border: 2px solid #ffd700;
+  color: #000;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.5);
+  transition: all 0.2s;
+}
+
+.spin-btn-lever:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(245, 158, 11, 0.7);
+}
+
+.spin-btn-lever:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

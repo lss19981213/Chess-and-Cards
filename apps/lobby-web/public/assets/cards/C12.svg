@@ -1,17 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 168" width="120" height="168"><defs>
-    <linearGradient id="paper" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#e8ecf4"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 196" width="140" height="196">
+  <defs>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#fafbfd"/>
+      <stop offset="100%" stop-color="#edf1f7"/>
     </linearGradient>
   </defs>
-  <rect x="2" y="2" width="116" height="164" rx="13" fill="url(#paper)" stroke="#141a26" stroke-width="2.4"/>
-  <rect x="7" y="7" width="106" height="154" rx="9" fill="none" stroke="#141a26" stroke-opacity="0.15" stroke-width="1.2"/><g fill="#141a26">
-    <text x="14" y="37" font-family="Georgia,'Times New Roman',serif" font-size="29" font-weight="700">Q</text>
-    <text x="15" y="62" font-family="'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2','DejaVu Sans',serif" font-size="24">♣</text>
+
+  <!-- Card Surface -->
+  <rect x="3" y="3" width="134" height="190" rx="12" fill="url(#cardBg)" stroke="#1a202c" stroke-width="1.6"/>
+  <rect x="7" y="7" width="126" height="182" rx="8" fill="none" stroke="#cbd5e1" stroke-width="0.8" opacity="0.6"/>
+
+  <!-- Top Left Corner -->
+  <g transform="translate(14, 26)">
+    <text x="0" y="0" font-family="'Cinzel', 'Segoe UI', 'Helvetica Neue', serif" font-size="27" font-weight="800" text-anchor="middle" fill="#181b24">Q</text>
+    <path d="M 0 -18 C -5.5 -18, -9 -14, -9 -8.5 C -9 -3, -4.5 -0.5, 0 0 C -4.5 0.5, -9 3, -9 8.5 C -9 14, -5.5 18, 0 18 C 5.5 18, 9 14, 9 8.5 C 9 3, 4.5 0.5, 0 0 C 4.5 -0.5, 9 -3, 9 -8.5 C 9 -14, 5.5 -18, 0 -18 Z M -2.5 12 C -2 17, -5 21, -7 22 L 7 22 C 5 21, 2 17, 2.5 12 Z" fill="#181b24" transform="translate(0, 16) scale(0.48)" />
   </g>
-  <text x="60" y="103" text-anchor="middle" font-family="'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2','DejaVu Sans',serif" font-size="78" fill="#141a26">♣</text>
-  <g transform="rotate(180 60 84)"><g fill="#141a26">
-    <text x="14" y="37" font-family="Georgia,'Times New Roman',serif" font-size="29" font-weight="700">Q</text>
-    <text x="15" y="62" font-family="'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2','DejaVu Sans',serif" font-size="24">♣</text>
-  </g></g></svg>
+
+  <!-- Center Art -->
+  
+      <g transform="translate(70, 98)">
+        <rect x="-38" y="-55" width="76" height="110" rx="8" fill="#f0f4fc" stroke="#181b24" stroke-width="1.8" opacity="0.85"/>
+        <rect x="-34" y="-51" width="68" height="102" rx="6" fill="none" stroke="#d4af37" stroke-width="1.2" stroke-dasharray="2,2"/>
+        <circle cx="0" cy="-6" r="24" fill="#e2e8f0"/>
+        <path d="M-18,-18 C-18,-25, 18,-25, 18,-18 L18,-4 C18,2, -18,2, -18,-4 Z" fill="#d4af37" stroke="#997a15" stroke-width="1.5"/>
+        <text x="0" y="8" font-family="'Cinzel', 'Trajan Pro', 'Georgia', serif" font-size="28" font-weight="900" text-anchor="middle" fill="#181b24">Q</text>
+        <circle cx="0" cy="28" r="14" fill="#181b24" opacity="0.12"/>
+        <path d="M 0 -18 C -5.5 -18, -9 -14, -9 -8.5 C -9 -3, -4.5 -0.5, 0 0 C -4.5 0.5, -9 3, -9 8.5 C -9 14, -5.5 18, 0 18 C 5.5 18, 9 14, 9 8.5 C 9 3, 4.5 0.5, 0 0 C 4.5 -0.5, 9 -3, 9 -8.5 C 9 -14, 5.5 -18, 0 -18 Z M -2.5 12 C -2 17, -5 21, -7 22 L 7 22 C 5 21, 2 17, 2.5 12 Z" fill="#181b24" transform="translate(0, 28) scale(0.9)" />
+      </g>
+    
+
+  <!-- Bottom Right Corner -->
+  <g transform="translate(126, 170) rotate(180)">
+    <text x="0" y="0" font-family="'Cinzel', 'Segoe UI', 'Helvetica Neue', serif" font-size="27" font-weight="800" text-anchor="middle" fill="#181b24">Q</text>
+    <path d="M 0 -18 C -5.5 -18, -9 -14, -9 -8.5 C -9 -3, -4.5 -0.5, 0 0 C -4.5 0.5, -9 3, -9 8.5 C -9 14, -5.5 18, 0 18 C 5.5 18, 9 14, 9 8.5 C 9 3, 4.5 0.5, 0 0 C 4.5 -0.5, 9 -3, 9 -8.5 C 9 -14, 5.5 -18, 0 -18 Z M -2.5 12 C -2 17, -5 21, -7 22 L 7 22 C 5 21, 2 17, 2.5 12 Z" fill="#181b24" transform="translate(0, 16) scale(0.48)" />
+  </g>
+</svg>

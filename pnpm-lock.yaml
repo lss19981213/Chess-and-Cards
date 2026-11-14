@@ -126,6 +126,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/protocol
 
+  services/games/cs-mahjong:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
   services/games/dice:
     dependencies:
       '@cc/game-sdk':
@@ -172,6 +181,15 @@ importers:
         version: link:../../../packages/protocol
 
   services/games/paodekuai:
+    dependencies:
+      '@cc/game-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/game-sdk
+      '@cc/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
+
+  services/games/slots:
     dependencies:
       '@cc/game-sdk':
         specifier: workspace:*
@@ -230,6 +248,9 @@ importers:
       '@cc/game-chess':
         specifier: workspace:*
         version: link:../games/chess
+      '@cc/game-cs-mahjong':
+        specifier: workspace:*
+        version: link:../games/cs-mahjong
       '@cc/game-dice':
         specifier: workspace:*
         version: link:../games/dice
@@ -251,6 +272,9 @@ importers:
       '@cc/game-sdk':
         specifier: workspace:*
         version: link:../../packages/game-sdk
+      '@cc/game-slots':
+        specifier: workspace:*
+        version: link:../games/slots
       '@cc/game-stud':
         specifier: workspace:*
         version: link:../games/stud

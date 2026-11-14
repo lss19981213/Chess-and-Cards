@@ -6,9 +6,9 @@
  * 这里做唯一来源，各游戏不要再各自写死数字。
  */
 export const BET_LIMITS = {
-  minBet: 10,
-  maxBet: 2_000,
-  maxTotal: 6_000,
+  minBet: 1,
+  maxBet: Number.MAX_SAFE_INTEGER,
+  maxTotal: Number.MAX_SAFE_INTEGER,
 } as const;
 
 /** 标准下注阶段时长 */
@@ -16,22 +16,17 @@ export const BET_PHASE_MS = 30_000;
 
 /**
  * 校验单注金额，返回规范化后的整数。
- * 越界时抛出可直接展示给玩家的错误文案。
+ * 无上限限制，单注只要大于等于最低起注即可。
  */
 export function assertBetAmount(raw: unknown): number {
   const amount = Number(raw);
   if (!Number.isInteger(amount) || amount < BET_LIMITS.minBet) {
     throw new Error(`单注至少 ${BET_LIMITS.minBet} 筹码`);
   }
-  if (amount > BET_LIMITS.maxBet) {
-    throw new Error(`单注最多 ${BET_LIMITS.maxBet} 筹码`);
-  }
   return amount;
 }
 
-/** 校验本局累计注额是否超过上限 */
-export function assertTotalWithin(currentTotal: number, amount: number): void {
-  if (currentTotal + amount > BET_LIMITS.maxTotal) {
-    throw new Error(`本局总下注不能超过 ${BET_LIMITS.maxTotal} 筹码`);
-  }
+/** 校验本局累计注额（已取消上限限制，无限下注） */
+export function assertTotalWithin(_currentTotal: number, _amount: number): void {
+  // 取消下注上限，支持无限下注
 }

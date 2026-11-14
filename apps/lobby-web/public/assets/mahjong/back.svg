@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="100" height="140">
+  <defs>
+    <linearGradient id="tileBackGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2d8a57"/>
+      <stop offset="50%" stop-color="#1b633b"/>
+      <stop offset="100%" stop-color="#0c3b20"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="94" height="134" rx="10" fill="url(#tileBackGrad)" stroke="#114b28" stroke-width="2"/>
+  <rect x="8" y="8" width="84" height="124" rx="6" fill="none" stroke="#34d399" stroke-width="1" opacity="0.3"/>
+</svg>

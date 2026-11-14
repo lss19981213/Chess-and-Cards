@@ -377,7 +377,7 @@ export default function App() {
     }
 
     // 百人常驻玩法：直接极速入座
-    if (game.persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack'].includes(game.gameId)) {
+    if (game.persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack', 'slots'].includes(game.gameId)) {
       handleQuickPlay(game);
       return;
     }

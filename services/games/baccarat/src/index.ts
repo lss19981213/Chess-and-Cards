@@ -27,7 +27,7 @@ const DECK_COUNT = 8;
 
 const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
-type Area = 'player' | 'banker' | 'tie';
+type Area = 'player' | 'banker' | 'tie' | 'player_pair' | 'banker_pair' | 'super_six';
 type Phase = 'bet' | 'reveal' | 'idle';
 type Outcome = 'player' | 'banker' | 'tie';
 
@@ -35,6 +35,9 @@ interface PlayerBet {
   player: number;
   banker: number;
   tie: number;
+  player_pair: number;
+  banker_pair: number;
+  super_six: number;
 }
 
 interface RoundResult {
@@ -71,7 +74,7 @@ interface State {
 
 interface BotPlan {
   playerId: string;
-  area: string;
+  area: Area;
   amount: number;
   at: number;
   done: boolean;
@@ -254,15 +257,11 @@ export class BaccaratPlugin extends BaseGamePlugin {
     }
     if (intent.cmd !== 'bet') throw new Error(`不支持的操作: ${intent.cmd}`);
 
+    const validAreas: Area[] = ['player', 'banker', 'tie', 'player_pair', 'banker_pair', 'super_six'];
     const area = String(intent.payload?.area ?? '') as Area;
-    if (!['player', 'banker', 'tie'].includes(area)) throw new Error('只能押闲、庄或和');
+    if (!validAreas.includes(area)) throw new Error('下注区域不合法');
 
     const amount = assertBetAmount(intent.payload?.amount);
-
-    const before = this.state.bets.get(playerId) ?? { player: 0, banker: 0, tie: 0 };
-    if (before.player + before.banker + before.tie + amount > MAX_TOTAL) {
-      throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
-    }
 
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
     const roundBefore = this.state.roundNo;
@@ -275,11 +274,14 @@ export class BaccaratPlugin extends BaseGamePlugin {
       throw new Error('本局已封盘，请等待下一局');
     }
 
-    const current = this.state.bets.get(playerId) ?? { player: 0, banker: 0, tie: 0 };
-    if (current.player + current.banker + current.tie + amount > MAX_TOTAL) {
-      if (ref) await ctx.refund(playerId, ref);
-      throw new Error(`本局总下注不能超过 ${MAX_TOTAL} 筹码`);
-    }
+    const current = this.state.bets.get(playerId) ?? {
+      player: 0,
+      banker: 0,
+      tie: 0,
+      player_pair: 0,
+      banker_pair: 0,
+      super_six: 0,
+    };
     current[area] += amount;
     this.state.bets.set(playerId, current);
     if (ref) this.state.tickets.add(playerId, { ref, area, amount });
@@ -295,8 +297,15 @@ export class BaccaratPlugin extends BaseGamePlugin {
       for (const plan of this.state.botPlans) {
         if (plan.done || plan.at > now) continue;
         plan.done = true;
-        const bet = this.state.bets.get(plan.playerId) ?? { player: 0, banker: 0, tie: 0 };
-        bet[plan.area as Area] += plan.amount;
+        const bet = this.state.bets.get(plan.playerId) ?? {
+          player: 0,
+          banker: 0,
+          tie: 0,
+          player_pair: 0,
+          banker_pair: 0,
+          super_six: 0,
+        };
+        bet[plan.area] = (bet[plan.area] ?? 0) + plan.amount;
         this.state.bets.set(plan.playerId, bet);
         changed = true;
       }
@@ -324,6 +333,14 @@ export class BaccaratPlugin extends BaseGamePlugin {
     const outcome: Outcome = p > b ? 'player' : b > p ? 'banker' : 'tie';
     this.state.outcome = outcome;
 
+    const isPlayerPair =
+      this.state.playerCards.length >= 2 &&
+      this.state.playerCards[0]!.rank === this.state.playerCards[1]!.rank;
+    const isBankerPair =
+      this.state.bankerCards.length >= 2 &&
+      this.state.bankerCards[0]!.rank === this.state.bankerCards[1]!.rank;
+    const isSuperSix = outcome === 'banker' && b === 6;
+
     const entries: SettlementInput['entries'] = [];
     const results: RoundResult[] = [];
 
@@ -349,6 +366,28 @@ export class BaccaratPlugin extends BaseGamePlugin {
           delta += bet.tie * 8;
           hits.push(`和+${bet.tie * 8}`);
         } else delta -= bet.tie;
+      }
+      if (bet.player_pair > 0) {
+        if (isPlayerPair) {
+          const win = bet.player_pair * 11;
+          delta += win;
+          hits.push(`闲对+${win}`);
+        } else delta -= bet.player_pair;
+      }
+      if (bet.banker_pair > 0) {
+        if (isBankerPair) {
+          const win = bet.banker_pair * 11;
+          delta += win;
+          hits.push(`庄对+${win}`);
+        } else delta -= bet.banker_pair;
+      }
+      if (bet.super_six > 0) {
+        if (isSuperSix) {
+          const mult = this.state.bankerCards.length === 2 ? 12 : 20;
+          const win = bet.super_six * mult;
+          delta += win;
+          hits.push(`幸运6+${win}`);
+        } else delta -= bet.super_six;
       }
 
       // 有即时扣款凭证的真人必须走完结算，即使净盈亏为 0，否则本金退不回来
@@ -384,13 +423,39 @@ export class BaccaratPlugin extends BaseGamePlugin {
 
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {
     const revealed = this.state.phase !== 'bet';
-    const zoneTotals: Record<string, number> = {};
+    const isPlayerPair =
+      this.state.playerCards.length >= 2 &&
+      this.state.playerCards[0]!.rank === this.state.playerCards[1]!.rank;
+    const isBankerPair =
+      this.state.bankerCards.length >= 2 &&
+      this.state.bankerCards[0]!.rank === this.state.bankerCards[1]!.rank;
+    const isSuperSix = this.state.outcome === 'banker' && this.state.bankerPoints === 6;
+
+    const zoneTotals: Record<Area, number> = {
+      player: 0,
+      banker: 0,
+      tie: 0,
+      player_pair: 0,
+      banker_pair: 0,
+      super_six: 0,
+    };
     for (const bet of this.state.bets.values()) {
-      zoneTotals.player = (zoneTotals.player ?? 0) + bet.player;
-      zoneTotals.banker = (zoneTotals.banker ?? 0) + bet.banker;
-      zoneTotals.tie = (zoneTotals.tie ?? 0) + bet.tie;
+      zoneTotals.player += bet.player ?? 0;
+      zoneTotals.banker += bet.banker ?? 0;
+      zoneTotals.tie += bet.tie ?? 0;
+      zoneTotals.player_pair += bet.player_pair ?? 0;
+      zoneTotals.banker_pair += bet.banker_pair ?? 0;
+      zoneTotals.super_six += bet.super_six ?? 0;
     }
-    const myBet = viewerId ? this.state.bets.get(viewerId) ?? null : null;
+    const rawMyBet = viewerId ? this.state.bets.get(viewerId) ?? null : null;
+    const myBet = rawMyBet ?? {
+      player: 0,
+      banker: 0,
+      tie: 0,
+      player_pair: 0,
+      banker_pair: 0,
+      super_six: 0,
+    };
 
     const mapCards = (cards: Card[]) =>
       revealed ? cards.map((card) => ({ id: card.id, rank: card.rank, suit: card.suit })) : [];
@@ -410,7 +475,8 @@ export class BaccaratPlugin extends BaseGamePlugin {
         cards: mapCards(this.state.bankerCards),
       },
       outcome: revealed ? this.state.outcome : null,
-      myBet: myBet ?? { player: 0, banker: 0, tie: 0 },
+      specialOutcomes: revealed ? { isPlayerPair, isBankerPair, isSuperSix } : null,
+      myBet,
       zoneTotals,
       myStreak: viewerId ? (this.state.streaks.get(viewerId) ?? 0) : 0,
       results: this.state.results,

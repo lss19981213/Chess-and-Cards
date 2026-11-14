@@ -26,6 +26,12 @@ const Texas = lazy(() => import('../games/Texas').then((m) => ({ default: m.Texa
 const Tuizhuanzi = lazy(() =>
   import('../games/Tuizhuanzi').then((m) => ({ default: m.Tuizhuanzi })),
 );
+const CsMahjong = lazy(() =>
+  import('../games/CsMahjong').then((m) => ({ default: m.CsMahjong })),
+);
+const Slots = lazy(() =>
+  import('../games/Slots').then((m) => ({ default: m.Slots })),
+);
 
 interface Props {
   room: RoomView;
@@ -67,6 +73,8 @@ const GAME_TITLE: Record<string, string> = {
   goldenflower: '翻金花',
   chess: '国际象棋',
   xiangqi: '中国象棋',
+  'cs-mahjong': '长沙麻将',
+  slots: '疯狂老虎机',
 };
 
 export function Room({
@@ -92,7 +100,7 @@ export function Room({
     const entries = Array.isArray(settlement?.entries) ? settlement.entries : [];
     return entries.find((e) => e.playerId === myId)?.delta ?? 0;
   }, [settlement, myId]);
-  const isPersistentGame = persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack'].includes(room.gameId);
+  const isPersistentGame = persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack', 'slots'].includes(room.gameId);
 
   const [dismissedKey, setDismissedKey] = useState('');
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -276,6 +284,26 @@ export function Room({
             status={room.status}
             balance={balance}
             onAction={(cmd, amount) => dispatch(cmd, amount === undefined ? {} : { amount })}
+          />
+        );
+      case 'cs-mahjong':
+        return (
+          <CsMahjong
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            balance={balance}
+            onAction={(cmd, payload) => dispatch(cmd, payload ?? {})}
+          />
+        );
+      case 'slots':
+        return (
+          <Slots
+            snapshot={snapshot?.snapshot ?? null}
+            myId={myId}
+            status={room.status}
+            balance={balance}
+            onSpin={(betPerLine, lines) => dispatch('spin', { betPerLine, lines })}
           />
         );
       default:

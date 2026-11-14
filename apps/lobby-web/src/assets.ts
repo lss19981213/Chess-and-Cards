@@ -18,6 +18,8 @@ export const GAME_ART: Record<string, string> = {
   goldenflower: asset('game-goldenflower.jpg'),
   chess: asset('game-chess.jpg'),
   xiangqi: asset('game-xiangqi.jpg'),
+  'cs-mahjong': asset('game-csmahjong.jpg'),
+  slots: asset('game-slots.jpg'),
 };
 
 export const HERO_BG = asset('hero-table.jpg');

@@ -27,9 +27,24 @@ const AREAS: Area[] = [
 
 const AREA_LABEL: Record<Area, string> = {
   none: '无牛',
-  'niu-n': '牛牛',
   'niu-1': '牛一', 'niu-2': '牛二', 'niu-3': '牛三', 'niu-4': '牛四', 'niu-5': '牛五',
   'niu-6': '牛六', 'niu-7': '牛七', 'niu-8': '牛八', 'niu-9': '牛九',
+  'niu-n': '牛牛',
+};
+
+/** 赔率倍数：无牛 1:1，牛1~7 1:2，牛8 1:3，牛9 1:4，牛牛 1:5 */
+export const AREA_PAYOUT: Record<Area, number> = {
+  none: 1,
+  'niu-1': 2,
+  'niu-2': 2,
+  'niu-3': 2,
+  'niu-4': 2,
+  'niu-5': 2,
+  'niu-6': 2,
+  'niu-7': 2,
+  'niu-8': 3,
+  'niu-9': 4,
+  'niu-n': 5,
 };
 
 interface RoundResult {
@@ -254,8 +269,10 @@ export class NiuniuPlugin extends BaseGamePlugin {
       for (const [key, amount] of Object.entries(bet)) {
         if (!amount) continue;
         if (key === hit) {
-          delta += amount;
-          hits.push(`${AREA_LABEL[key as Area]}+${amount}`);
+          const odds = AREA_PAYOUT[key as Area] ?? 1;
+          const winAmount = amount * odds;
+          delta += winAmount;
+          hits.push(`${AREA_LABEL[key as Area]}+${winAmount}(1赔${odds})`);
         } else {
           delta -= amount;
         }
@@ -340,7 +357,7 @@ export class NiuniuPlugin extends BaseGamePlugin {
       results: this.state.results,
       history: this.state.history,
       limits: { min: MIN_BET, max: MAX_BET, total: MAX_TOTAL },
-      areas: AREAS.map((area) => ({ area, label: AREA_LABEL[area] })),
+      areas: AREAS.map((area) => ({ area, label: AREA_LABEL[area], odds: AREA_PAYOUT[area] })),
       players: ctx.players
         .filter((p: PlayerContext) => !p.isBot)
         .map((p: PlayerContext) => ({

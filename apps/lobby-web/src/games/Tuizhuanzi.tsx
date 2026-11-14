@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
-import { cardBackArt, dotArt } from './cards';
+import { MahjongTile } from '../components/MahjongTile';
 
 interface DoorView {
   label: string;
@@ -47,11 +47,14 @@ const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: number }>; revealed: boolean }) {
   const list = revealed && cards.length > 0 ? cards : [null, null];
   return (
-    <div className="tui-cards">
+    <div className="tui-cards mahjong-tui-cards">
       {list.map((card, index) => (
-        <span key={card?.id ?? `back-${index}`} className="tui-card tui-card--md">
-          <img src={card ? dotArt(card.rank) : cardBackArt()} alt="" draggable={false} />
-        </span>
+        <MahjongTile
+          key={card?.id ?? `back-${index}`}
+          tile={card ? (card.rank === 10 ? 'bai' : `dot${card.rank}`) : 'back'}
+          isBack={!card}
+          size="md"
+        />
       ))}
     </div>
   );
@@ -210,7 +213,6 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
             <input
               type="number"
               min={data.limits.min}
-              max={data.limits.max}
               step={10}
               value={amount}
               onChange={(event) => {
@@ -219,7 +221,7 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
               }}
             />
             <span className="bet-controls__hint">
-              {data.limits.min}–{data.limits.max} / 门
+              底注 {data.limits.min} · 无上限自由下注
             </span>
           </div>
         </div>

@@ -17,7 +17,7 @@ interface NiuniuSnapshot {
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   history: Array<{ round: number; cards: number[]; niu: number; label: string }>;
   limits: { min: number; max: number; total: number };
-  areas: Array<{ area: string; label: string }>;
+  areas: Array<{ area: string; label: string; odds?: number }>;
 }
 
 interface Props {
@@ -108,29 +108,45 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
           </div>
         </div>
 
-        {/* 下注区域 */}
-        <div className="doors niuniu-doors">
-          {(data.areas ?? [{ area: 'normal', label: '平倍' }, { area: 'double', label: '翻倍' }]).map((area) => {
+        {/* 下注区域：美观奢华卡片按钮，明确标注无牛1:1、牛1~7 1:2、牛8 1:3、牛9 1:4、牛牛 1:5 */}
+        <div className="niuniu-doors--luxury">
+          {(data.areas ?? [
+            { area: 'none', label: '无牛', odds: 1 },
+            { area: 'niu-1', label: '牛一', odds: 2 },
+            { area: 'niu-2', label: '牛二', odds: 2 },
+            { area: 'niu-3', label: '牛三', odds: 2 },
+            { area: 'niu-4', label: '牛四', odds: 2 },
+            { area: 'niu-5', label: '牛五', odds: 2 },
+            { area: 'niu-6', label: '牛六', odds: 2 },
+            { area: 'niu-7', label: '牛七', odds: 2 },
+            { area: 'niu-8', label: '牛八', odds: 3 },
+            { area: 'niu-9', label: '牛九', odds: 4 },
+            { area: 'niu-n', label: '牛牛', odds: 5 },
+          ]).map((area) => {
             const bet = data.myBet[area.area] ?? 0;
+            const pool = data.zoneTotals?.[area.area] ?? 0;
+            const odds = area.odds ?? (area.area === 'none' ? 1 : area.area === 'niu-n' ? 5 : area.area === 'niu-9' ? 4 : area.area === 'niu-8' ? 3 : 2);
+            const isNiuNiu = area.area === 'niu-n';
             return (
               <button
                 key={area.area}
                 type="button"
-                className={`door ${bet > 0 ? 'is-bet' : ''}`}
+                className={`niuniu-door-card ${bet > 0 ? 'is-bet' : ''} ${isNiuNiu ? 'is-niuniu' : ''}`}
                 disabled={!canPlace}
                 onClick={() => {
                   audio.play('chip_clack');
                   onBet(area.area, amount);
                 }}
               >
-                <span className="door__label">{area.label}</span>
-                <span className="door__points">
-                  {(data.zoneTotals?.[area.area] ?? 0) > 0 ? `共押 ${data.zoneTotals[area.area]}` : '可下注'}
-                </span>
-                {bet > 0 && (
-                  <span className="door__bet">
+                <div className="niuniu-door-top">
+                  <span className="niuniu-door-name">{area.label}</span>
+                  <span className="niuniu-door-payout">1赔{odds}</span>
+                </div>
+                {pool > 0 && <span className="niuniu-door-pool">全台 {pool}</span>}
+                {bet > 0 ? (
+                  <span className="niuniu-door-mybet">
                     <img src={chipArt(bet)} alt="" />
-                    我 {bet}
+                    <span>我押 {bet}</span>
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -147,6 +163,8 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
                       </span>
                     )}
                   </span>
+                ) : (
+                  <span className="niuniu-door-empty">{canBet ? '点击下注' : '未下注'}</span>
                 )}
               </button>
             );

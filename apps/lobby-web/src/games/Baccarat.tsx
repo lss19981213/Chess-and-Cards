@@ -15,7 +15,7 @@ interface BacSnapshot {
   player: SideView;
   banker: SideView;
   outcome: 'player' | 'banker' | 'tie' | null;
-  myBet: { player: number; banker: number; tie: number };
+  myBet: Record<string, number>;
   zoneTotals: Record<string, number>;
   myStreak: number;
   phaseDurationMs: number;
@@ -35,10 +35,13 @@ interface Props {
 
 const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
-const ZONES: Array<{ key: 'player' | 'banker' | 'tie'; label: string; odds: string }> = [
-  { key: 'player', label: '闲', odds: '1 : 1' },
-  { key: 'banker', label: '庄', odds: '1 : 0.95' },
-  { key: 'tie', label: '和', odds: '1 : 8' },
+const ZONES: Array<{ key: string; label: string; odds: string; desc: string }> = [
+  { key: 'player_pair', label: '闲对子', odds: '1 : 11', desc: '闲家两张同点' },
+  { key: 'player', label: '闲 (Player)', odds: '1 : 1', desc: '闲家点数大于庄家' },
+  { key: 'tie', label: '和 (Tie)', odds: '1 : 8', desc: '闲庄双方同点' },
+  { key: 'super_six', label: '幸运6', odds: '1 : 12', desc: '庄家6点赢(2张12倍/3张20倍)' },
+  { key: 'banker', label: '庄 (Banker)', odds: '1 : 0.95', desc: '庄家点数大于闲家' },
+  { key: 'banker_pair', label: '庄对子', odds: '1 : 11', desc: '庄家两张同点' },
 ];
 
 const OUTCOME_TEXT: Record<string, string> = { player: '闲赢', banker: '庄赢', tie: '和局' };
@@ -108,7 +111,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
   // 余额在下注时已即时扣除，不允许超额下注
   const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
-  const betting = data.myBet.player + data.myBet.banker + data.myBet.tie;
+  const betting = Object.values(data.myBet ?? {}).reduce((s, v) => s + (v ?? 0), 0);
 
   return (
     <div className="lobby-game">
@@ -118,7 +121,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
           <span className={`lobby-game__phase ${phaseClass}`}>
             {phaseLabel} · {left}s
           </span>
-          {betting > 0 && <span className="lobby-game__mine">我押了 {betting}</span>}
+          {betting > 0 && <span className="lobby-game__mine">我已下注 {betting}</span>}
           {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
@@ -142,7 +145,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
 
           <div className="bac-center">
             {revealed && data.outcome ? (
-              <span className={`bac-outcome is-${data.outcome}`}>{OUTCOME_TEXT[data.outcome]}</span>
+              <span className={`bac-outcome is-${data.outcome}`}>{OUTCOME_TEXT[data.outcome] ?? data.outcome}</span>
             ) : (
               <span className="muted">VS</span>
             )}
@@ -154,7 +157,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
           </div>
         </div>
 
-        <div className="bac-zones">
+        <div className="bac-zones bac-zones--six">
           {ZONES.map((zone) => {
             const bet = data.myBet[zone.key] ?? 0;
             const won = revealed && data.outcome === zone.key;
@@ -165,18 +168,19 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                 className={`bac-zone ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''}`}
                 disabled={!canPlace}
                 onClick={() => onBet(zone.key, amount)}
+                title={zone.desc}
               >
                 <span className="bac-zone__label">{zone.label}</span>
                 <span className="bac-zone__odds">{zone.odds}</span>
                 {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
                   <span className="bac-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
-                    共押 {data.zoneTotals[zone.key]}
+                    全台 {data.zoneTotals[zone.key]}
                   </span>
                 )}
-                {bet > 0 && (
+                {bet > 0 ? (
                   <span className="bac-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
-                    {bet}
+                    <span>我押 {bet}</span>
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -198,6 +202,8 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                       </span>
                     )}
                   </span>
+                ) : (
+                  <span className="bac-zone__hint">未下注</span>
                 )}
               </button>
             );
@@ -228,7 +234,6 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
             <input
               type="number"
               min={data.limits.min}
-              max={data.limits.max}
               step={10}
               value={amount}
               onChange={(event) => {
@@ -237,7 +242,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
               }}
             />
             <span className="bet-controls__hint">
-              {data.limits.min}–{data.limits.max} / 区
+              底注 {data.limits.min} · 无上限自由下注
             </span>
           </div>
         </div>
