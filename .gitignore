@@ -33,6 +33,7 @@ tools/.gm-config.json
 tools/.deploy-profile.json
 tools/CcGmClient/bin/
 tools/CcGmClient/obj/
+tools/CcGmClient/publish/
 tools/CcGmClient/**/.gm-config.json
 
 .playwright-cli/
