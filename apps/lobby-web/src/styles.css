@@ -6734,3 +6734,821 @@ button.secondary:hover:not(:disabled) {
   z-index: 9999;
   animation: fadeIn 0.25s ease;
 }
+
+
+/* ============================================================
+   输赢结算视效引擎 (SettlementFx: 胜利烟火与惜败氛围)
+   ============================================================ */
+.settlement-fx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  animation: fxFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.settlement-fx-overlay.is-win {
+  background: radial-gradient(circle at center, rgba(16, 24, 38, 0.4) 0%, rgba(10, 14, 22, 0.75) 100%);
+}
+
+.settlement-fx-overlay.is-win::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 100px rgba(245, 197, 66, 0.25);
+  animation: fxBorderPulse 1.8s ease-in-out infinite alternate;
+}
+
+.settlement-fx-overlay.is-lose {
+  background: radial-gradient(circle at center, rgba(20, 14, 18, 0.5) 0%, rgba(12, 10, 14, 0.8) 100%);
+  animation: fxScreenShake 0.45s ease forwards;
+}
+
+.settlement-fx-overlay.is-lose::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 120px rgba(255, 60, 60, 0.3);
+}
+
+.settlement-fx-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.settlement-fx-banner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.settlement-fx-sunburst {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(245, 197, 66, 0.22) 0%, rgba(245, 197, 66, 0.05) 50%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: fxSunburstSpin 12s linear infinite;
+}
+
+.is-lose .settlement-fx-sunburst {
+  background: radial-gradient(circle, rgba(255, 94, 98, 0.16) 0%, rgba(255, 94, 98, 0.04) 50%, transparent 70%);
+}
+
+.settlement-fx-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(22, 30, 46, 0.96) 0%, rgba(14, 20, 32, 0.98) 100%);
+  border: 2px solid rgba(245, 197, 66, 0.6);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(245, 197, 66, 0.25);
+  border-radius: 20px;
+  padding: 36px 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 380px;
+  backdrop-filter: blur(12px);
+  animation: fxPopIn 0.38s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+.is-lose .settlement-fx-card {
+  border-color: rgba(255, 94, 98, 0.6);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(255, 94, 98, 0.2);
+}
+
+.settlement-fx-icon-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(245, 197, 66, 0.3) 0%, rgba(245, 197, 66, 0.05) 70%);
+  border: 1.5px solid rgba(245, 197, 66, 0.5);
+  box-shadow: 0 0 24px rgba(245, 197, 66, 0.4);
+  margin-bottom: 12px;
+}
+
+.is-lose .settlement-fx-icon-wrap {
+  background: radial-gradient(circle, rgba(255, 94, 98, 0.25) 0%, rgba(255, 94, 98, 0.05) 70%);
+  border-color: rgba(255, 94, 98, 0.5);
+  box-shadow: 0 0 24px rgba(255, 94, 98, 0.3);
+}
+
+.settlement-fx-icon {
+  font-size: 38px;
+}
+
+.settlement-fx-title {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.is-win .settlement-fx-title {
+  background: linear-gradient(180deg, #FFE28A 0%, #F5C542 50%, #D8A228 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.is-lose .settlement-fx-title {
+  background: linear-gradient(180deg, #FFB4B6 0%, #FF5E62 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.settlement-fx-sub {
+  font-size: 13px;
+  color: #8E9DB5;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
+.settlement-fx-delta {
+  font-size: 36px;
+  font-weight: 900;
+  margin-top: 18px;
+  letter-spacing: 1px;
+}
+
+.settlement-fx-delta.is-pos {
+  color: #38D39F;
+  text-shadow: 0 0 20px rgba(56, 211, 159, 0.4);
+}
+
+.settlement-fx-delta.is-neg {
+  color: #FF5E62;
+  text-shadow: 0 0 20px rgba(255, 94, 98, 0.4);
+}
+
+.settlement-fx-unit {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.settlement-fx-tap-hint {
+  font-size: 11px;
+  color: #61738E;
+  margin-top: 18px;
+  letter-spacing: 0.5px;
+}
+
+@keyframes fxPopIn {
+  0% { transform: scale(0.65); opacity: 0; }
+  60% { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fxFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes fxSunburstSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fxBorderPulse {
+  0% { box-shadow: inset 0 0 60px rgba(245, 197, 66, 0.15); }
+  100% { box-shadow: inset 0 0 120px rgba(245, 197, 66, 0.35); }
+}
+
+@keyframes fxScreenShake {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-3px, 2px); }
+  40% { transform: translate(3px, -2px); }
+  60% { transform: translate(-2px, 1px); }
+  80% { transform: translate(1px, -1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ============================================================
+   全新精美皇家事务信箱 (MailView: Obsidian Gold Edition)
+   ============================================================ */
+.mail-view {
+  display: flex;
+  flex-direction: column;
+  background: #0B0E14;
+  color: #F0F4F8;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.mail-nav-header {
+  height: 64px;
+  background: linear-gradient(180deg, #161F2E 0%, #111722 100%);
+  border-bottom: 1px solid #283548;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+
+.mail-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.mail-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #1A2436;
+  border: 1px solid #384862;
+  color: #F0F4F8;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mail-back-btn:hover {
+  background: #24324A;
+  border-color: #F5C542;
+  color: #F5C542;
+}
+
+.mail-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mail-royal-crest {
+  font-size: 26px;
+  filter: drop-shadow(0 0 8px rgba(245, 197, 66, 0.4));
+}
+
+.mail-main-heading {
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(180deg, #FFE28A 0%, #F5C542 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.mail-sub-heading {
+  font-size: 10px;
+  color: #6E7F98;
+  letter-spacing: 0.5px;
+}
+
+.mail-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mail-btn-claim-all {
+  background: linear-gradient(135deg, #FFE28A 0%, #F5C542 50%, #D8A228 100%);
+  color: #0B0E14;
+  font-weight: 700;
+  font-size: 13px;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(245, 197, 66, 0.3);
+  transition: all 0.2s;
+}
+
+.mail-btn-claim-all:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(245, 197, 66, 0.45);
+}
+
+.mail-btn-clean {
+  background: #192232;
+  border: 1px solid #2F3E54;
+  color: #8E9DB5;
+  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mail-btn-clean:hover {
+  background: #232E42;
+  color: #FF5E62;
+  border-color: #6A222B;
+}
+
+.mail-toast-float {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(18, 26, 38, 0.95);
+  border: 1.5px solid #F5C542;
+  color: #FFE28A;
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+  z-index: 999;
+  animation: fxFadeIn 0.2s ease;
+}
+
+/* 邮件左右分栏 */
+.mail-body-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  padding: 16px 24px;
+  gap: 20px;
+}
+
+.mail-sidebar-pane {
+  width: 380px;
+  background: #121824;
+  border: 1px solid #263346;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.mail-filter-tabs {
+  display: flex;
+  background: #0E141E;
+  border-bottom: 1px solid #233042;
+  padding: 6px;
+  gap: 4px;
+}
+
+.mail-tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #8E9DB5;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.15s;
+}
+
+.mail-tab-btn:hover {
+  color: #F0F4F8;
+  background: #182232;
+}
+
+.mail-tab-btn.is-active {
+  background: #1F2D42;
+  color: #F5C542;
+}
+
+.mail-tab-bubble {
+  background: #FF5E62;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.mail-tab-bubble.gold {
+  background: #F5C542;
+  color: #0B0E14;
+}
+
+.mail-cards-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mail-loading-box, .mail-empty-cards {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  padding: 60px 0;
+  color: #6A7B94;
+  font-size: 13px;
+}
+
+.mail-empty-emblem {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.mail-card-item {
+  background: #16202E;
+  border: 1px solid #27374C;
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.18s ease;
+}
+
+.mail-card-item:hover {
+  background: #1C2A3D;
+  border-color: #3B506C;
+  transform: translateX(2px);
+}
+
+.mail-card-item.is-selected {
+  background: #1F2E44;
+  border-color: #F5C542;
+  box-shadow: 0 4px 16px rgba(245, 197, 66, 0.18);
+}
+
+.mail-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.mail-card-sender-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mail-card-icon {
+  font-size: 14px;
+}
+
+.mail-card-sender {
+  font-size: 12px;
+  color: #A0B2CD;
+  font-weight: 600;
+}
+
+.mail-card-time {
+  font-size: 11px;
+  color: #5C6E87;
+}
+
+.mail-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #F0F4F8;
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mail-card-coin-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.mail-card-coin-pill.is-unclaimed {
+  background: rgba(245, 197, 66, 0.15);
+  border: 1px solid rgba(245, 197, 66, 0.4);
+  color: #F5C542;
+  animation: fxBorderPulse 2s infinite alternate;
+}
+
+.mail-card-coin-pill.is-claimed {
+  background: rgba(56, 211, 159, 0.12);
+  border: 1px solid rgba(56, 211, 159, 0.3);
+  color: #38D39F;
+}
+
+.mail-card-tag-notice {
+  font-size: 10px;
+  color: #6F83A0;
+  background: #101622;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.mail-card-glow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #F5C542;
+  box-shadow: 0 0 8px #F5C542;
+}
+
+/* 右侧信件皇家详情阅读器 */
+.mail-reader-pane {
+  flex: 1;
+  background: #111722;
+  border: 1px solid #283548;
+  border-radius: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.mail-reader-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  color: #64758E;
+  font-size: 14px;
+}
+
+.mail-reader-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.mail-parchment-sheet {
+  padding: 32px 38px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  position: relative;
+}
+
+.mail-parchment-header {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.mail-parchment-watermark {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  font-size: 72px;
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+.mail-parchment-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.mail-parchment-title {
+  font-size: 22px;
+  font-weight: 800;
+  background: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.mail-parchment-seal {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #D8A228;
+  border: 1px solid #D8A228;
+  padding: 3px 8px;
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
+.mail-parchment-meta-row {
+  display: flex;
+  gap: 24px;
+  font-size: 12px;
+  color: #7A8DA6;
+}
+
+.mail-meta-val.is-official {
+  color: #38D39F;
+  margin-left: 4px;
+}
+
+.mail-gold-divider {
+  height: 1px;
+  background: linear-gradient(90deg, #F5C542 0%, #3A4E6C 60%, transparent 100%);
+  margin-bottom: 24px;
+  opacity: 0.6;
+}
+
+.mail-parchment-content {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #D3DCE8;
+  margin-bottom: 24px;
+  white-space: pre-wrap;
+}
+
+.mail-signature-box {
+  margin-top: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: #8E9DB5;
+  font-size: 12px;
+}
+
+.mail-sig-title {
+  font-weight: 700;
+  color: #FFE28A;
+  margin-bottom: 4px;
+}
+
+.mail-sig-stamp {
+  font-size: 9px;
+  color: #6F829C;
+  letter-spacing: 1px;
+}
+
+/* 随信筹码附件金库卡片 */
+.mail-vault-card {
+  position: relative;
+  background: linear-gradient(135deg, #182232 0%, #131B28 100%);
+  border: 1.5px solid rgba(245, 197, 66, 0.4);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.mail-vault-card.is-active {
+  border-color: #F5C542;
+  box-shadow: 0 8px 30px rgba(245, 197, 66, 0.15);
+}
+
+.mail-vault-card.is-claimed {
+  border-color: #2F4158;
+}
+
+.mail-vault-glow {
+  position: absolute;
+  top: -50%;
+  left: -20%;
+  width: 140%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(245, 197, 66, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.mail-vault-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mail-vault-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mail-vault-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #FFE28A;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.mail-vault-amount {
+  font-size: 26px;
+  font-weight: 900;
+  color: #F5C542;
+  text-shadow: 0 0 16px rgba(245, 197, 66, 0.35);
+  line-height: 1.2;
+}
+
+.mail-vault-unit {
+  font-size: 14px;
+  font-weight: 600;
+  color: #A0B2CD;
+}
+
+.mail-vault-hint {
+  font-size: 11px;
+  color: #6C7F98;
+  margin-top: 2px;
+}
+
+.mail-vault-claim-btn {
+  background: linear-gradient(135deg, #FFE28A 0%, #F5C542 50%, #D8A228 100%);
+  color: #0B0E14;
+  font-weight: 800;
+  font-size: 15px;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(245, 197, 66, 0.4);
+  transition: all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.mail-vault-claim-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 28px rgba(245, 197, 66, 0.6);
+}
+
+.mail-vault-claimed-pill {
+  background: rgba(56, 211, 159, 0.15);
+  border: 1px solid #38D39F;
+  color: #38D39F;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.mail-parchment-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #1E2838;
+  padding-top: 18px;
+}
+
+.mail-pagination-arrows {
+  display: flex;
+  gap: 10px;
+}
+
+.mail-page-btn {
+  background: #17212F;
+  border: 1px solid #2B3B50;
+  color: #A0B2CD;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mail-page-btn:hover:not(:disabled) {
+  background: #202D40;
+  border-color: #F5C542;
+  color: #F5C542;
+}
+
+.mail-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mail-delete-action {
+  background: transparent;
+  border: 1px solid #431E24;
+  color: #FF5E62;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mail-delete-action:hover {
+  background: #38151B;
+  border-color: #FF5E62;
+}

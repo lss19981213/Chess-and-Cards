@@ -61,22 +61,20 @@
                 <!-- 中间：服务器与口令快速连接栏 -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
                     <TextBlock Text="服务器:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
-                    <ComboBox x:Name="CmbServerUrl" Width="200" Height="30" IsEditable="True" Margin="0,0,12,0" VerticalContentAlignment="Center">
-                        <ComboBoxItem Content="http://82.157.54.179" IsSelected="True"/>
-                        <ComboBoxItem Content="http://127.0.0.1:3000"/>
-                        <ComboBoxItem Content="http://localhost:3000"/>
-                    </ComboBox>
+                    <ComboBox x:Name="CmbServerUrl" Width="180" Height="30" IsEditable="True" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
+                    <Button Style="{StaticResource BtnSecondary}" Content="☁️ 云端" Click="BtnSwitchCloud_Click" Height="26" Padding="6,0" Margin="0,0,4,0" FontSize="11" ToolTip="一键切到云端公网服务器"/>
+                    <Button Style="{StaticResource BtnSecondary}" Content="💻 本地" Click="BtnSwitchLocal_Click" Height="26" Padding="6,0" Margin="0,0,10,0" FontSize="11" ToolTip="一键切到本地开发服务 (127.0.0.1:3000)"/>
 
                     <TextBlock Text="GM口令:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
-                    <PasswordBox x:Name="TxtAdminToken" Width="180" Height="30" Margin="0,0,12,0" VerticalContentAlignment="Center"/>
+                    <PasswordBox x:Name="TxtAdminToken" Width="170" Height="30" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
 
                     <Button x:Name="BtnConnect" Style="{StaticResource BtnGold}" Content="⚡ 连接服务" Click="BtnConnect_Click" Height="30" Padding="14,0" Margin="0,0,10,0"/>
 
                     <!-- 连接状态指示灯 -->
-                    <Border x:Name="BadgeConnStatus" CornerRadius="12" Padding="8,3" Background="#162332" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" VerticalAlignment="Center">
+                    <Border x:Name="BadgeConnStatus" CornerRadius="12" Padding="10,4" Background="#162332" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse x:Name="DotConn" Width="8" Height="8" Fill="{StaticResource BrushRed}" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtConnStatus" Text="未连接" FontSize="11" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtConnStatus" Text="未连接" FontSize="11" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -327,9 +325,10 @@
                             <Grid>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="快速检索:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox x:Name="TxtPlayerSearch" Width="260" Height="32" VerticalContentAlignment="Center" KeyDown="TxtPlayerSearch_KeyDown"/>
-                                    <Button Style="{StaticResource BtnGold}" Content="🔍 搜索玩家" Click="BtnSearchPlayers_Click" Height="32" Margin="10,0,0,0" Padding="16,0"/>
-                                    <Button Style="{StaticResource BtnSecondary}" Content="重置全量" Click="BtnResetPlayersSearch_Click" Height="32" Margin="8,0,0,0" Padding="12,0"/>
+                                    <TextBox x:Name="TxtPlayerSearch" Width="240" Height="32" VerticalContentAlignment="Center" KeyDown="TxtPlayerSearch_KeyDown"/>
+                                    <Button Style="{StaticResource BtnGold}" Content="🔍 搜索玩家" Click="BtnSearchPlayers_Click" Height="32" Margin="10,0,0,0" Padding="14,0"/>
+                                    <Button Style="{StaticResource BtnSecondary}" Content="重置全量" Click="BtnResetPlayersSearch_Click" Height="32" Margin="8,0,0,0" Padding="10,0"/>
+                                    <Button Style="{StaticResource BtnGold}" Content="➕ 批量创建账号" Click="BtnOpenBatchPlayersModal_Click" Height="32" Margin="12,0,0,0" Padding="14,0" ToolTip="一键批量生成玩家账号并附赠初始筹码"/>
                                 </StackPanel>
                                 <TextBlock Text="支持按 UID、账号名、昵称模糊查询" Foreground="{StaticResource BrushTextDim}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
@@ -1008,6 +1007,111 @@
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Style="{StaticResource BtnSecondary}" Content="取消" Click="BtnCloseBatchRoomModal_Click" Width="80" Height="32" Margin="0,0,10,0"/>
                         <Button Style="{StaticResource BtnGold}" Content="立即开台" Click="BtnExecuteBatchRoom_Click" Width="100" Height="32"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ==================== 弹窗遮罩：批量创建账号对话框 ==================== -->
+        <Grid x:Name="ModalBatchPlayers" Background="#CC000000" Visibility="Collapsed">
+            <Border Width="640" MinHeight="420" MaxHeight="600" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <TextBlock Text="➕ 批量注册与生成玩家账号" FontSize="16" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                        <Button Style="{StaticResource BtnGhost}" Content="✕" Width="30" Height="30" FontSize="14" Click="BtnCloseBatchPlayersModal_Click" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <!-- 表单输入区 -->
+                    <StackPanel x:Name="PanelBatchPlayersForm" Grid.Row="1">
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                <TextBlock Text="账号前缀:" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                <TextBox x:Name="TxtBatchPlayerPrefix" Text="user_" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="昵称前缀:" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                <TextBox x:Name="TxtBatchPlayerNickPrefix" Text="牌友_" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                <TextBlock Text="初始登录密码 (≥6位):" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                <TextBox x:Name="TxtBatchPlayerPassword" Text="123456" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                <TextBlock Text="生成数量 (1~50 个):" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                <TextBox x:Name="TxtBatchPlayerCount" Text="10" Height="30" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                        <!-- 数量快捷按钮 -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <TextBlock Text="快捷数量: " Foreground="{StaticResource BrushTextDim}" VerticalAlignment="Center" FontSize="11" Margin="0,0,6,0"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="5 个" Click="BtnBatchCountFast_Click" Tag="5" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="10 个" Click="BtnBatchCountFast_Click" Tag="10" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="20 个" Click="BtnBatchCountFast_Click" Tag="20" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="50 个" Click="BtnBatchCountFast_Click" Tag="50" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                        </StackPanel>
+
+                        <!-- 初始筹码 -->
+                        <TextBlock Text="每账号赠送初始筹码 (欢乐豆):" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                        <TextBox x:Name="TxtBatchPlayerCoins" Text="10000" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,6"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <TextBlock Text="快捷筹码: " Foreground="{StaticResource BrushTextDim}" VerticalAlignment="Center" FontSize="11" Margin="0,0,6,0"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="0 (默认)" Click="BtnBatchCoinsFast_Click" Tag="0" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="1,000" Click="BtnBatchCoinsFast_Click" Tag="1000" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="10,000" Click="BtnBatchCoinsFast_Click" Tag="10000" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="50,000" Click="BtnBatchCoinsFast_Click" Tag="50000" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                            <Button Style="{StaticResource BtnSecondary}" Content="100,000" Click="BtnBatchCoinsFast_Click" Tag="100000" Padding="8,2" Margin="0,0,6,0" FontSize="11"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 生成结果展示区 -->
+                    <Grid x:Name="PanelBatchPlayersResult" Grid.Row="1" Visibility="Collapsed" Margin="0,0,0,10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="260"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="TxtBatchSuccessSummary" Text="🎉 成功创建 10 个账号！" FontSize="13" Foreground="{StaticResource BrushGreen}" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <DataGrid x:Name="DgBatchCreatedAccounts" Grid.Row="1">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="UID" Binding="{Binding UserId}" Width="90"/>
+                                <DataGridTextColumn Header="账号" Binding="{Binding Username}" Width="120"/>
+                                <DataGridTextColumn Header="初始密码" Binding="{Binding InitialPassword}" Width="90"/>
+                                <DataGridTextColumn Header="玩家昵称" Binding="{Binding Nickname}" Width="110"/>
+                                <DataGridTextColumn Header="初始筹码" Binding="{Binding FormattedBalance}" Width="100">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+
+                    <!-- 底部操作按钮 -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                        <Button x:Name="BtnCancelBatchPlayers" Style="{StaticResource BtnSecondary}" Content="取消" Click="BtnCloseBatchPlayersModal_Click" Width="80" Height="32" Margin="0,0,10,0"/>
+                        <Button x:Name="BtnExecuteBatchPlayers" Style="{StaticResource BtnGold}" Content="🚀 开始批量生成" Click="BtnExecuteBatchPlayers_Click" Width="130" Height="32"/>
+                        <Button x:Name="BtnCopyBatchPlayers" Style="{StaticResource BtnSecondary}" Content="📋 复制账号清单" Click="BtnCopyBatchPlayers_Click" Visibility="Collapsed" Height="32" Margin="0,0,10,0" Padding="12,0"/>
+                        <Button x:Name="BtnDoneBatchPlayers" Style="{StaticResource BtnGold}" Content="完成并刷新" Click="BtnDoneBatchPlayers_Click" Visibility="Collapsed" Width="100" Height="32"/>
                     </StackPanel>
                 </Grid>
             </Border>

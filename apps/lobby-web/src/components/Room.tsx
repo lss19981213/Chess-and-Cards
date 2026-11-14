@@ -7,7 +7,7 @@ import { Chip } from './Chip';
 import { InviteFriendsModal } from './InviteFriendsModal';
 import { RulesModal } from './RulesModal';
 import { SettleBubble, type ResultRow } from './SettleBubble';
-import { WinCelebration } from './WinCelebration';
+import { SettlementFx } from './SettlementFx';
 import { DealerTipWidget } from './DealerTipWidget';
 import { lazy, Suspense } from 'react';
 
@@ -351,7 +351,13 @@ export function Room({
           onClose={() => setInviteOpen(false)}
         />
       )}
-      {settlement && myDelta > 0 && <WinCelebration key={`win-${room.roomId}-${room.round}`} delta={myDelta} />}
+      {settlement && myDelta !== 0 && (
+        <SettlementFx
+          key={`settle-fx-${room.roomId}-${room.round}-${myDelta}`}
+          delta={myDelta}
+          onDismiss={() => {}}
+        />
+      )}
 
       {/* 战报气泡 HUD (轻量浮动，零遮挡，非阻断) */}
       {showPanel && (

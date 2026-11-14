@@ -192,10 +192,10 @@ class AudioEngine {
         this.arpeggio([987.77, 1318.51], 0.06, 'triangle', 0.18, out);
         break;
       case 'win':
-        this.arpeggio([523.25, 659.25, 783.99, 1046.5], 0.14, 'triangle', 0.32, out);
+        this.winFanfareSound(out);
         break;
       case 'lose':
-        this.arpeggio([392.0, 369.99, 349.23, 311.13], 0.18, 'sawtooth', 0.18, out);
+        this.loseMelancholySound(out);
         break;
       case 'bomb':
         this.bombSound(out);
@@ -313,6 +313,44 @@ class AudioEngine {
         this.tone(freq, 0.15, 'triangle', 0.28, out);
       }, idx * 90);
     });
+  }
+
+  private winFanfareSound(out: AudioNode): void {
+    // 胜利华丽凯旋号角 + 倾泻金币清脆回响
+    const fanfare = [
+      { f: 523.25, d: 0.12, t: 0 },    // C5
+      { f: 659.25, d: 0.12, t: 90 },   // E5
+      { f: 783.99, d: 0.14, t: 180 },  // G5
+      { f: 1046.50, d: 0.35, t: 280 }, // C6 (长高音)
+      { f: 1318.51, d: 0.40, t: 360 }, // E6 华彩
+    ];
+    fanfare.forEach(({ f, d, t }) => {
+      window.setTimeout(() => this.tone(f, d, 'triangle', 0.35, out), t);
+    });
+
+    // 随后金币倾泻清脆撞击声
+    [1567.98, 2093.00, 2637.02, 3135.96].forEach((f, idx) => {
+      window.setTimeout(() => {
+        this.tone(f, 0.08, 'sine', 0.15, out);
+      }, 450 + idx * 60);
+    });
+  }
+
+  private loseMelancholySound(out: AudioNode): void {
+    // 惜败低沉旋律 + 柔和低音落幕
+    const notes = [
+      { f: 392.00, d: 0.16, t: 0 },   // G4
+      { f: 349.23, d: 0.16, t: 120 }, // F4
+      { f: 311.13, d: 0.18, t: 240 }, // Eb4
+      { f: 261.63, d: 0.35, t: 380 }, // C4 (低音回落)
+    ];
+    notes.forEach(({ f, d, t }) => {
+      window.setTimeout(() => this.tone(f, d, 'sawtooth', 0.16, out), t);
+    });
+    // 沉闷底鼓
+    window.setTimeout(() => {
+      this.tone(90, 0.25, 'sine', 0.22, out);
+    }, 390);
   }
 
   private tone(freq: number, duration: number, type: OscillatorType, gainVal: number, out: AudioNode): void {

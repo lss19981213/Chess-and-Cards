@@ -32,8 +32,14 @@ namespace CcGmClient
         {
             _config = GmConfig.Load();
 
+            CmbServerUrl.ItemsSource = new List<string>
+            {
+                "http://82.157.54.179",
+                "http://127.0.0.1:3000",
+                "http://localhost:3000"
+            };
             CmbServerUrl.Text = !string.IsNullOrEmpty(_config.ServerUrl) ? _config.ServerUrl : "http://82.157.54.179";
-            TxtAdminToken.Password = _config.AdminToken;
+            TxtAdminToken.Password = !string.IsNullOrEmpty(_config.AdminToken) ? _config.AdminToken : "2f6f6fe8e5cced301026985a44a26192fcf1b6f1cf2ef218";
 
             TxtSshHost.Text = _config.Host;
             TxtSshPort.Text = _config.Port;
@@ -51,6 +57,49 @@ namespace CcGmClient
             _timer.Start();
 
             await ConnectServerAsync();
+        }
+
+        // ==================== 快捷切换服务器 ====================
+        private async void BtnSwitchCloud_Click(object sender, RoutedEventArgs e)
+        {
+            CmbServerUrl.Text = "http://82.157.54.179";
+            await ConnectServerAsync();
+        }
+
+        private async void BtnSwitchLocal_Click(object sender, RoutedEventArgs e)
+        {
+            CmbServerUrl.Text = "http://127.0.0.1:3000";
+            await ConnectServerAsync();
+        }
+
+        private string GetServerUrl()
+        {
+            var text = CmbServerUrl.Text?.Trim();
+            if (!string.IsNullOrEmpty(text) && !text.Contains("ComboBoxItem")) return text;
+            if (CmbServerUrl.SelectedItem is string s && !string.IsNullOrEmpty(s)) return s;
+            return !string.IsNullOrEmpty(_config.ServerUrl) ? _config.ServerUrl : "http://82.157.54.179";
+        }
+
+        private void SetConnectedState(bool isConnected, long latencyMs = 0, string? err = null)
+        {
+            if (isConnected)
+            {
+                DotConn.Fill = (SolidColorBrush)FindResource("BrushGreen");
+                TxtConnStatus.Text = latencyMs > 0 ? $"已连接 ({latencyMs}ms)" : "已连接";
+                TxtConnStatus.Foreground = (SolidColorBrush)FindResource("BrushGreen");
+                BadgeConnStatus.BorderBrush = (SolidColorBrush)FindResource("BrushGreen");
+            }
+            else
+            {
+                DotConn.Fill = (SolidColorBrush)FindResource("BrushRed");
+                TxtConnStatus.Text = "未连接";
+                TxtConnStatus.Foreground = (SolidColorBrush)FindResource("BrushRed");
+                BadgeConnStatus.BorderBrush = (SolidColorBrush)FindResource("BrushRed");
+                if (!string.IsNullOrEmpty(err))
+                {
+                    SetStatus($"未连接: {err}");
+                }
+            }
         }
 
         // ==================== 窗口标题栏控制 ====================
@@ -73,7 +122,8 @@ namespace CcGmClient
         {
             try
             {
-                var site = !string.IsNullOrEmpty(_config.Site) ? _config.Site : $"{CmbServerUrl.Text.TrimEnd('/')}/lobby";
+                var serverUrl = GetServerUrl();
+                var site = !string.IsNullOrEmpty(_config.Site) ? _config.Site : $"{serverUrl.TrimEnd('/')}/lobby";
                 Process.Start(new ProcessStartInfo(site) { UseShellExecute = true });
             }
             catch (Exception ex)
@@ -90,7 +140,7 @@ namespace CcGmClient
 
         private async Task ConnectServerAsync()
         {
-            var url = CmbServerUrl.Text.Trim();
+            var url = GetServerUrl();
             var token = TxtAdminToken.Password.Trim();
 
             _api.Configure(url, token);
@@ -99,7 +149,9 @@ namespace CcGmClient
             _config.Save();
 
             TxtConnStatus.Text = "连接中...";
+            TxtConnStatus.Foreground = (SolidColorBrush)FindResource("BrushGold");
             DotConn.Fill = (SolidColorBrush)FindResource("BrushGold");
+            BadgeConnStatus.BorderBrush = (SolidColorBrush)FindResource("BrushGold");
 
             try
             {
@@ -107,17 +159,14 @@ namespace CcGmClient
                 await _api.GetOverviewAsync();
                 sw.Stop();
 
-                TxtConnStatus.Text = $"已连接 ({sw.ElapsedMilliseconds}ms)";
-                DotConn.Fill = (SolidColorBrush)FindResource("BrushGreen");
+                SetConnectedState(true, sw.ElapsedMilliseconds);
                 SetStatus($"成功连接到 {url}，响应时间 {sw.ElapsedMilliseconds}ms");
 
                 await RefreshCurrentViewAsync();
             }
             catch (Exception ex)
             {
-                TxtConnStatus.Text = "离线 / 鉴权失败";
-                DotConn.Fill = (SolidColorBrush)FindResource("BrushRed");
-                SetStatus($"连接失败: {ex.Message}");
+                SetConnectedState(false, 0, ex.Message);
             }
         }
 
@@ -169,6 +218,7 @@ namespace CcGmClient
 
         private async Task RefreshCurrentViewAsync(bool silent = false)
         {
+            var sw = Stopwatch.StartNew();
             try
             {
                 switch (_activeView)
@@ -194,12 +244,115 @@ namespace CcGmClient
                     case "devops":
                         break;
                 }
-                if (!silent) SetStatus($"模块 {_activeView} 数据已刷新");
+                sw.Stop();
+                SetConnectedState(true, sw.ElapsedMilliseconds);
+                if (!silent) SetStatus($"模块 {_activeView} 数据已刷新 ({sw.ElapsedMilliseconds}ms)");
             }
             catch (Exception ex)
             {
+                sw.Stop();
+                SetConnectedState(false, 0, ex.Message);
                 if (!silent) SetStatus($"刷新失败: {ex.Message}");
             }
+        }
+
+        // ==================== 批量创建账号对话框 ====================
+        private void BtnOpenBatchPlayersModal_Click(object sender, RoutedEventArgs e)
+        {
+            PanelBatchPlayersForm.Visibility = Visibility.Visible;
+            PanelBatchPlayersResult.Visibility = Visibility.Collapsed;
+            BtnCancelBatchPlayers.Visibility = Visibility.Visible;
+            BtnExecuteBatchPlayers.Visibility = Visibility.Visible;
+            BtnCopyBatchPlayers.Visibility = Visibility.Collapsed;
+            BtnDoneBatchPlayers.Visibility = Visibility.Collapsed;
+            ModalBatchPlayers.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCloseBatchPlayersModal_Click(object sender, RoutedEventArgs e)
+        {
+            ModalBatchPlayers.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnBatchCountFast_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string s)
+                TxtBatchPlayerCount.Text = s;
+        }
+
+        private void BtnBatchCoinsFast_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string s)
+                TxtBatchPlayerCoins.Text = s;
+        }
+
+        private List<CreatedAccountItem> _lastCreatedAccounts = new();
+
+        private async void BtnExecuteBatchPlayers_Click(object sender, RoutedEventArgs e)
+        {
+            var prefix = TxtBatchPlayerPrefix.Text.Trim();
+            if (string.IsNullOrEmpty(prefix)) prefix = "user_";
+            var nickPrefix = TxtBatchPlayerNickPrefix.Text.Trim();
+            if (string.IsNullOrEmpty(nickPrefix)) nickPrefix = "牌友_";
+            var pass = TxtBatchPlayerPassword.Text.Trim();
+            if (pass.Length < 6)
+            {
+                MessageBox.Show("密码长度不能少于 6 位", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!int.TryParse(TxtBatchPlayerCount.Text.Trim(), out var count) || count < 1 || count > 50)
+            {
+                MessageBox.Show("生成数量需在 1 到 50 之间", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!long.TryParse(TxtBatchPlayerCoins.Text.Trim(), out var coins) || coins < 0)
+            {
+                MessageBox.Show("初始筹码需为非负数", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                BtnExecuteBatchPlayers.IsEnabled = false;
+                BtnExecuteBatchPlayers.Content = "生成中...";
+
+                var res = await _api.BatchCreatePlayersAsync(prefix, nickPrefix, pass, count, coins);
+                _lastCreatedAccounts = res.Accounts;
+
+                TxtBatchSuccessSummary.Text = $"🎉 成功创建 {res.Count} 个新账号！(初始每人 {coins:N0} 欢乐豆)";
+                DgBatchCreatedAccounts.ItemsSource = res.Accounts;
+
+                PanelBatchPlayersForm.Visibility = Visibility.Collapsed;
+                PanelBatchPlayersResult.Visibility = Visibility.Visible;
+                BtnCancelBatchPlayers.Visibility = Visibility.Collapsed;
+                BtnExecuteBatchPlayers.Visibility = Visibility.Collapsed;
+                BtnCopyBatchPlayers.Visibility = Visibility.Visible;
+                BtnDoneBatchPlayers.Visibility = Visibility.Visible;
+
+                SetStatus($"成功批量创建了 {res.Count} 个玩家账号");
+                await RefreshPlayersAsync("");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"批量创建账号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnExecuteBatchPlayers.IsEnabled = true;
+                BtnExecuteBatchPlayers.Content = "🚀 开始批量生成";
+            }
+        }
+
+        private void BtnCopyBatchPlayers_Click(object sender, RoutedEventArgs e)
+        {
+            if (_lastCreatedAccounts.Count == 0) return;
+            var text = string.Join("\r\n", _lastCreatedAccounts.Select(a => $"账号: {a.Username}  密码: {a.InitialPassword}  昵称: {a.Nickname}  筹码: {a.Balance:N0}  UID: {a.UserId}"));
+            Clipboard.SetText(text);
+            MessageBox.Show($"已复制 {_lastCreatedAccounts.Count} 个账号信息至剪贴板！", "复制成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void BtnDoneBatchPlayers_Click(object sender, RoutedEventArgs e)
+        {
+            ModalBatchPlayers.Visibility = Visibility.Collapsed;
         }
 
         // ==================== 1. 大盘总览 (Dashboard) ====================

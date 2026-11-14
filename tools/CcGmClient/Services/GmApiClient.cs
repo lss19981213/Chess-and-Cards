@@ -139,6 +139,24 @@ namespace CcGmClient.Services
             return true;
         }
 
+        public async Task<BatchCreateAccountResult> BatchCreatePlayersAsync(
+            string prefix,
+            string nicknamePrefix,
+            string password,
+            int count,
+            long initialCoins)
+        {
+            var body = new
+            {
+                prefix,
+                nicknamePrefix,
+                password,
+                count,
+                initialCoins
+            };
+            return await SendAsync<BatchCreateAccountResult>(HttpMethod.Post, "/api/admin/players/batch-create", body);
+        }
+
         public async Task<long> GrantCoinsAsync(string userId, long amount, string reason, string idempotencyKey)
         {
             var body = new

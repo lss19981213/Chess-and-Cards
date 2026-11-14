@@ -163,6 +163,63 @@ export function registerAdminAndInternalRoutes(
     return { ok: true, profile };
   });
 
+  // GM 批量创建账号
+  app.post('/api/admin/players/batch-create', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const prefix = typeof body.prefix === 'string' && body.prefix.trim() ? body.prefix.trim() : 'user_';
+    const nicknamePrefix = typeof body.nicknamePrefix === 'string' && body.nicknamePrefix.trim() ? body.nicknamePrefix.trim() : '牌友_';
+    const rawPassword = typeof body.password === 'string' && body.password ? body.password : '123456';
+    const count = Math.min(Math.max(Number(body.count ?? 10) || 10, 1), 50);
+    const initialCoins = Math.max(0, Math.floor(Number(body.initialCoins ?? 10_000)));
+
+    if (rawPassword.length < 6 || rawPassword.length > 32) {
+      throw httpError('密码长度需在 6-32 位之间', 400);
+    }
+
+    const passwordHash = await hashPassword(rawPassword);
+    const created: Array<{
+      userId: string;
+      username: string;
+      nickname: string;
+      balance: number;
+      initialPassword: string;
+    }> = [];
+
+    for (let i = 0; i < count; i++) {
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000).toString();
+      const randomChar = Math.random().toString(36).substring(2, 5);
+      let username = `${prefix}${randomChar}${randomSuffix}`;
+      if (username.length > 20) username = username.slice(0, 20);
+      if (username.length < 4) username = `${username}_000`.slice(0, 20);
+
+      const nickname = `${nicknamePrefix}${randomSuffix}`;
+      const res = await repo.register({ username, passwordHash, nickname });
+      if (res.ok) {
+        let balance = await repo.getBalance(res.user.id, 'coin');
+        if (initialCoins > 0) {
+          const idempotencyKey = `batch_init:${res.user.id}:${Date.now()}`;
+          try {
+            balance = await repo.credit(res.user.id, initialCoins, 'gm_grant', idempotencyKey);
+          } catch {
+            // 保底
+          }
+        }
+        created.push({
+          userId: res.user.id,
+          username: res.user.username ?? username,
+          nickname: res.user.nickname,
+          balance,
+          initialPassword: rawPassword,
+        });
+      }
+    }
+
+    apiLog.info(`GM 批量创建账号成功 count=${created.length}`);
+    recordEvent('info', 'player', `GM 批量创建了 ${created.length} 个账号，初始筹码: ${initialCoins}`, { count: created.length });
+    return { ok: true, count: created.length, accounts: created };
+  });
+
   // GM 发放 / 扣除筹码，走账本幂等入账
   app.post('/api/admin/grant', async (req) => {
     requireAdmin(req);

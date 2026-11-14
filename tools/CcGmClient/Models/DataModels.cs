@@ -165,6 +165,38 @@ namespace CcGmClient.Models
         }
     }
 
+    public class BatchCreateAccountResult
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("count")]
+        public int Count { get; set; }
+
+        [JsonPropertyName("accounts")]
+        public List<CreatedAccountItem> Accounts { get; set; } = new();
+    }
+
+    public class CreatedAccountItem
+    {
+        [JsonPropertyName("userId")]
+        public string UserId { get; set; } = "";
+
+        [JsonPropertyName("username")]
+        public string Username { get; set; } = "";
+
+        [JsonPropertyName("nickname")]
+        public string Nickname { get; set; } = "";
+
+        [JsonPropertyName("balance")]
+        public long Balance { get; set; }
+
+        [JsonPropertyName("initialPassword")]
+        public string InitialPassword { get; set; } = "";
+
+        public string FormattedBalance => $"{Balance:N0}";
+    }
+
     public class LedgerItem
     {
         [JsonPropertyName("id")]
