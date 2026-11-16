@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace CcGmClient.Models
@@ -11,7 +12,27 @@ namespace CcGmClient.Models
         public string? DayKey { get; set; }
 
         [JsonPropertyName("lastSettlementAt")]
-        public string? LastSettlementAt { get; set; }
+        public JsonElement? RawLastSettlementAt { get; set; }
+
+        public string FormattedLastSettlement
+        {
+            get
+            {
+                if (RawLastSettlementAt.HasValue)
+                {
+                    var elem = RawLastSettlementAt.Value;
+                    if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
+                    {
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+                    }
+                    if (elem.ValueKind == JsonValueKind.String)
+                    {
+                        return elem.GetString() ?? "";
+                    }
+                }
+                return "--";
+            }
+        }
 
         [JsonPropertyName("summary")]
         public OverviewSummary? Summary { get; set; }
@@ -58,20 +79,38 @@ namespace CcGmClient.Models
         [JsonPropertyName("totalUsers")]
         public long TotalUsers { get; set; }
 
+        [JsonPropertyName("totalBalance")]
+        public long TotalBalance { get; set; }
+
         [JsonPropertyName("totalCoins")]
-        public long TotalCoins { get; set; }
+        public long? AltTotalCoins { get; set; }
+
+        public long TotalCoins => AltTotalCoins ?? TotalBalance;
+
+        [JsonPropertyName("todayBet")]
+        public long TodayBet { get; set; }
 
         [JsonPropertyName("todayBets")]
-        public long TodayBets { get; set; }
+        public long? AltTodayBets { get; set; }
+
+        public long TodayBets => AltTodayBets ?? TodayBet;
 
         [JsonPropertyName("todaySettle")]
         public long TodaySettle { get; set; }
 
+        [JsonPropertyName("todayTip")]
+        public long TodayTip { get; set; }
+
         [JsonPropertyName("todayTips")]
-        public long TodayTips { get; set; }
+        public long? AltTodayTips { get; set; }
+
+        public long TodayTips => AltTodayTips ?? TodayTip;
 
         [JsonPropertyName("todayRelief")]
         public long TodayRelief { get; set; }
+
+        [JsonPropertyName("todayGmGrant")]
+        public long TodayGmGrant { get; set; }
     }
 
     public class DailyWinnerItem
@@ -85,11 +124,21 @@ namespace CcGmClient.Models
         [JsonPropertyName("nickname")]
         public string Nickname { get; set; } = "";
 
+        [JsonPropertyName("net")]
+        public long Net { get; set; }
+
         [JsonPropertyName("netProfit")]
-        public long NetProfit { get; set; }
+        public long? AltNetProfit { get; set; }
+
+        public long NetProfit => AltNetProfit ?? Net;
+
+        [JsonPropertyName("rounds")]
+        public int Rounds { get; set; }
 
         [JsonPropertyName("winCount")]
-        public int WinCount { get; set; }
+        public int? AltWinCount { get; set; }
+
+        public int WinCount => AltWinCount ?? Rounds;
 
         public string DisplayProfit => NetProfit >= 0 ? $"+{NetProfit:N0}" : $"{NetProfit:N0}";
     }
@@ -99,14 +148,22 @@ namespace CcGmClient.Models
         [JsonPropertyName("id")]
         public string? Id { get; set; }
 
+        [JsonPropertyName("at")]
+        public long? At { get; set; }
+
         [JsonPropertyName("time")]
         public string? Time { get; set; }
 
         [JsonPropertyName("level")]
         public string Level { get; set; } = "info";
 
+        [JsonPropertyName("scope")]
+        public string? Scope { get; set; }
+
         [JsonPropertyName("tag")]
-        public string Tag { get; set; } = "system";
+        public string? RawTag { get; set; }
+
+        public string Tag => !string.IsNullOrEmpty(Scope) ? Scope : (!string.IsNullOrEmpty(RawTag) ? RawTag : "system");
 
         [JsonPropertyName("message")]
         public string Message { get; set; } = "";
@@ -115,6 +172,10 @@ namespace CcGmClient.Models
         {
             get
             {
+                if (At.HasValue && At.Value > 0)
+                {
+                    return DateTimeOffset.FromUnixTimeMilliseconds(At.Value).ToLocalTime().ToString("HH:mm:ss");
+                }
                 if (DateTime.TryParse(Time, out var dt))
                 {
                     return dt.ToLocalTime().ToString("HH:mm:ss");
@@ -146,7 +207,7 @@ namespace CcGmClient.Models
         public string Role { get; set; } = "user";
 
         [JsonPropertyName("createdAt")]
-        public string? CreatedAt { get; set; }
+        public JsonElement? RawCreatedAt { get; set; }
 
         public string FormattedBalance => $"{Balance:N0}";
         public string StatusText => Banned ? "已封禁" : "正常";
@@ -156,11 +217,19 @@ namespace CcGmClient.Models
         {
             get
             {
-                if (DateTime.TryParse(CreatedAt, out var dt))
+                if (RawCreatedAt.HasValue)
                 {
-                    return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    var elem = RawCreatedAt.Value;
+                    if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
+                    {
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    }
+                    if (elem.ValueKind == JsonValueKind.String && DateTime.TryParse(elem.GetString(), out var dt))
+                    {
+                        return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    }
                 }
-                return CreatedAt ?? "-";
+                return "-";
             }
         }
     }
@@ -208,8 +277,13 @@ namespace CcGmClient.Models
         [JsonPropertyName("delta")]
         public long Delta { get; set; }
 
+        [JsonPropertyName("balanceAfter")]
+        public long BalanceAfter { get; set; }
+
         [JsonPropertyName("balance")]
-        public long Balance { get; set; }
+        public long? RawBalance { get; set; }
+
+        public long Balance => RawBalance ?? BalanceAfter;
 
         [JsonPropertyName("bizType")]
         public string BizType { get; set; } = "";
@@ -218,7 +292,7 @@ namespace CcGmClient.Models
         public string? Note { get; set; }
 
         [JsonPropertyName("createdAt")]
-        public string? CreatedAt { get; set; }
+        public JsonElement? RawCreatedAt { get; set; }
 
         public string FormattedDelta => Delta > 0 ? $"+{Delta:N0}" : $"{Delta:N0}";
         public string FormattedBalance => $"{Balance:N0}";
@@ -228,11 +302,19 @@ namespace CcGmClient.Models
         {
             get
             {
-                if (DateTime.TryParse(CreatedAt, out var dt))
+                if (RawCreatedAt.HasValue)
                 {
-                    return dt.ToLocalTime().ToString("MM-dd HH:mm:ss");
+                    var elem = RawCreatedAt.Value;
+                    if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
+                    {
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("MM-dd HH:mm:ss");
+                    }
+                    if (elem.ValueKind == JsonValueKind.String && DateTime.TryParse(elem.GetString(), out var dt))
+                    {
+                        return dt.ToLocalTime().ToString("MM-dd HH:mm:ss");
+                    }
                 }
-                return CreatedAt ?? "-";
+                return "-";
             }
         }
     }
@@ -240,17 +322,27 @@ namespace CcGmClient.Models
     // ---------- 房间与对战模型 ----------
     public class RoomItem
     {
+        [JsonPropertyName("roomId")]
+        public string? RoomId { get; set; }
+
         [JsonPropertyName("id")]
-        public string Id { get; set; } = "";
+        public string? RawId { get; set; }
+
+        public string Id => !string.IsNullOrEmpty(RoomId) ? RoomId : (RawId ?? "");
 
         [JsonPropertyName("gameId")]
         public string GameId { get; set; } = "";
+
+        [JsonPropertyName("roomName")]
+        public string? RoomName { get; set; }
 
         [JsonPropertyName("gameTitle")]
         public string? GameTitle { get; set; }
 
         [JsonPropertyName("title")]
         public string? Title { get; set; }
+
+        public string DisplayGame => !string.IsNullOrEmpty(RoomName) ? RoomName : (!string.IsNullOrEmpty(GameTitle) ? GameTitle : GameId);
 
         [JsonPropertyName("mode")]
         public string Mode { get; set; } = "standard";
@@ -267,16 +359,20 @@ namespace CcGmClient.Models
         [JsonPropertyName("bots")]
         public int Bots { get; set; }
 
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+
         [JsonPropertyName("stage")]
-        public string? Stage { get; set; }
+        public string? RawStage { get; set; }
+
+        public string Stage => !string.IsNullOrEmpty(Status) ? Status : (RawStage ?? "playing");
 
         [JsonPropertyName("persistent")]
         public bool Persistent { get; set; }
 
         [JsonPropertyName("createdAt")]
-        public string? CreatedAt { get; set; }
+        public JsonElement? RawCreatedAt { get; set; }
 
-        public string DisplayGame => !string.IsNullOrEmpty(GameTitle) ? GameTitle : GameId;
         public string DisplayMode => Persistent ? "官方平台庄" : "玩家自定义";
         public string PlayerRatio => $"{Players}/{MaxPlayers} (人:{Humans} 机:{Bots})";
         public string DisplayStage => Stage switch
@@ -292,17 +388,32 @@ namespace CcGmClient.Models
 
     public class RoomDetail
     {
+        [JsonPropertyName("roomId")]
+        public string? RoomId { get; set; }
+
         [JsonPropertyName("id")]
-        public string Id { get; set; } = "";
+        public string? RawId { get; set; }
+
+        public string Id => !string.IsNullOrEmpty(RoomId) ? RoomId : (RawId ?? "");
 
         [JsonPropertyName("gameId")]
         public string GameId { get; set; } = "";
 
+        [JsonPropertyName("roomName")]
+        public string? RoomName { get; set; }
+
         [JsonPropertyName("title")]
         public string? Title { get; set; }
 
+        public string DisplayTitle => !string.IsNullOrEmpty(RoomName) ? RoomName : (!string.IsNullOrEmpty(Title) ? Title : GameId);
+
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+
         [JsonPropertyName("stage")]
-        public string? Stage { get; set; }
+        public string? RawStage { get; set; }
+
+        public string Stage => !string.IsNullOrEmpty(Status) ? Status : (RawStage ?? "playing");
 
         [JsonPropertyName("round")]
         public int Round { get; set; }
@@ -354,7 +465,7 @@ namespace CcGmClient.Models
         };
     }
 
-    // ---------- 邮箱系统模型 (新增) ----------
+    // ---------- 邮箱系统模型 ----------
     public class MailItem
     {
         [JsonPropertyName("id")]
@@ -379,7 +490,7 @@ namespace CcGmClient.Models
         public long RewardCoins { get; set; }
 
         [JsonPropertyName("createdAt")]
-        public string? CreatedAt { get; set; }
+        public JsonElement? RawCreatedAt { get; set; }
 
         [JsonPropertyName("claimedCount")]
         public int ClaimedCount { get; set; }
@@ -392,11 +503,19 @@ namespace CcGmClient.Models
         {
             get
             {
-                if (DateTime.TryParse(CreatedAt, out var dt))
+                if (RawCreatedAt.HasValue)
                 {
-                    return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    var elem = RawCreatedAt.Value;
+                    if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
+                    {
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    }
+                    if (elem.ValueKind == JsonValueKind.String && DateTime.TryParse(elem.GetString(), out var dt))
+                    {
+                        return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    }
                 }
-                return CreatedAt ?? "-";
+                return "-";
             }
         }
     }
@@ -417,7 +536,7 @@ namespace CcGmClient.Models
         public string Kind { get; set; } = "notice";
 
         [JsonPropertyName("createdAt")]
-        public string? CreatedAt { get; set; }
+        public JsonElement? RawCreatedAt { get; set; }
 
         public string KindDisplay => Kind switch
         {
@@ -431,11 +550,19 @@ namespace CcGmClient.Models
         {
             get
             {
-                if (DateTime.TryParse(CreatedAt, out var dt))
+                if (RawCreatedAt.HasValue)
                 {
-                    return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    var elem = RawCreatedAt.Value;
+                    if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
+                    {
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    }
+                    if (elem.ValueKind == JsonValueKind.String && DateTime.TryParse(elem.GetString(), out var dt))
+                    {
+                        return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                    }
                 }
-                return CreatedAt ?? "-";
+                return "-";
             }
         }
     }

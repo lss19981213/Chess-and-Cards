@@ -4,13 +4,27 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using CcGmClient.Converters;
 using CcGmClient.Models;
 
 namespace CcGmClient.Services
 {
     public class GmApiClient
     {
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            NumberHandling = JsonNumberHandling.AllowReadingFromString | JsonNumberHandling.WriteAsString,
+            Converters =
+            {
+                new FlexibleStringConverter(),
+                new FlexibleLongConverter(),
+                new FlexibleIntConverter()
+            }
+        };
+
         private readonly HttpClient _http;
         private string _baseUrl = "http://82.157.54.179";
         private string _adminToken = "";
@@ -90,10 +104,7 @@ namespace CcGmClient.Services
                 throw new Exception(errMsg);
             }
 
-            var result = JsonSerializer.Deserialize<T>(content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var result = JsonSerializer.Deserialize<T>(content, JsonOptions);
             if (result == null)
             {
                 throw new Exception("响应内容为空");

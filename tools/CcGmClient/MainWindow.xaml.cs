@@ -360,15 +360,19 @@ namespace CcGmClient
         // ==================== 1. 大盘总览 (Dashboard) ====================
         private async Task RefreshDashboardAsync()
         {
-            var overviewTask = _api.GetOverviewAsync();
-            var economyTask = _api.GetEconomyAsync();
-            var eventsTask = _api.GetEventsAsync(60);
+            OverviewResponse? ov = null;
+            EconomyOverview? eco = null;
+            List<EventItem> ev = new();
+            var errors = new List<string>();
 
-            await Task.WhenAll(overviewTask, economyTask, eventsTask);
+            try { ov = await _api.GetOverviewAsync(); }
+            catch (Exception ex) { errors.Add($"总览: {ex.Message}"); }
 
-            var ov = await overviewTask;
-            var eco = await economyTask;
-            var ev = await eventsTask;
+            try { eco = await _api.GetEconomyAsync(); }
+            catch (Exception ex) { errors.Add($"经济: {ex.Message}"); }
+
+            try { ev = await _api.GetEventsAsync(60); }
+            catch (Exception ex) { errors.Add($"审计: {ex.Message}"); }
 
             if (eco != null)
             {
@@ -380,13 +384,25 @@ namespace CcGmClient
                 KpiTodayRelief.Text = eco.TodayRelief.ToString("N0");
             }
 
-            if (ov.Summary != null)
+            if (ov?.Summary != null)
             {
                 KpiOnlineInfo.Text = $"在线: {ov.Summary.Online} 人 (真实: {ov.Summary.Humans} 陪玩: {ov.Summary.Bots})";
             }
 
-            DgDailyWinners.ItemsSource = ov.Daily;
-            DgAuditEvents.ItemsSource = ev;
+            if (ov?.Daily != null)
+            {
+                DgDailyWinners.ItemsSource = ov.Daily;
+            }
+
+            if (ev.Count > 0)
+            {
+                DgAuditEvents.ItemsSource = ev;
+            }
+
+            if (ov == null && eco == null)
+            {
+                throw new Exception(string.Join("; ", errors));
+            }
         }
 
         private async void BtnRefreshEvents_Click(object sender, RoutedEventArgs e)
