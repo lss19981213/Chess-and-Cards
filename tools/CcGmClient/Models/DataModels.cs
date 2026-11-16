@@ -14,6 +14,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("lastSettlementAt")]
         public JsonElement? RawLastSettlementAt { get; set; }
 
+        [JsonIgnore]
         public string FormattedLastSettlement
         {
             get
@@ -85,6 +86,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("totalCoins")]
         public long? AltTotalCoins { get; set; }
 
+        [JsonIgnore]
         public long TotalCoins => AltTotalCoins ?? TotalBalance;
 
         [JsonPropertyName("todayBet")]
@@ -93,6 +95,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("todayBets")]
         public long? AltTodayBets { get; set; }
 
+        [JsonIgnore]
         public long TodayBets => AltTodayBets ?? TodayBet;
 
         [JsonPropertyName("todaySettle")]
@@ -104,6 +107,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("todayTips")]
         public long? AltTodayTips { get; set; }
 
+        [JsonIgnore]
         public long TodayTips => AltTodayTips ?? TodayTip;
 
         [JsonPropertyName("todayRelief")]
@@ -130,6 +134,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("netProfit")]
         public long? AltNetProfit { get; set; }
 
+        [JsonIgnore]
         public long NetProfit => AltNetProfit ?? Net;
 
         [JsonPropertyName("rounds")]
@@ -138,8 +143,10 @@ namespace CcGmClient.Models
         [JsonPropertyName("winCount")]
         public int? AltWinCount { get; set; }
 
+        [JsonIgnore]
         public int WinCount => AltWinCount ?? Rounds;
 
+        [JsonIgnore]
         public string DisplayProfit => NetProfit >= 0 ? $"+{NetProfit:N0}" : $"{NetProfit:N0}";
     }
 
@@ -163,11 +170,13 @@ namespace CcGmClient.Models
         [JsonPropertyName("tag")]
         public string? RawTag { get; set; }
 
+        [JsonIgnore]
         public string Tag => !string.IsNullOrEmpty(Scope) ? Scope : (!string.IsNullOrEmpty(RawTag) ? RawTag : "system");
 
         [JsonPropertyName("message")]
         public string Message { get; set; } = "";
 
+        [JsonIgnore]
         public string DisplayTime
         {
             get
@@ -209,10 +218,14 @@ namespace CcGmClient.Models
         [JsonPropertyName("createdAt")]
         public JsonElement? RawCreatedAt { get; set; }
 
+        [JsonIgnore]
         public string FormattedBalance => $"{Balance:N0}";
+        [JsonIgnore]
         public string StatusText => Banned ? "已封禁" : "正常";
+        [JsonIgnore]
         public string StatusColor => Banned ? "#FF5E62" : "#38D39F";
 
+        [JsonIgnore]
         public string DisplayDate
         {
             get
@@ -263,6 +276,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("initialPassword")]
         public string InitialPassword { get; set; } = "";
 
+        [JsonIgnore]
         public string FormattedBalance => $"{Balance:N0}";
     }
 
@@ -283,6 +297,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("balance")]
         public long? RawBalance { get; set; }
 
+        [JsonIgnore]
         public long Balance => RawBalance ?? BalanceAfter;
 
         [JsonPropertyName("bizType")]
@@ -294,10 +309,14 @@ namespace CcGmClient.Models
         [JsonPropertyName("createdAt")]
         public JsonElement? RawCreatedAt { get; set; }
 
+        [JsonIgnore]
         public string FormattedDelta => Delta > 0 ? $"+{Delta:N0}" : $"{Delta:N0}";
+        [JsonIgnore]
         public string FormattedBalance => $"{Balance:N0}";
+        [JsonIgnore]
         public string DeltaColor => Delta > 0 ? "#38D39F" : (Delta < 0 ? "#FF5E62" : "#8E9DB5");
 
+        [JsonIgnore]
         public string DisplayDate
         {
             get
@@ -328,6 +347,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("id")]
         public string? RawId { get; set; }
 
+        [JsonIgnore]
         public string Id => !string.IsNullOrEmpty(RoomId) ? RoomId : (RawId ?? "");
 
         [JsonPropertyName("gameId")]
@@ -342,6 +362,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("title")]
         public string? Title { get; set; }
 
+        [JsonIgnore]
         public string DisplayGame => !string.IsNullOrEmpty(RoomName) ? RoomName : (!string.IsNullOrEmpty(GameTitle) ? GameTitle : GameId);
 
         [JsonPropertyName("mode")]
@@ -365,6 +386,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("stage")]
         public string? RawStage { get; set; }
 
+        [JsonIgnore]
         public string Stage => !string.IsNullOrEmpty(Status) ? Status : (RawStage ?? "playing");
 
         [JsonPropertyName("persistent")]
@@ -373,8 +395,11 @@ namespace CcGmClient.Models
         [JsonPropertyName("createdAt")]
         public JsonElement? RawCreatedAt { get; set; }
 
+        [JsonIgnore]
         public string DisplayMode => Persistent ? "官方平台庄" : "玩家自定义";
+        [JsonIgnore]
         public string PlayerRatio => $"{Players}/{MaxPlayers} (人:{Humans} 机:{Bots})";
+        [JsonIgnore]
         public string DisplayStage => Stage switch
         {
             "waiting" => "等待准备",
@@ -394,6 +419,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("id")]
         public string? RawId { get; set; }
 
+        [JsonIgnore]
         public string Id => !string.IsNullOrEmpty(RoomId) ? RoomId : (RawId ?? "");
 
         [JsonPropertyName("gameId")]
@@ -405,6 +431,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("title")]
         public string? Title { get; set; }
 
+        [JsonIgnore]
         public string DisplayTitle => !string.IsNullOrEmpty(RoomName) ? RoomName : (!string.IsNullOrEmpty(Title) ? Title : GameId);
 
         [JsonPropertyName("status")]
@@ -413,6 +440,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("stage")]
         public string? RawStage { get; set; }
 
+        [JsonIgnore]
         public string Stage => !string.IsNullOrEmpty(Status) ? Status : (RawStage ?? "playing");
 
         [JsonPropertyName("round")]
@@ -451,9 +479,13 @@ namespace CcGmClient.Models
         [JsonPropertyName("botLevel")]
         public string? BotLevel { get; set; }
 
+        [JsonIgnore]
         public string RoleBadge => IsBot ? $"🤖 机器人 ({FormatLevel(BotLevel)})" : "👤 真实玩家";
+        [JsonIgnore]
         public string ReadyText => Ready ? "已准备" : "未准备";
+        [JsonIgnore]
         public string ReadyColor => Ready ? "#38D39F" : "#8E9DB5";
+        [JsonIgnore]
         public string FormattedChips => $"{Chips:N0}";
 
         private static string FormatLevel(string? level) => level switch
@@ -495,10 +527,14 @@ namespace CcGmClient.Models
         [JsonPropertyName("claimedCount")]
         public int ClaimedCount { get; set; }
 
+        [JsonIgnore]
         public string TargetDisplay => TargetType == "all" ? "🌐 全服玩家广播" : $"👤 定向玩家: {TargetUserId}";
+        [JsonIgnore]
         public string FormattedReward => RewardCoins > 0 ? $"+{RewardCoins:N0} 筹码" : "无筹码 (通知信)";
+        [JsonIgnore]
         public string RewardBadgeColor => RewardCoins > 0 ? "#F5C542" : "#8E9DB5";
 
+        [JsonIgnore]
         public string DisplayDate
         {
             get
@@ -538,6 +574,7 @@ namespace CcGmClient.Models
         [JsonPropertyName("createdAt")]
         public JsonElement? RawCreatedAt { get; set; }
 
+        [JsonIgnore]
         public string KindDisplay => Kind switch
         {
             "notice" => "📢 常规通知",
@@ -546,6 +583,7 @@ namespace CcGmClient.Models
             _ => Kind
         };
 
+        [JsonIgnore]
         public string DisplayDate
         {
             get

@@ -249,12 +249,14 @@ namespace CcGmClient
                 sw.Stop();
                 SetConnectedState(true, sw.ElapsedMilliseconds);
                 if (!silent) SetStatus($"模块 {_activeView} 数据已刷新 ({sw.ElapsedMilliseconds}ms)");
+                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "gm_refresh.log"), $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Refresh OK: {_activeView} in {sw.ElapsedMilliseconds}ms\n"); } catch { }
             }
             catch (Exception ex)
             {
                 sw.Stop();
                 SetConnectedState(false, 0, ex.Message);
                 if (!silent) SetStatus($"刷新失败: {ex.Message}");
+                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppContext.BaseDirectory, "gm_refresh.log"), $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Refresh ERROR ({_activeView}): {ex}\n"); } catch { }
             }
         }
 
