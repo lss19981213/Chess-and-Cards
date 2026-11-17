@@ -5808,10 +5808,35 @@ html, body, #root {
   box-shadow: 0 0 0 2px rgba(255, 240, 180, 0.85), 0 4px 10px rgba(0, 0, 0, 0.6) !important;
 }
 
-.app-avatar-badge {
+.app-top__name-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.app-top__name-row .app-avatar-badge {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  padding: 2px 6px !important;
+  border-radius: 6px !important;
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%) !important;
+  color: #fff !important;
+  border: 1px solid rgba(254, 202, 202, 0.7) !important;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4) !important;
+  letter-spacing: 0.5px !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+/* 兼容在 avatar-wrapper 内定位时永远浮于头像框之上，绝不被遮挡 */
+.app-avatar-wrapper .app-avatar-badge {
   position: absolute !important;
-  bottom: -2px !important;
-  right: -4px !important;
+  bottom: -3px !important;
+  right: -3px !important;
   font-size: 8.5px !important;
   font-weight: 900 !important;
   padding: 1px 4px !important;
@@ -5819,6 +5844,7 @@ html, body, #root {
   background: linear-gradient(135deg, #e53935, #8e0000) !important;
   color: #fff !important;
   border: 1px solid #ffcdd2 !important;
+  z-index: 10 !important;
 }
 
 .app-top__name-row strong {
@@ -6888,35 +6914,95 @@ html, body, #root {
    26. 可用性修复：打赏入口 / 手牌可读性 / 筹码质感 / 荷官插图
    ========================================================================= */
 
-/* 26.1 牌桌荷官 HUD —— 提升层级避免被座位卡压住，并收窄以让出牌桌空间 */
+/* 26.1 牌桌荷官 HUD —— 尺寸加大、高贵清晰，支持全套性感皮肤头像展示 */
 .room-dealer-companion {
-  z-index: 60 !important;
-  top: 8px !important;
-  right: 10px !important;
-  max-width: min(270px, 46vw);
-  gap: 6px !important;
-  padding: 4px 10px 4px 4px !important;
+  z-index: 95 !important;
+  top: 10px !important;
+  right: 14px !important;
+  max-width: min(440px, 60vw) !important;
+  gap: 12px !important;
+  padding: 6px 14px 6px 6px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, rgba(22, 28, 46, 0.96) 0%, rgba(12, 16, 28, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.55) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 16px rgba(243, 207, 122, 0.25) !important;
+  backdrop-filter: blur(12px) !important;
+  display: flex !important;
+  align-items: center !important;
 }
 
 .room-dealer-avatar {
-  width: 32px !important;
-  height: 32px !important;
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 50% !important;
+  border: 2px solid #f7d78a !important;
+  box-shadow: 0 0 12px rgba(243, 207, 122, 0.5), 0 4px 10px rgba(0, 0, 0, 0.6) !important;
+  overflow: hidden !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
+}
+
+.room-dealer-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center top !important;
+  display: block !important;
+}
+
+.room-dealer-live-dot {
+  position: absolute !important;
+  bottom: 2px !important;
+  right: 2px !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  box-shadow: 0 0 8px #22c55e, 0 0 0 2px rgba(10, 14, 24, 0.9) !important;
 }
 
 .room-dealer-speech {
-  min-width: 0;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.room-dealer-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.room-dealer-name {
+  font-size: 13.5px !important;
+  font-weight: 900 !important;
+  color: #f7d78a !important;
+  letter-spacing: 0.5px !important;
 }
 
 .room-dealer-text {
-  max-width: 92px !important;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 220px !important;
+  font-size: 12px !important;
+  color: #e2e8f0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  line-height: 1.3 !important;
 }
 
 .room-dealer-tip-slot {
-  margin-left: 2px !important;
-  flex-shrink: 0;
+  margin-left: 6px !important;
+  flex-shrink: 0 !important;
+}
+
+.room-dealer-tip-slot .btn-tip-dealer-gold {
+  height: 38px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(236, 72, 153, 0.35) !important;
 }
 
 .btn-tip-dealer-gold {
@@ -7045,7 +7131,7 @@ html, body, #root {
 
 /* 牌桌荷官胶囊：文字不折行，打赏按钮始终完整可见 */
 .room-dealer-companion {
-  max-width: min(320px, 52vw) !important;
+  max-width: min(440px, 60vw) !important;
   white-space: nowrap;
 }
 
@@ -7056,7 +7142,7 @@ html, body, #root {
 }
 
 .room-dealer-text {
-  max-width: 118px !important;
+  max-width: 220px !important;
 }
 
 /* 26.5 棋子：改用矢量素材，取代文字字符 */

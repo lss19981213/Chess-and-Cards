@@ -486,6 +486,10 @@ export default function App() {
           settlement={settlement}
           myId={userIdRef.current ?? ''}
           balance={user?.balance ?? 0}
+          user={user}
+          onUserUpdate={(patch) => {
+            setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+          }}
           onReady={handleReady}
           onLeave={handleLeaveRoom}
           onIntent={handleIntent}

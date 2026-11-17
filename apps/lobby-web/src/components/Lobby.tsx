@@ -297,10 +297,10 @@ export function Lobby({
                 frameId={user?.equippedFrame || 'frame_default'}
                 size={38}
               />
-              <span className="app-avatar-badge">{user ? 'VIP' : 'GUEST'}</span>
             </div>
             <div className="app-top__id">
               <div className="app-top__name-row">
+                <span className="app-avatar-badge">{user ? 'VIP' : 'GUEST'}</span>
                 <strong className="user-name-text" title={user ? user.nickname : '游客牌友'}>
                   {user ? user.nickname : '牌友_萌新'}
                 </strong>

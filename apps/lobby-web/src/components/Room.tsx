@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { BOT_DIFFICULTY_LABEL, EMOTES, type BotDifficulty, type EmotePayload, type RoomView, type Settlement } from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
+import type { User } from '../api';
 import { audio } from '../audio';
-import { DEALER_MAIN, GAME_ART } from '../assets';
+import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { InviteFriendsModal } from './InviteFriendsModal';
 import { RulesModal } from './RulesModal';
@@ -39,6 +40,8 @@ interface Props {
   settlement: Settlement | null;
   myId: string;
   balance: number;
+  user?: User | null;
+  onUserUpdate?: (patch: Partial<User>) => void;
   onReady: (ready: boolean) => void;
   onLeave: () => void;
   onIntent: (cmd: string, payload: Record<string, unknown>) => void;
@@ -83,6 +86,8 @@ export function Room({
   settlement,
   myId,
   balance,
+  user,
+  onUserUpdate,
   onReady,
   onLeave,
   onIntent,
@@ -96,6 +101,7 @@ export function Room({
 }: Props) {
   const me = room.players.find((p) => p.playerId === myId);
   const isHost = room.hostId === myId;
+  const dealerAvatarSrc = DEALER_SKINS_ASSETS[user?.dealerSkin || 'classic'] || DEALER_MAIN;
   const myDelta = useMemo(() => {
     const entries = Array.isArray(settlement?.entries) ? settlement.entries : [];
     return entries.find((e) => e.playerId === myId)?.delta ?? 0;
@@ -128,6 +134,15 @@ export function Room({
     audio.play('shunzi');
     setCheerEffect(true);
     window.setTimeout(() => setCheerEffect(false), 800);
+    const quotes = [
+      '主人加油～艾莉丝的心与您同在！💖',
+      '这把一定能赢！艾莉丝给您施加幸运魔法～✨',
+      '买定离手，大奖马上来～🎁',
+      '主人的帅气操作让艾莉丝好心动呢～🥰',
+      '不管输赢，艾莉丝永远陪在您身边～💕',
+    ];
+    const picked = quotes[Math.floor(Math.random() * quotes.length)]!;
+    setCustomDealerTip(picked);
   };
 
   // 结果有两个来源：对战类用结算单，常驻类直接用快照里的本局明细
@@ -437,7 +452,7 @@ export function Room({
             title="点击与荷官艾莉丝互动"
           >
             <div className="room-dealer-avatar">
-              <img src={DEALER_MAIN} alt="荷官艾莉丝" draggable={false} />
+              <img src={dealerAvatarSrc} alt="荷官艾莉丝" draggable={false} />
               <span className="room-dealer-live-dot" />
             </div>
             <div className="room-dealer-speech">
@@ -452,6 +467,7 @@ export function Room({
             <DealerTipWidget
               balance={balance}
               onBalanceChange={onBalanceChange ?? (() => {})}
+              onAffectionChange={(newAffection) => onUserUpdate?.({ dealerAffection: newAffection })}
               onAliceSpeak={(txt) => setCustomDealerTip(txt)}
               className="room-dealer-tip-slot"
             />
