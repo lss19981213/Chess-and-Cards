@@ -12,7 +12,7 @@ interface Props {
 
 export function DealerWardrobeModal({ user, onUserUpdate, onClose }: Props) {
   const [tab, setTab] = useState<'skin' | 'voice'>('skin');
-  const affection = user.worshipCount ? user.worshipCount * 50 : 680; // Calculated or mock base affection
+  const affection = user.dealerAffection ?? 0;
   const currentSkinId = user.dealerSkin || 'classic';
   const currentVoiceId = user.dealerVoice || 'classic';
 
@@ -64,12 +64,14 @@ export function DealerWardrobeModal({ user, onUserUpdate, onClose }: Props) {
     showToast(`“${text}”`);
   };
 
-  // 判定好感度等级
+  // 判定好感度等级 (最高 Lv.7 倾心相伴)
   const getLevelInfo = (pts: number) => {
-    if (pts >= 10000) return { lv: 5, name: '誓约', next: 10000, max: 10000 };
-    if (pts >= 5000) return { lv: 4, name: '挚友', next: 10000, max: 5000 };
-    if (pts >= 2000) return { lv: 3, name: '亲密', next: 5000, max: 3000 };
-    if (pts >= 500) return { lv: 2, name: '熟稔', next: 2000, max: 1500 };
+    if (pts >= 15000) return { lv: 7, name: '倾心', next: 15000, max: 15000 };
+    if (pts >= 10000) return { lv: 6, name: '誓约', next: 15000, max: 5000 };
+    if (pts >= 7000) return { lv: 5, name: '眷恋', next: 10000, max: 3000 };
+    if (pts >= 3500) return { lv: 4, name: '深情', next: 7000, max: 3500 };
+    if (pts >= 1000) return { lv: 3, name: '心动', next: 3500, max: 2500 };
+    if (pts >= 500) return { lv: 2, name: '熟稔', next: 1000, max: 500 };
     return { lv: 1, name: '初识', next: 500, max: 500 };
   };
 

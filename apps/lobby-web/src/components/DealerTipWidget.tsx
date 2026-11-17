@@ -21,11 +21,12 @@ export const DEALER_GIFTS: GiftOption[] = [
 interface Props {
   balance: number;
   onBalanceChange: (newBalance: number) => void;
+  onAffectionChange?: (newAffection: number) => void;
   onAliceSpeak?: (text: string) => void;
   className?: string;
 }
 
-export function DealerTipWidget({ balance, onBalanceChange, onAliceSpeak, className = '' }: Props) {
+export function DealerTipWidget({ balance, onBalanceChange, onAffectionChange, onAliceSpeak, className = '' }: Props) {
   const [open, setOpen] = useState(false);
   const [flyingGift, setFlyingGift] = useState<{ icon: string; name: string } | null>(null);
   const [tipToast, setTipToast] = useState<string | null>(null);
@@ -49,7 +50,10 @@ export function DealerTipWidget({ balance, onBalanceChange, onAliceSpeak, classN
       triggerFlyAnimation(gift);
       if (onAliceSpeak) onAliceSpeak(gift.quote);
       onBalanceChange(res.balance);
-      showTipNotice(`感谢打赏 ${gift.name}！艾莉丝好感度 +${gift.cost} 💖`);
+      if (onAffectionChange && typeof res.affection === 'number') {
+        onAffectionChange(res.affection);
+      }
+      showTipNotice(`感谢打赏 ${gift.name}！艾莉丝好感度 +${gift.cost}（当前 ${res.affection ?? '已增加'}）💖`);
       audio.play('shunzi');
       setOpen(false);
     } catch (error) {

@@ -30,11 +30,15 @@ export const DEALER_MAIN = asset('dealer-main.jpg');
 export const DEALER_CELEBRATE = asset('dealer-celebrate.jpg');
 export const DEALER_ASSISTANT = asset('dealer-assistant.jpg');
 
-/** 荷官爱丽丝 5 款专属皮肤立绘 */
+/** 荷官爱丽丝专属皮肤立绘 */
 export const DEALER_SKINS_ASSETS: Record<string, string> = {
   classic: asset('dealer-main.jpg'),
   cheongsam: asset('dealer-cheongsam.jpg'),
+  bikini: asset('dealer-bikini.jpg'),
   bunny: asset('dealer-bunny.jpg'),
+  nurse: asset('dealer-nurse.jpg'),
   royal: asset('dealer-royal.jpg'),
+  catgirl: asset('dealer-catgirl.jpg'),
   cyber: asset('dealer-cyber.jpg'),
+  cocktail: asset('dealer-cocktail.jpg'),
 };

@@ -11,6 +11,7 @@ export interface User {
   worshipCount?: number;
   dealerSkin?: string;
   dealerVoice?: string;
+  dealerAffection?: number;
 }
 
 export interface Captcha {
@@ -128,7 +129,7 @@ export const api = {
 
   tasks: () => request<{ balance: number; tasks: TaskView[] }>('/api/tasks'),
   tipDealer: (amount: number, giftName?: string) =>
-    request<{ ok: boolean; balance: number; amount: number; giftName: string }>('/api/tip-dealer', {
+    request<{ ok: boolean; balance: number; amount: number; giftName: string; affection: number }>('/api/tip-dealer', {
       method: 'POST',
       body: JSON.stringify({ amount, giftName }),
     }),

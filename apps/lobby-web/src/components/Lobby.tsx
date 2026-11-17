@@ -498,7 +498,7 @@ export function Lobby({
             <button
               type="button"
               className="carousel-arrow-btn carousel-arrow-btn--left"
-              onClick={() => scrollCarousel(-320)}
+              onClick={() => scrollCarousel(-420)}
               title="向左翻页"
             >
               ‹
@@ -510,7 +510,7 @@ export function Lobby({
             <button
               type="button"
               className="carousel-arrow-btn carousel-arrow-btn--right"
-              onClick={() => scrollCarousel(320)}
+              onClick={() => scrollCarousel(420)}
               title="向右翻页"
             >
               ›
@@ -666,19 +666,22 @@ export function Lobby({
             <button type="button" className="btn-random-match" onClick={handleRandomPlay}>
               <span>🎲 随机幸运开局</span>
             </button>
-            <button
-              type="button"
-              className="btn-dealer-wardrobe"
-              onClick={() => setShowDealerWardrobe(true)}
-              title="荷官更衣室与自定义台词性格"
-            >
-              <span>👗 换装 & 语音</span>
-            </button>
-            <DealerTipWidget
-              balance={user?.balance ?? 0}
-              onBalanceChange={onBalanceChange ?? (() => {})}
-              onAliceSpeak={(txt) => setCustomQuote(txt)}
-            />
+            <div className="companion-sub-actions-row">
+              <button
+                type="button"
+                className="btn-dealer-wardrobe"
+                onClick={() => setShowDealerWardrobe(true)}
+                title="荷官更衣室与自定义台词性格"
+              >
+                <span>👗 换装 & 语音</span>
+              </button>
+              <DealerTipWidget
+                balance={user?.balance ?? 0}
+                onBalanceChange={onBalanceChange ?? (() => {})}
+                onAffectionChange={(newAffection) => onUserUpdate?.({ dealerAffection: newAffection })}
+                onAliceSpeak={(txt) => setCustomQuote(txt)}
+              />
+            </div>
           </div>
         </aside>
       </main>

@@ -107,6 +107,8 @@ export interface PlayerProfile {
   dealerSkin?: string;
   /** 荷官性格语言配置 */
   dealerVoice?: string;
+  /** 荷官好感度 */
+  dealerAffection?: number;
 }
 
 export interface LedgerRow {
@@ -152,6 +154,7 @@ export interface ProfilePatch {
   equippedFrame?: string;
   dealerSkin?: string;
   dealerVoice?: string;
+  dealerAffection?: number;
 }
 
 export interface MailRecord {
@@ -276,4 +279,5 @@ export interface Repository {
   worshipUser(worshiperId: string, targetUserId: string, dayKey: string): Promise<{ ok: boolean; remainingToday: number; newWorshipCount: number; reward: number; message?: string }>;
   getWorshipRemainingToday(worshiperId: string, dayKey: string): Promise<number>;
   customizeDealer(userId: string, skin: string, voice: string): Promise<{ ok: boolean; dealerSkin: string; dealerVoice: string }>;
+  addDealerAffection(userId: string, amount: number): Promise<number>;
 }

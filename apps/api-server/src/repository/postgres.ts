@@ -63,6 +63,7 @@ import {
   worshipUser,
   getWorshipRemainingToday,
   customizeDealer,
+  addDealerAffection,
 } from './pg/social';
 import {
   getEconomyOverview,
@@ -304,5 +305,9 @@ export class PostgresRepository implements Repository {
 
   customizeDealer(userId: string, skin: string, voice: string) {
     return customizeDealer(this.pool, userId, skin, voice);
+  }
+
+  addDealerAffection(userId: string, amount: number) {
+    return addDealerAffection(this.pool, userId, amount);
   }
 }

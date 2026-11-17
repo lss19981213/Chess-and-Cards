@@ -133,15 +133,17 @@ create table if not exists user_profiles (
   worship_count  integer not null default 0,
   dealer_skin    text not null default 'classic',
   dealer_voice   text not null default 'classic',
+  dealer_affection integer not null default 0,
   updated_at timestamptz not null default now()
 );
 
--- 兼容老数据库：补齐头像框、膜拜数、荷官装扮字段
+-- 兼容老数据库：补齐头像框、膜拜数、荷官装扮与好感度字段
 alter table user_profiles add column if not exists equipped_frame text not null default 'frame_default';
 alter table user_profiles add column if not exists owned_frames text[] not null default '{"frame_default"}';
 alter table user_profiles add column if not exists worship_count integer not null default 0;
 alter table user_profiles add column if not exists dealer_skin text not null default 'classic';
 alter table user_profiles add column if not exists dealer_voice text not null default 'classic';
+alter table user_profiles add column if not exists dealer_affection integer not null default 0;
 
 -- 排行榜每日膜拜记录表（每人每天最多膜拜 10 次）
 create table if not exists worship_records (

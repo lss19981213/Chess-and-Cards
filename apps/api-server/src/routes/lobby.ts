@@ -152,8 +152,9 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
       throw error;
     }
     await repo.bumpTask(claims.sub, 'daily_tip', periodKeyFor('daily'), 1);
+    const affection = await repo.addDealerAffection(claims.sub, amount);
 
-    return { ok: true, balance: newBalance, amount, giftName };
+    return { ok: true, balance: newBalance, amount, giftName, affection };
   });
 
   app.get('/api/leaderboard', async (req) => {

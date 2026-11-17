@@ -68,13 +68,15 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     worship_count: number | null;
     dealer_skin: string | null;
     dealer_voice: string | null;
+    dealer_affection: number | null;
   }>(
     `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url, coalesce(u.banned, false) as banned,
             coalesce(p.equipped_frame, 'frame_default') as equipped_frame,
             coalesce(p.owned_frames, array['frame_default']::text[]) as owned_frames,
             coalesce(p.worship_count, 0) as worship_count,
             coalesce(p.dealer_skin, 'classic') as dealer_skin,
-            coalesce(p.dealer_voice, 'classic') as dealer_voice
+            coalesce(p.dealer_voice, 'classic') as dealer_voice,
+            coalesce(p.dealer_affection, 0) as dealer_affection
        from users u
        left join user_profiles p on p.user_id = u.id
       where u.id = $1`,
@@ -94,6 +96,7 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     worshipCount: Number(row.worship_count ?? 0),
     dealerSkin: row.dealer_skin ?? 'classic',
     dealerVoice: row.dealer_voice ?? 'classic',
+    dealerAffection: Number(row.dealer_affection ?? 0),
   };
 }
 
@@ -120,17 +123,19 @@ export async function updateProfile(
     patch.avatar !== undefined ||
     patch.equippedFrame !== undefined ||
     patch.dealerSkin !== undefined ||
-    patch.dealerVoice !== undefined
+    patch.dealerVoice !== undefined ||
+    patch.dealerAffection !== undefined
   ) {
     await pool.query(
-      `insert into user_profiles (user_id, bio, avatar, equipped_frame, dealer_skin, dealer_voice, updated_at)
-       values ($1, coalesce($2, ''), $3, coalesce($4, 'frame_default'), coalesce($5, 'classic'), coalesce($6, 'classic'), now())
+      `insert into user_profiles (user_id, bio, avatar, equipped_frame, dealer_skin, dealer_voice, dealer_affection, updated_at)
+       values ($1, coalesce($2, ''), $3, coalesce($4, 'frame_default'), coalesce($5, 'classic'), coalesce($6, 'classic'), coalesce($8, 0), now())
        on conflict (user_id) do update
           set bio = coalesce($2, user_profiles.bio),
               avatar = case when $7 then $3 else user_profiles.avatar end,
               equipped_frame = coalesce($4, user_profiles.equipped_frame),
               dealer_skin = coalesce($5, user_profiles.dealer_skin),
               dealer_voice = coalesce($6, user_profiles.dealer_voice),
+              dealer_affection = coalesce($8, user_profiles.dealer_affection),
               updated_at = now()`,
       [
         userId,
@@ -140,6 +145,7 @@ export async function updateProfile(
         patch.dealerSkin ?? null,
         patch.dealerVoice ?? null,
         patch.avatar !== undefined,
+        patch.dealerAffection !== undefined ? Math.max(0, Math.floor(patch.dealerAffection)) : null,
       ],
     );
   }
@@ -327,6 +333,23 @@ export async function customizeDealer(
     [userId, skin, voice],
   );
   return { ok: true, dealerSkin: skin, dealerVoice: voice };
+}
+
+export async function addDealerAffection(
+  pool: pg.Pool,
+  userId: string,
+  amount: number,
+): Promise<number> {
+  const safeAmount = Math.max(0, Math.floor(amount));
+  const res = await pool.query<{ dealer_affection: number }>(
+    `insert into user_profiles (user_id, dealer_affection)
+     values ($1, $2)
+     on conflict (user_id) do update
+        set dealer_affection = user_profiles.dealer_affection + $2, updated_at = now()
+     returning dealer_affection`,
+    [userId, safeAmount],
+  );
+  return res.rows[0]?.dealer_affection ?? safeAmount;
 }
 
 export async function searchUsers(

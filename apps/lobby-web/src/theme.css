@@ -8257,77 +8257,219 @@ body,
   box-sizing: border-box !important;
 }
 
-.commercial-games-strip {
+.commercial-games-carousel-wrapper {
+  flex: 1 1 0% !important;
   height: 100% !important;
   min-height: 0 !important;
   display: flex !important;
-  align-items: stretch !important;
-  gap: 16px !important;
-  padding: 2px 4px 4px 4px !important;
+  align-items: center !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.commercial-games-carousel-viewport {
+  width: 100% !important;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  display: flex !important;
+  align-items: center !important;
   box-sizing: border-box !important;
 }
 
-/* 5. 游戏卡片纵向拉伸填满，告别半截卡片与下部死黑空白 */
-.commercial-game-card {
+.commercial-games-strip {
+  display: flex !important;
+  align-items: center !important;
+  gap: 20px !important;
   height: 100% !important;
   min-height: 0 !important;
+  padding: 8px 16px !important;
+  box-sizing: border-box !important;
+}
+
+/* 5. 游戏卡片：极致奢华正方形 (1:1 比例，告别细长条) */
+.commercial-game-card {
+  width: min(420px, calc(100% - 20px)) !important;
+  height: min(420px, calc(100% - 20px)) !important;
+  aspect-ratio: 1 / 1 !important;
+  flex: 0 0 min(420px, calc(100% - 20px)) !important;
   display: flex !important;
   flex-direction: column !important;
   box-sizing: border-box !important;
-  border-radius: 16px !important;
+  border-radius: 20px !important;
+  background: linear-gradient(180deg, rgba(24, 30, 48, 0.95) 0%, rgba(12, 16, 28, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.4) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
   overflow: hidden !important;
+  transition: all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
 }
 
-/* 6. 卡片海报区域弹性延伸，占满卡片除底栏之外的全部高度 */
+.commercial-game-card:hover {
+  transform: translateY(-8px) scale(1.02) !important;
+  border-color: rgba(243, 207, 122, 0.95) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(243, 207, 122, 0.4) !important;
+}
+
+/* 6. 卡片海报区域：占上半部 58% 高度，正方形原画极致呈现 */
 .commercial-game-card__poster {
-  flex: 1 1 0% !important;
+  flex: 0 0 58% !important;
+  height: 58% !important;
   min-height: 0 !important;
-  height: auto !important;
   width: 100% !important;
   position: relative !important;
   overflow: hidden !important;
-  border-radius: 15px 15px 0 0 !important;
+  border-radius: 18px 18px 0 0 !important;
+  cursor: pointer !important;
 }
 
 .commercial-game-card__poster img {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
-  object-position: center 20% !important;
+  object-position: center !important;
   display: block !important;
+  transition: transform 0.4s ease !important;
 }
 
-/* 7. 卡片底部信息栏固定紧贴卡片最底端 */
+.commercial-game-card:hover .commercial-game-card__poster img {
+  transform: scale(1.08) !important;
+}
+
+/* 7. 卡片下半部信息栏：占 42%，自适应排版底分与双按钮群 */
 .commercial-game-card__meta {
-  flex-shrink: 0 !important;
-  padding: 10px 12px 12px 12px !important;
-  box-sizing: border-box !important;
-}
-
-/* 8. 右侧首席动漫荷官展台全高度垂直延展，立绘人脸完整呈现 */
-.commercial-dealer-companion-stand {
-  height: 100% !important;
+  flex: 1 1 42% !important;
   min-height: 0 !important;
-  flex-shrink: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
-  gap: 8px !important;
+  padding: 8px 14px 12px 14px !important;
+  background: linear-gradient(180deg, rgba(16, 20, 32, 0.96) 0%, rgba(9, 12, 20, 0.99) 100%) !important;
   box-sizing: border-box !important;
+}
+
+.meta-title {
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  margin: 0 0 2px 0 !important;
+  line-height: 1.2 !important;
+}
+
+.meta-desc {
+  font-size: 11.5px !important;
+  color: #9bb0cf !important;
+  line-height: 1.3 !important;
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 1 !important;
+  -webkit-box-orient: vertical !important;
+  margin: 0 !important;
+}
+
+.card-entry-info {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 3px 8px !important;
+  background: rgba(0, 0, 0, 0.35) !important;
+  border-radius: 6px !important;
+  margin: 2px 0 !important;
+}
+
+.meta-actions-row {
+  display: flex !important;
+  gap: 8px !important;
+  margin-top: 2px !important;
+  align-items: stretch !important;
+}
+
+.btn-quick-play-gold {
+  flex: 1 !important;
+  height: 38px !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  border-radius: 999px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+}
+
+.btn-choose-room-subtle {
+  flex: 0 0 auto !important;
+  height: 38px !important;
+  padding: 0 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  border-radius: 999px !important;
+}
+
+/* 8. 右侧首席动漫荷官艾莉丝陪玩展台：也是完美的正方形卡片！ */
+.commercial-dealer-companion-stand {
+  width: min(420px, calc(100% - 20px)) !important;
+  height: min(420px, calc(100% - 20px)) !important;
+  aspect-ratio: 1 / 1 !important;
+  flex: 0 0 min(420px, calc(100% - 20px)) !important;
+  align-self: center !important;
+  border-radius: 20px !important;
+  background: linear-gradient(180deg, rgba(24, 30, 48, 0.95) 0%, rgba(12, 16, 28, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.4) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  padding: 10px !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+}
+
+.companion-speech-bubble {
+  flex-shrink: 0 !important;
+  padding: 6px 10px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, rgba(24, 30, 46, 0.95) 0%, rgba(14, 18, 28, 0.95) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.45) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+  cursor: pointer !important;
+}
+
+.bubble-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-bottom: 2px !important;
+}
+
+.companion-name {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  color: #f7d78a !important;
+}
+
+.bubble-content {
+  font-size: 10.5px !important;
+  line-height: 1.35 !important;
+  color: #e2e8f0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
 }
 
 .companion-portrait-wrapper {
   flex: 1 1 0% !important;
   min-height: 0 !important;
   height: auto !important;
+  width: 100% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   overflow: hidden !important;
   position: relative !important;
-  border-radius: 16px !important;
-  background: radial-gradient(ellipse 80% 50% at 50% 30%, rgba(243, 207, 122, 0.16), rgba(10, 14, 22, 0.75) 85%) !important;
-  box-sizing: border-box !important;
+  border-radius: 14px !important;
+  background: radial-gradient(ellipse 90% 70% at 50% 30%, rgba(243, 207, 122, 0.18), rgba(10, 14, 22, 0.9) 85%) !important;
+  cursor: pointer !important;
 }
 
 .companion-portrait-wrapper img {
@@ -8335,13 +8477,88 @@ body,
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
-  object-fit: contain !important;
+  object-fit: cover !important;
   object-position: top center !important;
   margin: 0 !important;
-  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.75)) !important;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.8)) !important;
+  transition: transform 0.3s ease !important;
 }
 
-/* 9. 智能断点：较小屏幕/窗口自适应紧凑排版，杜绝拥挤变形 */
+.companion-portrait-wrapper:hover img {
+  transform: scale(1.04) !important;
+}
+
+.companion-footer-actions {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  width: 100% !important;
+}
+
+.btn-random-match {
+  width: 100% !important;
+  height: 34px !important;
+  border-radius: 999px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.25) 0%, rgba(255, 255, 255, 0.1) 100%) !important;
+  border: 1px solid rgba(243, 207, 122, 0.55) !important;
+  color: #f7eed7 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+}
+
+.btn-random-match:hover {
+  background: rgba(243, 207, 122, 0.38) !important;
+  border-color: #f3cf7a !important;
+}
+
+.companion-sub-actions-row {
+  display: flex !important;
+  gap: 6px !important;
+  width: 100% !important;
+}
+
+.btn-dealer-wardrobe {
+  flex: 1 !important;
+  height: 32px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  border-radius: 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.dealer-tip-widget {
+  flex: 1 !important;
+  display: flex !important;
+}
+
+.btn-tip-dealer-gold {
+  width: 100% !important;
+  height: 32px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  border-radius: 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.28), rgba(244, 114, 182, 0.28)) !important;
+  border: 1px solid rgba(244, 114, 182, 0.5) !important;
+  color: #fbcfe8 !important;
+  cursor: pointer !important;
+}
+
+/* 9. 智能断点：较小屏幕/窗口自适应正方形排版 */
 @media (max-width: 1200px) or (max-height: 600px) {
   .lobby-main-header {
     height: 50px !important;
@@ -8362,12 +8579,16 @@ body,
     font-size: 12px !important;
   }
   .commercial-game-card {
-    width: 225px !important;
-    flex: 0 0 225px !important;
+    width: min(320px, calc(100% - 12px)) !important;
+    height: min(320px, calc(100% - 12px)) !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: 0 0 min(320px, calc(100% - 12px)) !important;
   }
   .commercial-dealer-companion-stand {
-    width: 210px !important;
-    flex: 0 0 210px !important;
+    width: min(320px, calc(100% - 12px)) !important;
+    height: min(320px, calc(100% - 12px)) !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: 0 0 min(320px, calc(100% - 12px)) !important;
   }
   .companion-speech-bubble {
     padding: 6px 8px !important;
@@ -8379,8 +8600,8 @@ body,
     font-size: 10.5px !important;
   }
   .btn-random-match {
-    height: 34px !important;
-    font-size: 11.5px !important;
+    height: 32px !important;
+    font-size: 11px !important;
   }
   .meta-title {
     font-size: 14.5px !important;
@@ -8415,12 +8636,16 @@ body,
     flex: 0 0 105px !important;
   }
   .commercial-game-card {
-    width: 195px !important;
-    flex: 0 0 195px !important;
+    width: min(240px, calc(100% - 8px)) !important;
+    height: min(240px, calc(100% - 8px)) !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: 0 0 min(240px, calc(100% - 8px)) !important;
   }
   .commercial-dealer-companion-stand {
-    width: 180px !important;
-    flex: 0 0 180px !important;
+    width: min(240px, calc(100% - 8px)) !important;
+    height: min(240px, calc(100% - 8px)) !important;
+    aspect-ratio: 1 / 1 !important;
+    flex: 0 0 min(240px, calc(100% - 8px)) !important;
   }
   .card-entry-info {
     padding: 2px 6px !important;

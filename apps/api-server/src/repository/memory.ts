@@ -67,6 +67,7 @@ export class MemoryRepository implements Repository {
       worshipCount?: number;
       dealerSkin?: string;
       dealerVoice?: string;
+      dealerAffection?: number;
     }
   >();
   private readonly worshipRecords: { worshiperId: string; targetUserId: string; dayKey: string }[] = [];
@@ -422,6 +423,7 @@ export class MemoryRepository implements Repository {
       worshipCount: extra?.worshipCount ?? 0,
       dealerSkin: extra?.dealerSkin ?? 'classic',
       dealerVoice: extra?.dealerVoice ?? 'classic',
+      dealerAffection: extra?.dealerAffection ?? 0,
     };
   }
 
@@ -446,6 +448,7 @@ export class MemoryRepository implements Repository {
       equippedFrame: patch.equippedFrame !== undefined ? patch.equippedFrame : current.equippedFrame,
       dealerSkin: patch.dealerSkin !== undefined ? patch.dealerSkin : current.dealerSkin,
       dealerVoice: patch.dealerVoice !== undefined ? patch.dealerVoice : current.dealerVoice,
+      dealerAffection: patch.dealerAffection !== undefined ? Math.max(0, Math.floor(patch.dealerAffection)) : current.dealerAffection,
     });
 
     const profile = await this.getProfile(userId);
@@ -535,6 +538,17 @@ export class MemoryRepository implements Repository {
       dealerVoice: voice,
     });
     return { ok: true, dealerSkin: skin, dealerVoice: voice };
+  }
+
+  async addDealerAffection(userId: string, amount: number): Promise<number> {
+    const current = this.profiles.get(userId) ?? { bio: '', avatar: null };
+    const safeAmount = Math.max(0, Math.floor(amount));
+    const newAffection = (current.dealerAffection ?? 0) + safeAmount;
+    this.profiles.set(userId, {
+      ...current,
+      dealerAffection: newAffection,
+    });
+    return newAffection;
   }
 
   async searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]> {

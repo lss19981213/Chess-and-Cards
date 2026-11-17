@@ -188,6 +188,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         worshipCount: profile?.worshipCount ?? 0,
         dealerSkin: profile?.dealerSkin ?? 'classic',
         dealerVoice: profile?.dealerVoice ?? 'classic',
+        dealerAffection: profile?.dealerAffection ?? 0,
       },
     };
   });
@@ -210,6 +211,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         worshipCount: profile?.worshipCount ?? 0,
         dealerSkin: profile?.dealerSkin ?? 'classic',
         dealerVoice: profile?.dealerVoice ?? 'classic',
+        dealerAffection: profile?.dealerAffection ?? 0,
       },
     };
   });

@@ -229,12 +229,28 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     assetFile: 'dealer-cheongsam.jpg',
   },
   {
+    id: 'bikini',
+    name: '盛夏海滩比基尼',
+    description: '好感度达 1000 解锁，阳光海滩纯欲金边薄纱比基尼，清凉性感',
+    requiredAffection: 1000,
+    previewClass: 'skin-bikini',
+    assetFile: 'dealer-bikini.jpg',
+  },
+  {
     id: 'bunny',
     name: '兔女郎狂欢',
     description: '好感度达 2000 解锁，俏皮火辣的拉斯维加斯派对兔女郎特装',
     requiredAffection: 2000,
     previewClass: 'skin-bunny',
     assetFile: 'dealer-bunny.jpg',
+  },
+  {
+    id: 'nurse',
+    name: '心跳纯欲小护士',
+    description: '好感度达 3500 解锁，俏皮甜美爱心镂空粉白特护装，心跳加速',
+    requiredAffection: 3500,
+    previewClass: 'skin-nurse',
+    assetFile: 'dealer-nurse.jpg',
   },
   {
     id: 'royal',
@@ -245,12 +261,28 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     assetFile: 'dealer-royal.jpg',
   },
   {
+    id: 'catgirl',
+    name: '魅惑蕾丝黑猫娘',
+    description: '好感度达 7000 解锁，微透蕾丝吊带猫耳黑丝特装，猫咪系极致诱惑',
+    requiredAffection: 7000,
+    previewClass: 'skin-catgirl',
+    assetFile: 'dealer-catgirl.jpg',
+  },
+  {
     id: 'cyber',
     name: '赛博霓虹姬',
     description: '好感度达 10000 誓约解锁，科技感爆棚的机械发光战姬特装',
     requiredAffection: 10000,
     previewClass: 'skin-cyber',
     assetFile: 'dealer-cyber.jpg',
+  },
+  {
+    id: 'cocktail',
+    name: '微醺露背晚礼服',
+    description: '好感度达 15000 终极倾心解锁，深V大露背酒红丝绒宴会晚装，极致性感高雅',
+    requiredAffection: 15000,
+    previewClass: 'skin-cocktail',
+    assetFile: 'dealer-cocktail.jpg',
   },
 ];
 
