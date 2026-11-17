@@ -3,7 +3,7 @@ import { api, type Captcha, type User } from '../api';
 import { audio } from '../audio';
 import { IconBack, IconCrown, IconSparkle } from './Icons';
 
-type Tab = 'login' | 'register';
+type Tab = 'login' | 'register' | 'forgot';
 
 interface Props {
   onSuccess: (token: string, user: User) => void;
@@ -15,10 +15,19 @@ export function AuthView({ onSuccess, onBack }: Props) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [code, setCode] = useState('');
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // 找回密码表单状态
+  const [resetAccount, setResetAccount] = useState('');
+  const [emailCode, setEmailCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendCodeLoading, setSendCodeLoading] = useState(false);
 
   const refreshCaptcha = useCallback(async () => {
     try {
@@ -34,8 +43,37 @@ export function AuthView({ onSuccess, onBack }: Props) {
     void refreshCaptcha();
   }, [refreshCaptcha]);
 
+  const handleSendResetCode = async () => {
+    if (!resetAccount.trim()) {
+      setError('请输入绑定的账号或邮箱');
+      return;
+    }
+    if (!captcha || !code) {
+      setError('请输入图形验证码');
+      return;
+    }
+    setSendCodeLoading(true);
+    setError(null);
+    try {
+      audio.play('click');
+      const res = await api.sendResetCode(resetAccount.trim(), captcha.id, code);
+      audio.play('shunzi');
+      setCodeSent(true);
+      setSuccessMsg(res.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '发送验证码失败');
+      void refreshCaptcha();
+    } finally {
+      setSendCodeLoading(false);
+    }
+  };
+
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
+    if (tab === 'forgot') {
+      await handleResetPassword(event);
+      return;
+    }
     if (!captcha) {
       setError('验证码未加载');
       return;
@@ -47,7 +85,7 @@ export function AuthView({ onSuccess, onBack }: Props) {
       const result =
         tab === 'login'
           ? await api.login(username.trim(), password, captcha.id, code)
-          : await api.register(username.trim(), password, nickname.trim(), captcha.id, code);
+          : await api.register(username.trim(), password, nickname.trim(), captcha.id, code, inviteCode.trim() || undefined);
       audio.play('coin');
       onSuccess(result.token, result.user);
     } catch (err) {
@@ -58,10 +96,37 @@ export function AuthView({ onSuccess, onBack }: Props) {
     }
   };
 
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!emailCode.trim() || !newPassword) {
+      setError('请完整输入邮箱验证码和新密码');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      audio.play('click');
+      const res = await api.resetPassword(resetAccount.trim(), emailCode.trim(), newPassword);
+      audio.play('coin');
+      setSuccessMsg(res.message);
+      window.setTimeout(() => {
+        switchTab('login');
+        setUsername(resetAccount);
+        setPassword('');
+        setSuccessMsg('密码已成功重置，请使用新密码登入');
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '重置密码失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const switchTab = (next: Tab): void => {
     audio.play('click');
     setTab(next);
     setError(null);
+    setSuccessMsg(null);
   };
 
   return (
@@ -120,73 +185,184 @@ export function AuthView({ onSuccess, onBack }: Props) {
             >
               新客入驻
             </button>
+            <button
+              type="button"
+              className={`auth-tab-btn ${tab === 'forgot' ? 'is-active' : ''}`}
+              onClick={() => switchTab('forgot')}
+            >
+              找回密码
+            </button>
           </div>
 
-          <form onSubmit={submit} className="auth-form">
-            <div className="form-group">
-              <label>通行证账号</label>
-              <input
-                type="text"
-                value={username}
-                placeholder="4-20位字母或数字"
-                autoComplete="username"
-                required
-                onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
+          {successMsg && <div className="luxury-alert is-success">{successMsg}</div>}
 
-            {tab === 'register' && (
+          {tab === 'forgot' ? (
+            <form onSubmit={submit} className="auth-form">
               <div className="form-group">
-                <label>牌桌尊称 (昵称)</label>
+                <label>绑定邮箱或账号</label>
                 <input
                   type="text"
-                  value={nickname}
-                  placeholder="2-12位汉字或字母"
+                  value={resetAccount}
+                  placeholder="请输入您的账号或绑定的邮箱地址"
                   required
-                  onChange={(e) => setNickname(e.target.value)}
+                  onChange={(e) => setResetAccount(e.target.value)}
                 />
               </div>
-            )}
 
-            <div className="form-group">
-              <label>登入密码</label>
-              <input
-                type="password"
-                value={password}
-                placeholder="6-32位强密码"
-                autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-                required
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+              <div className="form-group">
+                <label>图形验证码</label>
+                <div className="captcha-row">
+                  <input
+                    type="text"
+                    value={code}
+                    placeholder="输入图中文案"
+                    required
+                    onChange={(e) => setCode(e.target.value)}
+                  />
+                  <div
+                    className="captcha-box"
+                    onClick={() => void refreshCaptcha()}
+                    role="button"
+                    tabIndex={0}
+                    title="点击更换验证码"
+                    dangerouslySetInnerHTML={captcha ? { __html: captcha.svg } : undefined}
+                  />
+                </div>
+              </div>
 
-            <div className="form-group">
-              <label>图形验证码</label>
-              <div className="captcha-row">
+              <div className="form-group">
+                <button
+                  type="button"
+                  className="luxury-btn btn-send-code"
+                  disabled={sendCodeLoading || !resetAccount.trim()}
+                  onClick={handleSendResetCode}
+                >
+                  {sendCodeLoading ? '正在发送…' : codeSent ? '重新发送邮箱验证码' : '📧 发送邮箱验证码'}
+                </button>
+              </div>
+
+              <div className="form-group">
+                <label>邮箱 6 位验证码</label>
                 <input
                   type="text"
-                  value={code}
-                  placeholder="输入图中文案"
+                  value={emailCode}
+                  maxLength={6}
+                  placeholder="请输入收到的 6 位数字验证码"
                   required
-                  onChange={(e) => setCode(e.target.value)}
-                />
-                <div
-                  className="captcha-box"
-                  onClick={() => void refreshCaptcha()}
-                  role="button"
-                  tabIndex={0}
-                  title="点击更换验证码"
-                  dangerouslySetInnerHTML={captcha ? { __html: captcha.svg } : undefined}
+                  onChange={(e) => setEmailCode(e.target.value)}
                 />
               </div>
-            </div>
 
-            {error && <div className="luxury-alert is-error">{error}</div>}
+              <div className="form-group">
+                <label>重置新密码</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  placeholder="6-32位强密码"
+                  required
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </div>
 
-            <button type="submit" className="luxury-btn luxury-btn--gold btn-auth-submit" disabled={loading}>
-              {loading ? '正在验证入驻…' : tab === 'login' ? '✦ 立即登入殿堂 ✦' : '✦ 完成入驻并领筹码 ✦'}
-            </button>
-          </form>
+              {error && <div className="luxury-alert is-error">{error}</div>}
+
+              <button type="submit" className="luxury-btn luxury-btn--gold btn-auth-submit" disabled={loading}>
+                {loading ? '正在验证重置…' : '✦ 确认重置密码并登入 ✦'}
+              </button>
+
+              <div className="auth-sub-actions">
+                <button type="button" className="link-sub" onClick={() => switchTab('login')}>
+                  想起密码？返回登入
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="auth-form">
+              <div className="form-group">
+                <label>通行证账号</label>
+                <input
+                  type="text"
+                  value={username}
+                  placeholder="4-20位字母或数字"
+                  autoComplete="username"
+                  required
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </div>
+
+              {tab === 'register' && (
+                <>
+                  <div className="form-group">
+                    <label>牌桌尊称 (昵称)</label>
+                    <input
+                      type="text"
+                      value={nickname}
+                      placeholder="2-12位汉字或字母"
+                      required
+                      onChange={(e) => setNickname(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>专属邀请码 (选填)</label>
+                    <input
+                      type="text"
+                      value={inviteCode}
+                      placeholder="好友的账号或UID，双方各得 1000 筹码"
+                      onChange={(e) => setInviteCode(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="form-group">
+                <label>登入密码</label>
+                <input
+                  type="password"
+                  value={password}
+                  placeholder="6-32位强密码"
+                  autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
+                  required
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>图形验证码</label>
+                <div className="captcha-row">
+                  <input
+                    type="text"
+                    value={code}
+                    placeholder="输入图中文案"
+                    required
+                    onChange={(e) => setCode(e.target.value)}
+                  />
+                  <div
+                    className="captcha-box"
+                    onClick={() => void refreshCaptcha()}
+                    role="button"
+                    tabIndex={0}
+                    title="点击更换验证码"
+                    dangerouslySetInnerHTML={captcha ? { __html: captcha.svg } : undefined}
+                  />
+                </div>
+              </div>
+
+              {error && <div className="luxury-alert is-error">{error}</div>}
+
+              <button type="submit" className="luxury-btn luxury-btn--gold btn-auth-submit" disabled={loading}>
+                {loading ? '正在验证入驻…' : tab === 'login' ? '✦ 立即登入殿堂 ✦' : '✦ 完成入驻并领筹码 ✦'}
+              </button>
+
+              {tab === 'login' && (
+                <div className="auth-sub-actions">
+                  <button type="button" className="link-sub" onClick={() => switchTab('forgot')}>
+                    忘记密码？通过邮箱找回
+                  </button>
+                </div>
+              )}
+            </form>
+          )}
         </section>
       </main>
     </div>

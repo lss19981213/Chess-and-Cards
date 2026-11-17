@@ -7545,6 +7545,24 @@ html, body, #root {
   background: rgba(243, 207, 122, 0.24);
 }
 
+.room-add-bot-top-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.room-add-bot-top-btn:hover {
+  background: rgba(56, 189, 248, 0.28);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+  transform: translateY(-1px);
+}
+
 /* 邀请弹窗 */
 .invite-overlay {
   position: fixed;

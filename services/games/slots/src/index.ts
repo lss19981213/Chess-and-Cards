@@ -99,7 +99,7 @@ export class SlotsPlugin extends BaseGamePlugin {
     version: '1.0.0',
     clientBundle: '',
     tags: ['老虎机', '娱乐', '常驻', '单人/多人', '下注'],
-    category: 'live',
+    category: 'slots',
     persistent: true,
   };
 

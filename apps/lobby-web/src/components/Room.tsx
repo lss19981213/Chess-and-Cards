@@ -365,6 +365,21 @@ export function Room({
             👥 {room.players.length}/{room.maxPlayers}
           </button>
 
+          {/* 非 1对1 游戏允许随时快捷呼叫机器人陪玩 */}
+          {room.maxPlayers > 2 && room.players.length < room.maxPlayers && (
+            <button
+              type="button"
+              className="room-add-bot-top-btn"
+              onClick={() => {
+                audio.play('click');
+                onAddBot(botDifficulty);
+              }}
+              title="呼叫机器人陪玩入座"
+            >
+              🤖 +机器人
+            </button>
+          )}
+
           <button
             type="button"
             className="room-invite-btn"
@@ -512,7 +527,7 @@ export function Room({
                   {Array.from({ length: Math.max(0, room.maxPlayers - room.players.length) }).map((_, idx) => (
                     <div key={`empty-${idx}`} className="waiting-player-avatar is-empty">
                       <div className="avatar-disc empty-disc">
-                        {isHost ? (
+                        {isHost || room.maxPlayers > 2 ? (
                           <button
                             type="button"
                             className="btn-add-bot-circle"
@@ -530,7 +545,7 @@ export function Room({
                   ))}
                 </div>
 
-                {isHost && room.players.length < room.maxPlayers && (
+                {(isHost || room.maxPlayers > 2) && room.players.length < room.maxPlayers && (
                   <div className="waiting-diff-bar">
                     <span className="waiting-diff-label">陪玩难度</span>
                     <div className="bot-diff-switch">
@@ -552,7 +567,7 @@ export function Room({
                 )}
 
                 <div className="waiting-actions-row">
-                  {isHost && room.players.length < room.maxPlayers && (
+                  {(isHost || room.maxPlayers > 2) && room.players.length < room.maxPlayers && (
                     <button
                       type="button"
                       className="btn-ready-action btn-ready-action--instant"
@@ -582,7 +597,7 @@ export function Room({
                     <em className="btn-light" />
                   </button>
 
-                  {isHost && room.players.length < room.maxPlayers && (
+                  {(isHost || room.maxPlayers > 2) && room.players.length < room.maxPlayers && (
                     <button
                       type="button"
                       className="btn-bot-quick"

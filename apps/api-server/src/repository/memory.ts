@@ -43,6 +43,7 @@ export class MemoryRepository implements Repository {
   private readonly users = new Map<string, UserRecord>();
   private readonly credentials = new Map<string, string>();
   private readonly usernameIndex = new Map<string, string>();
+  private readonly emailIndex = new Map<string, string>();
   private readonly balances = new Map<string, number>();
   private readonly appliedKeys = new Set<string>();
   /** 下注/撤注流水：key 为 `${bizType}:${bizId}:${userId}`，value 为 delta */
@@ -113,6 +114,36 @@ export class MemoryRepository implements Repository {
     const hash = this.credentials.get(id);
     if (!user || !hash) return null;
     return { ...user, passwordHash: hash };
+  }
+
+  async findByEmail(email: string): Promise<AuthUser | null> {
+    const id = this.emailIndex.get(email.toLowerCase());
+    if (!id) return null;
+    const user = this.users.get(id);
+    const hash = this.credentials.get(id);
+    if (!user || !hash) return null;
+    return { ...user, passwordHash: hash };
+  }
+
+  async updatePassword(userId: string, passwordHash: string): Promise<boolean> {
+    if (!this.users.has(userId)) return false;
+    this.credentials.set(userId, passwordHash);
+    return true;
+  }
+
+  async updateEmail(userId: string, email: string): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    user.email = email;
+    this.emailIndex.set(email.toLowerCase(), userId);
+    return true;
+  }
+
+  async setInvitedBy(userId: string, invitedBy: string): Promise<void> {
+    const user = this.users.get(userId);
+    if (user && !user.invitedBy) {
+      user.invitedBy = invitedBy;
+    }
   }
 
   async getUser(id: string): Promise<UserRecord | null> {

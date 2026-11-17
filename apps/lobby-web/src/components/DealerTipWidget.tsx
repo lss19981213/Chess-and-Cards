@@ -16,6 +16,7 @@ export const DEALER_GIFTS: GiftOption[] = [
   { id: 'heart', name: '比个心', icon: '💖', cost: 50, quote: '“收到主人的爱心啦～艾莉丝给主人比大大的心心！(≧▽≦)～💖”' },
   { id: 'champagne', name: '开香槟', icon: '🍾', cost: 100, quote: '“嘭！开香槟庆祝～祝主人财运通天，局局暴富！🍾✨”' },
   { id: 'supercar', name: '送超跑', icon: '🏎️', cost: 500, quote: '“天呐！豪华超跑！主人太帅太阔气了～艾莉丝永远是您的专属荷官！🏎️👑💖”' },
+  { id: 'yacht', name: '豪华游艇', icon: '🛥️', cost: 1000, quote: '“天呐！私人豪华游艇！艾莉丝好感动～愿为主人献上最完美的陪伴！🛥️👑💖”' },
 ];
 
 interface Props {

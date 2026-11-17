@@ -5,6 +5,7 @@ import {
   ErrorCode,
   ServerMsg,
   type BotDifficulty,
+  type GameMeta,
   type RoomStatus,
   type RoomSummary,
   type RoomView,
@@ -131,6 +132,10 @@ export class GameRoom {
 
   get isPersistent(): boolean {
     return this.persistent;
+  }
+
+  get pluginMeta(): GameMeta {
+    return this.plugin.meta;
   }
 
   get capacity(): number {
@@ -263,8 +268,11 @@ export class GameRoom {
   addBot(playerId: string, nickname: string, difficulty: BotDifficulty = 'medium'): void {
     if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
     if (this.seats.has(playerId)) return;
-    if (this.status !== 'waiting') throw new AppError(ErrorCode.IllegalAction, '对局进行中，无法添加机器人');
-    if (this.seats.size >= this.maxPlayers) throw new AppError(ErrorCode.RoomFull, '房间人数已满');
+    const capacityLimit = this.persistent ? this.capacity : this.maxPlayers;
+    if (this.seats.size >= capacityLimit) throw new AppError(ErrorCode.RoomFull, '房间人数已满');
+    if (!this.persistent && this.status !== 'waiting') {
+      throw new AppError(ErrorCode.IllegalAction, '对局进行中，无法添加机器人');
+    }
 
     const seat: Seat = {
       playerId,

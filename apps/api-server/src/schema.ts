@@ -11,6 +11,9 @@ create table if not exists users (
 alter table users add column if not exists username text;
 alter table users add column if not exists password_hash text;
 alter table users add column if not exists banned boolean not null default false;
+alter table users add column if not exists email text;
+alter table users add column if not exists invited_by text;
+create index if not exists users_email_lower_idx on users (lower(email)) where email is not null;
 
 -- 账号体系：用户名大小写不敏感唯一（历史游客数据 username 为空，不参与唯一约束）
 -- 登录按 lower(username) 匹配，索引也必须按 lower 建，否则 Alice 与 alice 可并存。

@@ -78,12 +78,9 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
   const [lastWin, setLastWin] = useState(0);
   const [winningLines, setWinningLines] = useState<number[]>([]);
   const [freeSpinsLeft, setFreeSpinsLeft] = useState(0);
-  const [autoSpinCount, setAutoSpinCount] = useState(0);
   const [jackpotPool, setJackpotPool] = useState(888888);
   const [celebration, setCelebration] = useState<'normal' | 'big' | 'jackpot' | null>(null);
-
-  const autoSpinRef = useRef(autoSpinCount);
-  autoSpinRef.current = autoSpinCount;
+  const [coinParticles, setCoinParticles] = useState<{ id: number; left: number; delay: number }[]>([]);
 
   const totalBet = freeSpinsLeft > 0 ? 0 : betPerLine * activeLines;
 
@@ -112,12 +109,14 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
     if (spinning) return;
     if (freeSpinsLeft === 0 && user.balance < totalBet) {
       audio.play('alert');
-      setAutoSpinCount(0);
       return;
     }
 
-    // 扣除押注
-    if (freeSpinsLeft === 0) {
+    // 扣除押注或消耗免费次数
+    if (freeSpinsLeft > 0) {
+      setFreeSpinsLeft((prev) => Math.max(0, prev - 1));
+      audio.play('shunzi');
+    } else {
       onBalanceChange(user.balance - totalBet);
       audio.play('chip_clack');
     }
@@ -126,6 +125,7 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
     setCelebration(null);
     setWinningLines([]);
     setLastWin(0);
+    setCoinParticles([]);
     setReelSpinState([true, true, true, true, true]);
 
     // 播放滚轮声
@@ -213,7 +213,8 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
 
     // Scatter 额外奖励
     if (scatterCount >= 3) {
-      setFreeSpinsLeft((prev) => prev + 10);
+      const freeGained = scatterCount === 5 ? 20 : scatterCount === 4 ? 15 : 10;
+      setFreeSpinsLeft((prev) => prev + freeGained);
       totalWin += betPerLine * activeLines * (scatterCount === 5 ? 50 : scatterCount === 4 ? 20 : 5);
       audio.play('shunzi');
     }
@@ -223,6 +224,14 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
       setLastWin(totalWin);
       setWinningLines(hitLines);
       onBalanceChange(user.balance + totalWin);
+
+      // 触发金币爆散动效
+      const particles = Array.from({ length: 30 }).map((_, i) => ({
+        id: Date.now() + i,
+        left: Math.random() * 90 + 5,
+        delay: Math.random() * 0.5,
+      }));
+      setCoinParticles(particles);
 
       if (hit777Count >= 5 || totalWin >= totalBet * 50) {
         setCelebration('jackpot');
@@ -235,20 +244,7 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
         audio.play('slot_win');
       }
     }
-
-    if (freeSpinsLeft > 0) {
-      setFreeSpinsLeft((prev) => Math.max(0, prev - 1));
-    }
-
-    // 自动旋转处理
-    if (autoSpinRef.current > 0 || freeSpinsLeft > 0) {
-      if (freeSpinsLeft === 0 && autoSpinRef.current > 0) {
-        setAutoSpinCount((prev) => (prev > 100 ? prev : prev - 1));
-      }
-      window.setTimeout(() => {
-        handleSpin();
-      }, 1200);
-    }
+    // 严格禁止任何自动循环旋转，必须玩家手动点击！
   };
 
   return (
@@ -274,10 +270,7 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
           <button
             type="button"
             className="slots-close-btn"
-            onClick={() => {
-              setAutoSpinCount(0);
-              onClose();
-            }}
+            onClick={onClose}
             title="关闭老虎机"
           >
             ✕
@@ -436,40 +429,39 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
             🔥 最大下注
           </button>
 
-          {/* 自动旋转 */}
-          {autoSpinCount > 0 ? (
-            <button
-              type="button"
-              className="btn-slots-autospin is-running"
-              onClick={() => setAutoSpinCount(0)}
-            >
-              停止自动 ({autoSpinCount > 500 ? '∞' : autoSpinCount})
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn-slots-autospin"
-              disabled={spinning}
-              onClick={() => {
-                setAutoSpinCount(25);
-                handleSpin();
-              }}
-            >
-              🔄 自动 25 次
-            </button>
+          {/* 免费旋转状态指示（严禁自动连转，必须手动点击） */}
+          {freeSpinsLeft > 0 && (
+            <div className="slots-freespin-pill animate-pulse">
+              🎁 免费旋转剩余 <b>{freeSpinsLeft}</b> 次
+            </div>
           )}
 
-          {/* 核心拉霸摇杆/SPIN主按钮 */}
+          {/* 核心拉霸摇杆/SPIN主按钮（纯手动点击摇奖） */}
           <button
             type="button"
-            className={`btn-slots-spin ${spinning ? 'is-spinning' : ''}`}
+            className={`btn-slots-spin ${spinning ? 'is-spinning' : ''} ${freeSpinsLeft > 0 ? 'is-freespin' : ''}`}
             disabled={spinning || (freeSpinsLeft === 0 && user.balance < totalBet)}
             onClick={handleSpin}
           >
-            <span className="spin-text">{spinning ? 'ROLLING' : 'SPIN'}</span>
-            <span className="spin-sub">单次旋转</span>
+            <span className="spin-text">{spinning ? 'ROLLING…' : freeSpinsLeft > 0 ? '免费 SPIN' : 'SPIN'}</span>
+            <span className="spin-sub">{freeSpinsLeft > 0 ? '免扣筹码 · 手动点击' : '手动摇奖'}</span>
           </button>
         </div>
+
+        {/* 金币喷涌动效 */}
+        {coinParticles.length > 0 && (
+          <div className="slots-coin-rain-fx">
+            {coinParticles.map((p) => (
+              <span
+                key={p.id}
+                className="slots-falling-coin"
+                style={{ left: `${p.left}%`, animationDelay: `${p.delay}s` }}
+              >
+                🪙
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

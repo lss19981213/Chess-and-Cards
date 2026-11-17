@@ -5,6 +5,8 @@ export interface User {
   nickname: string;
   username: string | null;
   balance: number;
+  email?: string | null;
+  invitedBy?: string | null;
   createdAt?: number;
   avatar?: string | null;
   equippedFrame?: string;
@@ -117,10 +119,35 @@ export const api = {
     nickname: string,
     captchaId: string,
     captcha: string,
+    inviteCode?: string,
   ) =>
     request<{ token: string; user: User }>('/api/register', {
       method: 'POST',
-      body: JSON.stringify({ username, password, nickname, captchaId, captcha }),
+      body: JSON.stringify({ username, password, nickname, captchaId, captcha, inviteCode }),
+    }),
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<{ ok: boolean; message: string }>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    }),
+
+  updateEmail: (email: string) =>
+    request<{ ok: boolean; email: string; message: string }>('/api/auth/update-email', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  sendResetCode: (account: string, captchaId: string, captcha: string) =>
+    request<{ ok: boolean; message: string; devCode?: string }>('/api/auth/send-reset-code', {
+      method: 'POST',
+      body: JSON.stringify({ account, captchaId, captcha }),
+    }),
+
+  resetPassword: (account: string, code: string, newPassword: string) =>
+    request<{ ok: boolean; message: string }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ account, code, newPassword }),
     }),
 
   me: () => request<{ user: User }>('/api/me'),

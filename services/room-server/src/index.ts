@@ -559,8 +559,9 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
 
     case ClientMsg.AddBot: {
       const room = requireRoom(session);
-      if (room.view().hostId !== session.playerId) {
-        throw new AppError(ErrorCode.IllegalAction, '只有房主可以添加机器人');
+      const is1v1 = room.pluginMeta.maxPlayers <= 2 && !room.isPersistent;
+      if (is1v1 && room.view().hostId !== session.playerId) {
+        throw new AppError(ErrorCode.IllegalAction, '1对1游戏中只有房主可以添加机器人');
       }
       const rawDiff = payload.difficulty;
       const difficulty: BotDifficulty =

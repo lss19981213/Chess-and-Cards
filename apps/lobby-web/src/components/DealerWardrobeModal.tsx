@@ -64,15 +64,24 @@ export function DealerWardrobeModal({ user, onUserUpdate, onClose }: Props) {
     showToast(`“${text}”`);
   };
 
-  // 判定好感度等级 (最高 Lv.7 倾心相伴)
+  // 判定好感度等级 (1-16 级全新升级)
   const getLevelInfo = (pts: number) => {
-    if (pts >= 15000) return { lv: 7, name: '倾心', next: 15000, max: 15000 };
-    if (pts >= 10000) return { lv: 6, name: '誓约', next: 15000, max: 5000 };
-    if (pts >= 7000) return { lv: 5, name: '眷恋', next: 10000, max: 3000 };
-    if (pts >= 3500) return { lv: 4, name: '深情', next: 7000, max: 3500 };
-    if (pts >= 1000) return { lv: 3, name: '心动', next: 3500, max: 2500 };
-    if (pts >= 500) return { lv: 2, name: '熟稔', next: 1000, max: 500 };
-    return { lv: 1, name: '初识', next: 500, max: 500 };
+    if (pts >= 108000) return { lv: 16, name: '神圣爱神', next: 108000, max: 108000 };
+    if (pts >= 90000) return { lv: 15, name: '帝尊龙皇', next: 108000, max: 18000 };
+    if (pts >= 76000) return { lv: 14, name: '曜世星神', next: 90000, max: 14000 };
+    if (pts >= 62000) return { lv: 13, name: '倾国花魁', next: 76000, max: 14000 };
+    if (pts >= 50000) return { lv: 12, name: '堕天炽翼', next: 62000, max: 12000 };
+    if (pts >= 40000) return { lv: 11, name: '绝恋夜魅', next: 50000, max: 10000 };
+    if (pts >= 32000) return { lv: 10, name: '狂热极速', next: 40000, max: 8000 };
+    if (pts >= 25000) return { lv: 9, name: '冷艳法老', next: 32000, max: 7000 };
+    if (pts >= 20000) return { lv: 8, name: '深海塞壬', next: 25000, max: 5000 };
+    if (pts >= 15000) return { lv: 7, name: '纯白倾心', next: 20000, max: 5000 };
+    if (pts >= 10000) return { lv: 6, name: '誓约守护', next: 15000, max: 5000 };
+    if (pts >= 7000) return { lv: 5, name: '眷恋不舍', next: 10000, max: 3000 };
+    if (pts >= 3500) return { lv: 4, name: '深情款款', next: 7000, max: 3500 };
+    if (pts >= 1000) return { lv: 3, name: '怦然心动', next: 3500, max: 2500 };
+    if (pts >= 500) return { lv: 2, name: '熟稔交心', next: 1000, max: 500 };
+    return { lv: 1, name: '初识相伴', next: 500, max: 500 };
   };
 
   const levelInfo = getLevelInfo(affection);

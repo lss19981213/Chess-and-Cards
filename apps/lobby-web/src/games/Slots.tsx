@@ -67,7 +67,6 @@ export function Slots({ snapshot, myId: _myId, status: _status, balance, onSpin 
   const [betPerLine, setBetPerLine] = useState(10);
   const [lines, setLines] = useState(9);
   const [spinning, setSpinning] = useState(false);
-  const [autoSpin, setAutoSpin] = useState(false);
 
   const totalBet = betPerLine * lines;
   const canSpin = balance >= totalBet && !spinning;
@@ -94,16 +93,6 @@ export function Slots({ snapshot, myId: _myId, status: _status, balance, onSpin 
       }
     }, 850);
   };
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (autoSpin && !spinning && canSpin) {
-      timer = setTimeout(() => {
-        handleStartSpin();
-      }, 1200);
-    }
-    return () => clearTimeout(timer);
-  }, [autoSpin, spinning, canSpin]);
 
   return (
     <div className="lobby-game slots-game">
@@ -219,22 +208,11 @@ export function Slots({ snapshot, myId: _myId, status: _status, balance, onSpin 
           <div className="slots-actions-row">
             <button
               type="button"
-              className={`auto-spin-btn ${autoSpin ? 'is-active' : ''}`}
-              onClick={() => {
-                audio.play('click');
-                setAutoSpin(!autoSpin);
-              }}
-            >
-              {autoSpin ? '⏹ 停止自动' : '⚡ 自动旋转'}
-            </button>
-
-            <button
-              type="button"
               className={`spin-btn-lever ${spinning ? 'is-spinning' : ''}`}
               disabled={!canSpin}
               onClick={handleStartSpin}
             >
-              {spinning ? '旋转中…' : '🎰 SPIN 旋转'}
+              {spinning ? '🎰 摇奖中…' : '🎰 手动摇奖 SPIN'}
             </button>
           </div>
         </div>

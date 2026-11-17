@@ -40,7 +40,7 @@ export async function registerUser(
 
 export async function findUserByUsername(pool: pg.Pool, username: string): Promise<AuthUser | null> {
   const res = await pool.query<UserRow>(
-    `select id, nickname, username, password_hash, created_at, coalesce(banned, false) as banned
+    `select id, nickname, username, email, invited_by, password_hash, created_at, coalesce(banned, false) as banned
        from users
       where lower(username) = lower($1)
       limit 1`,
@@ -51,9 +51,45 @@ export async function findUserByUsername(pool: pg.Pool, username: string): Promi
   return { ...mapUser(row), passwordHash: row.password_hash ?? '' };
 }
 
+export async function findUserByEmail(pool: pg.Pool, email: string): Promise<AuthUser | null> {
+  const res = await pool.query<UserRow>(
+    `select id, nickname, username, email, invited_by, password_hash, created_at, coalesce(banned, false) as banned
+       from users
+      where lower(email) = lower($1)
+      limit 1`,
+    [email],
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  return { ...mapUser(row), passwordHash: row.password_hash ?? '' };
+}
+
+export async function updateUserPassword(pool: pg.Pool, userId: string, passwordHash: string): Promise<boolean> {
+  const res = await pool.query(
+    'update users set password_hash = $1 where id = $2',
+    [passwordHash, userId],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function updateUserEmail(pool: pg.Pool, userId: string, email: string): Promise<boolean> {
+  const res = await pool.query(
+    'update users set email = $1 where id = $2',
+    [email, userId],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function setUserInvitedBy(pool: pg.Pool, userId: string, invitedBy: string): Promise<void> {
+  await pool.query(
+    'update users set invited_by = $1 where id = $2 and (invited_by is null or invited_by = \'\')',
+    [invitedBy, userId],
+  );
+}
+
 export async function getUserById(pool: pg.Pool, id: string): Promise<UserRecord | null> {
   const res = await pool.query<UserRow>(
-    'select id, nickname, username, created_at, coalesce(banned, false) as banned from users where id = $1',
+    'select id, nickname, username, email, invited_by, created_at, coalesce(banned, false) as banned from users where id = $1',
     [id],
   );
   const row = res.rows[0];

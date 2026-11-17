@@ -3,7 +3,7 @@
  * 任务进度由结算与登录行为驱动，奖励通过账本幂等入账。
  */
 
-export type TaskKind = 'login' | 'play' | 'win' | 'relief' | 'tip' | 'variety';
+export type TaskKind = 'login' | 'play' | 'win' | 'relief' | 'tip' | 'variety' | 'invite';
 export type TaskPeriod = 'daily' | 'once';
 export type TaskGroup = 'daily' | 'growth';
 
@@ -31,6 +31,16 @@ export interface TaskDef {
 
 export const TASKS: readonly TaskDef[] = [
   // ---------- 每日任务 ----------
+  {
+    key: 'daily_invite',
+    name: '邀请新玩家',
+    description: '每邀请1位新玩家注册入场奖励 1,000 筹码，上不封顶随时领取！',
+    target: 1,
+    reward: 1000,
+    period: 'daily',
+    kind: 'invite',
+    group: 'daily',
+  },
   {
     key: 'daily_login',
     name: '每日签到',

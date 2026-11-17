@@ -27,6 +27,28 @@ export async function buildTasks(
     const pk = periodKeyFor(task.period);
     const ownRow = rows.find((r) => r.taskKey === task.key && r.periodKey === pk);
 
+    if (task.key === 'daily_invite') {
+      const inviteRow = rows.find((r) => r.taskKey === 'daily_invite' && r.periodKey === pk);
+      const claimedRow = rows.find((r) => r.taskKey === 'daily_invite_claimed' && r.periodKey === pk);
+      const totalInvites = inviteRow?.progress ?? 0;
+      const claimedCount = claimedRow?.progress ?? 0;
+      const unclaimed = Math.max(0, totalInvites - claimedCount);
+      const claimable = unclaimed > 0;
+      return {
+        key: task.key,
+        name: task.name,
+        description: `每邀请1位新玩家注册入场奖励 1,000 筹码（无上限），今日已邀请 ${totalInvites} 人${unclaimed > 0 ? `，待领取 ${unclaimed} 份（${(unclaimed * 1000).toLocaleString()} 筹码）` : ''}！`,
+        target: Math.max(1, totalInvites),
+        reward: unclaimed > 0 ? unclaimed * 1000 : 1000,
+        period: task.period,
+        group: task.group,
+        progress: totalInvites,
+        claimed: totalInvites > 0 && unclaimed === 0,
+        claimable,
+        locked: false,
+      };
+    }
+
     let progress: number;
     if (task.progressSource?.kind === 'gameKinds') {
       progress = playedToday;
@@ -112,6 +134,24 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     if (!task) throw httpError('任务不存在', 404);
 
     const pk = periodKeyFor(task.period);
+
+    // 邀请新玩家：按未领取的邀请人头全额发放，无上限！
+    if (key === 'daily_invite') {
+      const rows = await repo.getTaskRows(claims.sub, [pk]);
+      const inviteRow = rows.find((r) => r.taskKey === 'daily_invite' && r.periodKey === pk);
+      const claimedRow = rows.find((r) => r.taskKey === 'daily_invite_claimed' && r.periodKey === pk);
+      const totalInvites = inviteRow?.progress ?? 0;
+      const claimedCount = claimedRow?.progress ?? 0;
+      const unclaimed = Math.max(0, totalInvites - claimedCount);
+      if (unclaimed <= 0) throw httpError('暂无可领取的邀请奖励，快去邀请好友吧！', 400);
+
+      const rewardAmount = unclaimed * 1000;
+      const bizId = `invite:${claims.sub}:${pk}:${Date.now()}`;
+      const newBalance = await repo.credit(claims.sub, rewardAmount, 'task', bizId);
+      await repo.bumpTask(claims.sub, 'daily_invite_claimed', pk, unclaimed);
+      return { reward: rewardAmount, balance: newBalance, tasks: await buildTasks(repo, claims.sub, newBalance) };
+    }
+
     const balance = await repo.getBalance(claims.sub, 'coin');
     const views = await buildTasks(repo, claims.sub, balance);
     const view = views.find((v) => v.key === key);
@@ -134,8 +174,8 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     const amount = Math.floor(Number(body.amount ?? 0));
     const giftName = String(body.giftName ?? '礼物').slice(0, 20);
 
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 10_000) {
-      throw httpError('打赏金额不合法', 400);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000) {
+      throw httpError('打赏金额不合法，单次打赏上限为 1,000 筹码', 400);
     }
 
     const balance = await repo.getBalance(claims.sub, 'coin');

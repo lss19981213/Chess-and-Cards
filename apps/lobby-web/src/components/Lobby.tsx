@@ -197,7 +197,7 @@ export function Lobby({
 
   const filteredGames = useMemo(() => {
     if (activeTab === 'live') {
-      return games.filter((g) => LIVE_GAMES.has(g.gameId) || g.persistent);
+      return games.filter((g) => (LIVE_GAMES.has(g.gameId) || g.persistent) && g.gameId !== 'slots');
     }
     if (activeTab === 'cards') {
       return games.filter((g) => CARD_GAMES.has(g.gameId));

@@ -28,10 +28,14 @@ import {
 } from './pg/settlement';
 import {
   creditWallet,
+  findUserByEmail,
   findUserByUsername,
   getUserById,
   getWalletBalance,
   registerUser,
+  setUserInvitedBy,
+  updateUserEmail,
+  updateUserPassword,
 } from './pg/wallet';
 import {
   bumpTask,
@@ -113,6 +117,22 @@ export class PostgresRepository implements Repository {
 
   findByUsername(username: string): Promise<AuthUser | null> {
     return findUserByUsername(this.pool, username);
+  }
+
+  findByEmail(email: string): Promise<AuthUser | null> {
+    return findUserByEmail(this.pool, email);
+  }
+
+  updatePassword(userId: string, passwordHash: string): Promise<boolean> {
+    return updateUserPassword(this.pool, userId, passwordHash);
+  }
+
+  updateEmail(userId: string, email: string): Promise<boolean> {
+    return updateUserEmail(this.pool, userId, email);
+  }
+
+  setInvitedBy(userId: string, invitedBy: string): Promise<void> {
+    return setUserInvitedBy(this.pool, userId, invitedBy);
   }
 
   getUser(id: string): Promise<UserRecord | null> {

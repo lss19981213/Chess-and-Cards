@@ -4,6 +4,8 @@ export interface UserRecord {
   id: string;
   nickname: string;
   username: string | null;
+  email?: string | null;
+  invitedBy?: string | null;
   createdAt: number;
   banned?: boolean;
 }
@@ -203,6 +205,10 @@ export type RegisterResult = { ok: true; user: UserRecord } | { ok: false; reaso
 export interface Repository {
   register(input: RegisterInput): Promise<RegisterResult>;
   findByUsername(username: string): Promise<AuthUser | null>;
+  findByEmail(email: string): Promise<AuthUser | null>;
+  updatePassword(userId: string, passwordHash: string): Promise<boolean>;
+  updateEmail(userId: string, email: string): Promise<boolean>;
+  setInvitedBy(userId: string, invitedBy: string): Promise<void>;
   getUser(id: string): Promise<UserRecord | null>;
   getBalance(userId: string, currency: Currency): Promise<number>;
   /** 幂等记账：同一 settlementId 重复上报只生效一次 */

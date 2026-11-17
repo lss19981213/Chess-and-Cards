@@ -8545,6 +8545,124 @@ button.secondary:hover:not(:disabled) {
   100% { border-color: #ffd700; box-shadow: 0 0 24px #ffd700; }
 }
 
+/* 22. 混沌帝皇尊 (388,888) */
+.frame-chaos-sovereign .avatar-frame-border {
+  border: 4px solid #f59e0b;
+  box-shadow: 0 0 32px #f59e0b, inset 0 0 20px #18181b;
+  animation: chaosSovereign 2.4s infinite alternate ease-in-out;
+}
+@keyframes chaosSovereign {
+  0% { border-color: #f59e0b; box-shadow: 0 0 25px #f59e0b, 0 0 45px rgba(245, 158, 11, 0.6); }
+  50% { border-color: #ef4444; box-shadow: 0 0 38px #ef4444, inset 0 0 22px #7f1d1d; }
+  100% { border-color: #fbbf24; box-shadow: 0 0 50px #fbbf24, 0 0 20px #fff; }
+}
+
+/* 23. 永恒深渊魔神 (588,888) */
+.frame-eternal-abyss .avatar-frame-border {
+  border: 4px solid #9333ea;
+  box-shadow: 0 0 35px #a855f7, inset 0 0 24px #581c87;
+  animation: abyssPulse 2.2s infinite ease-in-out;
+}
+@keyframes abyssPulse {
+  0% { border-color: #9333ea; box-shadow: 0 0 25px #9333ea, inset 0 0 15px #3b0764; }
+  50% { border-color: #e11d48; box-shadow: 0 0 45px #e11d48, inset 0 0 25px #4c0519; }
+  100% { border-color: #c084fc; box-shadow: 0 0 35px #c084fc, inset 0 0 20px #581c87; }
+}
+
+/* 24. 太阳神·阿蒙拉 (888,888) */
+.frame-sun-ra .avatar-frame-border {
+  border: 5px solid #fbbf24;
+  box-shadow: 0 0 40px #f59e0b, inset 0 0 22px #ea580c;
+  animation: sunRaFlare 1.8s infinite alternate;
+}
+@keyframes sunRaFlare {
+  0% { filter: drop-shadow(0 0 12px #fbbf24) drop-shadow(0 0 25px #ea580c); }
+  100% { filter: drop-shadow(0 0 28px #fff) drop-shadow(0 0 50px #f59e0b); }
+}
+
+/* 25. 九五至尊·真龙天子 (1,288,888) */
+.frame-celestial-emperor .avatar-frame-border {
+  border: 5px solid #ffd700;
+  box-shadow: 0 0 45px #ffd700, inset 0 0 25px #7e22ce;
+  animation: celestialEmperor 2s infinite ease-in-out;
+}
+@keyframes celestialEmperor {
+  0% { border-color: #ffd700; box-shadow: 0 0 30px #ffd700, inset 0 0 15px #a855f7; }
+  50% { border-color: #c084fc; box-shadow: 0 0 55px #eab308, inset 0 0 28px #ffd700; }
+  100% { border-color: #fef08a; box-shadow: 0 0 40px #fde047, inset 0 0 20px #6b21a8; }
+}
+
+/* 26. 时空裂隙·维度掌控 (1,888,888) */
+.frame-time-space-rift .avatar-frame-border {
+  border: 4px solid #06b6d4;
+  box-shadow: 0 0 38px #06b6d4, inset 0 0 22px #8b5cf6;
+  animation: spaceTimeWarp 2.6s infinite linear;
+}
+@keyframes spaceTimeWarp {
+  0% { border-color: #06b6d4; box-shadow: 0 0 30px #06b6d4; filter: hue-rotate(0deg); }
+  50% { border-color: #8b5cf6; box-shadow: 0 0 50px #8b5cf6; filter: hue-rotate(180deg); }
+  100% { border-color: #ec4899; box-shadow: 0 0 30px #ec4899; filter: hue-rotate(360deg); }
+}
+
+/* 27. 六道修罗·不灭罗刹 (2,588,888) */
+.frame-asura-wrath .avatar-frame-border {
+  border: 5px solid #dc2626;
+  box-shadow: 0 0 42px #ef4444, inset 0 0 25px #450a0a;
+  animation: asuraRage 1.5s infinite alternate ease-in-out;
+}
+@keyframes asuraRage {
+  0% { transform: scale(1); filter: drop-shadow(0 0 15px #dc2626); }
+  50% { filter: drop-shadow(0 0 30px #ef4444) drop-shadow(0 0 50px #f97316); }
+  100% { transform: scale(1.02); filter: drop-shadow(0 0 40px #b91c1c); }
+}
+
+/* 28. 太初鸿蒙·星核起源 (3,888,888) */
+.frame-primordial-star .avatar-frame-border {
+  border: 5px solid #38bdf8;
+  box-shadow: 0 0 45px #38bdf8, inset 0 0 28px #ec4899;
+  animation: primordialGenesis 3s infinite ease-in-out;
+}
+@keyframes primordialGenesis {
+  0% { border-color: #38bdf8; box-shadow: 0 0 35px #38bdf8, inset 0 0 20px #818cf8; }
+  33% { border-color: #ec4899; box-shadow: 0 0 55px #ec4899, inset 0 0 30px #f43f5e; }
+  66% { border-color: #facc15; box-shadow: 0 0 55px #facc15, inset 0 0 30px #38bdf8; }
+  100% { border-color: #38bdf8; box-shadow: 0 0 35px #38bdf8, inset 0 0 20px #818cf8; }
+}
+
+/* 29. 万界主宰·神权王座 (5,200,000) */
+.frame-dominion-throne .avatar-frame-border {
+  border: 6px solid #fff;
+  box-shadow: 0 0 50px rgba(255, 255, 255, 0.95), 0 0 70px #eab308, inset 0 0 30px #ca8a04;
+  animation: dominionHalo 2s infinite alternate;
+}
+@keyframes dominionHalo {
+  0% { filter: drop-shadow(0 0 20px #ffffff) drop-shadow(0 0 40px #eab308); }
+  100% { filter: drop-shadow(0 0 35px #ffffff) drop-shadow(0 0 70px #fef08a); }
+}
+
+/* 30. 超新星爆裂·灭世神威 (6,666,666) */
+.frame-supernova-burst .avatar-frame-border {
+  border: 6px solid #f43f5e;
+  box-shadow: 0 0 60px #f43f5e, 0 0 85px #fbbf24, inset 0 0 35px #e11d48;
+  animation: supernovaBurst 1.6s infinite alternate ease-in-out;
+}
+@keyframes supernovaBurst {
+  0% { border-color: #f43f5e; box-shadow: 0 0 40px #f43f5e, inset 0 0 20px #fbbf24; }
+  100% { border-color: #fff; box-shadow: 0 0 80px #fff, 0 0 110px #f43f5e, inset 0 0 40px #e11d48; }
+}
+
+/* 31. 全知全能·宇宙奇点 (8,888,888) */
+.frame-omniverse-god .avatar-frame-border {
+  border: 6px solid #e0e7ff;
+  box-shadow: 0 0 70px #a855f7, 0 0 100px #38bdf8, inset 0 0 40px #6366f1;
+  animation: omniverseSingularity 3.5s infinite linear;
+}
+@keyframes omniverseSingularity {
+  0% { filter: hue-rotate(0deg) drop-shadow(0 0 25px #a855f7); }
+  50% { filter: hue-rotate(180deg) drop-shadow(0 0 50px #38bdf8) drop-shadow(0 0 80px #ec4899); }
+  100% { filter: hue-rotate(360deg) drop-shadow(0 0 25px #a855f7); }
+}
+
 /* ==========================================================================
    头像框商城与更衣室弹窗 (AvatarFrameModal)
    ========================================================================== */
@@ -9731,6 +9849,64 @@ button.secondary:hover:not(:disabled) {
   opacity: 0.85;
 }
 
+/* 免费旋转徽章 */
+.slots-freespin-pill {
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid #34d399;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: freespinPulse 1.2s infinite alternate;
+}
+
+@keyframes freespinPulse {
+  0% { transform: scale(0.98); box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+  100% { transform: scale(1.04); box-shadow: 0 0 22px rgba(16, 185, 129, 0.9); }
+}
+
+.btn-slots-spin.is-freespin {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.6), 0 0 18px #34d399 !important;
+  color: #fff !important;
+}
+
+/* 金币瀑布喷涌特效 */
+.slots-coin-rain-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 100;
+}
+
+.slots-falling-coin {
+  position: absolute;
+  top: -50px;
+  font-size: 28px;
+  animation: coinDrop 1.8s forwards ease-in;
+  filter: drop-shadow(0 4px 10px rgba(245, 158, 11, 0.8));
+}
+
+@keyframes coinDrop {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(0.8);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(750px) rotate(720deg) scale(1.2);
+    opacity: 0;
+  }
+}
+
 /* ==========================================================================
    排行榜膜拜互动系统 (Leaderboard Worship Fx)
    ========================================================================== */
@@ -9856,3 +10032,148 @@ button.secondary:hover:not(:disabled) {
   margin-right: 6px;
   animation: goldDragonSpin 2s infinite alternate;
 }
+
+/* ================= 账号安全与密码修改 ================= */
+.profile-security-card,
+.profile-invite-card {
+  margin-top: 14px;
+}
+
+.profile-pwd-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-pwd-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.profile-security-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 10px 0;
+}
+
+.profile-security-row b {
+  color: #38bdf8;
+}
+
+.profile-pwd-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* 邀请好友卡片 */
+.profile-invite-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.invite-title-col h4 {
+  margin: 0;
+  color: #ffd700;
+  font-size: 15px;
+}
+
+.invite-title-col p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.btn-copy-invite-code {
+  padding: 8px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffd700, #f59e0b);
+  border: none;
+  color: #000;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.btn-copy-invite-code:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5);
+}
+
+.invite-code-display-box {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px dashed rgba(255, 215, 0, 0.4);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.invite-code-pill {
+  color: #ffd700;
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  user-select: all;
+}
+
+/* 找回密码辅助样式 */
+.btn-send-code {
+  width: 100%;
+  padding: 9px;
+  font-size: 13px;
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-send-code:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.32);
+}
+
+.auth-sub-actions {
+  text-align: center;
+  margin-top: 12px;
+}
+
+.link-sub {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+
+.link-sub:hover {
+  color: #ffd700;
+}
+
+/* 新增 10 款荷官高等级皮肤专属边框与徽标样式 */
+.skin-wedding { border-color: #f1f5f9 !important; box-shadow: 0 0 14px rgba(241, 245, 249, 0.6) !important; }
+.skin-mermaid { border-color: #06b6d4 !important; box-shadow: 0 0 14px rgba(6, 182, 212, 0.6) !important; }
+.skin-cleopatra { border-color: #f59e0b !important; box-shadow: 0 0 14px rgba(245, 158, 11, 0.6) !important; }
+.skin-racequeen { border-color: #ef4444 !important; box-shadow: 0 0 14px rgba(239, 68, 68, 0.6) !important; }
+.skin-vampire { border-color: #991b1b !important; box-shadow: 0 0 14px rgba(153, 27, 27, 0.6) !important; }
+.skin-fallenangel { border-color: #7c3aed !important; box-shadow: 0 0 14px rgba(124, 58, 237, 0.6) !important; }
+.skin-oiran { border-color: #f43f5e !important; box-shadow: 0 0 14px rgba(244, 63, 94, 0.6) !important; }
+.skin-galaxy { border-color: #a855f7 !important; box-shadow: 0 0 14px rgba(168, 85, 247, 0.6) !important; }
+.skin-dragoncheongsam { border-color: #ffd700 !important; box-shadow: 0 0 16px rgba(255, 215, 0, 0.8) !important; }
+.skin-aphrodite { border-color: #ffffff !important; box-shadow: 0 0 20px rgba(255, 255, 255, 0.95), 0 0 35px #f43f5e !important; }
