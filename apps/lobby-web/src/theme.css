@@ -8257,68 +8257,78 @@ body,
   box-sizing: border-box !important;
 }
 
-.commercial-games-carousel-wrapper {
+/* ==========================================================================
+   全新商业级九宫格大厅系统 (3x3 矩阵，满屏饱满展开)
+   ========================================================================== */
+.commercial-nine-grid-wrapper {
   flex: 1 1 0% !important;
+  width: 100% !important;
   height: 100% !important;
   min-height: 0 !important;
   display: flex !important;
   align-items: center !important;
   position: relative !important;
   overflow: hidden !important;
+  box-sizing: border-box !important;
 }
 
-.commercial-games-carousel-viewport {
+.commercial-nine-grid-container {
+  flex: 1 1 0% !important;
   width: 100% !important;
   height: 100% !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
+  min-height: 0 !important;
   display: flex !important;
-  align-items: center !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
   box-sizing: border-box !important;
 }
 
-.commercial-games-strip {
-  display: flex !important;
-  align-items: center !important;
-  gap: 20px !important;
+.commercial-nine-grid {
+  flex: 1 1 0% !important;
+  width: 100% !important;
   height: 100% !important;
   min-height: 0 !important;
-  padding: 8px 16px !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-rows: repeat(3, 1fr) !important;
+  gap: 12px !important;
   box-sizing: border-box !important;
 }
 
-/* 5. 游戏卡片：极致奢华正方形 (1:1 比例，告别细长条) */
+/* 单个九宫格游戏卡片 */
 .commercial-game-card {
-  width: min(420px, calc(100% - 20px)) !important;
-  height: min(420px, calc(100% - 20px)) !important;
-  aspect-ratio: 1 / 1 !important;
-  flex: 0 0 min(420px, calc(100% - 20px)) !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  aspect-ratio: auto !important;
   display: flex !important;
   flex-direction: column !important;
   box-sizing: border-box !important;
-  border-radius: 20px !important;
+  border-radius: 14px !important;
   background: linear-gradient(180deg, rgba(24, 30, 48, 0.95) 0%, rgba(12, 16, 28, 0.98) 100%) !important;
-  border: 1.5px solid rgba(243, 207, 122, 0.4) !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.35) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.06) !important;
   overflow: hidden !important;
-  transition: all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+  transition: all 0.22s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
 }
 
 .commercial-game-card:hover {
-  transform: translateY(-8px) scale(1.02) !important;
+  transform: translateY(-4px) scale(1.02) !important;
   border-color: rgba(243, 207, 122, 0.95) !important;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(243, 207, 122, 0.4) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.85), 0 0 24px rgba(243, 207, 122, 0.35) !important;
+  z-index: 2 !important;
 }
 
-/* 6. 卡片海报区域：占上半部 58% 高度，正方形原画极致呈现 */
+/* 九宫格卡片海报区域：占上半部，微动态悬停放大 */
 .commercial-game-card__poster {
-  flex: 0 0 58% !important;
-  height: 58% !important;
+  flex: 1 1 0% !important;
   min-height: 0 !important;
   width: 100% !important;
   position: relative !important;
   overflow: hidden !important;
-  border-radius: 18px 18px 0 0 !important;
+  border-radius: 12px 12px 0 0 !important;
   cursor: pointer !important;
 }
 
@@ -8326,67 +8336,83 @@ body,
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
-  object-position: center !important;
+  object-position: center 30% !important;
   display: block !important;
-  transition: transform 0.4s ease !important;
+  transition: transform 0.35s ease !important;
 }
 
 .commercial-game-card:hover .commercial-game-card__poster img {
   transform: scale(1.08) !important;
 }
 
-/* 7. 卡片下半部信息栏：占 42%，自适应排版底分与双按钮群 */
+/* 九宫格卡片下半部信息与按钮群 */
 .commercial-game-card__meta {
-  flex: 1 1 42% !important;
-  min-height: 0 !important;
+  flex-shrink: 0 !important;
+  padding: 6px 10px 8px 10px !important;
+  background: linear-gradient(180deg, rgba(16, 20, 32, 0.96) 0%, rgba(9, 12, 20, 0.99) 100%) !important;
   display: flex !important;
   flex-direction: column !important;
-  justify-content: space-between !important;
-  padding: 8px 14px 12px 14px !important;
-  background: linear-gradient(180deg, rgba(16, 20, 32, 0.96) 0%, rgba(9, 12, 20, 0.99) 100%) !important;
+  gap: 4px !important;
   box-sizing: border-box !important;
 }
 
-.meta-title {
-  font-size: 17px !important;
-  font-weight: 900 !important;
-  margin: 0 0 2px 0 !important;
-  line-height: 1.2 !important;
-}
-
-.meta-desc {
-  font-size: 11.5px !important;
-  color: #9bb0cf !important;
-  line-height: 1.3 !important;
-  overflow: hidden !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 1 !important;
-  -webkit-box-orient: vertical !important;
-  margin: 0 !important;
-}
-
-.card-entry-info {
+.commercial-game-card__meta .meta-text-col {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 3px 8px !important;
-  background: rgba(0, 0, 0, 0.35) !important;
-  border-radius: 6px !important;
-  margin: 2px 0 !important;
+  gap: 6px !important;
+  margin: 0 !important;
 }
 
-.meta-actions-row {
-  display: flex !important;
-  gap: 8px !important;
-  margin-top: 2px !important;
-  align-items: stretch !important;
-}
-
-.btn-quick-play-gold {
-  flex: 1 !important;
-  height: 38px !important;
-  font-size: 14px !important;
+.commercial-game-card__meta .meta-title {
+  font-size: 15px !important;
   font-weight: 900 !important;
+  color: #f8fafc !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.commercial-game-card__meta .card-entry-info {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 1px 6px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  border-radius: 4px !important;
+  margin: 0 !important;
+}
+
+.commercial-game-card__meta .entry-stakes-text {
+  font-size: 10.5px !important;
+  color: #f3cf7a !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+.commercial-game-card__meta .entry-speed-tag {
+  font-size: 9.5px !important;
+  color: #4ade80 !important;
+  font-weight: 800 !important;
+  background: rgba(74, 222, 128, 0.15) !important;
+  padding: 1px 4px !important;
+  border-radius: 3px !important;
+  white-space: nowrap !important;
+}
+
+.commercial-game-card__meta .meta-actions-row {
+  display: flex !important;
+  gap: 6px !important;
+  align-items: stretch !important;
+  margin-top: 2px !important;
+}
+
+.commercial-game-card__meta .btn-quick-play-gold {
+  flex: 1 !important;
+  height: 30px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
   border-radius: 999px !important;
   display: flex !important;
   align-items: center !important;
@@ -8394,38 +8420,104 @@ body,
   gap: 4px !important;
 }
 
-.btn-choose-room-subtle {
+.commercial-game-card__meta .btn-choose-room-subtle {
   flex: 0 0 auto !important;
-  height: 38px !important;
-  padding: 0 14px !important;
-  font-size: 12.5px !important;
-  font-weight: 800 !important;
+  height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
   border-radius: 999px !important;
 }
 
-/* 8. 右侧首席动漫荷官艾莉丝陪玩展台：也是完美的正方形卡片！ */
+/* 九宫格底部翻页器 */
+.nine-grid-pagination-bar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  padding: 4px 0 !important;
+  flex-shrink: 0 !important;
+  margin-top: 2px !important;
+}
+
+.grid-page-nav-btn {
+  padding: 4px 12px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  border-radius: 6px !important;
+  background: rgba(243, 207, 122, 0.15) !important;
+  border: 1px solid rgba(243, 207, 122, 0.45) !important;
+  color: #f7eed7 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.grid-page-nav-btn:hover:not(:disabled) {
+  background: rgba(243, 207, 122, 0.3) !important;
+  border-color: #f3cf7a !important;
+}
+
+.grid-page-nav-btn:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+
+.grid-page-dots-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.grid-page-dot {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  padding: 0 !important;
+}
+
+.grid-page-dot.is-active {
+  width: 22px !important;
+  background: #f3cf7a !important;
+  box-shadow: 0 0 10px rgba(243, 207, 122, 0.8) !important;
+}
+
+.grid-page-num-indicator {
+  font-size: 11px !important;
+  color: #9bb0cf !important;
+  font-weight: 700 !important;
+  margin-left: 6px !important;
+}
+
+/* ==========================================================================
+   2. 首席动漫荷官艾莉丝陪玩展台：经典长方形 (全高度立绘，无遮挡全貌呈现)
+   ========================================================================== */
 .commercial-dealer-companion-stand {
-  width: min(420px, calc(100% - 20px)) !important;
-  height: min(420px, calc(100% - 20px)) !important;
-  aspect-ratio: 1 / 1 !important;
-  flex: 0 0 min(420px, calc(100% - 20px)) !important;
-  align-self: center !important;
-  border-radius: 20px !important;
-  background: linear-gradient(180deg, rgba(24, 30, 48, 0.95) 0%, rgba(12, 16, 28, 0.98) 100%) !important;
-  border: 1.5px solid rgba(243, 207, 122, 0.4) !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  width: 310px !important;
+  flex: 0 0 310px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  aspect-ratio: auto !important;
+  align-self: stretch !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
-  gap: 6px !important;
-  padding: 10px !important;
+  gap: 8px !important;
+  padding: 10px 10px !important;
   box-sizing: border-box !important;
+  border-radius: 18px !important;
+  background: linear-gradient(180deg, rgba(24, 30, 48, 0.95) 0%, rgba(12, 16, 28, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.4) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
   position: relative !important;
 }
 
 .companion-speech-bubble {
   flex-shrink: 0 !important;
-  padding: 6px 10px !important;
+  padding: 8px 12px !important;
   border-radius: 12px !important;
   background: linear-gradient(135deg, rgba(24, 30, 46, 0.95) 0%, rgba(14, 18, 28, 0.95) 100%) !important;
   border: 1px solid rgba(243, 207, 122, 0.45) !important;
@@ -8441,14 +8533,14 @@ body,
 }
 
 .companion-name {
-  font-size: 11px !important;
+  font-size: 11.5px !important;
   font-weight: 800 !important;
   color: #f7d78a !important;
 }
 
 .bubble-content {
-  font-size: 10.5px !important;
-  line-height: 1.35 !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
   color: #e2e8f0 !important;
   margin: 0 !important;
   overflow: hidden !important;
@@ -8457,6 +8549,7 @@ body,
   -webkit-box-orient: vertical !important;
 }
 
+/* 荷官长方形立绘展区：纵向拉满，object-fit: contain，完整看到荷官全身/大半身性感全图 */
 .companion-portrait-wrapper {
   flex: 1 1 0% !important;
   min-height: 0 !important;
@@ -8468,7 +8561,7 @@ body,
   overflow: hidden !important;
   position: relative !important;
   border-radius: 14px !important;
-  background: radial-gradient(ellipse 90% 70% at 50% 30%, rgba(243, 207, 122, 0.18), rgba(10, 14, 22, 0.9) 85%) !important;
+  background: radial-gradient(ellipse 85% 65% at 50% 30%, rgba(243, 207, 122, 0.18), rgba(10, 14, 22, 0.9) 85%) !important;
   cursor: pointer !important;
 }
 
@@ -8477,15 +8570,15 @@ body,
   height: 100% !important;
   max-width: 100% !important;
   max-height: 100% !important;
-  object-fit: cover !important;
+  object-fit: contain !important;
   object-position: top center !important;
   margin: 0 !important;
-  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.8)) !important;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.85)) !important;
   transition: transform 0.3s ease !important;
 }
 
 .companion-portrait-wrapper:hover img {
-  transform: scale(1.04) !important;
+  transform: scale(1.03) !important;
 }
 
 .companion-footer-actions {
@@ -8558,7 +8651,7 @@ body,
   cursor: pointer !important;
 }
 
-/* 9. 智能断点：较小屏幕/窗口自适应正方形排版 */
+/* 智能断点适配 */
 @media (max-width: 1200px) or (max-height: 600px) {
   .lobby-main-header {
     height: 50px !important;
@@ -8568,56 +8661,30 @@ body,
   }
   .commercial-lobby-stage {
     padding: 6px 12px 8px 12px !important;
-    gap: 12px !important;
+    gap: 10px !important;
   }
   .commercial-nav-rail {
-    width: 120px !important;
-    flex: 0 0 120px !important;
+    width: 115px !important;
+    flex: 0 0 115px !important;
   }
-  .nav-rail-item {
-    padding: 8px 10px !important;
-    font-size: 12px !important;
-  }
-  .commercial-game-card {
-    width: min(320px, calc(100% - 12px)) !important;
-    height: min(320px, calc(100% - 12px)) !important;
-    aspect-ratio: 1 / 1 !important;
-    flex: 0 0 min(320px, calc(100% - 12px)) !important;
+  .commercial-nine-grid {
+    gap: 8px !important;
   }
   .commercial-dealer-companion-stand {
-    width: min(320px, calc(100% - 12px)) !important;
-    height: min(320px, calc(100% - 12px)) !important;
-    aspect-ratio: 1 / 1 !important;
-    flex: 0 0 min(320px, calc(100% - 12px)) !important;
+    width: 240px !important;
+    flex: 0 0 240px !important;
   }
-  .companion-speech-bubble {
-    padding: 6px 8px !important;
+  .commercial-game-card__meta .meta-title {
+    font-size: 13.5px !important;
   }
-  .companion-name {
+  .commercial-game-card__meta .btn-quick-play-gold {
+    height: 26px !important;
     font-size: 11px !important;
   }
-  .bubble-content {
-    font-size: 10.5px !important;
-  }
-  .btn-random-match {
-    height: 32px !important;
-    font-size: 11px !important;
-  }
-  .meta-title {
-    font-size: 14.5px !important;
-  }
-  .meta-desc {
-    font-size: 10.5px !important;
-    -webkit-line-clamp: 1 !important;
-  }
-  .btn-quick-play-gold {
-    height: 32px !important;
-    font-size: 12px !important;
-  }
-  .btn-choose-room-subtle {
-    height: 32px !important;
-    font-size: 11px !important;
-    padding: 0 10px !important;
+  .commercial-game-card__meta .btn-choose-room-subtle {
+    height: 26px !important;
+    font-size: 10px !important;
+    padding: 0 8px !important;
   }
 }
 
@@ -8629,32 +8696,21 @@ body,
   }
   .commercial-lobby-stage {
     padding: 4px 8px 6px 8px !important;
-    gap: 8px !important;
+    gap: 6px !important;
   }
   .commercial-nav-rail {
-    width: 105px !important;
-    flex: 0 0 105px !important;
+    width: 100px !important;
+    flex: 0 0 100px !important;
   }
-  .commercial-game-card {
-    width: min(240px, calc(100% - 8px)) !important;
-    height: min(240px, calc(100% - 8px)) !important;
-    aspect-ratio: 1 / 1 !important;
-    flex: 0 0 min(240px, calc(100% - 8px)) !important;
+  .commercial-nine-grid {
+    gap: 6px !important;
   }
   .commercial-dealer-companion-stand {
-    width: min(240px, calc(100% - 8px)) !important;
-    height: min(240px, calc(100% - 8px)) !important;
-    aspect-ratio: 1 / 1 !important;
-    flex: 0 0 min(240px, calc(100% - 8px)) !important;
+    width: 200px !important;
+    flex: 0 0 200px !important;
   }
-  .card-entry-info {
-    padding: 2px 6px !important;
-  }
-  .entry-stakes-text {
-    font-size: 9.5px !important;
-  }
-  .entry-speed-tag {
-    font-size: 9px !important;
+  .commercial-game-card__meta {
+    padding: 4px 6px !important;
   }
 }
 

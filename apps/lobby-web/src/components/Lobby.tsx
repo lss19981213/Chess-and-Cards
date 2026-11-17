@@ -208,57 +208,37 @@ export function Lobby({
     return games;
   }, [games, activeTab]);
 
-  // 滚动事件按帧触发，直接 setState 会让整张 13 卡大厅每帧重建
-  const scrollRafRef = useRef<number | null>(null);
-  const updateScrollState = () => {
-    if (scrollRafRef.current !== null) return;
-    scrollRafRef.current = window.requestAnimationFrame(() => {
-      scrollRafRef.current = null;
-      if (!carouselRef.current) return;
-      const { scrollLeft, scrollWidth, clientWidth } = carouselRef.current;
-      setCanScrollLeft(scrollLeft > 10);
-      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
-    });
-  };
+  // 九宫格分页状态：固定 3x3 (9 款游戏/页)
+  const [gridPage, setGridPage] = useState(0);
+  const NINE_GRID_SIZE = 9;
 
   useEffect(() => {
-    updateScrollState();
-  }, [filteredGames]);
+    setGridPage(0);
+  }, [activeTab]);
 
-  const scrollCarousel = (offset: number) => {
+  const totalGridPages = Math.ceil(filteredGames.length / NINE_GRID_SIZE) || 1;
+  const currentGridPage = Math.min(gridPage, totalGridPages - 1);
+  const pageGames = filteredGames.slice(
+    currentGridPage * NINE_GRID_SIZE,
+    (currentGridPage + 1) * NINE_GRID_SIZE,
+  );
+
+  const handlePrevGridPage = () => {
     audio.play('click');
-    if (carouselRef.current) {
-      carouselRef.current.scrollBy({ left: offset, behavior: 'smooth' });
-      window.setTimeout(updateScrollState, 350);
-    }
+    setGridPage((p) => Math.max(0, p - 1));
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!carouselRef.current) return;
-    isDraggingRef.current = true;
-    startXRef.current = e.pageX - carouselRef.current.offsetLeft;
-    scrollLeftRef.current = carouselRef.current.scrollLeft;
+  const handleNextGridPage = () => {
+    audio.play('click');
+    setGridPage((p) => Math.min(totalGridPages - 1, p + 1));
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingRef.current || !carouselRef.current) return;
-    e.preventDefault();
-    const x = e.pageX - carouselRef.current.offsetLeft;
-    const walk = (x - startXRef.current) * 1.3;
-    carouselRef.current.scrollLeft = scrollLeftRef.current - walk;
-    updateScrollState();
-  };
-
-  const handleMouseUp = () => {
-    isDraggingRef.current = false;
-    updateScrollState();
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    if (!carouselRef.current) return;
-    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-      carouselRef.current.scrollLeft += e.deltaY;
-      updateScrollState();
+  const handleGridWheel = (e: React.WheelEvent) => {
+    if (totalGridPages <= 1) return;
+    if (e.deltaY > 25 || e.deltaX > 25) {
+      setGridPage((p) => Math.min(totalGridPages - 1, p + 1));
+    } else if (e.deltaY < -25 || e.deltaX < -25) {
+      setGridPage((p) => Math.max(0, p - 1));
     }
   };
 
@@ -491,47 +471,35 @@ export function Lobby({
           })}
         </nav>
 
-        {/* 中间游戏展示画卷 (支持鼠标平滑拖拽、滚轮横移、左右箭头翻页，无缝渐变遮罩) */}
-        <section className="commercial-games-carousel-wrapper">
+        {/* 中间游戏展示九宫格 (3x3 矩阵，支持平滑翻页与分页指示器) */}
+        <section className="commercial-games-carousel-wrapper commercial-nine-grid-wrapper" onWheel={handleGridWheel}>
           {/* 左翻页箭头 */}
-          {canScrollLeft && (
+          {totalGridPages > 1 && currentGridPage > 0 && (
             <button
               type="button"
               className="carousel-arrow-btn carousel-arrow-btn--left"
-              onClick={() => scrollCarousel(-420)}
-              title="向左翻页"
+              onClick={handlePrevGridPage}
+              title="上一页九宫格"
             >
               ‹
             </button>
           )}
 
           {/* 右翻页箭头 */}
-          {canScrollRight && (
+          {totalGridPages > 1 && currentGridPage < totalGridPages - 1 && (
             <button
               type="button"
               className="carousel-arrow-btn carousel-arrow-btn--right"
-              onClick={() => scrollCarousel(420)}
-              title="向右翻页"
+              onClick={handleNextGridPage}
+              title="下一页九宫格"
             >
               ›
             </button>
           )}
 
-          {/* 右边缘渐隐遮罩：提示玩家右侧还有丰富内容 */}
-          <div className="carousel-edge-fade-right" />
-
-          <div
-            className="commercial-games-carousel-viewport"
-            ref={carouselRef}
-            onScroll={updateScrollState}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
-          >
-            <div className="commercial-games-strip">
-              {filteredGames.map((game, index) => {
+          <div className="commercial-nine-grid-container">
+            <div className="commercial-nine-grid">
+              {pageGames.map((game, index) => {
                 const isLive = game.persistent === true || LIVE_GAMES.has(game.gameId);
                 const artUrl = GAME_ART[game.gameId];
                 const heatText = LIVE_HEAT_MAP[game.gameId] ?? (isLive ? '🎰 万人同台' : '🔥 火热开局');
@@ -544,7 +512,7 @@ export function Lobby({
                     onMouseEnter={() => setHoveredGame(game)}
                     onMouseLeave={() => setHoveredGame(null)}
                   >
-                    {/* 3D 质感海报画卷（加层柔和底部渐变，彻底告别正方形图片断层） */}
+                    {/* 3D 质感海报画卷 */}
                     <div
                       className="commercial-game-card__poster"
                       onClick={() => onQuickPlay(game)}
@@ -557,7 +525,6 @@ export function Lobby({
                           src={artUrl}
                           alt={game.name}
                           draggable={false}
-                          // 首屏前 3 张立即加载，其余延后，避免一次拉 1.8MB 图片
                           loading={index < 3 ? 'eager' : 'lazy'}
                           decoding="async"
                           width={480}
@@ -567,7 +534,7 @@ export function Lobby({
                         <div className="game-card-fallback-icon">{game.icon}</div>
                       )}
 
-                      {/* 柔和底部过渡渐变遮罩：让正方形图片与卡片底色完全融为一体 */}
+                      {/* 柔和底部过渡渐变遮罩 */}
                       <div className="poster-fade-overlay" />
                       <div className="poster-light-sweep" />
 
@@ -587,17 +554,14 @@ export function Lobby({
                     <div className="commercial-game-card__meta">
                       <div className="meta-text-col">
                         <h3 className="meta-title">{game.name}</h3>
-                        <p className="meta-desc">{game.description}</p>
-                      </div>
-
-                      {/* 场次门槛与底分透明提示 */}
-                      <div className="card-entry-info">
-                        <span className="entry-stakes-text">{stakesText}</span>
-                        <span className="entry-speed-tag">极速秒配</span>
+                        <div className="card-entry-info">
+                          <span className="entry-stakes-text">{stakesText}</span>
+                          <span className="entry-speed-tag">极速秒配</span>
+                        </div>
                       </div>
 
                       <div className="meta-actions-row">
-                        {/* 核心高转化：暖金极速开局大按钮 (纯白闪电图标，高对比度高冲击) */}
+                        {/* 核心高转化：暖金极速开局大按钮 */}
                         <button
                           type="button"
                           className="btn-quick-play-gold"
@@ -630,6 +594,45 @@ export function Lobby({
                 );
               })}
             </div>
+
+            {/* 九宫格多页分页指示器 */}
+            {totalGridPages > 1 && (
+              <div className="nine-grid-pagination-bar">
+                <button
+                  type="button"
+                  className="grid-page-nav-btn"
+                  onClick={handlePrevGridPage}
+                  disabled={currentGridPage === 0}
+                >
+                  ‹ 上一页
+                </button>
+                <div className="grid-page-dots-wrap">
+                  {Array.from({ length: totalGridPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`grid-page-dot ${i === currentGridPage ? 'is-active' : ''}`}
+                      onClick={() => {
+                        audio.play('click');
+                        setGridPage(i);
+                      }}
+                      title={`第 ${i + 1} 页`}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="grid-page-nav-btn"
+                  onClick={handleNextGridPage}
+                  disabled={currentGridPage >= totalGridPages - 1}
+                >
+                  下一页 ›
+                </button>
+                <span className="grid-page-num-indicator">
+                  第 {currentGridPage + 1} / {totalGridPages} 页 (九宫格)
+                </span>
+              </div>
+            )}
           </div>
         </section>
 
