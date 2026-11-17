@@ -284,6 +284,46 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     previewClass: 'skin-cocktail',
     assetFile: 'dealer-cocktail.jpg',
   },
+  {
+    id: 'lingerie',
+    name: '幻夜薄纱蕾丝睡裙',
+    description: '好感度达 8500 解锁，半透黑蕾丝晨袍私密睡裙，极尽诱惑与奢华',
+    requiredAffection: 8500,
+    previewClass: 'skin-lingerie',
+    assetFile: 'dealer-lingerie.jpg',
+  },
+  {
+    id: 'bathrobe',
+    name: '微醺温泉丝绸浴袍',
+    description: '好感度达 12000 解锁，温润温泉微敞丝质白浴袍，清纯与性感并存',
+    requiredAffection: 12000,
+    previewClass: 'skin-bathrobe',
+    assetFile: 'dealer-bathrobe.jpg',
+  },
+  {
+    id: 'maid',
+    name: '皇家至尊黑丝女仆',
+    description: '好感度达 18000 解锁，法式奢华露背黑丝女仆装，端茶递牌专属奉侍',
+    requiredAffection: 18000,
+    previewClass: 'skin-maid',
+    assetFile: 'dealer-maid.jpg',
+  },
+  {
+    id: 'succubus',
+    name: '暗夜魅魔契约皮衣',
+    description: '好感度达 22000 解锁，暗黑小翅膀与爱心尾巴，贴身漆皮胸衣极致魔性',
+    requiredAffection: 22000,
+    previewClass: 'skin-succubus',
+    assetFile: 'dealer-succubus.jpg',
+  },
+  {
+    id: 'celebrate',
+    name: '星芒庆典香槟裙',
+    description: '好感度达 28000 冠绝登顶解锁，金粉与礼花交织的至尊大赢家庆典特装，甜美比耶欢庆',
+    requiredAffection: 28000,
+    previewClass: 'skin-celebrate',
+    assetFile: 'dealer-celebrate.jpg',
+  },
 ];
 
 export interface DealerVoiceMeta {

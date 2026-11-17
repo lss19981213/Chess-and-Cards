@@ -7009,27 +7009,27 @@ html, body, #root {
 }
 
 .companion-portrait-wrapper {
-  height: auto !important;
   min-height: 0 !important;
   flex: 1 1 auto;
   display: flex !important;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 76% 42% at 50% 96%, rgba(243, 207, 122, 0.18), transparent 70%);
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .companion-portrait-wrapper img {
-  /* 放大到容器宽度的 1.5 倍并居中溢出，人像更饱满，上方空白显著减少 */
-  width: 150% !important;
+  width: 100% !important;
+  height: 100% !important;
   max-width: none !important;
-  height: auto !important;
   max-height: none !important;
-  margin-left: -25%;
-  object-fit: contain !important;
-  object-position: bottom center !important;
-  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.6));
+  margin: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 !important;
+  object-fit: cover !important;
+  object-position: center top !important;
 }
 
 .dealer-stand__img {
@@ -8567,7 +8567,7 @@ body,
   word-break: break-word !important;
 }
 
-/* 荷官立绘展区：纵向拉满充满展区，object-fit: cover 消除多余黑底，完整高贵呈现性感立绘 */
+/* 荷官立绘展区：纵向拉满充满展区，object-fit: cover 消除多余黑底，100% 满幅贴合绝无边框黑块 */
 .companion-portrait-wrapper {
   width: 100% !important;
   flex: 1 1 0% !important;
@@ -8578,7 +8578,9 @@ body,
   overflow: hidden !important;
   position: relative !important;
   border-radius: 14px !important;
-  margin: 0 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid rgba(243, 207, 122, 0.4) !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
   cursor: pointer !important;
   background: #0d121f !important;
@@ -8587,6 +8589,16 @@ body,
 .companion-portrait-wrapper img {
   width: 100% !important;
   height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 0 !important;
   object-fit: cover !important;
   object-position: center top !important;
   display: block !important;
@@ -8598,38 +8610,39 @@ body,
   transform: scale(1.03) !important;
 }
 
-/* 下方按键群：做大一点，交互更舒适明朗 */
+/* 下方按键群：全面再次加大，质感丰满，手感更爽利 */
 .companion-footer-actions {
   flex-shrink: 0 !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 8px !important;
+  gap: 10px !important;
   width: 100% !important;
 }
 
 .btn-random-match {
   width: 100% !important;
-  height: 44px !important;
-  border-radius: 12px !important;
-  font-size: 14px !important;
+  height: 48px !important;
+  border-radius: 14px !important;
+  font-size: 15px !important;
   font-weight: 900 !important;
-  background: linear-gradient(135deg, rgba(243, 207, 122, 0.3) 0%, rgba(255, 255, 255, 0.12) 100%) !important;
-  border: 1.5px solid rgba(243, 207, 122, 0.65) !important;
+  letter-spacing: 0.5px !important;
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.35) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.75) !important;
   color: #fff !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 6px !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  gap: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
 }
 
 .btn-random-match:hover {
-  background: linear-gradient(135deg, rgba(243, 207, 122, 0.45) 0%, rgba(255, 255, 255, 0.2) 100%) !important;
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.5) 0%, rgba(255, 255, 255, 0.22) 100%) !important;
   border-color: #f3cf7a !important;
-  box-shadow: 0 6px 20px rgba(243, 207, 122, 0.35) !important;
-  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 22px rgba(243, 207, 122, 0.4) !important;
+  transform: translateY(-1.5px) !important;
 }
 
 .btn-random-match:active {
@@ -8638,35 +8651,35 @@ body,
 
 .companion-sub-actions-row {
   display: flex !important;
-  gap: 8px !important;
+  gap: 10px !important;
   width: 100% !important;
 }
 
 .btn-dealer-wardrobe {
   flex: 1 !important;
-  height: 42px !important;
-  padding: 0 10px !important;
-  font-size: 13px !important;
+  height: 46px !important;
+  padding: 0 12px !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
-  border-radius: 12px !important;
+  border-radius: 13px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 4px !important;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%) !important;
-  border: 1.5px solid rgba(236, 72, 153, 0.55) !important;
-  color: #fbcfe8 !important;
+  gap: 6px !important;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35) 0%, rgba(236, 72, 153, 0.35) 100%) !important;
+  border: 1.5px solid rgba(236, 72, 153, 0.65) !important;
+  color: #fce7f3 !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
 }
 
 .btn-dealer-wardrobe:hover {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.45) 0%, rgba(236, 72, 153, 0.45) 100%) !important;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.5) 0%, rgba(236, 72, 153, 0.5) 100%) !important;
   border-color: #f472b6 !important;
   color: #fff !important;
-  box-shadow: 0 6px 18px rgba(236, 72, 153, 0.4) !important;
-  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(236, 72, 153, 0.45) !important;
+  transform: translateY(-1.5px) !important;
 }
 
 .btn-dealer-wardrobe:active {
@@ -8680,28 +8693,28 @@ body,
 
 .btn-tip-dealer-gold {
   width: 100% !important;
-  height: 42px !important;
-  padding: 0 10px !important;
-  font-size: 13px !important;
+  height: 46px !important;
+  padding: 0 12px !important;
+  font-size: 14px !important;
   font-weight: 800 !important;
-  border-radius: 12px !important;
+  border-radius: 13px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 4px !important;
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.35) 0%, rgba(244, 63, 94, 0.35) 100%) !important;
-  border: 1.5px solid rgba(244, 114, 182, 0.6) !important;
+  gap: 6px !important;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.4) 0%, rgba(244, 63, 94, 0.4) 100%) !important;
+  border: 1.5px solid rgba(244, 114, 182, 0.7) !important;
   color: #fff !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
 }
 
 .btn-tip-dealer-gold:hover {
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.5) 0%, rgba(244, 63, 94, 0.5) 100%) !important;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.55) 0%, rgba(244, 63, 94, 0.55) 100%) !important;
   border-color: #fda4af !important;
-  box-shadow: 0 6px 18px rgba(244, 63, 94, 0.45) !important;
-  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.5) !important;
+  transform: translateY(-1.5px) !important;
 }
 
 .btn-tip-dealer-gold:active {

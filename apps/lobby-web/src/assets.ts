@@ -41,4 +41,9 @@ export const DEALER_SKINS_ASSETS: Record<string, string> = {
   catgirl: asset('dealer-catgirl.jpg'),
   cyber: asset('dealer-cyber.jpg'),
   cocktail: asset('dealer-cocktail.jpg'),
+  lingerie: asset('dealer-lingerie.jpg'),
+  bathrobe: asset('dealer-bathrobe.jpg'),
+  maid: asset('dealer-maid.jpg'),
+  succubus: asset('dealer-succubus.jpg'),
+  celebrate: asset('dealer-celebrate.jpg'),
 };
