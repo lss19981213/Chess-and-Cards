@@ -218,7 +218,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '初识荷官的经典燕尾礼服，端庄而优雅',
     requiredAffection: 0,
     previewClass: 'skin-classic',
-    assetFile: 'dealer-main.webp',
+    assetFile: 'dealer-main.jpg',
   },
   {
     id: 'cheongsam',
@@ -226,7 +226,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 500 解锁，雍容华贵、金线刺绣的国风丝绸旗袍',
     requiredAffection: 500,
     previewClass: 'skin-cheongsam',
-    assetFile: 'dealer-cheongsam.webp',
+    assetFile: 'dealer-cheongsam.jpg',
   },
   {
     id: 'bikini',
@@ -234,7 +234,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 1000 解锁，阳光海滩纯欲金边薄纱比基尼，清凉性感',
     requiredAffection: 1000,
     previewClass: 'skin-bikini',
-    assetFile: 'dealer-bikini.webp',
+    assetFile: 'dealer-bikini.jpg',
   },
   {
     id: 'bunny',
@@ -242,7 +242,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 2000 解锁，俏皮火辣的拉斯维加斯派对兔女郎特装',
     requiredAffection: 2000,
     previewClass: 'skin-bunny',
-    assetFile: 'dealer-bunny.webp',
+    assetFile: 'dealer-bunny.jpg',
   },
   {
     id: 'nurse',
@@ -250,7 +250,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 3500 解锁，俏皮甜美爱心镂空粉白特护装，心跳加速',
     requiredAffection: 3500,
     previewClass: 'skin-nurse',
-    assetFile: 'dealer-nurse.webp',
+    assetFile: 'dealer-nurse.jpg',
   },
   {
     id: 'royal',
@@ -258,7 +258,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 5000 解锁，尊贵华丽的纯白与红丝绒王室礼服',
     requiredAffection: 5000,
     previewClass: 'skin-royal',
-    assetFile: 'dealer-royal.webp',
+    assetFile: 'dealer-royal.jpg',
   },
   {
     id: 'catgirl',
@@ -266,7 +266,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 7000 解锁，微透蕾丝吊带猫耳黑丝特装，猫咪系极致诱惑',
     requiredAffection: 7000,
     previewClass: 'skin-catgirl',
-    assetFile: 'dealer-catgirl.webp',
+    assetFile: 'dealer-catgirl.jpg',
   },
   {
     id: 'cyber',
@@ -274,7 +274,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 10000 誓约解锁，科技感爆棚的机械发光战姬特装',
     requiredAffection: 10000,
     previewClass: 'skin-cyber',
-    assetFile: 'dealer-cyber.webp',
+    assetFile: 'dealer-cyber.jpg',
   },
   {
     id: 'cocktail',
@@ -282,7 +282,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 15000 终极倾心解锁，深V大露背酒红丝绒宴会晚装，极致性感高雅',
     requiredAffection: 15000,
     previewClass: 'skin-cocktail',
-    assetFile: 'dealer-cocktail.webp',
+    assetFile: 'dealer-cocktail.jpg',
   },
   {
     id: 'lingerie',
@@ -290,7 +290,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 8500 解锁，半透黑蕾丝晨袍私密睡裙，极尽诱惑与奢华',
     requiredAffection: 8500,
     previewClass: 'skin-lingerie',
-    assetFile: 'dealer-lingerie.webp',
+    assetFile: 'dealer-lingerie.jpg',
   },
   {
     id: 'bathrobe',
@@ -298,7 +298,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 12000 解锁，温润温泉微敞丝质白浴袍，清纯与性感并存',
     requiredAffection: 12000,
     previewClass: 'skin-bathrobe',
-    assetFile: 'dealer-bathrobe.webp',
+    assetFile: 'dealer-bathrobe.jpg',
   },
   {
     id: 'maid',
@@ -306,7 +306,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 18000 解锁，法式奢华露背黑丝女仆装，端茶递牌专属奉侍',
     requiredAffection: 18000,
     previewClass: 'skin-maid',
-    assetFile: 'dealer-maid.webp',
+    assetFile: 'dealer-maid.jpg',
   },
   {
     id: 'succubus',
@@ -314,7 +314,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 22000 解锁，暗黑小翅膀与爱心尾巴，贴身漆皮胸衣极致魔性',
     requiredAffection: 22000,
     previewClass: 'skin-succubus',
-    assetFile: 'dealer-succubus.webp',
+    assetFile: 'dealer-succubus.jpg',
   },
   {
     id: 'celebrate',
@@ -322,7 +322,7 @@ export const DEALER_SKINS: readonly DealerSkinMeta[] = [
     description: '好感度达 28000 冠绝登顶解锁，金粉与礼花交织的至尊大赢家庆典特装，甜美比耶欢庆',
     requiredAffection: 28000,
     previewClass: 'skin-celebrate',
-    assetFile: 'dealer-celebrate.webp',
+    assetFile: 'dealer-celebrate.jpg',
   },
 ];
 
