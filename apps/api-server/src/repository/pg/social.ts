@@ -63,8 +63,18 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     bio: string | null;
     avatar_url: string | null;
     banned: boolean;
+    equipped_frame: string | null;
+    owned_frames: string[] | null;
+    worship_count: number | null;
+    dealer_skin: string | null;
+    dealer_voice: string | null;
   }>(
-    `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url, coalesce(u.banned, false) as banned
+    `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url, coalesce(u.banned, false) as banned,
+            coalesce(p.equipped_frame, 'frame_default') as equipped_frame,
+            coalesce(p.owned_frames, array['frame_default']::text[]) as owned_frames,
+            coalesce(p.worship_count, 0) as worship_count,
+            coalesce(p.dealer_skin, 'classic') as dealer_skin,
+            coalesce(p.dealer_voice, 'classic') as dealer_voice
        from users u
        left join user_profiles p on p.user_id = u.id
       where u.id = $1`,
@@ -79,6 +89,11 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     bio: row.bio ?? '',
     avatar: row.avatar_url ?? null,
     banned: Boolean(row.banned),
+    equippedFrame: row.equipped_frame ?? 'frame_default',
+    ownedFrames: row.owned_frames ?? ['frame_default'],
+    worshipCount: Number(row.worship_count ?? 0),
+    dealerSkin: row.dealer_skin ?? 'classic',
+    dealerVoice: row.dealer_voice ?? 'classic',
   };
 }
 
@@ -100,19 +115,218 @@ export async function updateProfile(
     }
   }
 
-  if (patch.bio !== undefined || patch.avatar !== undefined) {
+  if (
+    patch.bio !== undefined ||
+    patch.avatar !== undefined ||
+    patch.equippedFrame !== undefined ||
+    patch.dealerSkin !== undefined ||
+    patch.dealerVoice !== undefined
+  ) {
     await pool.query(
-      `insert into user_profiles (user_id, bio, avatar, updated_at)
-       values ($1, coalesce($2, ''), $3, now())
+      `insert into user_profiles (user_id, bio, avatar, equipped_frame, dealer_skin, dealer_voice, updated_at)
+       values ($1, coalesce($2, ''), $3, coalesce($4, 'frame_default'), coalesce($5, 'classic'), coalesce($6, 'classic'), now())
        on conflict (user_id) do update
           set bio = coalesce($2, user_profiles.bio),
-              avatar = case when $4 then $3 else user_profiles.avatar end,
+              avatar = case when $7 then $3 else user_profiles.avatar end,
+              equipped_frame = coalesce($4, user_profiles.equipped_frame),
+              dealer_skin = coalesce($5, user_profiles.dealer_skin),
+              dealer_voice = coalesce($6, user_profiles.dealer_voice),
               updated_at = now()`,
-      [userId, patch.bio ?? null, patch.avatar ?? null, patch.avatar !== undefined],
+      [
+        userId,
+        patch.bio ?? null,
+        patch.avatar ?? null,
+        patch.equippedFrame ?? null,
+        patch.dealerSkin ?? null,
+        patch.dealerVoice ?? null,
+        patch.avatar !== undefined,
+      ],
     );
   }
 
   return (await getProfile(pool, userId)) as PlayerProfile;
+}
+
+export async function buyAvatarFrame(
+  pool: pg.Pool,
+  userId: string,
+  frameId: string,
+  price: number,
+): Promise<{ ok: boolean; balance: number; equippedFrame: string; ownedFrames: string[] }> {
+  await pool.query(
+    `insert into user_profiles (user_id, equipped_frame, owned_frames)
+     values ($1, 'frame_default', array['frame_default']::text[])
+     on conflict (user_id) do nothing`,
+    [userId],
+  );
+
+  const profile = await getProfile(pool, userId);
+  const currentOwned = profile?.ownedFrames ?? ['frame_default'];
+  if (currentOwned.includes(frameId)) {
+    await pool.query(
+      `update user_profiles set equipped_frame = $2, updated_at = now() where user_id = $1`,
+      [userId, frameId],
+    );
+    const bRes = await pool.query<{ balance: string }>(
+      `select balance from wallets where user_id = $1 and currency = 'coin'`,
+      [userId],
+    );
+    const balance = Number(bRes.rows[0]?.balance ?? 0);
+    return { ok: true, balance, equippedFrame: frameId, ownedFrames: currentOwned };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const wRes = await client.query<{ balance: string }>(
+      `select balance from wallets where user_id = $1 and currency = 'coin' for update`,
+      [userId],
+    );
+    const currentBalance = Number(wRes.rows[0]?.balance ?? 0);
+    if (currentBalance < price) {
+      throw new Error(`筹码不足，购买头像框需要 ${price.toLocaleString()} 筹码`);
+    }
+    const newBalance = currentBalance - price;
+    await client.query(
+      `update wallets set balance = $2, version = version + 1 where user_id = $1 and currency = 'coin'`,
+      [userId, newBalance],
+    );
+    await client.query(
+      `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+       values ($1, 'coin', $2, $3, 'buy_frame', $4)`,
+      [userId, -price, newBalance, `${frameId}:${Date.now()}`],
+    );
+    const updatedOwned = [...new Set([...currentOwned, frameId])];
+    await client.query(
+      `update user_profiles
+          set equipped_frame = $2, owned_frames = $3, updated_at = now()
+        where user_id = $1`,
+      [userId, frameId, updatedOwned],
+    );
+    await client.query('commit');
+    return { ok: true, balance: newBalance, equippedFrame: frameId, ownedFrames: updatedOwned };
+  } catch (err) {
+    await client.query('rollback');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function equipAvatarFrame(
+  pool: pg.Pool,
+  userId: string,
+  frameId: string,
+): Promise<{ ok: boolean; equippedFrame: string }> {
+  const profile = await getProfile(pool, userId);
+  const currentOwned = profile?.ownedFrames ?? ['frame_default'];
+  if (frameId !== 'frame_default' && !currentOwned.includes(frameId)) {
+    throw new Error('未拥有该头像框，请先使用筹码购买');
+  }
+  await pool.query(
+    `insert into user_profiles (user_id, equipped_frame, owned_frames)
+     values ($1, $2, array['frame_default']::text[])
+     on conflict (user_id) do update set equipped_frame = $2, updated_at = now()`,
+    [userId, frameId],
+  );
+  return { ok: true, equippedFrame: frameId };
+}
+
+export async function getWorshipRemainingToday(
+  pool: pg.Pool,
+  worshiperId: string,
+  dayKey: string,
+): Promise<number> {
+  const res = await pool.query<{ count: string }>(
+    `select count(*) from worship_records where worshiper_id = $1 and day_key = $2`,
+    [worshiperId, dayKey],
+  );
+  const used = Number(res.rows[0]?.count ?? 0);
+  return Math.max(0, 10 - used);
+}
+
+export async function worshipUser(
+  pool: pg.Pool,
+  worshiperId: string,
+  targetUserId: string,
+  dayKey: string,
+): Promise<{ ok: boolean; remainingToday: number; newWorshipCount: number; reward: number; message?: string }> {
+  if (worshiperId === targetUserId) {
+    throw new Error('不能膜拜自己哦');
+  }
+  const remaining = await getWorshipRemainingToday(pool, worshiperId, dayKey);
+  if (remaining <= 0) {
+    throw new Error('今日膜拜次数已达上限（10/10 次），明天再来吧');
+  }
+
+  await pool.query(
+    `insert into user_profiles (user_id, worship_count)
+     values ($1, 0)
+     on conflict (user_id) do nothing`,
+    [targetUserId],
+  );
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await client.query(
+      `insert into worship_records (worshiper_id, target_user_id, day_key) values ($1, $2, $3)`,
+      [worshiperId, targetUserId, dayKey],
+    );
+    const tRes = await client.query<{ worship_count: number }>(
+      `update user_profiles
+          set worship_count = worship_count + 1, updated_at = now()
+        where user_id = $1
+        returning worship_count`,
+      [targetUserId],
+    );
+    const newWorshipCount = Number(tRes.rows[0]?.worship_count ?? 1);
+
+    const rewardCoins = 188;
+    const wRes = await client.query<{ balance: string }>(
+      `update wallets
+          set balance = balance + $2, version = version + 1
+        where user_id = $1 and currency = 'coin'
+        returning balance`,
+      [worshiperId, rewardCoins],
+    );
+    const newBal = Number(wRes.rows[0]?.balance ?? 0);
+    await client.query(
+      `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+       values ($1, 'coin', $2, $3, 'worship_reward', $4)`,
+      [worshiperId, rewardCoins, newBal, `${dayKey}:${worshiperId}:${Date.now()}`],
+    );
+
+    await client.query('commit');
+    return {
+      ok: true,
+      remainingToday: remaining - 1,
+      newWorshipCount,
+      reward: rewardCoins,
+      message: `膜拜成功！获得赞誉回馈 +${rewardCoins} 筹码！`,
+    };
+  } catch (err) {
+    await client.query('rollback');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function customizeDealer(
+  pool: pg.Pool,
+  userId: string,
+  skin: string,
+  voice: string,
+): Promise<{ ok: boolean; dealerSkin: string; dealerVoice: string }> {
+  await pool.query(
+    `insert into user_profiles (user_id, dealer_skin, dealer_voice)
+     values ($1, $2, $3)
+     on conflict (user_id) do update
+        set dealer_skin = $2, dealer_voice = $3, updated_at = now()`,
+    [userId, skin, voice],
+  );
+  return { ok: true, dealerSkin: skin, dealerVoice: voice };
 }
 
 export async function searchUsers(

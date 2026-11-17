@@ -20,7 +20,16 @@ export type SfxName =
   | 'dice_open'
   | 'alert'
   | 'chip_clack'
-  | 'jackpot';
+  | 'jackpot'
+  | 'god_login'
+  | 'worship'
+  | 'slot_spin'
+  | 'slot_stop'
+  | 'slot_win'
+  | 'slot_jackpot'
+  | 'mahjong_clack'
+  | 'coin_stream'
+  | 'card_shuffle';
 
 const STORAGE_KEY = 'cc.audio';
 
@@ -222,6 +231,129 @@ class AudioEngine {
       case 'jackpot':
         this.jackpotSound(out);
         break;
+      case 'god_login':
+        this.godLoginSound(out);
+        break;
+      case 'worship':
+        this.worshipSound(out);
+        break;
+      case 'slot_spin':
+        this.slotSpinSound(out);
+        break;
+      case 'slot_stop':
+        this.slotStopSound(out);
+        break;
+      case 'slot_win':
+        this.slotWinSound(out);
+        break;
+      case 'slot_jackpot':
+        this.slotJackpotSound(out);
+        break;
+      case 'mahjong_clack':
+        this.mahjongClack(out);
+        break;
+      case 'coin_stream':
+        this.coinStream(out);
+        break;
+      case 'card_shuffle':
+        this.cardShuffle(out);
+        break;
+    }
+  }
+
+  private godLoginSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 赌神登场：辉煌三段式金色号角和弦
+    const chords = [
+      [523.25, 659.25, 783.99], // C
+      [659.25, 783.99, 1046.5], // Em/C
+      [783.99, 987.77, 1174.66, 1567.98], // G7 / C-High
+    ];
+    chords.forEach((chord, i) => {
+      window.setTimeout(() => {
+        chord.forEach((freq) => {
+          this.tone(freq, i === 2 ? 0.65 : 0.22, 'sawtooth', 0.12, out);
+          this.tone(freq / 2, i === 2 ? 0.65 : 0.22, 'triangle', 0.18, out);
+        });
+      }, i * 220);
+    });
+  }
+
+  private worshipSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 膜拜：清脆竖琴祈福琶音 + 柔和心跳泛音
+    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98];
+    this.arpeggio(notes, 0.07, 'sine', 0.22, out);
+    window.setTimeout(() => {
+      this.tone(1046.5, 0.4, 'triangle', 0.15, out);
+    }, 280);
+  }
+
+  private slotSpinSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 机械滚轮转动：轻快棘轮咔哒声
+    this.noise(0.015, 0.08, out);
+    this.tone(1600, 0.015, 'sawtooth', 0.08, out);
+  }
+
+  private slotStopSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 滚轮锁定机械撞击声
+    this.noise(0.025, 0.2, out);
+    this.tone(480, 0.04, 'triangle', 0.25, out);
+    this.tone(180, 0.06, 'sine', 0.3, out);
+  }
+
+  private slotWinSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 老虎机连线中奖：欢快金属铃铛
+    const bellNotes = [659.25, 783.99, 1046.5, 1318.51];
+    bellNotes.forEach((f, i) => {
+      window.setTimeout(() => {
+        this.tone(f, 0.15, 'triangle', 0.2, out);
+        this.tone(f * 2, 0.08, 'sine', 0.1, out);
+      }, i * 70);
+    });
+  }
+
+  private slotJackpotSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 777 巨额大奖：警报双音循环 + 金币爆裂
+    for (let i = 0; i < 8; i++) {
+      window.setTimeout(() => {
+        const freq = i % 2 === 0 ? 880 : 1320;
+        this.tone(freq, 0.1, 'sawtooth', 0.25, out);
+      }, i * 110);
+    }
+    window.setTimeout(() => this.jackpotSound(out), 400);
+  }
+
+  private mahjongClack(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 麻将骨质撞击：厚实沉闷的敲击 + 脆响
+    this.noise(0.018, 0.25, out);
+    this.tone(1350, 0.02, 'triangle', 0.2, out);
+    this.tone(550, 0.04, 'sine', 0.3, out);
+  }
+
+  private coinStream(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 瀑布金币流雨
+    for (let i = 0; i < 9; i++) {
+      window.setTimeout(() => {
+        const f = 1900 + Math.random() * 800;
+        this.tone(f, 0.035, 'sine', 0.12, out);
+      }, i * 45 + Math.random() * 20);
+    }
+  }
+
+  private cardShuffle(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 纸牌洗牌沙沙摩擦声
+    for (let i = 0; i < 6; i++) {
+      window.setTimeout(() => {
+        this.noise(0.03, 0.06, out);
+      }, i * 35);
     }
   }
 

@@ -58,6 +58,11 @@ import {
   removeFriend,
   searchUsers,
   updateProfile,
+  buyAvatarFrame,
+  equipAvatarFrame,
+  worshipUser,
+  getWorshipRemainingToday,
+  customizeDealer,
 } from './pg/social';
 import {
   getEconomyOverview,
@@ -279,5 +284,25 @@ export class PostgresRepository implements Repository {
 
   deleteAdminMail(mailId: string): Promise<boolean> {
     return deleteAdminMail(this.pool, mailId);
+  }
+
+  buyAvatarFrame(userId: string, frameId: string, price: number) {
+    return buyAvatarFrame(this.pool, userId, frameId, price);
+  }
+
+  equipAvatarFrame(userId: string, frameId: string) {
+    return equipAvatarFrame(this.pool, userId, frameId);
+  }
+
+  worshipUser(worshiperId: string, targetUserId: string, dayKey: string) {
+    return worshipUser(this.pool, worshiperId, targetUserId, dayKey);
+  }
+
+  getWorshipRemainingToday(worshiperId: string, dayKey: string) {
+    return getWorshipRemainingToday(this.pool, worshiperId, dayKey);
+  }
+
+  customizeDealer(userId: string, skin: string, voice: string) {
+    return customizeDealer(this.pool, userId, skin, voice);
   }
 }

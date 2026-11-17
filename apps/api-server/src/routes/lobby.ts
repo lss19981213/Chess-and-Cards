@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import type { GameMeta } from '@cc/protocol';
+import { AVATAR_FRAMES, type GameMeta } from '@cc/protocol';
 import { config } from '../config';
 import { FALLBACK_GAMES } from '../game-catalog';
 import { authHeader, httpError } from '../http-utils';
@@ -161,10 +161,12 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
 
     let myRank: number | null = null;
     let myUserId: string | null = null;
+    let remainingWorshipsToday = 10;
     try {
       const claims = authHeader(req);
       myUserId = claims.sub;
       myRank = await repo.leaderboardRank(claims.sub);
+      remainingWorshipsToday = await repo.getWorshipRemainingToday(claims.sub, beijingDayKey());
     } catch {
       /* 未登录也允许查看排行榜 */
     }
@@ -177,10 +179,89 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
         balance: row.balance,
         reward: rewardForRank(index + 1),
         title: titleFor(index + 1),
+        worshipCount: row.worshipCount ?? 0,
+        equippedFrame: row.equippedFrame ?? 'frame_default',
+        avatar: row.avatar ?? null,
       })),
       myRank,
       myUserId,
+      remainingWorshipsToday,
     };
+  });
+
+  app.post('/api/leaderboard/:userId/worship', async (req) => {
+    const claims = authHeader(req);
+    const targetUserId = String((req.params as { userId?: string }).userId ?? '');
+    if (!targetUserId) throw httpError('缺少目标玩家 ID', 400);
+
+    try {
+      const res = await repo.worshipUser(claims.sub, targetUserId, beijingDayKey());
+      return res;
+    } catch (err) {
+      throw httpError(err instanceof Error ? err.message : '膜拜失败', 400);
+    }
+  });
+
+  app.get('/api/avatar-frames/catalog', async (req) => {
+    let equippedFrame = 'frame_default';
+    let ownedFrames = ['frame_default'];
+    let worshipCount = 0;
+    try {
+      const claims = authHeader(req);
+      const profile = await repo.getProfile(claims.sub);
+      if (profile) {
+        equippedFrame = profile.equippedFrame ?? 'frame_default';
+        ownedFrames = profile.ownedFrames ?? ['frame_default'];
+        worshipCount = profile.worshipCount ?? 0;
+      }
+    } catch {
+      /* 游客模式返回默认 */
+    }
+    return {
+      frames: AVATAR_FRAMES,
+      equippedFrame,
+      ownedFrames,
+      worshipCount,
+    };
+  });
+
+  app.post('/api/avatar-frames/buy', async (req) => {
+    const claims = authHeader(req);
+    const body = (req.body ?? {}) as { frameId?: string };
+    const frameId = String(body.frameId ?? '');
+    const meta = AVATAR_FRAMES.find((f) => f.id === frameId);
+    if (!meta) throw httpError('头像框不存在', 404);
+
+    try {
+      const res = await repo.buyAvatarFrame(claims.sub, frameId, meta.price);
+      return res;
+    } catch (err) {
+      throw httpError(err instanceof Error ? err.message : '购买头像框失败', 400);
+    }
+  });
+
+  app.post('/api/avatar-frames/equip', async (req) => {
+    const claims = authHeader(req);
+    const body = (req.body ?? {}) as { frameId?: string };
+    const frameId = String(body.frameId ?? '');
+    if (!frameId) throw httpError('缺少头像框 ID', 400);
+
+    try {
+      const res = await repo.equipAvatarFrame(claims.sub, frameId);
+      return res;
+    } catch (err) {
+      throw httpError(err instanceof Error ? err.message : '佩戴头像框失败', 400);
+    }
+  });
+
+  app.post('/api/dealer/customize', async (req) => {
+    const claims = authHeader(req);
+    const body = (req.body ?? {}) as { skin?: string; voice?: string };
+    const skin = String(body.skin ?? 'classic');
+    const voice = String(body.voice ?? 'classic');
+
+    const res = await repo.customizeDealer(claims.sub, skin, voice);
+    return res;
   });
 
   app.get('/api/leaderboard/rewards', async () => {

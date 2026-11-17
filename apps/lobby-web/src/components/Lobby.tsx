@@ -7,12 +7,15 @@ function IconBolt() {
 }
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Announcement, BotDifficulty, GameMeta } from '@cc/protocol';
-import { api, resolveAvatarUrl, type User } from '../api';
+import { DEALER_VOICES, type Announcement, type BotDifficulty, type GameMeta } from '@cc/protocol';
+import { api, type User } from '../api';
 import { audio } from '../audio';
-import { DEALER_MAIN, GAME_ART, HERO_BG } from '../assets';
+import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART, HERO_BG } from '../assets';
+import { AvatarFrameModal } from './AvatarFrameModal';
+import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
 import { DealerTipWidget } from './DealerTipWidget';
+import { DealerWardrobeModal } from './DealerWardrobeModal';
 import {
   IconGift,
   IconMail,
@@ -23,6 +26,7 @@ import {
   IconSound,
   IconTrophy,
 } from './Icons';
+import { LuxurySlotsModal } from './LuxurySlotsModal';
 
 interface Props {
   user: User | null;
@@ -40,6 +44,7 @@ interface Props {
   botDifficulty: BotDifficulty;
   onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
   onBalanceChange?: (newBalance: number) => void;
+  onUserUpdate?: (patch: Partial<User>) => void;
 }
 
 type CategoryKey = 'all' | 'live' | 'cards' | 'chess';
@@ -129,6 +134,7 @@ export function Lobby({
   botDifficulty,
   onChangeBotDifficulty,
   onBalanceChange,
+  onUserUpdate,
 }: Props) {
   const [activeTab, setActiveTab] = useState<CategoryKey>('all');
   const [musicOn, setMusicOn] = useState(audio.musicOn);
@@ -138,6 +144,9 @@ export function Lobby({
   const [dealerHeart, setDealerHeart] = useState(false);
   const [customQuote, setCustomQuote] = useState<string | null>(null);
   const [hoveredGame, setHoveredGame] = useState<GameMeta | null>(null);
+  const [showSlotsModal, setShowSlotsModal] = useState(false);
+  const [showAvatarFrameModal, setShowAvatarFrameModal] = useState(false);
+  const [showDealerWardrobe, setShowDealerWardrobe] = useState(false);
 
   // 卡片画卷平滑滚动控制
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -167,6 +176,24 @@ export function Lobby({
     }
     return '尊贵牌友欢迎光临，绿色公平竞技环境，虚拟筹码畅享顶级棋牌乐趣！';
   }, [announcements]);
+
+  const hasVipMarquee = ticker.includes('【全服广播】') || ticker.includes('赌神');
+  const lastGodChimeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (hasVipMarquee && announcements.length > 0) {
+      const topAnnounce = announcements.find((a) => a.content.includes('【全服广播】'));
+      if (topAnnounce && topAnnounce.id !== lastGodChimeRef.current) {
+        lastGodChimeRef.current = topAnnounce.id;
+        audio.play('god_login');
+      }
+    }
+  }, [hasVipMarquee, announcements]);
+
+  const activeVoice = useMemo(() => {
+    const voiceId = user?.dealerVoice || 'classic';
+    return DEALER_VOICES.find((v) => v.id === voiceId) || DEALER_VOICES[0]!;
+  }, [user?.dealerVoice]);
 
   const filteredGames = useMemo(() => {
     if (activeTab === 'live') {
@@ -237,9 +264,13 @@ export function Lobby({
 
   const handleDealerInteract = (e: React.MouseEvent) => {
     e.stopPropagation();
-    audio.play('shunzi');
+    audio.play('worship');
     setDealerHeart(true);
     window.setTimeout(() => setDealerHeart(false), 800);
+
+    const quotes = activeVoice.quotes.touch;
+    const nextQuote = quotes[Math.floor(Math.random() * quotes.length)]!;
+    setCustomQuote(nextQuote);
   };
 
   const handleRandomPlay = () => {
@@ -251,17 +282,18 @@ export function Lobby({
     }
   };
 
-  // 动态荷官台词：Hover 联动 > 打赏自定义 > 分区问候
+  // 动态荷官台词：Hover 联动 > 打赏/互动自定义 > 性格语音台词
   const dealerQuoteText = useMemo(() => {
     if (hoveredGame && GAME_DEALER_QUOTES[hoveredGame.gameId]) {
       return GAME_DEALER_QUOTES[hoveredGame.gameId]!;
     }
     if (customQuote) return customQuote;
+    const idleQuotes = activeVoice.quotes.idle;
     if (activeTab === 'live') return '百人推筒子、骰宝正在火爆下注，主人要试试手气吗？🎰';
     if (activeTab === 'cards') return '经典斗地主秒匹秒开，多难度牌手陪练随叫随到，祝您把把通天顺！♠️';
     if (activeTab === 'chess') return '楚汉争霸楚河汉界，静候主人排兵布阵～♟️';
-    return '尊贵的主人，艾莉丝已就绪，今天想挑战哪位牌王？💖';
-  }, [hoveredGame, customQuote, activeTab]);
+    return idleQuotes[0] || '尊贵的主人，艾莉丝已就绪，今天想挑战哪位牌王？💖';
+  }, [hoveredGame, customQuote, activeTab, activeVoice]);
 
   const isLowBalance = user && user.balance < 100;
 
@@ -279,16 +311,12 @@ export function Lobby({
             title={user ? '点击查看个人资产' : '点击登录'}
           >
             <div className="app-avatar-wrapper">
-              {user?.avatar ? (
-                <img
-                  className="app-avatar-img"
-                  src={resolveAvatarUrl(user.avatar) ?? ''}
-                  alt={user.nickname}
-                  draggable={false}
-                />
-              ) : (
-                <span className="app-avatar">{user ? user.nickname.slice(0, 1) : '牌'}</span>
-              )}
+              <AvatarWithFrame
+                nickname={user ? user.nickname : '牌友'}
+                avatar={user?.avatar}
+                frameId={user?.equippedFrame || 'frame_default'}
+                size={38}
+              />
               <span className="app-avatar-badge">{user ? 'VIP' : 'GUEST'}</span>
             </div>
             <div className="app-top__id">
@@ -329,7 +357,14 @@ export function Lobby({
         </div>
 
         {/* 跑马灯公告条 */}
-        <div className="app-top__marquee" onClick={onNotices} role="button" tabIndex={0} title="点击查阅全部官方公告">
+        <div
+          className={`app-top__marquee ${hasVipMarquee ? 'has-vip-announcement' : ''}`}
+          onClick={onNotices}
+          role="button"
+          tabIndex={0}
+          title="点击查阅全部官方公告"
+        >
+          <span className="marquee-badge-gold">{hasVipMarquee ? '👑 全服' : '广播'}</span>
           <IconNotice size={14} />
           <div className="marquee-viewport">
             <span className="marquee-text">{ticker}</span>
@@ -357,6 +392,29 @@ export function Lobby({
               <span>信箱</span>
             </button>
           )}
+
+          {/* 🎰 独立老虎机模块入口（紧随信箱后方） */}
+          <button
+            type="button"
+            className="top-feature-pill top-feature-pill--slots"
+            onClick={() => setShowSlotsModal(true)}
+            title="进入拉斯维加斯疯狂老虎机"
+          >
+            <span className="slots-pill-icon">🎰</span>
+            <span className="slots-pill-title">老虎机</span>
+            <span className="slots-pill-badge">HOT</span>
+          </button>
+
+          {/* 🖼️ 头像框商城与更衣室 */}
+          <button
+            type="button"
+            className="top-feature-pill"
+            onClick={() => setShowAvatarFrameModal(true)}
+            title="挑选佩戴20款尊享动态头像框"
+          >
+            <span className="frame-pill-icon">🖼️</span>
+            <span>头像框</span>
+          </button>
 
           <div className="bot-diff-switch top-diff-switch" title="选择机器人对战难度">
             <span className="bot-diff-switch__label">难度</span>
@@ -594,7 +652,7 @@ export function Lobby({
           {/* 荷官精美半身立绘 */}
           <div className="companion-portrait-wrapper" onClick={handleDealerInteract}>
             <img
-              src={DEALER_MAIN}
+              src={DEALER_SKINS_ASSETS[user?.dealerSkin || 'classic'] || DEALER_MAIN}
               alt="首席荷官艾莉丝"
               draggable={false}
               loading="lazy"
@@ -603,10 +661,18 @@ export function Lobby({
             <div className="portrait-glow-halo" />
           </div>
 
-          {/* 快捷行动按键：随机幸运开局 + 打赏荷官 */}
+          {/* 快捷行动按键：随机幸运开局 + 打赏荷官 + 换装 */}
           <div className="companion-footer-actions">
             <button type="button" className="btn-random-match" onClick={handleRandomPlay}>
               <span>🎲 随机幸运开局</span>
+            </button>
+            <button
+              type="button"
+              className="btn-dealer-wardrobe"
+              onClick={() => setShowDealerWardrobe(true)}
+              title="荷官更衣室与自定义台词性格"
+            >
+              <span>👗 换装 & 语音</span>
             </button>
             <DealerTipWidget
               balance={user?.balance ?? 0}
@@ -616,6 +682,40 @@ export function Lobby({
           </div>
         </aside>
       </main>
+
+      {/* 弹窗组件群 */}
+      {showSlotsModal && user && (
+        <LuxurySlotsModal
+          user={user}
+          onBalanceChange={(newBal) => {
+            if (onBalanceChange) onBalanceChange(newBal);
+          }}
+          onClose={() => setShowSlotsModal(false)}
+        />
+      )}
+
+      {showAvatarFrameModal && user && (
+        <AvatarFrameModal
+          user={user}
+          onUserUpdate={(patch) => {
+            if (onUserUpdate) onUserUpdate(patch);
+            if (patch.balance !== undefined && onBalanceChange) {
+              onBalanceChange(patch.balance);
+            }
+          }}
+          onClose={() => setShowAvatarFrameModal(false)}
+        />
+      )}
+
+      {showDealerWardrobe && user && (
+        <DealerWardrobeModal
+          user={user}
+          onUserUpdate={(patch) => {
+            if (onUserUpdate) onUserUpdate(patch);
+          }}
+          onClose={() => setShowDealerWardrobe(false)}
+        />
+      )}
     </div>
   );
 }

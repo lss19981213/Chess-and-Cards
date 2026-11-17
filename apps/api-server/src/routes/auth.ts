@@ -17,6 +17,47 @@ import {
 } from '../security';
 import { periodKeyFor } from '../tasks';
 
+async function broadcastToRoomServer(text: string): Promise<void> {
+  if (!config.roomServerUrl) return;
+  try {
+    await fetch(`${config.roomServerUrl}/admin/broadcast`, {
+      method: 'POST',
+      headers: {
+        'x-internal-key': config.internalKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch {
+    /* 忽略非阻断异常 */
+  }
+}
+
+async function checkTop10Announcement(
+  repo: Repository,
+  userId: string,
+  nickname: string,
+  balance: number,
+): Promise<void> {
+  try {
+    const rank = await repo.leaderboardRank(userId);
+    if (rank !== null && rank <= 10) {
+      const titles = ['赌神', '赌圣', '赌侠', '赌王', '赌将', '豪侠', '名手', '高手', '老手', '新星'];
+      const title = titles[rank - 1] ?? '赌神';
+      const text = `👑【全服广播】${title}「${nickname}」（排名第 ${rank}，坐拥 ${balance.toLocaleString()} 筹码）已经上线，快去挑战他吧！`;
+      await repo.createAnnouncement({
+        title: '👑 赌神登场',
+        content: text,
+        kind: 'notice',
+      });
+      await broadcastToRoomServer(text);
+    }
+  } catch {
+    /* 忽略非阻断异常 */
+  }
+}
+
 export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void {
   // 登录防爆破：IP 维度 10 次 / 10 分钟，账号维度 5 次 / 10 分钟
   const ipLimiter = new AttemptLimiter(10, 10 * 60_000);
@@ -132,6 +173,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
       repo.getProfile(user.id),
     ]);
     await repo.bumpTask(user.id, 'daily_login', periodKeyFor('daily'), 1);
+    void checkTop10Announcement(repo, user.id, user.nickname, balance);
     const token = signToken(config.jwtSecret, { sub: user.id, name: user.nickname }, config.tokenTtlSeconds);
     return {
       token,
@@ -142,6 +184,10 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         createdAt: user.createdAt,
         balance,
         avatar: profile?.avatar ?? null,
+        equippedFrame: profile?.equippedFrame ?? 'frame_default',
+        worshipCount: profile?.worshipCount ?? 0,
+        dealerSkin: profile?.dealerSkin ?? 'classic',
+        dealerVoice: profile?.dealerVoice ?? 'classic',
       },
     };
   });
@@ -160,6 +206,10 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         ...user,
         balance,
         avatar: profile?.avatar ?? null,
+        equippedFrame: profile?.equippedFrame ?? 'frame_default',
+        worshipCount: profile?.worshipCount ?? 0,
+        dealerSkin: profile?.dealerSkin ?? 'classic',
+        dealerVoice: profile?.dealerVoice ?? 'classic',
       },
     };
   });

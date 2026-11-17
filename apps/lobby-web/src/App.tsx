@@ -518,7 +518,13 @@ export default function App() {
     }
 
     if (view === 'leaderboard') {
-      return <LeaderboardView myUserId={user?.id ?? null} onBack={() => setView('lobby')} />;
+      return (
+        <LeaderboardView
+          myUserId={user?.id ?? null}
+          onBalanceChange={handleBalanceChange}
+          onBack={() => setView('lobby')}
+        />
+      );
     }
 
     if (view === 'friends') {
@@ -592,6 +598,7 @@ export default function App() {
         botDifficulty={botDifficulty}
         onChangeBotDifficulty={updateBotDifficulty}
         onBalanceChange={handleBalanceChange}
+        onUserUpdate={(patch) => setUser((prev) => (prev ? { ...prev, ...patch } : prev))}
       />
     );
   };

@@ -128,8 +128,32 @@ create table if not exists user_profiles (
   user_id    text primary key references users(id) on delete cascade,
   bio        text not null default '',
   avatar     text,
+  equipped_frame text not null default 'frame_default',
+  owned_frames   text[] not null default '{"frame_default"}',
+  worship_count  integer not null default 0,
+  dealer_skin    text not null default 'classic',
+  dealer_voice   text not null default 'classic',
   updated_at timestamptz not null default now()
 );
+
+-- 兼容老数据库：补齐头像框、膜拜数、荷官装扮字段
+alter table user_profiles add column if not exists equipped_frame text not null default 'frame_default';
+alter table user_profiles add column if not exists owned_frames text[] not null default '{"frame_default"}';
+alter table user_profiles add column if not exists worship_count integer not null default 0;
+alter table user_profiles add column if not exists dealer_skin text not null default 'classic';
+alter table user_profiles add column if not exists dealer_voice text not null default 'classic';
+
+-- 排行榜每日膜拜记录表（每人每天最多膜拜 10 次）
+create table if not exists worship_records (
+  id             bigserial primary key,
+  worshiper_id   text not null references users(id) on delete cascade,
+  target_user_id text not null references users(id) on delete cascade,
+  day_key        text not null,
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists worship_records_user_day_idx
+  on worship_records (worshiper_id, day_key);
 
 -- 好友申请
 create table if not exists friend_requests (

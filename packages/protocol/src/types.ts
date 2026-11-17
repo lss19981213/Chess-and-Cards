@@ -53,6 +53,10 @@ export interface PlayerView {
   isBot: boolean;
   /** 机器人难度等级 */
   botDifficulty?: BotDifficulty;
+  /** 佩戴的头像框 ID */
+  equippedFrame?: string;
+  /** 玩家头像 URL / DataURL */
+  avatar?: string | null;
 }
 
 /** 游戏快照：结构由各游戏插件自定义，客户端按 gameId 分发渲染。 */

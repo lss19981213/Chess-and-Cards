@@ -6,7 +6,7 @@ import type {
   LeaderboardSnapshotRow,
   TaskProgressRow,
 } from '../types';
-import { bumpTaskTx } from './shared';
+import { bumpTaskTx, avatarUrlSql } from './shared';
 import { creditWallet } from './wallet';
 
 export async function getTaskRows(
@@ -62,10 +62,21 @@ export async function claimTask(
 }
 
 export async function getLeaderboard(pool: pg.Pool, limit: number): Promise<LeaderboardRow[]> {
-  const res = await pool.query<{ user_id: string; nickname: string; balance: string }>(
-    `select w.user_id, u.nickname, w.balance
+  const res = await pool.query<{
+    user_id: string;
+    nickname: string;
+    balance: string;
+    worship_count: number | null;
+    equipped_frame: string | null;
+    avatar_url: string | null;
+  }>(
+    `select w.user_id, u.nickname, w.balance,
+            coalesce(p.worship_count, 0) as worship_count,
+            coalesce(p.equipped_frame, 'frame_default') as equipped_frame,
+            ${avatarUrlSql('p', 'u.id')} as avatar_url
        from wallets w
        join users u on u.id = w.user_id
+       left join user_profiles p on p.user_id = u.id
       where w.currency = 'coin'
       order by w.balance desc, u.created_at asc
       limit $1`,
@@ -75,6 +86,9 @@ export async function getLeaderboard(pool: pg.Pool, limit: number): Promise<Lead
     userId: row.user_id,
     nickname: row.nickname,
     balance: Number(row.balance),
+    worshipCount: Number(row.worship_count ?? 0),
+    equippedFrame: row.equipped_frame ?? 'frame_default',
+    avatar: row.avatar_url ?? null,
   }));
 }
 

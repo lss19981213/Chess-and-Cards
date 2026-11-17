@@ -56,8 +56,20 @@ export class MemoryRepository implements Repository {
   /** 每日排行榜结算快照：dayKey -> 行 */
   private readonly snapshots = new Map<string, LeaderboardSnapshotRow[]>();
   private readonly initialCoins: number;
-  /** 玩家扩展资料：签名与头像 */
-  private readonly profiles = new Map<string, { bio: string; avatar: string | null }>();
+  /** 玩家扩展资料：签名、头像、头像框、膜拜数、荷官皮肤与语音 */
+  private readonly profiles = new Map<
+    string,
+    {
+      bio: string;
+      avatar: string | null;
+      equippedFrame?: string;
+      ownedFrames?: string[];
+      worshipCount?: number;
+      dealerSkin?: string;
+      dealerVoice?: string;
+    }
+  >();
+  private readonly worshipRecords: { worshiperId: string; targetUserId: string; dayKey: string }[] = [];
   /** 好友关系，双向各存一条：`${userId}|${friendId}` */
   private readonly friendships = new Set<string>();
   private readonly friendRequests: FriendRequestView[] = [];
@@ -299,11 +311,17 @@ export class MemoryRepository implements Repository {
 
   async leaderboard(limit: number): Promise<LeaderboardRow[]> {
     return [...this.balances.entries()]
-      .map(([userId, balance]) => ({
-        userId,
-        nickname: this.users.get(userId)?.nickname ?? '未知玩家',
-        balance,
-      }))
+      .map(([userId, balance]) => {
+        const extra = this.profiles.get(userId);
+        return {
+          userId,
+          nickname: this.users.get(userId)?.nickname ?? '未知玩家',
+          balance,
+          worshipCount: extra?.worshipCount ?? 0,
+          equippedFrame: extra?.equippedFrame ?? 'frame_default',
+          avatar: avatarUrlFor(userId, extra?.avatar),
+        };
+      })
       .sort((a, b) => b.balance - a.balance)
       .slice(0, limit);
   }
@@ -399,6 +417,11 @@ export class MemoryRepository implements Repository {
       bio: extra?.bio ?? '',
       avatar: avatarUrlFor(user.id, extra?.avatar),
       banned: user.banned ?? false,
+      equippedFrame: extra?.equippedFrame ?? 'frame_default',
+      ownedFrames: extra?.ownedFrames ?? ['frame_default'],
+      worshipCount: extra?.worshipCount ?? 0,
+      dealerSkin: extra?.dealerSkin ?? 'classic',
+      dealerVoice: extra?.dealerVoice ?? 'classic',
     };
   }
 
@@ -417,12 +440,101 @@ export class MemoryRepository implements Repository {
     }
     const current = this.profiles.get(userId) ?? { bio: '', avatar: null };
     this.profiles.set(userId, {
+      ...current,
       bio: patch.bio !== undefined ? patch.bio.slice(0, 60) : current.bio,
       avatar: patch.avatar !== undefined ? patch.avatar : current.avatar,
+      equippedFrame: patch.equippedFrame !== undefined ? patch.equippedFrame : current.equippedFrame,
+      dealerSkin: patch.dealerSkin !== undefined ? patch.dealerSkin : current.dealerSkin,
+      dealerVoice: patch.dealerVoice !== undefined ? patch.dealerVoice : current.dealerVoice,
     });
 
     const profile = await this.getProfile(userId);
     return profile as PlayerProfile;
+  }
+
+  async buyAvatarFrame(
+    userId: string,
+    frameId: string,
+    price: number,
+  ): Promise<{ ok: boolean; balance: number; equippedFrame: string; ownedFrames: string[] }> {
+    const current = this.profiles.get(userId) ?? { bio: '', avatar: null };
+    const owned = current.ownedFrames ?? ['frame_default'];
+    if (owned.includes(frameId)) {
+      this.profiles.set(userId, { ...current, equippedFrame: frameId });
+      const balance = await this.getBalance(userId, 'coin');
+      return { ok: true, balance, equippedFrame: frameId, ownedFrames: owned };
+    }
+    const currentBalance = await this.getBalance(userId, 'coin');
+    if (currentBalance < price) {
+      throw new Error(`筹码不足，购买头像框需要 ${price.toLocaleString()} 筹码`);
+    }
+    const newBalance = await this.credit(userId, -price, 'buy_frame', `${frameId}:${Date.now()}`);
+    const updatedOwned = [...new Set([...owned, frameId])];
+    this.profiles.set(userId, {
+      ...current,
+      equippedFrame: frameId,
+      ownedFrames: updatedOwned,
+    });
+    return { ok: true, balance: newBalance, equippedFrame: frameId, ownedFrames: updatedOwned };
+  }
+
+  async equipAvatarFrame(userId: string, frameId: string): Promise<{ ok: boolean; equippedFrame: string }> {
+    const current = this.profiles.get(userId) ?? { bio: '', avatar: null };
+    const owned = current.ownedFrames ?? ['frame_default'];
+    if (frameId !== 'frame_default' && !owned.includes(frameId)) {
+      throw new Error('未拥有该头像框，请先使用筹码购买');
+    }
+    this.profiles.set(userId, { ...current, equippedFrame: frameId });
+    return { ok: true, equippedFrame: frameId };
+  }
+
+  async getWorshipRemainingToday(worshiperId: string, dayKey: string): Promise<number> {
+    const used = this.worshipRecords.filter(
+      (r) => r.worshiperId === worshiperId && r.dayKey === dayKey,
+    ).length;
+    return Math.max(0, 10 - used);
+  }
+
+  async worshipUser(
+    worshiperId: string,
+    targetUserId: string,
+    dayKey: string,
+  ): Promise<{ ok: boolean; remainingToday: number; newWorshipCount: number; reward: number; message?: string }> {
+    if (worshiperId === targetUserId) {
+      throw new Error('不能膜拜自己哦');
+    }
+    const remaining = await this.getWorshipRemainingToday(worshiperId, dayKey);
+    if (remaining <= 0) {
+      throw new Error('今日膜拜次数已达上限（10/10 次），明天再来吧');
+    }
+    this.worshipRecords.push({ worshiperId, targetUserId, dayKey });
+    const targetProfile = this.profiles.get(targetUserId) ?? { bio: '', avatar: null };
+    const newCount = (targetProfile.worshipCount ?? 0) + 1;
+    this.profiles.set(targetUserId, { ...targetProfile, worshipCount: newCount });
+
+    const rewardCoins = 188;
+    await this.credit(worshiperId, rewardCoins, 'worship_reward', `${dayKey}:${worshiperId}:${Date.now()}`);
+    return {
+      ok: true,
+      remainingToday: remaining - 1,
+      newWorshipCount: newCount,
+      reward: rewardCoins,
+      message: `膜拜成功！获得赞誉回馈 +${rewardCoins} 筹码！`,
+    };
+  }
+
+  async customizeDealer(
+    userId: string,
+    skin: string,
+    voice: string,
+  ): Promise<{ ok: boolean; dealerSkin: string; dealerVoice: string }> {
+    const current = this.profiles.get(userId) ?? { bio: '', avatar: null };
+    this.profiles.set(userId, {
+      ...current,
+      dealerSkin: skin,
+      dealerVoice: voice,
+    });
+    return { ok: true, dealerSkin: skin, dealerVoice: voice };
   }
 
   async searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]> {

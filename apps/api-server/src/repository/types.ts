@@ -56,6 +56,9 @@ export interface LeaderboardRow {
   userId: string;
   nickname: string;
   balance: number;
+  worshipCount?: number;
+  equippedFrame?: string;
+  avatar?: string | null;
 }
 
 /** 每日排行榜结算快照的一行 */
@@ -94,6 +97,16 @@ export interface PlayerProfile {
   isFriend?: boolean;
   /** 我是否已向对方发出待处理申请 */
   requestPending?: boolean;
+  /** 佩戴的头像框 */
+  equippedFrame?: string;
+  /** 已解锁/拥有的头像框列表 */
+  ownedFrames?: string[];
+  /** 累计被膜拜次数 */
+  worshipCount?: number;
+  /** 荷官皮肤配置 */
+  dealerSkin?: string;
+  /** 荷官性格语言配置 */
+  dealerVoice?: string;
 }
 
 export interface LedgerRow {
@@ -136,6 +149,9 @@ export interface ProfilePatch {
   nickname?: string;
   bio?: string;
   avatar?: string | null;
+  equippedFrame?: string;
+  dealerSkin?: string;
+  dealerVoice?: string;
 }
 
 export interface MailRecord {
@@ -253,4 +269,11 @@ export interface Repository {
   deletePlayerMail(mailId: string, userId: string): Promise<boolean>;
   listAdminMails(limit: number): Promise<MailRecord[]>;
   deleteAdminMail(mailId: string): Promise<boolean>;
+
+  // ---------- 头像框、膜拜与荷官个性化 ----------
+  buyAvatarFrame(userId: string, frameId: string, price: number): Promise<{ ok: boolean; balance: number; equippedFrame: string; ownedFrames: string[] }>;
+  equipAvatarFrame(userId: string, frameId: string): Promise<{ ok: boolean; equippedFrame: string }>;
+  worshipUser(worshiperId: string, targetUserId: string, dayKey: string): Promise<{ ok: boolean; remainingToday: number; newWorshipCount: number; reward: number; message?: string }>;
+  getWorshipRemainingToday(worshiperId: string, dayKey: string): Promise<number>;
+  customizeDealer(userId: string, skin: string, voice: string): Promise<{ ok: boolean; dealerSkin: string; dealerVoice: string }>;
 }

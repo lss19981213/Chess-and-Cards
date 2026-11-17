@@ -7,6 +7,10 @@ export interface User {
   balance: number;
   createdAt?: number;
   avatar?: string | null;
+  equippedFrame?: string;
+  worshipCount?: number;
+  dealerSkin?: string;
+  dealerVoice?: string;
 }
 
 export interface Captcha {
@@ -37,6 +41,9 @@ export interface LeaderboardEntry {
   balance: number;
   title: string;
   reward: number;
+  worshipCount?: number;
+  equippedFrame?: string;
+  avatar?: string | null;
 }
 
 /** 每日 0 点结算的排行榜快照 */
@@ -174,9 +181,52 @@ export const api = {
     }>(`/api/leaderboard/daily?limit=${limit}`),
 
   leaderboard: () =>
-    request<{ entries: LeaderboardEntry[]; myRank: number | null; myUserId: string | null }>(
-      '/api/leaderboard',
-    ),
+    request<{
+      entries: LeaderboardEntry[];
+      myRank: number | null;
+      myUserId: string | null;
+      remainingWorshipsToday: number;
+    }>('/api/leaderboard'),
+
+  worshipUser: (userId: string) =>
+    request<{
+      ok: boolean;
+      remainingToday: number;
+      newWorshipCount: number;
+      reward: number;
+      message?: string;
+    }>(`/api/leaderboard/${encodeURIComponent(userId)}/worship`, { method: 'POST', body: '{}' }),
+
+  avatarFramesCatalog: () =>
+    request<{
+      frames: import('@cc/protocol').AvatarFrameMeta[];
+      equippedFrame: string;
+      ownedFrames: string[];
+      worshipCount: number;
+    }>('/api/avatar-frames/catalog'),
+
+  buyAvatarFrame: (frameId: string) =>
+    request<{
+      ok: boolean;
+      balance: number;
+      equippedFrame: string;
+      ownedFrames: string[];
+    }>('/api/avatar-frames/buy', {
+      method: 'POST',
+      body: JSON.stringify({ frameId }),
+    }),
+
+  equipAvatarFrame: (frameId: string) =>
+    request<{ ok: boolean; equippedFrame: string }>('/api/avatar-frames/equip', {
+      method: 'POST',
+      body: JSON.stringify({ frameId }),
+    }),
+
+  customizeDealer: (skin: string, voice: string) =>
+    request<{ ok: boolean; dealerSkin: string; dealerVoice: string }>('/api/dealer/customize', {
+      method: 'POST',
+      body: JSON.stringify({ skin, voice }),
+    }),
 
   leaderboardRewards: () =>
     request<{ dayKey: string; entries: LeaderboardRewardRow[] }>('/api/leaderboard/rewards'),
@@ -283,6 +333,11 @@ export interface PlayerProfile {
   avatar: string | null;
   isFriend?: boolean;
   requestPending?: boolean;
+  equippedFrame?: string;
+  ownedFrames?: string[];
+  worshipCount?: number;
+  dealerSkin?: string;
+  dealerVoice?: string;
 }
 
 export interface FriendRequestView {
