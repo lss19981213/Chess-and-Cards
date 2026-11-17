@@ -8496,8 +8496,8 @@ body,
    2. 首席动漫荷官艾莉丝陪玩展台：经典长方形 (全高度立绘，无遮挡全貌呈现)
    ========================================================================== */
 .commercial-dealer-companion-stand {
-  width: 310px !important;
-  flex: 0 0 310px !important;
+  width: 320px !important;
+  flex: 0 0 320px !important;
   height: 100% !important;
   min-height: 0 !important;
   aspect-ratio: auto !important;
@@ -8505,8 +8505,8 @@ body,
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
-  gap: 8px !important;
-  padding: 10px 10px !important;
+  gap: 10px !important;
+  padding: 12px 10px !important;
   box-sizing: border-box !important;
   border-radius: 18px !important;
   background: linear-gradient(180deg, rgba(24, 30, 48, 0.95) 0%, rgba(12, 16, 28, 0.98) 100%) !important;
@@ -8515,65 +8515,82 @@ body,
   position: relative !important;
 }
 
+/* 顶部对话气泡：文字区域加长，显示完整多行台词，绝不截断 */
 .companion-speech-bubble {
   flex-shrink: 0 !important;
-  padding: 8px 12px !important;
-  border-radius: 12px !important;
-  background: linear-gradient(135deg, rgba(24, 30, 46, 0.95) 0%, rgba(14, 18, 28, 0.95) 100%) !important;
-  border: 1px solid rgba(243, 207, 122, 0.45) !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+  padding: 10px 14px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, rgba(24, 30, 46, 0.96) 0%, rgba(14, 18, 28, 0.98) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.5) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
   cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.companion-speech-bubble:hover,
+.companion-speech-bubble.is-hover-active {
+  border-color: #f3cf7a !important;
+  box-shadow: 0 6px 20px rgba(243, 207, 122, 0.25) !important;
 }
 
 .bubble-header {
   display: flex !important;
   align-items: center !important;
-  gap: 4px !important;
-  margin-bottom: 2px !important;
+  gap: 6px !important;
+  margin-bottom: 4px !important;
 }
 
 .companion-name {
-  font-size: 11.5px !important;
-  font-weight: 800 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
   color: #f7d78a !important;
+  letter-spacing: 0.5px !important;
+}
+
+.companion-dot {
+  width: 7px !important;
+  height: 7px !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  box-shadow: 0 0 8px #22c55e !important;
 }
 
 .bubble-content {
-  font-size: 11px !important;
-  line-height: 1.4 !important;
-  color: #e2e8f0 !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  color: #f1f5f9 !important;
   margin: 0 !important;
-  overflow: hidden !important;
-  display: -webkit-box !important;
-  -webkit-line-clamp: 2 !important;
-  -webkit-box-orient: vertical !important;
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  line-clamp: none !important;
+  overflow: visible !important;
+  word-break: break-word !important;
 }
 
-/* 荷官长方形立绘展区：纵向拉满，object-fit: contain，完整看到荷官全身/大半身性感全图 */
+/* 荷官立绘展区：纵向拉满充满展区，object-fit: cover 消除多余黑底，完整高贵呈现性感立绘 */
 .companion-portrait-wrapper {
+  width: 100% !important;
   flex: 1 1 0% !important;
   min-height: 0 !important;
-  height: auto !important;
-  width: 100% !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   overflow: hidden !important;
   position: relative !important;
   border-radius: 14px !important;
-  background: radial-gradient(ellipse 85% 65% at 50% 30%, rgba(243, 207, 122, 0.18), rgba(10, 14, 22, 0.9) 85%) !important;
+  margin: 0 auto !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
   cursor: pointer !important;
+  background: #0d121f !important;
 }
 
 .companion-portrait-wrapper img {
   width: 100% !important;
   height: 100% !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  object-fit: contain !important;
-  object-position: top center !important;
-  margin: 0 !important;
-  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.85)) !important;
+  object-fit: cover !important;
+  object-position: center top !important;
+  display: block !important;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.6)) !important;
   transition: transform 0.3s ease !important;
 }
 
@@ -8581,52 +8598,79 @@ body,
   transform: scale(1.03) !important;
 }
 
+/* 下方按键群：做大一点，交互更舒适明朗 */
 .companion-footer-actions {
   flex-shrink: 0 !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 6px !important;
+  gap: 8px !important;
   width: 100% !important;
 }
 
 .btn-random-match {
   width: 100% !important;
-  height: 34px !important;
-  border-radius: 999px !important;
-  font-size: 12px !important;
-  font-weight: 800 !important;
-  background: linear-gradient(135deg, rgba(243, 207, 122, 0.25) 0%, rgba(255, 255, 255, 0.1) 100%) !important;
-  border: 1px solid rgba(243, 207, 122, 0.55) !important;
-  color: #f7eed7 !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.3) 0%, rgba(255, 255, 255, 0.12) 100%) !important;
+  border: 1.5px solid rgba(243, 207, 122, 0.65) !important;
+  color: #fff !important;
   cursor: pointer !important;
-  transition: all 0.15s ease !important;
+  transition: all 0.2s ease !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 4px !important;
+  gap: 6px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
 
 .btn-random-match:hover {
-  background: rgba(243, 207, 122, 0.38) !important;
+  background: linear-gradient(135deg, rgba(243, 207, 122, 0.45) 0%, rgba(255, 255, 255, 0.2) 100%) !important;
   border-color: #f3cf7a !important;
+  box-shadow: 0 6px 20px rgba(243, 207, 122, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-random-match:active {
+  transform: scale(0.98) !important;
 }
 
 .companion-sub-actions-row {
   display: flex !important;
-  gap: 6px !important;
+  gap: 8px !important;
   width: 100% !important;
 }
 
 .btn-dealer-wardrobe {
   flex: 1 !important;
-  height: 32px !important;
-  padding: 0 8px !important;
-  font-size: 11px !important;
+  height: 42px !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  gap: 4px !important;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(236, 72, 153, 0.3) 100%) !important;
+  border: 1.5px solid rgba(236, 72, 153, 0.55) !important;
+  color: #fbcfe8 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+}
+
+.btn-dealer-wardrobe:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.45) 0%, rgba(236, 72, 153, 0.45) 100%) !important;
+  border-color: #f472b6 !important;
+  color: #fff !important;
+  box-shadow: 0 6px 18px rgba(236, 72, 153, 0.4) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-dealer-wardrobe:active {
+  transform: scale(0.98) !important;
 }
 
 .dealer-tip-widget {
@@ -8636,19 +8680,32 @@ body,
 
 .btn-tip-dealer-gold {
   width: 100% !important;
-  height: 32px !important;
-  padding: 0 8px !important;
-  font-size: 11px !important;
+  height: 42px !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 4px !important;
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.28), rgba(244, 114, 182, 0.28)) !important;
-  border: 1px solid rgba(244, 114, 182, 0.5) !important;
-  color: #fbcfe8 !important;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.35) 0%, rgba(244, 63, 94, 0.35) 100%) !important;
+  border: 1.5px solid rgba(244, 114, 182, 0.6) !important;
+  color: #fff !important;
   cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+}
+
+.btn-tip-dealer-gold:hover {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.5) 0%, rgba(244, 63, 94, 0.5) 100%) !important;
+  border-color: #fda4af !important;
+  box-shadow: 0 6px 18px rgba(244, 63, 94, 0.45) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-tip-dealer-gold:active {
+  transform: scale(0.98) !important;
 }
 
 /* 智能断点适配 */
