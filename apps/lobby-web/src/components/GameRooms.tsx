@@ -89,7 +89,11 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
           <span className="rooms-title-icon">{game.icon}</span>
           <h2>{game.name}</h2>
           <span className="rooms-title-sub">
-            {isLive ? '平台坐庄 · 极速轮播' : `${game.minPlayers}-${game.maxPlayers}人经典桌`}
+            {isLive
+              ? '平台坐庄 · 极速轮播'
+              : game.minPlayers === game.maxPlayers
+                ? `${game.minPlayers}人经典桌`
+                : `${game.minPlayers}-${game.maxPlayers}人经典桌`}
           </span>
         </div>
         <div className="rooms-top-actions">

@@ -23,13 +23,25 @@ interface ResultRow {
   birds: MahjongTileData[];
 }
 
+export interface MahjongActionEvent {
+  seq: number;
+  type: 'start' | 'discard' | 'pong' | 'kong' | 'hu' | 'zimo' | 'draw_game';
+  playerId: string;
+  nickname: string;
+  tile?: MahjongTileData;
+  huType?: string;
+}
+
 interface State {
   wall: MahjongTileData[];
   hands: Map<string, MahjongTileData[]>;
   melds: Map<string, Meld[]>;
   discards: Map<string, MahjongTileData[]>;
   turn: string | null;
+  dealerId: string | null;
   lastDiscard: { playerId: string; tile: MahjongTileData } | null;
+  lastAction: MahjongActionEvent | null;
+  actionSeq: number;
   settled: boolean;
   winners: string[];
   birds: MahjongTileData[];
@@ -60,7 +72,10 @@ function emptyState(): State {
     melds: new Map(),
     discards: new Map(),
     turn: null,
+    dealerId: null,
     lastDiscard: null,
+    lastAction: null,
+    actionSeq: 0,
     settled: false,
     winners: [],
     birds: [],
@@ -229,7 +244,8 @@ class VariantMahjongPlugin extends BaseGamePlugin {
 
   override onRoundStart(ctx: RoomContext): void {
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
-    if (players.length < 2) return;
+    // 雀神麻将所有玩法均严格要求 4 人开局
+    if (players.length < 4) return;
 
     this.state = emptyState();
     const deck = shuffleWithSeed(buildMahjongDeck(), ctx.config.seed);
@@ -245,7 +261,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       this.state.discards.set(player.playerId, []);
     }
 
-    const dealer = players[0]!;
+    const dealer = players[(ctx.config.round - 1) % players.length] ?? players[0]!;
     const dealerDrawn = deck[cursor++]!;
     const dealerHand = this.state.hands.get(dealer.playerId) ?? [];
     dealerHand.push(dealerDrawn);
@@ -253,8 +269,34 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     this.state.drawnTile.set(dealer.playerId, dealerDrawn);
 
     this.state.wall = deck.slice(cursor);
+    this.state.dealerId = dealer.playerId;
     this.state.turn = dealer.playerId;
+    this.state.actionSeq = 1;
+    this.state.lastAction = {
+      seq: 1,
+      type: 'start',
+      playerId: dealer.playerId,
+      nickname: dealer.nickname,
+    };
     ctx.markDirty();
+  }
+
+  private recordAction(
+    ctx: RoomContext,
+    type: MahjongActionEvent['type'],
+    playerId: string,
+    extra?: { tile?: MahjongTileData; huType?: string },
+  ): void {
+    const nick = ctx.players.find((p) => p.playerId === playerId)?.nickname ?? '牌手';
+    this.state.actionSeq += 1;
+    this.state.lastAction = {
+      seq: this.state.actionSeq,
+      type,
+      playerId,
+      nickname: nick,
+      ...(extra?.tile ? { tile: extra.tile } : {}),
+      ...(extra?.huType ? { huType: extra.huType } : {}),
+    };
   }
 
   override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
@@ -278,6 +320,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
 
         this.state.lastDiscard = { playerId, tile: discarded };
         this.state.drawnTile.set(playerId, null);
+        this.recordAction(ctx, 'discard', playerId, { tile: discarded });
 
         this.advanceToNextDraw(ctx, playerId);
         break;
@@ -286,6 +329,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
         if (!this.state.lastDiscard || this.state.lastDiscard.playerId === playerId) {
           throw new Error('没有可以碰的牌');
         }
+        const discarderId = this.state.lastDiscard.playerId;
         const target = this.state.lastDiscard.tile;
         const matches = hand.filter((t) => t.suit === target.suit && t.val === target.val);
         if (matches.length < 2) throw new Error('手牌不足两张相同牌，无法碰牌');
@@ -300,12 +344,91 @@ class VariantMahjongPlugin extends BaseGamePlugin {
         }
         this.state.hands.set(playerId, sortHand(kept));
 
+        // 从出牌者牌河中取走被碰走的那张牌
+        const discList = this.state.discards.get(discarderId);
+        if (discList && discList.length > 0 && discList[discList.length - 1]?.id === target.id) {
+          discList.pop();
+        }
+
         const melds = this.state.melds.get(playerId) ?? [];
         melds.push({ type: 'pong', tiles: [target, matches[0]!, matches[1]!] });
         this.state.melds.set(playerId, melds);
 
         this.state.turn = playerId;
         this.state.lastDiscard = null;
+        this.state.drawnTile.set(playerId, null);
+        this.recordAction(ctx, 'pong', playerId, { tile: target });
+        break;
+      }
+      case 'kong': {
+        // 支持暗杠（轮到自己且手牌有 4 张同牌）与明杠（接别人刚打出的牌，手牌有 3 张同牌）
+        if (this.state.turn === playerId) {
+          const grouped = new Map<string, MahjongTileData[]>();
+          for (const t of hand) {
+            const k = `${t.suit}_${t.val}`;
+            const list = grouped.get(k) ?? [];
+            list.push(t);
+            grouped.set(k, list);
+          }
+          const quad = [...grouped.values()].find((list) => list.length === 4);
+          if (!quad) throw new Error('手牌没有四张相同的牌，无法暗杠');
+
+          const quadIds = new Set(quad.map((t) => t.id));
+          const kept = hand.filter((t) => !quadIds.has(t.id));
+          const melds = this.state.melds.get(playerId) ?? [];
+          melds.push({ type: 'kong', tiles: quad });
+          this.state.melds.set(playerId, melds);
+
+          // 杠后从牌尾补摸一张
+          if (this.state.wall.length === 0) {
+            this.state.hands.set(playerId, sortHand(kept));
+            this.settleDraw(ctx);
+            return;
+          }
+          const replacement = this.state.wall.pop()!;
+          kept.push(replacement);
+          this.state.hands.set(playerId, sortHand(kept));
+          this.state.drawnTile.set(playerId, replacement);
+          this.recordAction(ctx, 'kong', playerId, { tile: quad[0]! });
+          break;
+        }
+
+        if (!this.state.lastDiscard || this.state.lastDiscard.playerId === playerId) {
+          throw new Error('没有可以杠的牌');
+        }
+        const discarderId = this.state.lastDiscard.playerId;
+        const target = this.state.lastDiscard.tile;
+        const matches = hand.filter((t) => t.suit === target.suit && t.val === target.val);
+        if (matches.length < 3) throw new Error('手牌不足三张相同牌，无法明杠');
+
+        const kept = [...hand];
+        let removed = 0;
+        for (let i = kept.length - 1; i >= 0 && removed < 3; i--) {
+          if (kept[i]!.suit === target.suit && kept[i]!.val === target.val) {
+            kept.splice(i, 1);
+            removed++;
+          }
+        }
+        const discList = this.state.discards.get(discarderId);
+        if (discList && discList.length > 0 && discList[discList.length - 1]?.id === target.id) {
+          discList.pop();
+        }
+        const melds = this.state.melds.get(playerId) ?? [];
+        melds.push({ type: 'kong', tiles: [target, matches[0]!, matches[1]!, matches[2]!] });
+        this.state.melds.set(playerId, melds);
+        this.state.lastDiscard = null;
+        this.state.turn = playerId;
+
+        if (this.state.wall.length === 0) {
+          this.state.hands.set(playerId, sortHand(kept));
+          this.settleDraw(ctx);
+          return;
+        }
+        const replacement = this.state.wall.pop()!;
+        kept.push(replacement);
+        this.state.hands.set(playerId, sortHand(kept));
+        this.state.drawnTile.set(playerId, replacement);
+        this.recordAction(ctx, 'kong', playerId, { tile: target });
         break;
       }
       case 'hu': {
@@ -358,6 +481,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     this.state.settled = true;
     this.state.winners = [winnerId];
     this.state.turn = null;
+    this.recordAction(ctx, isSelfDraw ? 'zimo' : 'hu', winnerId, { huType });
 
     const birds: MahjongTileData[] = [];
     for (let i = 0; i < this.variant.birdCount && this.state.wall.length > 0; i++) {
@@ -408,6 +532,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     this.state.settled = true;
     this.state.winners = [];
     this.state.turn = null;
+    this.recordAction(ctx, 'draw_game', ctx.players[0]?.playerId ?? '');
     this.state.results = ctx.players.map((p) => ({
       playerId: p.playerId,
       nickname: p.nickname,
@@ -422,7 +547,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
   override botIntent(
     _ctx: RoomContext,
     playerId: string,
-    _difficulty: BotDifficulty = 'medium',
+    _difficulty: BotDifficulty = 'high',
   ): GameIntent | null {
     if (this.state.settled) return null;
     const hand = this.state.hands.get(playerId) ?? [];
@@ -431,6 +556,11 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       const check = [...hand, this.state.lastDiscard.tile];
       if (canHu(check, this.variant.is258Strict).ok) {
         return { cmd: 'hu', payload: {} };
+      }
+      const target = this.state.lastDiscard.tile;
+      const sameCount = hand.filter((t) => t.suit === target.suit && t.val === target.val).length;
+      if (sameCount >= 3 && this.state.wall.length > 0) {
+        return { cmd: 'kong', payload: {} };
       }
     }
 
@@ -442,9 +572,30 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       for (const t of hand) {
         counts.set(`${t.suit}${t.val}`, (counts.get(`${t.suit}${t.val}`) ?? 0) + 1);
       }
-      const isolated = hand.find((t) => (counts.get(`${t.suit}${t.val}`) ?? 0) === 1);
-      const chosen = isolated ?? hand[hand.length - 1]!;
-      return { cmd: 'discard', payload: { tileId: chosen.id } };
+      // 暗杠机会
+      for (const c of counts.values()) {
+        if (c === 4 && this.state.wall.length > 0) {
+          return { cmd: 'kong', payload: {} };
+        }
+      }
+      // 智能舍牌：优先舍弃完全孤张（无同张且无相邻顺子搭子）
+      let bestTile = hand[hand.length - 1]!;
+      let lowestScore = Number.POSITIVE_INFINITY;
+      for (const t of hand) {
+        const same = counts.get(`${t.suit}${t.val}`) ?? 1;
+        const left1 = counts.get(`${t.suit}${t.val - 1}`) ?? 0;
+        const right1 = counts.get(`${t.suit}${t.val + 1}`) ?? 0;
+        const left2 = counts.get(`${t.suit}${t.val - 2}`) ?? 0;
+        const right2 = counts.get(`${t.suit}${t.val + 2}`) ?? 0;
+        const centerBonus = t.val >= 3 && t.val <= 7 ? 0.5 : 0;
+        const jiangBonus = this.variant.is258Strict && (t.val === 2 || t.val === 5 || t.val === 8) ? 0.6 : 0;
+        const score = same * 4 + (left1 + right1) * 2 + (left2 + right2) * 0.8 + centerBonus + jiangBonus;
+        if (score < lowestScore) {
+          lowestScore = score;
+          bestTile = t;
+        }
+      }
+      return { cmd: 'discard', payload: { tileId: bestTile.id } };
     }
 
     return null;
@@ -457,14 +608,23 @@ class VariantMahjongPlugin extends BaseGamePlugin {
 
     let canHuFlag = false;
     let canPongFlag = false;
-    if (viewerId) {
+    let canKongFlag = false;
+    if (viewerId && !this.state.settled) {
       if (this.state.turn === viewerId && handIsFourteen(myHand.length)) {
         canHuFlag = canHu(myHand, this.variant.is258Strict).ok;
+        if (this.state.wall.length > 0) {
+          const counts = new Map<string, number>();
+          for (const t of myHand) {
+            counts.set(`${t.suit}_${t.val}`, (counts.get(`${t.suit}_${t.val}`) ?? 0) + 1);
+          }
+          canKongFlag = [...counts.values()].some((c) => c === 4);
+        }
       } else if (this.state.lastDiscard && this.state.lastDiscard.playerId !== viewerId) {
         canHuFlag = canHu([...myHand, this.state.lastDiscard.tile], this.variant.is258Strict).ok;
         const target = this.state.lastDiscard.tile;
         const matches = myHand.filter((t) => t.suit === target.suit && t.val === target.val);
         canPongFlag = matches.length >= 2;
+        canKongFlag = matches.length >= 3 && this.state.wall.length > 0;
       }
     }
 
@@ -474,13 +634,17 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       variantId: this.meta.gameId,
       variantName: this.meta.name,
       bonusLabel: this.variant.bonusLabel,
+      baseWin: this.variant.baseWin,
+      dealerId: this.state.dealerId,
       turn: this.state.turn,
       remainingCount: this.state.wall.length,
       lastDiscard: this.state.lastDiscard,
+      lastAction: this.state.lastAction,
       myHand,
       myDrawn,
       canHu: canHuFlag,
       canPong: canPongFlag,
+      canKong: canKongFlag,
       birds: this.state.birds,
       winners: this.state.winners,
       results: this.state.results,
@@ -515,7 +679,7 @@ export class CsMahjongPlugin extends VariantMahjongPlugin {
         name: '长沙麻将',
         description: '地道湖南长沙麻将，258硬将、将将胡、清一色七小对，开门抓2鸟翻倍',
         icon: '🀄',
-        minPlayers: 2,
+        minPlayers: 4,
         maxPlayers: 4,
         version: '1.1.0',
         clientBundle: '',
@@ -540,7 +704,7 @@ export class ScMahjongPlugin extends VariantMahjongPlugin {
         name: '四川血战麻将',
         description: '巴蜀血战高番玩法，108张筒条万快节奏成胡，清一色龙七对碰碰胡翻倍爽赢',
         icon: '🌶️',
-        minPlayers: 2,
+        minPlayers: 4,
         maxPlayers: 4,
         version: '1.0.0',
         clientBundle: '',
@@ -565,7 +729,7 @@ export class GdMahjongPlugin extends VariantMahjongPlugin {
         name: '广东推倒胡',
         description: '岭南经典推倒胡，任意将牌极速开胡，胡牌豪买 4 匹马中马全翻倍',
         icon: '🐎',
-        minPlayers: 2,
+        minPlayers: 4,
         maxPlayers: 4,
         version: '1.0.0',
         clientBundle: '',
@@ -590,7 +754,7 @@ export class GuobiaoMahjongPlugin extends VariantMahjongPlugin {
         name: '大众国标麻将',
         description: '经典竞技国标麻将，碰碰胡、七小对、清一色、自摸翻倍，原汁原味雀坛对决',
         icon: '👑',
-        minPlayers: 2,
+        minPlayers: 4,
         maxPlayers: 4,
         version: '1.0.0',
         clientBundle: '',

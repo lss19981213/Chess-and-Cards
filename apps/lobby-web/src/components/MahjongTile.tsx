@@ -2,10 +2,13 @@ import React from 'react';
 
 interface Props {
   tile: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   isBack?: boolean;
   active?: boolean;
+  isNew?: boolean;
+  isLastDiscard?: boolean;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   className?: string;
 }
 
@@ -19,15 +22,21 @@ export function MahjongTile({
   size = 'md',
   isBack = false,
   active = false,
+  isNew = false,
+  isLastDiscard = false,
   onClick,
+  onDoubleClick,
   className = '',
 }: Props) {
   const art = isBack ? mahjongTileArt('back') : mahjongTileArt(tile);
 
   return (
     <div
-      className={`mahjong-tile mahjong-tile--${size} ${active ? 'is-active' : ''} ${className}`}
+      className={`mahjong-tile mahjong-tile--${size}${active ? ' is-active' : ''}${isNew ? ' is-new-draw' : ''}${
+        isLastDiscard ? ' is-last-discard' : ''
+      } ${className}`.trim()}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >

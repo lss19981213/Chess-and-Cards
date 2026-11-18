@@ -31,7 +31,13 @@ export type SfxName =
   | 'coin_stream'
   | 'card_shuffle'
   | 'xiangqi_move'
-  | 'xiangqi_capture';
+  | 'xiangqi_capture'
+  | 'mahjong_tile_click'
+  | 'mahjong_draw'
+  | 'mahjong_discard'
+  | 'mahjong_peng'
+  | 'mahjong_gang'
+  | 'mahjong_hu';
 
 const STORAGE_KEY = 'cc.audio';
 
@@ -268,6 +274,24 @@ class AudioEngine {
         break;
       case 'xiangqi_capture':
         this.xiangqiCaptureSound(out);
+        break;
+      case 'mahjong_tile_click':
+        this.mahjongTileClickSound(out);
+        break;
+      case 'mahjong_draw':
+        this.mahjongDrawSound(out);
+        break;
+      case 'mahjong_discard':
+        this.mahjongDiscardSound(out);
+        break;
+      case 'mahjong_peng':
+        this.mahjongPengSound(out);
+        break;
+      case 'mahjong_gang':
+        this.mahjongGangSound(out);
+        break;
+      case 'mahjong_hu':
+        this.mahjongHuSound(out);
         break;
     }
   }
@@ -805,6 +829,167 @@ class AudioEngine {
       osc.start(t + 0.015);
       osc.stop(t + 0.28);
     });
+  }
+
+  /** 麻将选牌清脆骨牌轻磕声 */
+  private mahjongTileClickSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(2450, t);
+    osc.frequency.exponentialRampToValueAtTime(1180, t + 0.025);
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+    osc.connect(gain);
+    gain.connect(out);
+    osc.start(t);
+    osc.stop(t + 0.032);
+  }
+
+  /** 麻将摸牌绒布轻滑声 */
+  private mahjongDrawSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const len = Math.floor(ctx.sampleRate * 0.06);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const env = Math.sin((i / len) * Math.PI);
+      ch[i] = (Math.random() * 2 - 1) * env * 0.6;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1400, t);
+    bp.frequency.linearRampToValueAtTime(2300, t + 0.055);
+    bp.Q.setValueAtTime(2.0, t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(out);
+    src.start(t);
+  }
+
+  /** 麻将出牌玉石骨牌清脆拍桌声 */
+  private mahjongDiscardSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    // 1. 骨牌表面清脆咔哒
+    const len = Math.floor(ctx.sampleRate * 0.032);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.006));
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(2850, t);
+    bp.Q.setValueAtTime(3.2, t);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.5, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.032);
+    noise.connect(bp);
+    bp.connect(ng);
+    ng.connect(out);
+    noise.start(t);
+
+    // 2. 玉牌本体高频共鸣
+    const click = ctx.createOscillator();
+    const cg = ctx.createGain();
+    click.type = 'sine';
+    click.frequency.setValueAtTime(1920, t);
+    click.frequency.exponentialRampToValueAtTime(760, t + 0.042);
+    cg.gain.setValueAtTime(0.26, t);
+    cg.gain.exponentialRampToValueAtTime(0.001, t + 0.048);
+    click.connect(cg);
+    cg.connect(out);
+    click.start(t);
+    click.stop(t + 0.052);
+
+    // 3. 绒布牌桌闷沉低音托底
+    const thud = ctx.createOscillator();
+    const tg = ctx.createGain();
+    thud.type = 'triangle';
+    thud.frequency.setValueAtTime(240, t);
+    thud.frequency.exponentialRampToValueAtTime(92, t + 0.065);
+    tg.gain.setValueAtTime(0.32, t);
+    tg.gain.exponentialRampToValueAtTime(0.001, t + 0.072);
+    thud.connect(tg);
+    tg.connect(out);
+    thud.start(t);
+    thud.stop(t + 0.08);
+  }
+
+  /** 麻将「碰」重拍双响 + 翠玉清鸣 */
+  private mahjongPengSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    this.mahjongDiscardSound(out);
+    window.setTimeout(() => this.mahjongDiscardSound(out), 75);
+    // 翠玉五声音阶清鸣
+    [523.25, 659.25, 783.99].forEach((freq, idx) => {
+      window.setTimeout(() => {
+        this.tone(freq, 0.16, 'triangle', 0.2, out);
+      }, 45 + idx * 42);
+    });
+  }
+
+  /** 麻将「杠」震撼连拍 + 金雷鸣响 */
+  private mahjongGangSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    this.mahjongDiscardSound(out);
+    window.setTimeout(() => this.mahjongDiscardSound(out), 65);
+    window.setTimeout(() => this.mahjongDiscardSound(out), 130);
+    // 震撼低音冲击 + 华丽金鸣
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const sub = ctx.createOscillator();
+    const sg = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(195, t);
+    sub.frequency.exponentialRampToValueAtTime(46, t + 0.28);
+    sg.gain.setValueAtTime(0.52, t);
+    sg.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    sub.connect(sg);
+    sg.connect(out);
+    sub.start(t);
+    sub.stop(t + 0.32);
+
+    [587.33, 880, 1174.66, 1567.98].forEach((freq, idx) => {
+      window.setTimeout(() => {
+        this.tone(freq, 0.22, 'triangle', 0.22, out);
+      }, 60 + idx * 50);
+    });
+  }
+
+  /** 麻将「胡牌 / 自摸」盛大礼乐 + 喜庆金钟 + 金币倾泻 */
+  private mahjongHuSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    // 国风五声喜庆上行凯旋（宫商角徵羽高音）
+    const notes = [
+      { f: 523.25, d: 0.14, t: 0 },     // C5
+      { f: 587.33, d: 0.12, t: 85 },    // D5
+      { f: 659.25, d: 0.14, t: 165 },   // E5
+      { f: 783.99, d: 0.18, t: 250 },   // G5
+      { f: 1046.5, d: 0.42, t: 345 },   // C6
+      { f: 1318.51, d: 0.48, t: 430 },  // E6
+      { f: 1567.98, d: 0.55, t: 520 },  // G6
+    ];
+    notes.forEach(({ f, d, t }) => {
+      window.setTimeout(() => this.tone(f, d, 'triangle', 0.3, out), t);
+    });
+    // 伴随清脆金币流响
+    window.setTimeout(() => this.coinStream(out), 420);
   }
 
   private savePrefs(): void {

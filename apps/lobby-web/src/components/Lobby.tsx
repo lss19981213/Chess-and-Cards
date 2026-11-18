@@ -654,7 +654,9 @@ export function Lobby({
 
                       {/* 开局人数标签 */}
                       <span className="game-badge-tag">
-                        {`${game.minPlayers}-${game.maxPlayers}人局`}
+                        {game.minPlayers === game.maxPlayers
+                          ? `${game.minPlayers}人局`
+                          : `${game.minPlayers}-${game.maxPlayers}人局`}
                       </span>
                     </div>
 
