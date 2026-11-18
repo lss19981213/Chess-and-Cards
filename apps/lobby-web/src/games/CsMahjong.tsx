@@ -392,6 +392,15 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
     });
   }, [data, players, mePlayer, isMyTurn]);
 
+  // 计算每门花色张数（供四川定缺浮层展示，必须放在所有条件 return 之前，遵循 React Hooks 顺序规则）
+  const suitCounts = useMemo(() => {
+    const cnt: Record<AdvisorNumericSuit, number> = { wan: 0, bamboo: 0, dot: 0 };
+    for (const t of data?.myHand ?? []) {
+      if (t.suit === 'wan' || t.suit === 'bamboo' || t.suit === 'dot') cnt[t.suit] += 1;
+    }
+    return cnt;
+  }, [data?.myHand]);
+
   if (!data) {
     return (
       <div className="mj3d-loading">
@@ -622,15 +631,6 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
 
   const hasCallButtons = (data.canHu || canKong || data.canPong || canChow) && !hasResults && data.phase === 'playing';
   const needsMyDingque = data.phase === 'dingque' && data.hasDingque && !data.myDingque;
-
-  // 计算每门花色张数（供四川定缺浮层展示）
-  const suitCounts = useMemo(() => {
-    const cnt: Record<AdvisorNumericSuit, number> = { wan: 0, bamboo: 0, dot: 0 };
-    for (const t of data.myHand) {
-      if (t.suit === 'wan' || t.suit === 'bamboo' || t.suit === 'dot') cnt[t.suit] += 1;
-    }
-    return cnt;
-  }, [data.myHand]);
 
   return (
     <div className={`mj3d-arena${tableShake ? ' is-shaking' : ''}`}>
