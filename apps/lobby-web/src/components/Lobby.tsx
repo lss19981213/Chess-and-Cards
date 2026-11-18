@@ -170,23 +170,34 @@ export function Lobby({
   const [showAvatarFrameModal, setShowAvatarFrameModal] = useState(false);
   const [showDealerWardrobe, setShowDealerWardrobe] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
+  const [mailAlertCount, setMailAlertCount] = useState(0);
 
   useEffect(() => {
     if (!user) {
       setPendingFriendRequests(0);
+      setMailAlertCount(0);
       return;
     }
     let alive = true;
-    const loadFriendBadges = () => {
+    const loadTopBadges = () => {
       void api
         .friends()
         .then((data) => {
           if (alive) setPendingFriendRequests(data.incoming?.length ?? 0);
         })
         .catch(() => undefined);
+      void api
+        .listMails()
+        .then((data) => {
+          if (!alive) return;
+          const mails = data.mails ?? [];
+          const actionable = mails.filter((m) => !m.isRead || (m.rewardCoins > 0 && !m.isClaimed)).length;
+          setMailAlertCount(actionable);
+        })
+        .catch(() => undefined);
     };
-    loadFriendBadges();
-    const timer = window.setInterval(loadFriendBadges, 30_000);
+    loadTopBadges();
+    const timer = window.setInterval(loadTopBadges, 15_000);
     return () => {
       alive = false;
       window.clearInterval(timer);
@@ -467,9 +478,15 @@ export function Lobby({
           </button>
 
           {onMail && (
-            <button type="button" className="top-feature-pill" onClick={onMail} title="个人邮箱与福利信件">
+            <button
+              type="button"
+              className="top-feature-pill top-feature-pill--mail"
+              onClick={onMail}
+              title={mailAlertCount > 0 ? `您有 ${mailAlertCount} 封未读或待领筹码的邮件` : '个人邮箱与福利信件'}
+            >
               <IconMail size={15} />
               <span>信箱</span>
+              {mailAlertCount > 0 && <span className="feature-dot feature-dot--pulse" />}
             </button>
           )}
 

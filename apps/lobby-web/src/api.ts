@@ -106,7 +106,9 @@ export function setToken(token: string | null): void {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set('content-type', 'application/json');
+  if (init.body !== undefined && !headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
   const token = getToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
 
@@ -392,11 +394,17 @@ export const api = {
     request<{ ok: boolean }>(`/api/rooms/invites/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // ---------- 邮箱系统 ----------
-  listMails: () => request<{ mails: PlayerMailView[]; unreadCount: number }>('/api/mail'),
-  readMail: (id: string) => request<{ ok: boolean }>(`/api/mail/${encodeURIComponent(id)}/read`, { method: 'POST' }),
+  listMails: () =>
+    request<{ mails: PlayerMailView[]; unreadCount: number; unclaimedCount?: number }>('/api/mail'),
+  readMail: (id: string) =>
+    request<{ ok: boolean }>(`/api/mail/${encodeURIComponent(id)}/read`, {
+      method: 'POST',
+      body: '{}',
+    }),
   claimMail: (id: string) =>
     request<{ ok: boolean; rewardCoins: number; balance: number }>(`/api/mail/${encodeURIComponent(id)}/claim`, {
       method: 'POST',
+      body: '{}',
     }),
   deleteMail: (id: string) =>
     request<{ ok: boolean }>(`/api/mail/${encodeURIComponent(id)}`, { method: 'DELETE' }),

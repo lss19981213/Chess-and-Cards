@@ -66,7 +66,7 @@ export function MailView({ onBack, onBalanceChange }: Props) {
       onBalanceChange(res.balance);
       setMails((prev) =>
         prev.map((m) =>
-          m.id === mail.id ? { ...m, isClaimed: true, claimedAt: Date.now() } : m,
+          m.id === mail.id ? { ...m, isRead: true, isClaimed: true, claimedAt: Date.now() } : m,
         ),
       );
       showToast(`🎉 成功领取 ${res.rewardCoins.toLocaleString()} 欢乐豆筹码！`);
@@ -120,19 +120,26 @@ export function MailView({ onBack, onBalanceChange }: Props) {
     }
     setClaiming(true);
     let totalCoins = 0;
+    let claimedCount = 0;
+    let lastError: string | null = null;
     for (const mail of claimable) {
       try {
         const res = await api.claimMail(mail.id);
         totalCoins += res.rewardCoins;
+        claimedCount += 1;
         onBalanceChange(res.balance);
-      } catch {
-        /* ignore */
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : '领取失败';
       }
     }
-    audio.play('win');
     await fetchMails();
     setClaiming(false);
-    showToast(`🎉 一键提取完成！共计入账 +${totalCoins.toLocaleString()} 欢乐豆！`);
+    if (claimedCount > 0) {
+      audio.play('win');
+      showToast(`🎉 一键提取完成！共领取 ${claimedCount} 封，入账 +${totalCoins.toLocaleString()} 欢乐豆！`);
+    } else {
+      showToast(lastError ?? '领取失败，请稍后重试');
+    }
   };
 
   // 筛选邮件

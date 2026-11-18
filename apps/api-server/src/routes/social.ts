@@ -245,7 +245,8 @@ export function registerSocialRoutes(app: FastifyInstance, repo: Repository): ()
     const claims = authHeader(req);
     const mails = await repo.listPlayerMails(claims.sub);
     const unreadCount = mails.filter((m) => !m.isRead).length;
-    return { mails, unreadCount };
+    const unclaimedCount = mails.filter((m) => m.rewardCoins > 0 && !m.isClaimed).length;
+    return { mails, unreadCount, unclaimedCount };
   });
 
   app.post('/api/mail/:id/read', async (req) => {

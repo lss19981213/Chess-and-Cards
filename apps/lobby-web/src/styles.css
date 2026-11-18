@@ -10375,6 +10375,10 @@ button.secondary:hover:not(:disabled) {
 }
 
 /* 顶栏独立老虎机与头像框按钮 */
+.top-feature-pill {
+  position: relative;
+}
+
 .top-feature-pill--slots {
   background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(217, 119, 6, 0.25)) !important;
   border-color: #ffd700 !important;

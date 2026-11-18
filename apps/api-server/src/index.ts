@@ -38,6 +38,22 @@ export function createApiApp(repo: Repository): {
     trustProxy: process.env.TRUST_PROXY ?? '127.0.0.1',
     bodyLimit: 1024 * 1024,
   });
+
+  // 宽容处理空 JSON 请求体（部分无参 POST/DELETE 请求带 application/json 头时不再报 400）
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    const raw = typeof body === 'string' ? body.trim() : '';
+    if (!raw) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(raw));
+    } catch (err) {
+      const parseErr = err instanceof Error ? err : new Error('JSON 格式错误');
+      (parseErr as Error & { statusCode?: number }).statusCode = 400;
+      done(parseErr, undefined);
+    }
+  });
   const apiLog = createLogger('api');
   const requestStart = new WeakMap<FastifyRequest, number>();
 

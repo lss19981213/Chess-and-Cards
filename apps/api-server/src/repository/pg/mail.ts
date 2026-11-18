@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { ClaimMailResult, MailRecord, PlayerMailView, SendMailInput } from '../types';
-import { creditWallet, getWalletBalance } from './wallet';
 
 export async function sendMail(pool: pg.Pool, input: SendMailInput): Promise<MailRecord> {
   const id = randomUUID();
@@ -106,7 +105,11 @@ export async function claimMailReward(pool: pg.Pool, mailId: string, userId: str
          from mails where id = $1 for share`,
       [mailId],
     );
-    const balance = await getWalletBalance(pool, userId, 'coin');
+    const balRes = await client.query<{ balance: string }>(
+      `select balance from wallets where user_id = $1 and currency = 'coin'`,
+      [userId],
+    );
+    const balance = Number(balRes.rows[0]?.balance ?? 0);
     const mail = mailRes.rows[0];
     if (!mail) {
       await client.query('rollback');
@@ -143,7 +146,36 @@ export async function claimMailReward(pool: pg.Pool, mailId: string, userId: str
       [mailId, userId],
     );
 
-    const nextBalance = await creditWallet(pool, userId, rewardCoins, 'mail_reward', `mail:${mailId}:${userId}`);
+    const bizId = `mail:${mailId}:${userId}`;
+    const updated = await client.query<{ balance: string }>(
+      `update wallets
+          set balance = balance + $2, version = version + 1
+        where user_id = $1
+          and currency = 'coin'
+          and not exists (
+            select 1 from ledger where biz_type = 'mail_reward' and biz_id = $3 and user_id = $1
+          )
+      returning balance`,
+      [userId, rewardCoins, bizId],
+    );
+
+    let nextBalance = balance;
+    if ((updated.rowCount ?? 0) > 0) {
+      nextBalance = Number(updated.rows[0]?.balance ?? balance + rewardCoins);
+      await client.query(
+        `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+         values ($1, 'coin', $2, $3, 'mail_reward', $4)
+         on conflict (biz_type, biz_id, user_id) do nothing`,
+        [userId, rewardCoins, nextBalance, bizId],
+      );
+    } else {
+      const curRes = await client.query<{ balance: string }>(
+        `select balance from wallets where user_id = $1 and currency = 'coin'`,
+        [userId],
+      );
+      nextBalance = Number(curRes.rows[0]?.balance ?? balance);
+    }
+
     await client.query('commit');
     return { ok: true, rewardCoins, balance: nextBalance };
   } catch (error) {
