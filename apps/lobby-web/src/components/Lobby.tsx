@@ -7,7 +7,7 @@ function IconBolt() {
 }
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { computeLevelInfo, DEALER_VOICES, type Announcement, type BotDifficulty, type GameMeta } from '@cc/protocol';
+import { computeLevelInfo, DEALER_VOICES, type Announcement, type GameMeta } from '@cc/protocol';
 import { api, fantasyClawOAuthStartUrl, type GameCategoryDef, type User } from '../api';
 import { audio } from '../audio';
 import { speakDealerQuote } from '../speech';
@@ -43,8 +43,6 @@ interface Props {
   onNotices: () => void;
   onMail?: () => void;
   onRules: () => void;
-  botDifficulty: BotDifficulty;
-  onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
   onBalanceChange?: (newBalance: number) => void;
   onUserUpdate?: (patch: Partial<User>) => void;
 }
@@ -154,8 +152,6 @@ export function Lobby({
   onNotices,
   onMail,
   onRules,
-  botDifficulty,
-  onChangeBotDifficulty,
   onBalanceChange,
   onUserUpdate,
 }: Props) {
@@ -314,7 +310,7 @@ export function Lobby({
     if (customQuote) return customQuote;
     const idleQuotes = activeVoice.quotes.idle;
     if (activeTab === 'live') return '百人推筒子、骰宝正在火爆下注，主人要试试手气吗？🎰';
-    if (activeTab === 'cards') return '经典斗地主秒匹秒开，多难度牌手陪练随叫随到，祝您把把通天顺！♠️';
+    if (activeTab === 'cards') return '经典斗地主秒匹秒开，顶级智能牌手陪练随叫随到，祝您把把通天顺！♠️';
     if (activeTab === 'chess') return '楚汉争霸楚河汉界，静候主人排兵布阵～♟️';
     return idleQuotes[0] || '尊贵的主人，艾莉丝已就绪，今天想挑战哪位牌王？💖';
   }, [hoveredGame, customQuote, activeTab, activeVoice]);
@@ -475,20 +471,6 @@ export function Lobby({
             <span className="frame-pill-icon">🖼️</span>
             <span>头像框</span>
           </button>
-
-          <div className="bot-diff-switch top-diff-switch" title="选择机器人对战难度">
-            <span className="bot-diff-switch__label">难度</span>
-            {(['low', 'medium', 'high'] as const).map((d) => (
-              <button
-                key={d}
-                type="button"
-                className={`bot-diff-btn is-${d} ${botDifficulty === d ? 'is-active' : ''}`}
-                onClick={() => onChangeBotDifficulty(d)}
-              >
-                {d === 'low' ? '低' : d === 'medium' ? '中' : '高'}
-              </button>
-            ))}
-          </div>
 
           <button type="button" className="top-feature-pill" onClick={onRules} title="全游戏规则说明">
             <IconRules size={15} />

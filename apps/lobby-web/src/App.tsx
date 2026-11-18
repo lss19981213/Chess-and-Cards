@@ -3,7 +3,6 @@ import {
   ClientMsg,
   ErrorCode,
   ServerMsg,
-  type BotDifficulty,
   type EmotePayload,
   type GameMeta,
   type RoomView,
@@ -104,24 +103,6 @@ export default function App() {
   /** 邀请链接携带的房间号，连上 WebSocket 后优先入座 */
   const pendingInviteRef = useRef<{ game: GameMeta; roomId: string } | null>(null);
   const autoStartRef = useRef<boolean>(false);
-  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>(() => {
-    try {
-      const saved = window.localStorage.getItem('cc:bot-difficulty');
-      return saved === 'low' || saved === 'medium' || saved === 'high' ? saved : 'medium';
-    } catch {
-      return 'medium';
-    }
-  });
-  const botDifficultyRef = useRef<BotDifficulty>(botDifficulty);
-  const updateBotDifficulty = useCallback((diff: BotDifficulty) => {
-    setBotDifficulty(diff);
-    botDifficultyRef.current = diff;
-    try {
-      window.localStorage.setItem('cc:bot-difficulty', diff);
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
@@ -235,7 +216,7 @@ export default function App() {
         s.setRoomRef({ roomId: payload.room.roomId, playerId: userIdRef.current });
       }
 
-      // 极速开局：若在等待中且非机器人观战桌且我已入座，自动准备并按所选难度自动加满机器人
+      // 极速开局：若在等待中且非机器人观战桌且我已入座，自动准备并加满最高智慧机器人
       const amSeated = payload.room.players.some((p) => p.playerId === userIdRef.current);
       if (payload.room.status === 'waiting' && autoStartRef.current && !payload.room.botHosted && amSeated) {
         autoStartRef.current = false;
@@ -244,7 +225,7 @@ export default function App() {
           const need = payload.room.maxPlayers - payload.room.players.length;
           for (let i = 0; i < need; i++) {
             window.setTimeout(() => {
-              s.send(ClientMsg.AddBot, { difficulty: botDifficultyRef.current });
+              s.send(ClientMsg.AddBot, { difficulty: 'high' });
             }, (i + 1) * 80);
           }
         }
@@ -450,10 +431,8 @@ export default function App() {
     socketRef.current?.send(ClientMsg.Intent, { cmd, payload });
   };
 
-  const handleAddBot = (difficulty?: BotDifficulty): void => {
-    const chosen = difficulty ?? botDifficultyRef.current;
-    if (difficulty && difficulty !== botDifficultyRef.current) updateBotDifficulty(difficulty);
-    socketRef.current?.send(ClientMsg.AddBot, { difficulty: chosen });
+  const handleAddBot = (): void => {
+    socketRef.current?.send(ClientMsg.AddBot, { difficulty: 'high' });
   };
 
   const handleEmote = (key: string): void => {
@@ -526,8 +505,6 @@ export default function App() {
           onAddBot={handleAddBot}
           onSitDown={handleSitDown}
           onStandUp={handleStandUp}
-          botDifficulty={botDifficulty}
-          onChangeBotDifficulty={updateBotDifficulty}
           emotes={emotes}
           onEmote={handleEmote}
           persistent={games.find((g) => g.gameId === room.gameId)?.persistent === true}
@@ -540,8 +517,6 @@ export default function App() {
       return (
         <GameRooms
           game={selectedGame}
-          botDifficulty={botDifficulty}
-          onChangeBotDifficulty={updateBotDifficulty}
           onBack={() => setView('lobby')}
           onJoin={handleJoinRoom}
           joinError={joinError}
@@ -639,8 +614,6 @@ export default function App() {
         onNotices={() => setView('notices')}
         onMail={() => (user ? setView('mail') : requireLogin('register', '请先登录或创建账号再查看信箱！'))}
         onRules={() => setView('rules')}
-        botDifficulty={botDifficulty}
-        onChangeBotDifficulty={updateBotDifficulty}
         onBalanceChange={handleBalanceChange}
         onUserUpdate={(patch) => setUser((prev) => (prev ? { ...prev, ...patch } : prev))}
       />

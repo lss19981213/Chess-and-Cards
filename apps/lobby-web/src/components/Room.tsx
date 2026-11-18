@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
-  BOT_DIFFICULTY_LABEL,
   DEALER_VOICES,
   EMOTES,
-  type BotDifficulty,
   type EmotePayload,
   type RoomView,
   type Settlement,
@@ -54,11 +52,9 @@ interface Props {
   onReady: (ready: boolean) => void;
   onLeave: () => void;
   onIntent: (cmd: string, payload: Record<string, unknown>) => void;
-  onAddBot: (difficulty?: BotDifficulty) => void;
+  onAddBot: () => void;
   onSitDown?: () => void;
   onStandUp?: () => void;
-  botDifficulty: BotDifficulty;
-  onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
   emotes: EmotePayload[];
   onEmote: (key: string) => void;
   /** 平台坐庄的常驻玩法 */
@@ -108,8 +104,6 @@ export function Room({
   onAddBot,
   onSitDown,
   onStandUp,
-  botDifficulty,
-  onChangeBotDifficulty,
   emotes,
   onEmote,
   persistent,
@@ -405,7 +399,7 @@ export function Room({
               className="room-add-bot-top-btn"
               onClick={() => {
                 audio.play('click');
-                onAddBot(botDifficulty);
+                onAddBot();
               }}
               title="呼叫机器人陪玩入座"
             >
@@ -597,8 +591,8 @@ export function Room({
                       </div>
                       <span className="avatar-name">{p.nickname}</span>
                       {p.isBot && (
-                        <em className={`waiting-bot-badge is-${p.botDifficulty ?? 'medium'}`}>
-                          {BOT_DIFFICULTY_LABEL[p.botDifficulty ?? 'medium']}
+                        <em className="waiting-bot-badge is-high">
+                          大师AI
                         </em>
                       )}
                     </div>
@@ -610,8 +604,8 @@ export function Room({
                           <button
                             type="button"
                             className="btn-add-bot-circle"
-                            onClick={() => onAddBot(botDifficulty)}
-                            title={`添加${BOT_DIFFICULTY_LABEL[botDifficulty]}难度机器人入座`}
+                            onClick={() => onAddBot()}
+                            title="添加高智商陪玩机器人入座"
                           >
                             +🤖
                           </button>
@@ -624,27 +618,6 @@ export function Room({
                   ))}
                 </div>
 
-                {(isHost || room.maxPlayers > 2) && room.players.length < room.maxPlayers && (
-                  <div className="waiting-diff-bar">
-                    <span className="waiting-diff-label">陪玩难度</span>
-                    <div className="bot-diff-switch">
-                      {(['low', 'medium', 'high'] as const).map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          className={`bot-diff-btn is-${d} ${botDifficulty === d ? 'is-active' : ''}`}
-                          onClick={() => {
-                            audio.play('click');
-                            onChangeBotDifficulty(d);
-                          }}
-                        >
-                          {d === 'low' ? '初级 · 低' : d === 'medium' ? '中级 · 中' : '高级 · 高'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <div className="waiting-actions-row">
                   {(isHost || room.maxPlayers > 2) && room.players.length < room.maxPlayers && (
                     <button
@@ -655,10 +628,10 @@ export function Room({
                         if (!me?.ready) onReady(true);
                         const need = room.maxPlayers - room.players.length;
                         for (let i = 0; i < need; i++) {
-                          window.setTimeout(() => onAddBot(botDifficulty), i * 60);
+                          window.setTimeout(() => onAddBot(), i * 60);
                         }
                       }}
-                      title="自动按当前难度补满机器人并立即开始"
+                      title="自动补满大师级机器人并立即开始"
                     >
                       <span>⚡ 补满机器人秒开对决</span>
                     </button>
@@ -682,11 +655,11 @@ export function Room({
                       className="btn-bot-quick"
                       onClick={() => {
                         audio.play('click');
-                        onAddBot(botDifficulty);
+                        onAddBot();
                       }}
-                      title={`加入1名${BOT_DIFFICULTY_LABEL[botDifficulty]}机器人`}
+                      title="加入1名大师级机器人"
                     >
-                      🤖 +1{BOT_DIFFICULTY_LABEL[botDifficulty]}
+                      🤖 +1陪玩
                     </button>
                   )}
                 </div>
@@ -747,10 +720,10 @@ export function Room({
                       {p.nickname}
                       {p.playerId === room.hostId && <em className="tag-host">房主</em>}
                       {p.isBot && (
-  <em className={`tag-bot tag-bot--${p.botDifficulty ?? 'medium'}`}>
-    {p.botDifficulty === 'low' ? '初级' : p.botDifficulty === 'high' ? '高级' : '中级'}
-  </em>
-)}
+                        <em className="tag-bot tag-bot--high">
+                          大师AI
+                        </em>
+                      )}
                     </span>
                     <span className="drawer-score">积分: {p.score}</span>
                   </div>

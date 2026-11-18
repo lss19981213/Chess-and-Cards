@@ -366,7 +366,7 @@ export class GameRoom {
     if (!this.botHosted || this.closed) return;
     const minTarget = this.plugin.meta.minPlayers;
     if (this.seats.size >= minTarget) return;
-    const diffs: BotDifficulty[] = ['low', 'medium', 'high'];
+    const diff: BotDifficulty = 'high';
     const used = new Set([...this.seats.values()].map((s) => s.nickname));
     while (this.seats.size < minTarget) {
       const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
@@ -374,7 +374,6 @@ export class GameRoom {
       const nickname = `🤖 ${picked}`;
       used.add(nickname);
       const botId = `bot:${randomUUID()}`;
-      const diff = diffs[Math.floor(Math.random() * diffs.length)] ?? 'medium';
       const seat: Seat = {
         playerId: botId,
         nickname,
@@ -450,7 +449,7 @@ export class GameRoom {
   addBot(
     playerId: string,
     nickname: string,
-    difficulty: BotDifficulty = 'medium',
+    difficulty: BotDifficulty = 'high',
     options?: { deferStart?: boolean },
   ): void {
     if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
@@ -505,7 +504,7 @@ export class GameRoom {
   }
 
   botDifficultyOf(playerId: string): BotDifficulty {
-    return this.seats.get(playerId)?.botDifficulty ?? 'medium';
+    return this.seats.get(playerId)?.botDifficulty ?? 'high';
   }
 
   async actAsBot(playerId: string): Promise<boolean> {

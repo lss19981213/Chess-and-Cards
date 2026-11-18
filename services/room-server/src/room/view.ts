@@ -11,7 +11,7 @@ export function toPlayerContexts(seats: Iterable<Seat>): PlayerContext[] {
       seat: s.seat,
       connected: s.socket !== null || s.isBot,
       isBot: s.isBot,
-      ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'medium' } : {}),
+      ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'high' } : {}),
     }));
 }
 
@@ -26,7 +26,7 @@ export function toPlayerViews(seats: Iterable<Seat>): PlayerView[] {
       online: s.socket !== null || s.isBot,
       score: s.score,
       isBot: s.isBot,
-      ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'medium' } : {}),
+      ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'high' } : {}),
     }));
 }
 

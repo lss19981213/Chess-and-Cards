@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { BotDifficulty, GameMeta } from '@cc/protocol';
+import type { GameMeta } from '@cc/protocol';
 import { api } from '../api';
 import { audio } from '../audio';
 import { GAME_ART } from '../assets';
@@ -26,8 +26,6 @@ interface RoomItem {
 
 interface Props {
   game: GameMeta;
-  botDifficulty: BotDifficulty;
-  onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
   onBack: () => void;
   onJoin: (roomId: string | null, create: boolean) => void;
   joinError: string | null;
@@ -39,7 +37,7 @@ const STATUS_TEXT: Record<string, string> = {
   settled: '开奖结算中',
 };
 
-export function GameRooms({ game, botDifficulty, onChangeBotDifficulty, onBack, onJoin, joinError }: Props) {
+export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

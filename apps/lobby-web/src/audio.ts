@@ -29,7 +29,9 @@ export type SfxName =
   | 'slot_jackpot'
   | 'mahjong_clack'
   | 'coin_stream'
-  | 'card_shuffle';
+  | 'card_shuffle'
+  | 'xiangqi_move'
+  | 'xiangqi_capture';
 
 const STORAGE_KEY = 'cc.audio';
 
@@ -260,6 +262,12 @@ class AudioEngine {
         break;
       case 'card_shuffle':
         this.cardShuffle(out);
+        break;
+      case 'xiangqi_move':
+        this.xiangqiMoveSound(out);
+        break;
+      case 'xiangqi_capture':
+        this.xiangqiCaptureSound(out);
         break;
     }
   }
@@ -687,6 +695,116 @@ class AudioEngine {
     });
 
     this.bar += 1;
+  }
+
+  /** 中国象棋落子清脆紫檀木声 */
+  private xiangqiMoveSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    // 1. 瞬态木质清脆撞击（带通滤波白噪）
+    const bufLen = Math.floor(ctx.sampleRate * 0.035);
+    const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.008));
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1650, t);
+    bp.Q.setValueAtTime(2.6, t);
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.45, t);
+    nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    noise.connect(bp);
+    bp.connect(nGain);
+    nGain.connect(out);
+    noise.start(t);
+
+    // 2. 棋盘木箱共鸣（沉稳厚实低中频）
+    const body = ctx.createOscillator();
+    const bGain = ctx.createGain();
+    body.type = 'triangle';
+    body.frequency.setValueAtTime(310, t);
+    body.frequency.exponentialRampToValueAtTime(135, t + 0.065);
+    bGain.gain.setValueAtTime(0.36, t);
+    bGain.gain.exponentialRampToValueAtTime(0.001, t + 0.085);
+    body.connect(bGain);
+    bGain.connect(out);
+    body.start(t);
+    body.stop(t + 0.09);
+
+    // 3. 高频清亮泛音点缀
+    const ping = ctx.createOscillator();
+    const pGain = ctx.createGain();
+    ping.type = 'sine';
+    ping.frequency.setValueAtTime(960, t);
+    ping.frequency.exponentialRampToValueAtTime(520, t + 0.04);
+    pGain.gain.setValueAtTime(0.14, t);
+    pGain.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+    ping.connect(pGain);
+    pGain.connect(out);
+    ping.start(t);
+    ping.stop(t + 0.05);
+  }
+
+  /** 中国象棋吃子重击 + 金戈回响音效 */
+  private xiangqiCaptureSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    // 1. 强力重拍木板冲击
+    const sub = ctx.createOscillator();
+    const sGain = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(210, t);
+    sub.frequency.exponentialRampToValueAtTime(48, t + 0.16);
+    sGain.gain.setValueAtTime(0.55, t);
+    sGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    sub.connect(sGain);
+    sGain.connect(out);
+    sub.start(t);
+    sub.stop(t + 0.19);
+
+    // 2. 双木碰撞脆响
+    const bufLen = Math.floor(ctx.sampleRate * 0.06);
+    const buffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.014));
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1950, t);
+    bp.Q.setValueAtTime(1.8, t);
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.6, t);
+    nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    noise.connect(bp);
+    bp.connect(nGain);
+    nGain.connect(out);
+    noise.start(t);
+
+    // 3. 金戈战意余韵（古风青铜微鸣）
+    [660, 990, 1480].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = idx === 0 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, t + 0.015);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.94, t + 0.24);
+      g.gain.setValueAtTime(0.14 / (idx + 1), t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.26);
+      osc.connect(g);
+      g.connect(out);
+      osc.start(t + 0.015);
+      osc.stop(t + 0.28);
+    });
   }
 
   private savePrefs(): void {

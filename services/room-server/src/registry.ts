@@ -217,11 +217,10 @@ export class RoomManager {
             Math.max(meta.minPlayers, 2 + Math.floor(Math.random() * Math.min(4, meta.maxPlayers - 1))),
           );
 
-    const diffs: BotDifficulty[] = ['low', 'medium', 'high'];
+    const diff: BotDifficulty = 'high';
     const pool = [...BOT_NAMES].sort(() => Math.random() - 0.5);
     for (let i = 0; i < botCount; i += 1) {
       const name = pool[i % pool.length] ?? `牌手${i + 1}`;
-      const diff = diffs[Math.floor(Math.random() * diffs.length)] ?? 'medium';
       // 前 N-1 名机器人延迟开局，待所有初始机器人落座后再统一开局，避免加第 3 名机器人时因已开局抛错
       room.addBot(`bot:${randomUUID()}`, `🤖 ${name}`, diff, { deferStart: i < botCount - 1 });
     }

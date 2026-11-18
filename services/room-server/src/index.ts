@@ -306,9 +306,8 @@ async function handleHttp(
       res.end(JSON.stringify({ ok: true, removed: targetBot.playerId }));
       return;
     }
-    const rawDiff = body.difficulty;
-    const difficulty: BotDifficulty =
-      rawDiff === 'low' || rawDiff === 'high' ? rawDiff : 'medium';
+    // 陪玩机器人统一采用最高智慧难度
+    const difficulty: BotDifficulty = 'high';
     const used = new Set(room.view().players.map((p) => p.nickname));
     const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
     const nickname =
@@ -569,9 +568,8 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       if (is1v1 && room.view().hostId !== session.playerId) {
         throw new AppError(ErrorCode.IllegalAction, '1对1游戏中只有房主可以添加机器人');
       }
-      const rawDiff = payload.difficulty;
-      const difficulty: BotDifficulty =
-        rawDiff === 'low' || rawDiff === 'medium' || rawDiff === 'high' ? rawDiff : 'medium';
+      // 陪玩机器人统一使用最高智慧难度
+      const difficulty: BotDifficulty = 'high';
       const used = new Set(room.view().players.map((p) => p.nickname));
       const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
       const nickname =

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import type { BotDifficulty } from '@cc/protocol';
 import type { Seat } from './types';
 
 const AMBIENT_MIN = 30;
@@ -40,7 +39,6 @@ export function reconcileAmbientSeats(
   if (seats.size >= desired) return false;
 
   const used = new Set(all.map((seat) => seat.nickname));
-  const diffs: BotDifficulty[] = ['low', 'medium', 'high'];
   for (let i = seats.size; i < desired; i += 1) {
     const base = AMBIENT_NAMES[Math.floor(Math.random() * AMBIENT_NAMES.length)] ?? '牌友';
     let nickname = base;
@@ -58,7 +56,7 @@ export function reconcileAmbientSeats(
       socket: null,
       graceTimer: null,
       isBot: true,
-      botDifficulty: diffs[i % diffs.length]!,
+      botDifficulty: 'high',
     });
   }
   return true;
