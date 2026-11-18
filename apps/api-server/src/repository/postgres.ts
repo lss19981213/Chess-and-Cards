@@ -27,8 +27,10 @@ import {
   releaseOrphanBets,
 } from './pg/settlement';
 import {
+  bindUserOAuth,
   creditWallet,
   findUserByEmail,
+  findUserByOAuth,
   findUserByUsername,
   getUserById,
   getWalletBalance,
@@ -122,6 +124,14 @@ export class PostgresRepository implements Repository {
 
   findByEmail(email: string): Promise<AuthUser | null> {
     return findUserByEmail(this.pool, email);
+  }
+
+  findByOAuth(provider: string, sub: string): Promise<UserRecord | null> {
+    return findUserByOAuth(this.pool, provider, sub);
+  }
+
+  bindOAuth(userId: string, provider: string, sub: string): Promise<void> {
+    return bindUserOAuth(this.pool, userId, provider, sub);
   }
 
   updatePassword(userId: string, passwordHash: string): Promise<boolean> {

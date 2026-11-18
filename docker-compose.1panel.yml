@@ -46,6 +46,12 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       ROOM_SERVER_URL: http://room-server:9000
       DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-cc}:${POSTGRES_PASSWORD:-cc_change_me_please}@postgres:5432/${POSTGRES_DB:-chess_cards}}
+      FANTASYCLAW_OAUTH_BASE_URL: ${FANTASYCLAW_OAUTH_BASE_URL:-https://www.fantasyclaw.top}
+      FANTASYCLAW_OAUTH_CLIENT_ID: ${FANTASYCLAW_OAUTH_CLIENT_ID:-}
+      FANTASYCLAW_OAUTH_CLIENT_SECRET: ${FANTASYCLAW_OAUTH_CLIENT_SECRET:-}
+      FANTASYCLAW_OAUTH_REDIRECT_URI: ${FANTASYCLAW_OAUTH_REDIRECT_URI:-}
+      FANTASYCLAW_OAUTH_SCOPE: ${FANTASYCLAW_OAUTH_SCOPE:-profile email}
+      PUBLIC_LOBBY_URL: ${PUBLIC_LOBBY_URL:-/lobby/}
       TZ: Asia/Shanghai
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1"]

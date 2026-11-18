@@ -84,6 +84,14 @@ WS_ALLOWED_ORIGINS=
 DISCONNECT_GRACE_MS=60000
 BOT_ENABLED=true
 BOT_THINK_MS=700
+
+# 奇幻维度 OAuth 2.0 登录配置（在 https://www.fantasyclaw.top 申请应用后填入）
+FANTASYCLAW_OAUTH_BASE_URL=https://www.fantasyclaw.top
+FANTASYCLAW_OAUTH_CLIENT_ID=
+FANTASYCLAW_OAUTH_CLIENT_SECRET=
+FANTASYCLAW_OAUTH_REDIRECT_URI=
+FANTASYCLAW_OAUTH_SCOPE=profile email
+PUBLIC_LOBBY_URL=/lobby/
 EOF
   chmod 600 .env
   echo "=========================================="

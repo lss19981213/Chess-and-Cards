@@ -96,6 +96,7 @@ export default function App() {
 
   // 全屏视图状态流转 (彻底消除弹窗)
   const [view, setView] = useState<AppView>('lobby');
+  const [authInitialTab, setAuthInitialTab] = useState<'login' | 'register'>('login');
 
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
@@ -132,39 +133,48 @@ export default function App() {
         const params = new URLSearchParams(window.location.search);
         const joinRoomId = params.get('join');
         const joinGameId = params.get('game');
+        const oauthToken = params.get('oauth_token');
+        const oauthError = params.get('oauth_error');
+
         if (joinRoomId && joinGameId) {
           const invited = gamesRes.games.find((game) => game.gameId === joinGameId);
           if (invited) {
             pendingInviteRef.current = { game: invited, roomId: joinRoomId };
             setSelectedGame(invited);
-            // 消费掉参数，避免刷新后重复入座
-            window.history.replaceState({}, '', window.location.pathname);
           }
         }
+        if (joinRoomId || joinGameId || oauthToken || oauthError) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
 
-        let token = getToken();
+        if (oauthError) {
+          setAuthInitialTab('login');
+          setView('auth');
+          window.setTimeout(() => showToast(oauthError), 150);
+        }
+
+        let token = oauthToken || getToken();
+        if (oauthToken) {
+          setToken(oauthToken);
+        }
         if (token) {
           try {
             const me = await api.me();
             setUser(me.user);
             userIdRef.current = me.user.id;
             connectWs(token);
+            if (oauthToken) {
+              window.setTimeout(
+                () => showToast(`🌌 奇幻维度账号登录成功，欢迎 ${me.user.nickname}！`),
+                120,
+              );
+            }
           } catch {
+            setToken(null);
             token = null;
           }
         }
-        // 如果未登录或 token 失效，自动无感接入游客账号，确保立刻能开玩
-        if (!token) {
-          try {
-            const guestRes = await api.guest();
-            setToken(guestRes.token);
-            setUser(guestRes.user);
-            userIdRef.current = guestRes.user.id;
-            connectWs(guestRes.token);
-          } catch (e) {
-            console.error('Guest init error:', e);
-          }
-        }
+        // 未登录时不自动创建游客新号，保持未登录态并在大厅清晰指引玩家登录或创建账号
       } catch (error) {
         console.error('[boot] 初始化失败', error);
         setBootError('无法连接服务器，请检查网络后重试');
@@ -353,10 +363,22 @@ export default function App() {
     showToast('已安全退出账号');
   };
 
+  const requireLogin = (tab: 'login' | 'register' = 'login', reason?: string): void => {
+    setAuthInitialTab(tab);
+    setView('auth');
+    if (reason) showToast(reason);
+  };
+
   const handleQuickPlay = (game: GameMeta): void => {
     setSelectedGame(game);
     setJoinError(null);
     autoStartRef.current = !game.persistent;
+
+    if (!user || !socketRef.current) {
+      pendingJoinRef.current = game;
+      requireLogin('register', '请先登录或创建账号，或使用奇幻维度账号一键登录！');
+      return;
+    }
 
     // 如果之前已有房间状态，先离开旧房间
     if (room) {
@@ -365,29 +387,18 @@ export default function App() {
       setRoom(null);
     }
 
-    const doJoin = () => {
-      socketRef.current?.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
-    };
-
-    if (!user || !socketRef.current) {
-      void api.guest().then((res) => {
-        setToken(res.token);
-        setUser(res.user);
-        userIdRef.current = res.user.id;
-        connectWs(res.token);
-        window.setTimeout(doJoin, 200);
-      }).catch(() => {
-        showToast('网络连接中，请稍后再试');
-      });
-      return;
-    }
-
-    doJoin();
+    socketRef.current.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
   };
 
   const handleEnter = (game: GameMeta): void => {
     setSelectedGame(game);
     setJoinError(null);
+
+    if (!user) {
+      pendingJoinRef.current = game;
+      requireLogin('register', '请先登录或创建账号后再进入游戏！');
+      return;
+    }
 
     if (room) {
       socketRef.current?.send(ClientMsg.LeaveRoom, {});
@@ -407,28 +418,18 @@ export default function App() {
 
   const handleJoinRoom = (roomId: string | null, create = false): void => {
     if (!selectedGame) return;
-    autoStartRef.current = !selectedGame.persistent && !create && !roomId;
-
-    const doJoin = () => {
-      socketRef.current?.send(ClientMsg.JoinRoom, {
-        gameId: selectedGame.gameId,
-        roomId: roomId ?? undefined,
-        create,
-      });
-    };
-
     if (!user || !socketRef.current) {
-      void api.guest().then((res) => {
-        setToken(res.token);
-        setUser(res.user);
-        userIdRef.current = res.user.id;
-        connectWs(res.token);
-        window.setTimeout(doJoin, 200);
-      });
+      pendingJoinRef.current = selectedGame;
+      requireLogin('register', '请先登录或创建账号后再入座对局！');
       return;
     }
+    autoStartRef.current = !selectedGame.persistent && !create && !roomId;
 
-    doJoin();
+    socketRef.current.send(ClientMsg.JoinRoom, {
+      gameId: selectedGame.gameId,
+      roomId: roomId ?? undefined,
+      create,
+    });
   };
 
   const handleLeaveRoom = (): void => {
@@ -613,7 +614,13 @@ export default function App() {
     }
 
     if (view === 'auth') {
-      return <AuthView onSuccess={handleAuthSuccess} onBack={() => setView('lobby')} />;
+      return (
+        <AuthView
+          initialTab={authInitialTab}
+          onSuccess={handleAuthSuccess}
+          onBack={() => setView('lobby')}
+        />
+      );
     }
 
     // 默认展示大厅
@@ -623,13 +630,14 @@ export default function App() {
         games={games}
         onEnter={handleEnter}
         onQuickPlay={handleQuickPlay}
-        onLogin={() => setView('auth')}
-        onTasks={() => setView('tasks')}
-        onFriends={() => setView('friends')}
+        onLogin={() => requireLogin('login')}
+        onRegister={() => requireLogin('register')}
+        onTasks={() => (user ? setView('tasks') : requireLogin('register', '请先登录或创建账号再领取福利任务！'))}
+        onFriends={() => (user ? setView('friends') : requireLogin('register', '请先登录或创建账号再管理好友！'))}
         onLeaderboard={() => setView('leaderboard')}
-        onProfile={() => (user ? setView('profile') : setView('auth'))}
+        onProfile={() => (user ? setView('profile') : requireLogin('login', '请先登录或创建账号！'))}
         onNotices={() => setView('notices')}
-        onMail={() => setView('mail')}
+        onMail={() => (user ? setView('mail') : requireLogin('register', '请先登录或创建账号再查看信箱！'))}
         onRules={() => setView('rules')}
         botDifficulty={botDifficulty}
         onChangeBotDifficulty={updateBotDifficulty}

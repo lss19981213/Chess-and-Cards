@@ -85,6 +85,9 @@ export interface RegisterInput {
   username: string;
   passwordHash: string;
   nickname: string;
+  email?: string | null;
+  oauthProvider?: string | null;
+  oauthSub?: string | null;
 }
 
 /** 玩家公开资料（好友、搜索、个人中心共用） */
@@ -208,12 +211,16 @@ export interface ClaimMailResult {
   reason?: string;
 }
 
-export type RegisterResult = { ok: true; user: UserRecord } | { ok: false; reason: 'username_taken' };
+export type RegisterResult =
+  | { ok: true; user: UserRecord }
+  | { ok: false; reason: 'username_taken' | 'email_taken' | 'nickname_taken' };
 
 export interface Repository {
   register(input: RegisterInput): Promise<RegisterResult>;
   findByUsername(username: string): Promise<AuthUser | null>;
   findByEmail(email: string): Promise<AuthUser | null>;
+  findByOAuth(provider: string, sub: string): Promise<UserRecord | null>;
+  bindOAuth(userId: string, provider: string, sub: string): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<boolean>;
   updateEmail(userId: string, email: string): Promise<boolean>;
   setInvitedBy(userId: string, invitedBy: string): Promise<void>;

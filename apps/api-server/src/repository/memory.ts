@@ -51,6 +51,7 @@ export class MemoryRepository implements Repository {
   private readonly credentials = new Map<string, string>();
   private readonly usernameIndex = new Map<string, string>();
   private readonly emailIndex = new Map<string, string>();
+  private readonly oauthIndex = new Map<string, string>();
   private readonly balances = new Map<string, number>();
   private readonly appliedKeys = new Set<string>();
   /** 下注/撤注流水：key 为 `${bizType}:${bizId}:${userId}`，value 为 delta */
@@ -104,18 +105,38 @@ export class MemoryRepository implements Repository {
     const key = input.username.toLowerCase();
     if (this.usernameIndex.has(key)) return { ok: false, reason: 'username_taken' };
 
+    const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
+    if (normalizedEmail && this.emailIndex.has(normalizedEmail)) {
+      return { ok: false, reason: 'email_taken' };
+    }
+
     const user: UserRecord = {
       id: randomUUID(),
       nickname: input.nickname,
       username: input.username,
+      email: normalizedEmail,
       createdAt: Date.now(),
       banned: false,
     };
     this.users.set(user.id, user);
     this.credentials.set(user.id, input.passwordHash);
     this.usernameIndex.set(key, user.id);
+    if (normalizedEmail) this.emailIndex.set(normalizedEmail, user.id);
+    if (input.oauthProvider && input.oauthSub) {
+      this.oauthIndex.set(`${input.oauthProvider}:${input.oauthSub}`, user.id);
+    }
     this.balances.set(user.id, this.initialCoins);
     return { ok: true, user };
+  }
+
+  async findByOAuth(provider: string, sub: string): Promise<UserRecord | null> {
+    const id = this.oauthIndex.get(`${provider}:${sub}`);
+    return id ? (this.users.get(id) ?? null) : null;
+  }
+
+  async bindOAuth(userId: string, provider: string, sub: string): Promise<void> {
+    if (!this.users.has(userId)) return;
+    this.oauthIndex.set(`${provider}:${sub}`, userId);
   }
 
   async findByUsername(username: string): Promise<AuthUser | null> {

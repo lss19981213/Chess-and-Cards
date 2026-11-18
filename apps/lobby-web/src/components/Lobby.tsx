@@ -8,7 +8,7 @@ function IconBolt() {
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeLevelInfo, DEALER_VOICES, type Announcement, type BotDifficulty, type GameMeta } from '@cc/protocol';
-import { api, type User } from '../api';
+import { api, fantasyClawOAuthStartUrl, type User } from '../api';
 import { audio } from '../audio';
 import { speakDealerQuote } from '../speech';
 import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART, HERO_BG } from '../assets';
@@ -35,6 +35,7 @@ interface Props {
   onEnter: (game: GameMeta) => void;
   onQuickPlay: (game: GameMeta) => void;
   onLogin: () => void;
+  onRegister?: () => void;
   onTasks: () => void;
   onFriends?: () => void;
   onLeaderboard: () => void;
@@ -125,6 +126,7 @@ export function Lobby({
   onEnter,
   onQuickPlay,
   onLogin,
+  onRegister,
   onTasks,
   onFriends: _onFriends,
   onLeaderboard,
@@ -310,15 +312,28 @@ export function Lobby({
             </div>
             <div className="app-top__id">
               <div className="app-top__name-row">
-                <span className="app-level-pill">Lv.{levelInfo.level}</span>
-                <strong className="user-name-text" title={user ? user.nickname : '游客牌友'}>
-                  {user ? user.nickname : '牌友_萌新'}
-                </strong>
-                {!user && <span className="login-pill">登录</span>}
-                {user && levelInfo.claimableReward > 0 && (
-                  <span className="level-reward-dot" title={`可领取 ${levelInfo.claimableReward.toLocaleString()} 升级筹码`}>
-                    领奖
-                  </span>
+                {user ? (
+                  <>
+                    <span className="app-level-pill">Lv.{levelInfo.level}</span>
+                    <strong className="user-name-text" title={user.nickname}>
+                      {user.nickname}
+                    </strong>
+                    {levelInfo.claimableReward > 0 && (
+                      <span
+                        className="level-reward-dot"
+                        title={`可领取 ${levelInfo.claimableReward.toLocaleString()} 升级筹码`}
+                      >
+                        领奖
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <strong className="user-name-text" title="请登录或创建账号">
+                      未登录
+                    </strong>
+                    <span className="login-pill">登录 / 注册</span>
+                  </>
                 )}
               </div>
               {user && (
@@ -337,19 +352,19 @@ export function Lobby({
           {/* 筹码钱包：单行胶囊带加号 */}
           <div
             className="app-top__wallet"
-            onClick={onTasks}
+            onClick={() => (user ? onTasks() : onLogin())}
             role="button"
             tabIndex={0}
-            title="筹码钱包 · 点击领取每日救济金与福利"
+            title={user ? '筹码钱包 · 点击领取每日救济金与福利' : '登录后即可领取初始筹码与每日福利'}
           >
             <div className="wallet-chip-icon">
               <Chip size={18} />
             </div>
             <div className="wallet-info-col">
               <span className="wallet-label">欢乐豆</span>
-              <strong className="wallet-val">{user ? user.balance.toLocaleString() : '1,000'}</strong>
+              <strong className="wallet-val">{user ? user.balance.toLocaleString() : '登录后领取'}</strong>
             </div>
-            <span className="wallet-plus" title="领取救济金与签到">+</span>
+            <span className="wallet-plus" title={user ? '领取救济金与签到' : '登录注册'}>+</span>
           </div>
 
           {/* 破产救济金醒目引导徽章 */}
@@ -402,8 +417,8 @@ export function Lobby({
           <button
             type="button"
             className="top-feature-pill top-feature-pill--slots"
-            onClick={() => setShowSlotsModal(true)}
-            title="进入拉斯维加斯疯狂老虎机"
+            onClick={() => (user ? setShowSlotsModal(true) : onLogin())}
+            title={user ? '进入拉斯维加斯疯狂老虎机' : '请先登录或注册账号'}
           >
             <span className="slots-pill-icon">🎰</span>
             <span className="slots-pill-title">老虎机</span>
@@ -414,8 +429,8 @@ export function Lobby({
           <button
             type="button"
             className="top-feature-pill"
-            onClick={() => setShowAvatarFrameModal(true)}
-            title="挑选佩戴20款尊享动态头像框"
+            onClick={() => (user ? setShowAvatarFrameModal(true) : onLogin())}
+            title={user ? '挑选佩戴30款尊享动态头像框' : '请先登录或注册账号'}
           >
             <span className="frame-pill-icon">🖼️</span>
             <span>头像框</span>
@@ -471,6 +486,48 @@ export function Lobby({
           </div>
         </div>
       </header>
+
+      {/* 未登录引导横幅：不再自动静默创建游客号，指引玩家注册账号或使用奇幻维度账号一键登录 */}
+      {!user && (
+        <div className="guest-auth-banner" role="region" aria-label="登录引导">
+          <div className="guest-auth-banner__text">
+            <span className="guest-auth-banner__badge">👋 欢迎光临</span>
+            <strong>当前为未登录浏览模式，请登录或创建专属账号以保存筹码、等级与战绩（一个邮箱限建一个账号）</strong>
+          </div>
+          <div className="guest-auth-banner__actions">
+            <button
+              type="button"
+              className="btn-guest-oauth"
+              onClick={() => {
+                audio.play('click');
+                window.location.href = fantasyClawOAuthStartUrl();
+              }}
+            >
+              🌌 奇幻维度登录
+            </button>
+            <button
+              type="button"
+              className="btn-guest-login"
+              onClick={() => {
+                audio.play('click');
+                onLogin();
+              }}
+            >
+              立即登录
+            </button>
+            <button
+              type="button"
+              className="btn-guest-register"
+              onClick={() => {
+                audio.play('click');
+                (onRegister ?? onLogin)();
+              }}
+            >
+              ✨ 创建账号
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ================= 2. 商业级大厅主视口 (满幅展开，零上下黑边) ================= */}
       <main className="commercial-lobby-stage">
@@ -698,8 +755,8 @@ export function Lobby({
               <button
                 type="button"
                 className="btn-dealer-wardrobe"
-                onClick={() => setShowDealerWardrobe(true)}
-                title="荷官更衣室与自定义台词性格"
+                onClick={() => (user ? setShowDealerWardrobe(true) : onLogin())}
+                title={user ? '荷官更衣室与自定义台词性格' : '请先登录或注册账号'}
               >
                 <span>👗 换装 & 语音</span>
               </button>

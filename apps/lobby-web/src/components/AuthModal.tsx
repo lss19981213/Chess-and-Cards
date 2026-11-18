@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, type Captcha, type User } from '../api';
+import { api, fantasyClawOAuthStartUrl, type Captcha, type User } from '../api';
 
 type Tab = 'login' | 'register' | 'forgot';
 
@@ -13,6 +13,7 @@ export function AuthModal({ onSuccess, onClose }: Props) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [email, setEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [code, setCode] = useState('');
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
@@ -102,7 +103,15 @@ export function AuthModal({ onSuccess, onClose }: Props) {
       const result =
         tab === 'login'
           ? await api.login(username.trim(), password, captcha.id, code)
-          : await api.register(username.trim(), password, nickname.trim(), captcha.id, code, inviteCode.trim() || undefined);
+          : await api.register(
+              username.trim(),
+              password,
+              nickname.trim(),
+              captcha.id,
+              code,
+              email.trim(),
+              inviteCode.trim() || undefined,
+            );
       onSuccess(result.token, result.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : '操作失败');
@@ -233,6 +242,17 @@ export function AuthModal({ onSuccess, onClose }: Props) {
 
             {tab === 'register' && (
               <>
+                <label htmlFor="auth-email">安全邮箱（必填 · 一邮一号）</label>
+                <input
+                  id="auth-email"
+                  type="email"
+                  value={email}
+                  autoComplete="email"
+                  required
+                  placeholder="name@example.com（每个邮箱仅限注册一个账号）"
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+
                 <label htmlFor="auth-nickname">昵称（可选）</label>
                 <input
                   id="auth-nickname"
@@ -275,6 +295,18 @@ export function AuthModal({ onSuccess, onClose }: Props) {
 
             <button type="submit" className="primary" disabled={loading}>
               {loading ? '处理中…' : tab === 'login' ? '登录' : '注册并进入'}
+            </button>
+
+            <button
+              type="button"
+              className="btn-oauth-fantasyclaw"
+              style={{ marginTop: 10 }}
+              onClick={() => {
+                window.location.href = fantasyClawOAuthStartUrl();
+              }}
+            >
+              <span className="oauth-fc-icon">🌌</span>
+              <span>使用奇幻维度账号一键登录</span>
             </button>
 
             {tab === 'login' && (

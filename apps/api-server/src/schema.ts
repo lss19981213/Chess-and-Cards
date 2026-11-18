@@ -13,7 +13,23 @@ alter table users add column if not exists password_hash text;
 alter table users add column if not exists banned boolean not null default false;
 alter table users add column if not exists email text;
 alter table users add column if not exists invited_by text;
+alter table users add column if not exists oauth_provider text;
+alter table users add column if not exists oauth_sub text;
 create index if not exists users_email_lower_idx on users (lower(email)) where email is not null;
+
+-- 一个邮箱只能创建一个账号（大小写不敏感唯一；老库若有历史脏数据则跳过建索引，由应用层查询兜底）
+do $$
+begin
+  create unique index if not exists users_email_lower_uniq
+    on users (lower(email)) where email is not null;
+exception when unique_violation then
+  raise notice 'users 表存在重复邮箱，跳过唯一索引创建';
+end
+$$;
+
+-- 第三方 OAuth 账号唯一绑定（如奇幻维度 fantasyclaw）
+create unique index if not exists users_oauth_provider_sub_uniq
+  on users (oauth_provider, oauth_sub) where oauth_provider is not null and oauth_sub is not null;
 
 -- 账号体系：用户名大小写不敏感唯一（历史游客数据 username 为空，不参与唯一约束）
 -- 登录按 lower(username) 匹配，索引也必须按 lower 建，否则 Alice 与 alice 可并存。

@@ -67,6 +67,11 @@ const TOKEN_KEY = 'cc.token';
 /** 站点部署在子路径（/lobby/），所有接口都带此前缀 */
 export const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
 
+/** 奇幻维度 OAuth 2.0 授权登录入口 */
+export function fantasyClawOAuthStartUrl(): string {
+  return `${BASE_PATH}/api/auth/oauth/fantasyclaw/start`;
+}
+
 /** 将后端返回的 `/api/avatar/...` 路径补全站点前缀，兼容本地 data URL 预览 */
 export function resolveAvatarUrl(avatar: string | null | undefined): string | null {
   if (!avatar) return null;
@@ -123,12 +128,18 @@ export const api = {
     nickname: string,
     captchaId: string,
     captcha: string,
+    email: string,
     inviteCode?: string,
   ) =>
     request<{ token: string; user: User }>('/api/register', {
       method: 'POST',
-      body: JSON.stringify({ username, password, nickname, captchaId, captcha, inviteCode }),
+      body: JSON.stringify({ username, password, nickname, captchaId, captcha, email, inviteCode }),
     }),
+
+  oauthProviders: () =>
+    request<{
+      fantasyclaw: { enabled: boolean; name: string; baseUrl: string; callbackUrl: string };
+    }>('/api/auth/oauth/providers'),
 
   changePassword: (oldPassword: string, newPassword: string) =>
     request<{ ok: boolean; message: string }>('/api/auth/change-password', {

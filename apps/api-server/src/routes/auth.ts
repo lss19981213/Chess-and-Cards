@@ -1,5 +1,5 @@
-import { randomInt } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { signToken } from '@cc/auth';
 import { config } from '../config';
 import { authHeader, clientIp, httpError } from '../http-utils';
@@ -16,6 +16,8 @@ import {
   verifyPassword,
 } from '../security';
 import { periodKeyFor } from '../tasks';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function broadcastToRoomServer(text: string): Promise<void> {
   if (!config.roomServerUrl) return;
@@ -98,6 +100,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     const username = typeof body.username === 'string' ? body.username.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const nicknameRaw = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+    const emailRaw = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const captchaId = typeof body.captchaId === 'string' ? body.captchaId : '';
     const captcha = typeof body.captcha === 'string' ? body.captcha : '';
 
@@ -112,14 +115,31 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     if (!USERNAME_PATTERN.test(username)) {
       throw httpError('账号需为 4-20 位字母、数字或下划线', 400);
     }
+    if (!emailRaw || !EMAIL_PATTERN.test(emailRaw)) {
+      throw httpError('请输入有效的安全邮箱（一个邮箱只能创建一个账号）', 400);
+    }
     if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
       throw httpError(`密码长度需在 ${PASSWORD_MIN}-${PASSWORD_MAX} 位之间`, 400);
     }
 
+    // 一个邮箱只能创建一个账号
+    const existingEmail = await repo.findByEmail(emailRaw);
+    if (existingEmail) {
+      throw httpError('该邮箱已注册过账号，一个邮箱只能创建一个账号', 409);
+    }
+
     const nickname = nicknameRaw.length >= 2 && nicknameRaw.length <= 12 ? nicknameRaw : username;
     const passwordHash = await hashPassword(password);
-    const result = await repo.register({ username, passwordHash, nickname });
-    if (!result.ok) throw httpError('该账号已被注册', 409);
+    const result = await repo.register({ username, passwordHash, nickname, email: emailRaw });
+    if (!result.ok) {
+      if (result.reason === 'email_taken') {
+        throw httpError('该邮箱已注册过账号，一个邮箱只能创建一个账号', 409);
+      }
+      if (result.reason === 'nickname_taken') {
+        throw httpError('该昵称已被使用，请换一个昵称', 409);
+      }
+      throw httpError('该账号已被注册', 409);
+    }
 
     const inviteCode = typeof body.inviteCode === 'string' ? body.inviteCode.trim() : '';
     if (inviteCode) {
@@ -254,7 +274,6 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     };
   });
 
-  const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const resetCodes = new Map<string, { code: string; expireAt: number; email: string }>();
 
   // 修改密码
@@ -382,5 +401,259 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     resetCodes.delete(authUser.id);
 
     return { ok: true, message: '密码重置成功，请使用新密码重新登录' };
+  });
+
+  // =========================================================================
+  // 第三方 OAuth 2.0 登录：奇幻维度 (https://www.fantasyclaw.top/scalar/v1#tag/oauth)
+  // =========================================================================
+  interface OAuthStateEntry {
+    codeVerifier: string;
+    redirectUri: string;
+    returnTo: string;
+    expireAt: number;
+  }
+  const oauthStates = new Map<string, OAuthStateEntry>();
+
+  function pruneOAuthStates(): void {
+    const now = Date.now();
+    for (const [k, v] of oauthStates) {
+      if (v.expireAt <= now) oauthStates.delete(k);
+    }
+  }
+
+  function resolveFantasyClawRedirectUri(req: FastifyRequest): string {
+    if (config.oauth.fantasyclaw.redirectUri) {
+      return config.oauth.fantasyclaw.redirectUri;
+    }
+    const protoHeader = req.headers['x-forwarded-proto'];
+    const proto =
+      typeof protoHeader === 'string' && protoHeader.trim()
+        ? protoHeader.split(',')[0]!.trim()
+        : 'http';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:8080';
+    const hostStr = Array.isArray(host) ? host[0] : host;
+    return `${proto}://${hostStr}/lobby/api/auth/oauth/fantasyclaw/callback`;
+  }
+
+  function buildLobbyRedirect(baseLobbyUrl: string, params: Record<string, string>): string {
+    const qs = new URLSearchParams(params).toString();
+    const sep = baseLobbyUrl.includes('?') ? '&' : '?';
+    return `${baseLobbyUrl}${sep}${qs}`;
+  }
+
+  app.get('/api/auth/oauth/providers', async (req) => {
+    const fc = config.oauth.fantasyclaw;
+    const enabled = Boolean(fc.clientId && fc.clientSecret);
+    return {
+      fantasyclaw: {
+        enabled,
+        name: '奇幻维度账号',
+        baseUrl: fc.baseUrl,
+        callbackUrl: resolveFantasyClawRedirectUri(req),
+      },
+    };
+  });
+
+  app.get('/api/auth/oauth/fantasyclaw/start', async (req, reply) => {
+    const fc = config.oauth.fantasyclaw;
+    const lobbyUrl = fc.lobbyUrl || '/lobby/';
+    if (!fc.clientId || !fc.clientSecret) {
+      return reply.redirect(
+        buildLobbyRedirect(lobbyUrl, {
+          oauth_error: '奇幻维度 OAuth 尚未配置 Client ID / Client Secret，请管理员在 .env 中填写',
+        }),
+      );
+    }
+
+    pruneOAuthStates();
+    const state = randomBytes(24).toString('hex');
+    const codeVerifier = randomBytes(32).toString('base64url');
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+    const redirectUri = resolveFantasyClawRedirectUri(req);
+
+    oauthStates.set(state, {
+      codeVerifier,
+      redirectUri,
+      returnTo: lobbyUrl,
+      expireAt: Date.now() + 10 * 60_000,
+    });
+
+    const authorizeParams = new URLSearchParams({
+      response_type: 'code',
+      client_id: fc.clientId,
+      redirect_uri: redirectUri,
+      scope: fc.scope || 'profile email',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    return reply.redirect(`${fc.baseUrl}/oauth/authorize?${authorizeParams.toString()}`);
+  });
+
+  app.get('/api/auth/oauth/fantasyclaw/callback', async (req, reply) => {
+    const fc = config.oauth.fantasyclaw;
+    const fallbackLobby = fc.lobbyUrl || '/lobby/';
+    const query = req.query as Record<string, string | undefined>;
+
+    if (query.error) {
+      const desc = query.error_description || query.error;
+      return reply.redirect(
+        buildLobbyRedirect(fallbackLobby, { oauth_error: `授权已取消或失败：${desc}` }),
+      );
+    }
+
+    const code = (query.code ?? '').trim();
+    const state = (query.state ?? '').trim();
+    const saved = state ? oauthStates.get(state) : undefined;
+    if (state) oauthStates.delete(state);
+
+    if (!code || !saved || Date.now() > saved.expireAt) {
+      return reply.redirect(
+        buildLobbyRedirect(fallbackLobby, { oauth_error: '授权状态无效或已过期，请重新点击奇幻维度登录' }),
+      );
+    }
+
+    try {
+      // 1. 使用授权码换取 access_token（兼容 /oauth/token）
+      const tokenBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: fc.clientId,
+        client_secret: fc.clientSecret,
+        code,
+        redirect_uri: saved.redirectUri,
+        code_verifier: saved.codeVerifier,
+      });
+
+      const tokenRes = await fetch(`${fc.baseUrl}/oauth/token`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+        },
+        body: tokenBody.toString(),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      const tokenRaw = (await tokenRes.json().catch(() => ({}))) as Record<string, unknown>;
+      const tokenPayload =
+        tokenRaw.data && typeof tokenRaw.data === 'object'
+          ? (tokenRaw.data as Record<string, unknown>)
+          : tokenRaw;
+      const accessToken = String(tokenPayload.access_token ?? tokenPayload.accessToken ?? '');
+
+      if (!tokenRes.ok || !accessToken) {
+        const msg = String(
+          tokenRaw.error_description ?? tokenRaw.error ?? tokenRaw.message ?? `令牌交换失败 (${tokenRes.status})`,
+        );
+        return reply.redirect(buildLobbyRedirect(saved.returnTo, { oauth_error: msg }));
+      }
+
+      // 2. 获取用户信息（优先 /api/oauth/userinfo，兜底 /api/oauth/me）
+      const fetchUserInfo = async (path: string) => {
+        const res = await fetch(`${fc.baseUrl}${path}`, {
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            accept: 'application/json',
+          },
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return null;
+        const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+        if (!json) return null;
+        return json.data && typeof json.data === 'object'
+          ? (json.data as Record<string, unknown>)
+          : json;
+      };
+
+      const info = (await fetchUserInfo('/api/oauth/userinfo')) ?? (await fetchUserInfo('/api/oauth/me'));
+      if (!info) {
+        return reply.redirect(
+          buildLobbyRedirect(saved.returnTo, { oauth_error: '无法获取奇幻维度用户信息，请重试' }),
+        );
+      }
+
+      const sub = String(info.sub ?? info.id ?? info.userId ?? info.uid ?? '').trim();
+      if (!sub) {
+        return reply.redirect(
+          buildLobbyRedirect(saved.returnTo, { oauth_error: '奇幻维度返回的用户标识为空' }),
+        );
+      }
+
+      const rawEmail = typeof info.email === 'string' ? info.email.trim().toLowerCase() : '';
+      const validEmail = EMAIL_PATTERN.test(rawEmail) ? rawEmail : null;
+      const rawName = String(
+        info.nickname ?? info.name ?? info.displayName ?? info.username ?? info.userName ?? `奇幻玩家_${sub.slice(0, 4)}`,
+      ).trim();
+
+      // 3. 查找已绑定账号 -> 或按同邮箱自动绑定（严格遵守一个邮箱一个账号） -> 或自动建号
+      let user = await repo.findByOAuth('fantasyclaw', sub);
+      if (!user && validEmail) {
+        const existingByEmail = await repo.findByEmail(validEmail);
+        if (existingByEmail) {
+          await repo.bindOAuth(existingByEmail.id, 'fantasyclaw', sub);
+          user = existingByEmail;
+        }
+      }
+
+      if (!user) {
+        const safeSub = sub.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 12) || randomBytes(4).toString('hex');
+        const baseNick = (rawName.length >= 2 ? rawName : `奇幻_${safeSub.slice(0, 4)}`).slice(0, 12);
+        const randomPwdHash = await hashPassword(randomBytes(24).toString('hex'));
+
+        let created = null;
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const suffix = attempt === 0 ? '' : `_${randomInt(100, 999)}`;
+          const uname = `fc_${safeSub}${suffix}`.slice(0, 20);
+          const nick = attempt === 0 ? baseNick : `${baseNick.slice(0, 8)}${randomInt(100, 999)}`;
+          const regRes = await repo.register({
+            username: uname,
+            passwordHash: randomPwdHash,
+            nickname: nick,
+            email: validEmail,
+            oauthProvider: 'fantasyclaw',
+            oauthSub: sub,
+          });
+          if (regRes.ok) {
+            created = regRes.user;
+            break;
+          }
+          if (regRes.reason === 'email_taken' && validEmail) {
+            const byEmail = await repo.findByEmail(validEmail);
+            if (byEmail) {
+              await repo.bindOAuth(byEmail.id, 'fantasyclaw', sub);
+              created = byEmail;
+              break;
+            }
+          }
+        }
+        if (!created) {
+          return reply.redirect(
+            buildLobbyRedirect(saved.returnTo, { oauth_error: '自动创建关联账号失败，请稍后重试' }),
+          );
+        }
+        user = created;
+      }
+
+      if (user.banned) {
+        return reply.redirect(
+          buildLobbyRedirect(saved.returnTo, { oauth_error: '该账号已被管理员封禁，如有疑问请联系客服' }),
+        );
+      }
+
+      const balance = await repo.getBalance(user.id, 'coin');
+      await repo.bumpTask(user.id, 'daily_login', periodKeyFor('daily'), 1);
+      void checkTop10Announcement(repo, user.id, user.nickname, balance);
+
+      const jwt = signToken(
+        config.jwtSecret,
+        { sub: user.id, name: user.nickname },
+        config.tokenTtlSeconds,
+      );
+      return reply.redirect(buildLobbyRedirect(saved.returnTo, { oauth_token: jwt }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '第三方登录异常';
+      return reply.redirect(buildLobbyRedirect(saved.returnTo, { oauth_error: msg }));
+    }
   });
 }

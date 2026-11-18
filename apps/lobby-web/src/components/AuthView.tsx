@@ -1,26 +1,32 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, type Captcha, type User } from '../api';
+import { api, fantasyClawOAuthStartUrl, type Captcha, type User } from '../api';
 import { audio } from '../audio';
 import { IconBack, IconCrown, IconSparkle } from './Icons';
 
 type Tab = 'login' | 'register' | 'forgot';
 
 interface Props {
+  initialTab?: Tab;
   onSuccess: (token: string, user: User) => void;
   onBack: () => void;
 }
 
-export function AuthView({ onSuccess, onBack }: Props) {
-  const [tab, setTab] = useState<Tab>('login');
+export function AuthView({ initialTab = 'login', onSuccess, onBack }: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
+  const [email, setEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [code, setCode] = useState('');
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
 
   // 找回密码表单状态
   const [resetAccount, setResetAccount] = useState('');
@@ -85,7 +91,15 @@ export function AuthView({ onSuccess, onBack }: Props) {
       const result =
         tab === 'login'
           ? await api.login(username.trim(), password, captcha.id, code)
-          : await api.register(username.trim(), password, nickname.trim(), captcha.id, code, inviteCode.trim() || undefined);
+          : await api.register(
+              username.trim(),
+              password,
+              nickname.trim(),
+              captcha.id,
+              code,
+              email.trim(),
+              inviteCode.trim() || undefined,
+            );
       audio.play('coin');
       onSuccess(result.token, result.user);
     } catch (err) {
@@ -293,6 +307,18 @@ export function AuthView({ onSuccess, onBack }: Props) {
               {tab === 'register' && (
                 <>
                   <div className="form-group">
+                    <label>安全邮箱 (必填 · 一邮一号)</label>
+                    <input
+                      type="email"
+                      value={email}
+                      placeholder="name@example.com（每个邮箱仅限创建一个账号，用于找回密码）"
+                      autoComplete="email"
+                      required
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
                     <label>牌桌尊称 (昵称)</label>
                     <input
                       type="text"
@@ -354,10 +380,29 @@ export function AuthView({ onSuccess, onBack }: Props) {
                 {loading ? '正在验证入驻…' : tab === 'login' ? '✦ 立即登入殿堂 ✦' : '✦ 完成入驻并领筹码 ✦'}
               </button>
 
+              <div className="auth-oauth-divider">
+                <span>或使用奇幻维度主站账号登录</span>
+              </div>
+
+              <button
+                type="button"
+                className="btn-oauth-fantasyclaw"
+                onClick={() => {
+                  audio.play('click');
+                  window.location.href = fantasyClawOAuthStartUrl();
+                }}
+              >
+                <span className="oauth-fc-icon">🌌</span>
+                <span>奇幻维度 (fantasyclaw.top) 一键授权登录</span>
+              </button>
+
               {tab === 'login' && (
                 <div className="auth-sub-actions">
                   <button type="button" className="link-sub" onClick={() => switchTab('forgot')}>
                     忘记密码？通过邮箱找回
+                  </button>
+                  <button type="button" className="link-sub" onClick={() => switchTab('register')}>
+                    还没有账号？立即注册
                   </button>
                 </div>
               )}

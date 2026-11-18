@@ -1,3 +1,13 @@
+export interface FantasyClawOAuthConfig {
+  baseUrl: string;
+  clientId: string;
+  clientSecret: string;
+  /** 留空时按当前请求 Host 自动推导为 ${proto}://${host}/lobby/api/auth/oauth/fantasyclaw/callback */
+  redirectUri: string;
+  scope: string;
+  lobbyUrl: string;
+}
+
 export interface ApiConfig {
   port: number;
   host: string;
@@ -10,6 +20,9 @@ export interface ApiConfig {
   corsOrigin: string;
   /** 运营后台访问口令 */
   adminToken: string;
+  oauth: {
+    fantasyclaw: FantasyClawOAuthConfig;
+  };
 }
 
 function env(key: string, fallback: string): string {
@@ -58,4 +71,14 @@ export const config: ApiConfig = {
   tokenTtlSeconds: Number(env('TOKEN_TTL', '7200')),
   corsOrigin: env('CORS_ORIGIN', '*'),
   adminToken: secret('ADMIN_TOKEN', 'admin-dev-token'),
+  oauth: {
+    fantasyclaw: {
+      baseUrl: env('FANTASYCLAW_OAUTH_BASE_URL', 'https://www.fantasyclaw.top').replace(/\/$/, ''),
+      clientId: env('FANTASYCLAW_OAUTH_CLIENT_ID', ''),
+      clientSecret: env('FANTASYCLAW_OAUTH_CLIENT_SECRET', ''),
+      redirectUri: env('FANTASYCLAW_OAUTH_REDIRECT_URI', ''),
+      scope: env('FANTASYCLAW_OAUTH_SCOPE', 'profile email'),
+      lobbyUrl: env('PUBLIC_LOBBY_URL', '/lobby/'),
+    },
+  },
 };

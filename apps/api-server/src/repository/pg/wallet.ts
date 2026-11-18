@@ -12,11 +12,20 @@ export async function registerUser(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
     const res = await client.query<UserRow>(
-      `insert into users (id, nickname, username, password_hash)
-       values ($1, $2, $3, $4)
-       returning id, nickname, username, created_at`,
-      [randomUUID(), input.nickname, input.username, input.passwordHash],
+      `insert into users (id, nickname, username, password_hash, email, oauth_provider, oauth_sub)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning id, nickname, username, email, invited_by, created_at`,
+      [
+        randomUUID(),
+        input.nickname,
+        input.username,
+        input.passwordHash,
+        normalizedEmail,
+        input.oauthProvider ?? null,
+        input.oauthSub ?? null,
+      ],
     );
     const row = res.rows[0];
     if (!row) throw new Error('用户创建失败');
@@ -29,13 +38,44 @@ export async function registerUser(
     return { ok: true, user: mapUser(row) };
   } catch (error) {
     await client.query('ROLLBACK');
-    if ((error as { code?: string }).code === '23505') {
+    const pgErr = error as { code?: string; constraint?: string };
+    if (pgErr.code === '23505') {
+      if (pgErr.constraint?.includes('email')) return { ok: false, reason: 'email_taken' };
+      if (pgErr.constraint?.includes('nickname')) return { ok: false, reason: 'nickname_taken' };
       return { ok: false, reason: 'username_taken' };
     }
     throw error;
   } finally {
     client.release();
   }
+}
+
+export async function findUserByOAuth(
+  pool: pg.Pool,
+  provider: string,
+  sub: string,
+): Promise<UserRecord | null> {
+  const res = await pool.query<UserRow>(
+    `select id, nickname, username, email, invited_by, created_at, coalesce(banned, false) as banned
+       from users
+      where oauth_provider = $1 and oauth_sub = $2
+      limit 1`,
+    [provider, sub],
+  );
+  const row = res.rows[0];
+  return row ? mapUser(row) : null;
+}
+
+export async function bindUserOAuth(
+  pool: pg.Pool,
+  userId: string,
+  provider: string,
+  sub: string,
+): Promise<void> {
+  await pool.query(
+    `update users set oauth_provider = $2, oauth_sub = $3 where id = $1`,
+    [userId, provider, sub],
+  );
 }
 
 export async function findUserByUsername(pool: pg.Pool, username: string): Promise<AuthUser | null> {
