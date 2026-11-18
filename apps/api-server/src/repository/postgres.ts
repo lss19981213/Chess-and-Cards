@@ -11,6 +11,7 @@ import type {
   LeaderboardRow,
   LeaderboardSnapshotRow,
   LedgerRow,
+  LevelLeaderboardRow,
   PlayerProfile,
   ProfilePatch,
   RegisterInput,
@@ -50,6 +51,8 @@ import {
   getDailyWinners,
   getLeaderboard,
   getLeaderboardRank,
+  getLevelLeaderboard,
+  getLevelLeaderboardRank,
   getTaskRows,
   listDailySnapshot,
   settleDailyLeaderboard,
@@ -193,6 +196,14 @@ export class PostgresRepository implements Repository {
 
   leaderboardRank(userId: string): Promise<number | null> {
     return getLeaderboardRank(this.pool, userId);
+  }
+
+  levelLeaderboard(limit: number): Promise<LevelLeaderboardRow[]> {
+    return getLevelLeaderboard(this.pool, limit);
+  }
+
+  levelLeaderboardRank(userId: string): Promise<number | null> {
+    return getLevelLeaderboardRank(this.pool, userId);
   }
 
   settleDailyLeaderboard(dayKey: string): Promise<number> {

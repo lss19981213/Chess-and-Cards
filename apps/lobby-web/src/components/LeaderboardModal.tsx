@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { api, type LeaderboardEntry, type LeaderboardRewardRow } from '../api';
+import {
+  api,
+  type LeaderboardEntry,
+  type LeaderboardRewardRow,
+  type LevelLeaderboardEntry,
+} from '../api';
 import { audio } from '../audio';
 import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
@@ -10,7 +15,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Tab = 'total' | 'reward';
+type Tab = 'total' | 'level' | 'reward';
 
 const RANK_TITLES = ['赌神', '赌圣', '赌侠', '赌王', '赌将', '豪侠', '名手', '高手', '老手', '新星'];
 
@@ -21,6 +26,7 @@ function titleOf(rank: number): string {
 export function LeaderboardModal({ myUserId, onBalanceChange, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('total');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [levelEntries, setLevelEntries] = useState<LevelLeaderboardEntry[]>([]);
   const [rewards, setRewards] = useState<LeaderboardRewardRow[]>([]);
   const [rewardDay, setRewardDay] = useState('');
   const [myRank, setMyRank] = useState<number | null>(null);
@@ -51,11 +57,20 @@ export function LeaderboardModal({ myUserId, onBalanceChange, onClose }: Props) 
               setRemainingWorships(data.remainingWorshipsToday);
             }
           })
-        : api.leaderboardRewards().then((data) => {
-            if (cancelled) return;
-            setRewards(data.entries);
-            setRewardDay(data.dayKey);
-          });
+        : tab === 'level'
+          ? api.levelLeaderboard().then((data) => {
+              if (cancelled) return;
+              setLevelEntries(data.entries);
+              setMyRank(data.myRank);
+              if (typeof data.remainingWorshipsToday === 'number') {
+                setRemainingWorships(data.remainingWorshipsToday);
+              }
+            })
+          : api.leaderboardRewards().then((data) => {
+              if (cancelled) return;
+              setRewards(data.entries);
+              setRewardDay(data.dayKey);
+            });
 
     task
       .catch((err: unknown) => {
@@ -98,6 +113,11 @@ export function LeaderboardModal({ myUserId, onBalanceChange, onClose }: Props) 
           row.userId === targetUserId ? { ...row, worshipCount: res.newWorshipCount } : row,
         ),
       );
+      setLevelEntries((prev) =>
+        prev.map((row) =>
+          row.userId === targetUserId ? { ...row, worshipCount: res.newWorshipCount } : row,
+        ),
+      );
 
       // 若有余额变更回调，更新本地金币 (+188)
       if (onBalanceChange && res.reward > 0) {
@@ -121,24 +141,40 @@ export function LeaderboardModal({ myUserId, onBalanceChange, onClose }: Props) 
           userId: row.userId,
           nickname: row.nickname,
           balance: row.balance,
+          level: null as number | null,
           title: row.title || titleOf(row.rank),
           reward: row.reward,
           worshipCount: row.worshipCount ?? 0,
           equippedFrame: row.equippedFrame ?? 'frame_default',
           avatar: row.avatar ?? null,
         }))
-      : rewards.map((row) => ({
-          key: row.userId,
-          rank: row.rank,
-          userId: row.userId,
-          nickname: row.nickname,
-          balance: row.balance,
-          title: titleOf(row.rank),
-          reward: row.reward,
-          worshipCount: 0,
-          equippedFrame: 'frame_default',
-          avatar: null,
-        }));
+      : tab === 'level'
+        ? levelEntries.map((row) => ({
+            key: row.userId,
+            rank: row.rank,
+            userId: row.userId,
+            nickname: row.nickname,
+            balance: row.balance,
+            level: row.level as number | null,
+            title: row.levelTitle,
+            reward: 0,
+            worshipCount: row.worshipCount ?? 0,
+            equippedFrame: row.equippedFrame ?? 'frame_default',
+            avatar: row.avatar ?? null,
+          }))
+        : rewards.map((row) => ({
+            key: row.userId,
+            rank: row.rank,
+            userId: row.userId,
+            nickname: row.nickname,
+            balance: row.balance,
+            level: null as number | null,
+            title: titleOf(row.rank),
+            reward: row.reward,
+            worshipCount: 0,
+            equippedFrame: 'frame_default',
+            avatar: null,
+          }));
 
   return (
     <div className="modal-mask" onClick={onClose} role="presentation">
@@ -165,6 +201,13 @@ export function LeaderboardModal({ myUserId, onBalanceChange, onClose }: Props) 
           </button>
           <button
             type="button"
+            className={tab === 'level' ? 'is-active' : ''}
+            onClick={() => setTab('level')}
+          >
+            等级排行
+          </button>
+          <button
+            type="button"
             className={tab === 'reward' ? 'is-active' : ''}
             onClick={() => setTab('reward')}
           >
@@ -172,7 +215,7 @@ export function LeaderboardModal({ myUserId, onBalanceChange, onClose }: Props) 
           </button>
         </div>
 
-        {tab === 'total' && (
+        {(tab === 'total' || tab === 'level') && (
           <div className="rank-modal__mine rank-modal__mine--enhanced">
             <div className="mine-rank-text">
               {myRank !== null ? (
@@ -251,11 +294,17 @@ export function LeaderboardModal({ myUserId, onBalanceChange, onClose }: Props) 
                 </div>
 
                 <span className="rank-board__bal">
-                  <Chip size={15} />
-                  {row.balance.toLocaleString()}
+                  {row.level !== null ? (
+                    <span className="rank-level-pill rank-level-pill--lg">Lv.{row.level}</span>
+                  ) : (
+                    <>
+                      <Chip size={15} />
+                      {row.balance.toLocaleString()}
+                    </>
+                  )}
                 </span>
 
-                {tab === 'total' && !isMe && (
+                {(tab === 'total' || tab === 'level') && !isMe && (
                   <button
                     type="button"
                     className="btn-rank-worship"

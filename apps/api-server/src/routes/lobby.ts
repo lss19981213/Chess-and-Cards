@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { AVATAR_FRAMES, type GameMeta } from '@cc/protocol';
+import { AVATAR_FRAMES, levelTitleFor, type GameMeta } from '@cc/protocol';
 import { config } from '../config';
 import { FALLBACK_GAMES } from '../game-catalog';
 import { authHeader, httpError } from '../http-utils';
@@ -192,8 +192,8 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     const amount = Math.floor(Number(body.amount ?? 0));
     const giftName = String(body.giftName ?? '礼物').slice(0, 20);
 
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000) {
-      throw httpError('打赏金额不合法，单次打赏上限为 1,000 筹码', 400);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 5_000) {
+      throw httpError('打赏金额不合法，单次打赏上限为 5,000 筹码', 400);
     }
 
     const balance = await repo.getBalance(claims.sub, 'coin');
@@ -238,6 +238,42 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
         balance: row.balance,
         reward: rewardForRank(index + 1),
         title: titleFor(index + 1),
+        worshipCount: row.worshipCount ?? 0,
+        equippedFrame: row.equippedFrame ?? 'frame_default',
+        avatar: row.avatar ?? null,
+      })),
+      myRank,
+      myUserId,
+      remainingWorshipsToday,
+    };
+  });
+
+  // 等级排行榜（按账号等级、累计有效流水、当前经验降序）
+  app.get('/api/leaderboard/level', async (req) => {
+    const rows = await repo.levelLeaderboard(LEADERBOARD_SIZE);
+
+    let myRank: number | null = null;
+    let myUserId: string | null = null;
+    let remainingWorshipsToday = 10;
+    try {
+      const claims = authHeader(req);
+      myUserId = claims.sub;
+      myRank = await repo.levelLeaderboardRank(claims.sub);
+      remainingWorshipsToday = await repo.getWorshipRemainingToday(claims.sub, beijingDayKey());
+    } catch {
+      /* 未登录也允许查看等级榜 */
+    }
+
+    return {
+      entries: rows.map((row, index) => ({
+        rank: index + 1,
+        userId: row.userId,
+        nickname: row.nickname,
+        level: row.level,
+        xp: row.xp,
+        totalTurnover: row.totalTurnover,
+        balance: row.balance,
+        levelTitle: levelTitleFor(row.level),
         worshipCount: row.worshipCount ?? 0,
         equippedFrame: row.equippedFrame ?? 'frame_default',
         avatar: row.avatar ?? null,

@@ -63,6 +63,18 @@ export interface LeaderboardRow {
   avatar?: string | null;
 }
 
+export interface LevelLeaderboardRow {
+  userId: string;
+  nickname: string;
+  level: number;
+  xp: string;
+  totalTurnover: string;
+  balance: number;
+  worshipCount: number;
+  equippedFrame: string;
+  avatar: string | null;
+}
+
 /** 每日排行榜结算快照的一行 */
 export interface LeaderboardSnapshotRow {
   userId: string;
@@ -314,6 +326,10 @@ export interface Repository {
   leaderboard(limit: number): Promise<LeaderboardRow[]>;
   /** 查询某人在总榜的名次，不在榜返回 null */
   leaderboardRank(userId: string): Promise<number | null>;
+  /** 等级排行榜（按等级、累计流水、经验排序） */
+  levelLeaderboard(limit: number): Promise<LevelLeaderboardRow[]>;
+  /** 查询某人在等级榜的名次 */
+  levelLeaderboardRank(userId: string): Promise<number | null>;
   /** 每日 0 点结算：按当前余额取前 N 名发奖并留档，返回发放的筹码总额 */
   settleDailyLeaderboard(dayKey: string): Promise<number>;
   /** 读取某期排行榜结算快照 */

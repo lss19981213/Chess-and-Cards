@@ -53,6 +53,20 @@ export interface LeaderboardEntry {
   avatar?: string | null;
 }
 
+export interface LevelLeaderboardEntry {
+  rank: number;
+  userId: string;
+  nickname: string;
+  level: number;
+  xp: string;
+  totalTurnover: string;
+  balance: number;
+  levelTitle: string;
+  worshipCount?: number;
+  equippedFrame?: string;
+  avatar?: string | null;
+}
+
 /** 每日 0 点结算的排行榜快照 */
 export interface LeaderboardRewardRow {
   userId: string;
@@ -233,6 +247,14 @@ export const api = {
       myUserId: string | null;
       remainingWorshipsToday: number;
     }>('/api/leaderboard'),
+
+  levelLeaderboard: () =>
+    request<{
+      entries: LevelLeaderboardEntry[];
+      myRank: number | null;
+      myUserId: string | null;
+      remainingWorshipsToday: number;
+    }>('/api/leaderboard/level'),
 
   worshipUser: (userId: string) =>
     request<{

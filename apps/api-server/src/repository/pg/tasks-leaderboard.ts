@@ -4,6 +4,7 @@ import type {
   DailyWinnerRow,
   LeaderboardRow,
   LeaderboardSnapshotRow,
+  LevelLeaderboardRow,
   TaskProgressRow,
 } from '../types';
 import { bumpTaskTx, avatarUrlSql } from './shared';
@@ -111,6 +112,80 @@ export async function getLeaderboardRank(pool: pg.Pool, userId: string): Promise
                  where w2.currency = 'coin'
                    and (w2.balance > me.balance
                         or (w2.balance = me.balance and u2.created_at < me.created_at))
+              )
+            end as rnk`,
+    [userId],
+  );
+  const value = res.rows[0]?.rnk;
+  return value === null || value === undefined ? null : Number(value);
+}
+
+export async function getLevelLeaderboard(pool: pg.Pool, limit: number): Promise<LevelLeaderboardRow[]> {
+  const res = await pool.query<{
+    user_id: string;
+    nickname: string;
+    level: number;
+    xp: string;
+    total_turnover: string;
+    balance: string;
+    worship_count: number | null;
+    equipped_frame: string | null;
+    avatar_url: string | null;
+  }>(
+    `select u.id as user_id,
+            u.nickname,
+            coalesce(p.level, 1) as level,
+            coalesce(p.xp, 0)::text as xp,
+            coalesce(p.total_turnover, 0)::text as total_turnover,
+            coalesce(w.balance, 0)::text as balance,
+            coalesce(p.worship_count, 0) as worship_count,
+            coalesce(p.equipped_frame, 'frame_default') as equipped_frame,
+            ${avatarUrlSql('p', 'u.id')} as avatar_url
+       from users u
+       left join user_profiles p on p.user_id = u.id
+       left join wallets w on w.user_id = u.id and w.currency = 'coin'
+      order by coalesce(p.level, 1) desc,
+               coalesce(p.total_turnover, 0) desc,
+               coalesce(p.xp, 0) desc,
+               u.created_at asc
+      limit $1`,
+    [limit],
+  );
+  return res.rows.map((row) => ({
+    userId: row.user_id,
+    nickname: row.nickname,
+    level: Number(row.level ?? 1),
+    xp: row.xp ?? '0',
+    totalTurnover: row.total_turnover ?? '0',
+    balance: Number(row.balance ?? 0),
+    worshipCount: Number(row.worship_count ?? 0),
+    equippedFrame: row.equipped_frame ?? 'frame_default',
+    avatar: row.avatar_url ?? null,
+  }));
+}
+
+export async function getLevelLeaderboardRank(pool: pg.Pool, userId: string): Promise<number | null> {
+  const res = await pool.query<{ rnk: string | null }>(
+    `with me as (
+       select coalesce(p.level, 1) as level,
+              coalesce(p.total_turnover, 0) as total_turnover,
+              coalesce(p.xp, 0) as xp,
+              u.created_at
+         from users u
+         left join user_profiles p on p.user_id = u.id
+        where u.id = $1
+     )
+     select case
+              when (select count(*) from me) = 0 then null
+              else 1 + (
+                select count(*)
+                  from users u2
+                  left join user_profiles p2 on p2.user_id = u2.id
+                  cross join me
+                 where coalesce(p2.level, 1) > me.level
+                    or (coalesce(p2.level, 1) = me.level and coalesce(p2.total_turnover, 0) > me.total_turnover)
+                    or (coalesce(p2.level, 1) = me.level and coalesce(p2.total_turnover, 0) = me.total_turnover and coalesce(p2.xp, 0) > me.xp)
+                    or (coalesce(p2.level, 1) = me.level and coalesce(p2.total_turnover, 0) = me.total_turnover and coalesce(p2.xp, 0) = me.xp and u2.created_at < me.created_at)
               )
             end as rnk`,
     [userId],

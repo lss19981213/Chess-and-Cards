@@ -11236,3 +11236,93 @@ button.secondary:hover:not(:disabled) {
   gap: 12px;
   margin-top: 10px;
 }
+
+/* ==========================================================================
+   等级排行榜徽章 + 嘉年华旗舰打赏礼 + 完整规则导航分组
+   ========================================================================== */
+.rank-level-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(245, 197, 66, 0.24), rgba(147, 51, 234, 0.28));
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rank-level-pill--lg {
+  padding: 4px 14px;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fffbeb;
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 50%, #9333ea 100%);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.45);
+}
+
+.tip-gift-card--grand {
+  grid-column: 1 / -1;
+  flex-direction: row !important;
+  justify-content: center;
+  gap: 10px !important;
+  padding: 10px 14px !important;
+  background: linear-gradient(135deg, rgba(245, 197, 66, 0.22), rgba(236, 72, 153, 0.22), rgba(139, 92, 246, 0.22)) !important;
+  border-color: rgba(251, 191, 36, 0.65) !important;
+  box-shadow: 0 0 16px rgba(245, 197, 66, 0.28);
+}
+
+.tip-gift-card--grand:hover:not(:disabled) {
+  box-shadow: 0 0 22px rgba(245, 197, 66, 0.55);
+}
+
+.rules-nav-panel {
+  overflow-y: auto;
+  max-height: calc(100vh - 110px);
+}
+
+.rules-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.rules-nav-group-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #f5c542;
+  letter-spacing: 1px;
+  padding: 6px 10px 2px;
+  opacity: 0.9;
+}
+
+.rules-nav-item-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.rules-nav-item-icon {
+  font-style: normal;
+  font-size: 15px;
+}
+
+.doc-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.doc-category-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(245, 197, 66, 0.16);
+  border: 1px solid rgba(245, 197, 66, 0.45);
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 800;
+}

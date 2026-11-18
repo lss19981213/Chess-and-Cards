@@ -21,6 +21,7 @@ import type {
   GameRecordView,
   LeaderboardRow,
   LedgerRow,
+  LevelLeaderboardRow,
   MailRecord,
   PlayerMailView,
   PlayerProfile,
@@ -429,6 +430,43 @@ export class MemoryRepository implements Repository {
 
   async leaderboardRank(userId: string): Promise<number | null> {
     const rows = await this.leaderboard(Number.MAX_SAFE_INTEGER);
+    const index = rows.findIndex((row) => row.userId === userId);
+    return index >= 0 ? index + 1 : null;
+  }
+
+  async levelLeaderboard(limit: number): Promise<LevelLeaderboardRow[]> {
+    return [...this.users.values()]
+      .map((user) => {
+        const extra = this.profiles.get(user.id);
+        return {
+          userId: user.id,
+          nickname: user.nickname,
+          level: extra?.level ?? 1,
+          xp: extra?.xp ?? '0',
+          totalTurnover: extra?.totalTurnover ?? '0',
+          balance: this.balances.get(user.id) ?? 0,
+          worshipCount: extra?.worshipCount ?? 0,
+          equippedFrame: extra?.equippedFrame ?? 'frame_default',
+          avatar: avatarUrlFor(user.id, extra?.avatar),
+          _createdAt: user.createdAt,
+        };
+      })
+      .sort((a, b) => {
+        if (b.level !== a.level) return b.level - a.level;
+        const bt = parseBigIntSafe(b.totalTurnover);
+        const at = parseBigIntSafe(a.totalTurnover);
+        if (bt !== at) return bt > at ? 1 : -1;
+        const bx = parseBigIntSafe(b.xp);
+        const ax = parseBigIntSafe(a.xp);
+        if (bx !== ax) return bx > ax ? 1 : -1;
+        return a._createdAt - b._createdAt;
+      })
+      .slice(0, limit)
+      .map(({ _createdAt: _, ...row }) => row);
+  }
+
+  async levelLeaderboardRank(userId: string): Promise<number | null> {
+    const rows = await this.levelLeaderboard(Number.MAX_SAFE_INTEGER);
     const index = rows.findIndex((row) => row.userId === userId);
     return index >= 0 ? index + 1 : null;
   }
