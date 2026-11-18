@@ -167,6 +167,10 @@ export function Lobby({
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
   const [trackName, setTrackName] = useState(audio.trackName);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const marqueeViewportRef = useRef<HTMLDivElement | null>(null);
+  const marqueeSegmentRef = useRef<HTMLSpanElement | null>(null);
+  const [marqueeDurationSec, setMarqueeDurationSec] = useState<number>(28);
+  const [marqueeMinWidth, setMarqueeMinWidth] = useState<number>(360);
   const [dealerHeart, setDealerHeart] = useState(false);
   const [customQuote, setCustomQuote] = useState<string | null>(null);
   const [hoveredGame, setHoveredGame] = useState<GameMeta | null>(null);
@@ -222,7 +226,23 @@ export function Lobby({
     const load = () => {
       void api
         .announcements()
-        .then((data) => setAnnouncements(data.announcements ?? []))
+        .then((data) => {
+          const next = data.announcements ?? [];
+          setAnnouncements((prev) => {
+            if (
+              prev.length === next.length &&
+              prev.every(
+                (p, i) =>
+                  p.id === next[i]?.id &&
+                  p.title === next[i]?.title &&
+                  p.content === next[i]?.content,
+              )
+            ) {
+              return prev;
+            }
+            return next;
+          });
+        })
         .catch(() => undefined);
     };
     const loadCategories = () => {
@@ -249,10 +269,35 @@ export function Lobby({
 
   const ticker = useMemo(() => {
     if (announcements.length > 0) {
-      return announcements.map((item) => `${item.title}：${item.content}`).join('　　✦　　');
+      return announcements
+        .map((item) => {
+          const title = (item.title ?? '').replace(/\s+/g, ' ').trim();
+          const content = (item.content ?? '').replace(/\s+/g, ' ').trim();
+          return title ? `${title}：${content}` : content;
+        })
+        .filter(Boolean)
+        .join('　　✦　　');
     }
     return '尊贵牌友欢迎光临，绿色公平竞技环境，虚拟筹码畅享顶级棋牌乐趣！';
   }, [announcements]);
+
+  // 按实际像素宽度动态计算跑马灯周期，恒定舒适阅读速度（约 34px/秒），绝不因文字长短而过快或留白
+  useEffect(() => {
+    const measure = () => {
+      const vpW = marqueeViewportRef.current?.clientWidth ?? 360;
+      setMarqueeMinWidth(Math.max(220, vpW));
+      const segW = marqueeSegmentRef.current?.scrollWidth ?? 0;
+      const effectiveW = Math.max(segW, vpW);
+      const PX_PER_SEC = 34;
+      setMarqueeDurationSec(Math.max(18, Math.round((effectiveW / PX_PER_SEC) * 10) / 10));
+    };
+    const raf = window.requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', measure);
+    };
+  }, [ticker]);
 
   const hasVipMarquee = ticker.includes('【全服广播】') || ticker.includes('赌神');
   const lastGodChimeRef = useRef<string | null>(null);
@@ -457,12 +502,27 @@ export function Lobby({
           onClick={onNotices}
           role="button"
           tabIndex={0}
-          title="点击查阅全部官方公告"
+          title="悬停可暂停阅读 · 点击查阅全部官方公告"
         >
           <span className="marquee-badge-gold">{hasVipMarquee ? '👑 全服' : '广播'}</span>
-          <IconNotice size={14} />
-          <div className="marquee-viewport">
-            <span className="marquee-text">{ticker}</span>
+          <span className="marquee-icon-wrap" aria-hidden="true">
+            <IconNotice size={14} />
+          </span>
+          <div className="marquee-viewport" ref={marqueeViewportRef}>
+            <div
+              className="marquee-track"
+              style={{
+                animationDuration: `${marqueeDurationSec}s`,
+                ['--marquee-min-w' as string]: `${marqueeMinWidth}px`,
+              }}
+            >
+              <span className="marquee-segment" ref={marqueeSegmentRef}>
+                {ticker}
+              </span>
+              <span className="marquee-segment" aria-hidden="true">
+                {ticker}
+              </span>
+            </div>
           </div>
           <span className="marquee-arrow">›</span>
         </div>

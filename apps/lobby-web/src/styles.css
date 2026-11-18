@@ -10407,13 +10407,15 @@ button.secondary:hover:not(:disabled) {
   box-shadow: 0 0 16px rgba(255, 215, 0, 0.5) !important;
 }
 .marquee-badge-gold {
+  flex-shrink: 0;
+  white-space: nowrap;
   background: linear-gradient(135deg, #ffd700, #d97706);
   color: #000;
   font-weight: 900;
   font-size: 11px;
   padding: 2px 7px;
   border-radius: 6px;
-  margin-right: 6px;
+  margin-right: 2px;
   animation: goldDragonSpin 2s infinite alternate;
 }
 
