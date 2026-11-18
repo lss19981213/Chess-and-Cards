@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
+import { cnPointText, speakDealerSequence, stopDealerSpeech, type SpeechSequenceStep } from '../speech';
 import { cardArt, cardBackArt, cardLabel, isRedCard, type CardView } from './cards';
 
 interface BlackjackSnapshot {
@@ -38,11 +39,14 @@ const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onAction }: Props) {
   const data = snapshot as unknown as BlackjackSnapshot | undefined;
   const [amount, setAmount] = useState(100);
+  /** 开牌进度：0=未开牌, 1=已报庄家点数, 2=已报我的手牌点数, 3=已播报最终胜负 */
+  const [revealStep, setRevealStep] = useState<number>(0);
   const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
     null,
   );
   const lastPhaseKeyRef = useRef<string>('');
   const prevCardCountRef = useRef<{ my: number; dealer: number }>({ my: 0, dealer: 0 });
+  const cancelSeqRef = useRef<(() => void) | null>(null);
   const bannerIdRef = useRef<number>(1);
   const bannerTimerRef = useRef<number | null>(null);
 
@@ -57,60 +61,159 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
 
   useEffect(() => {
     return () => {
+      cancelSeqRef.current?.();
+      stopDealerSpeech();
       if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
     };
   }, []);
 
-  // 监听发牌、爆牌、21点与结算事件，驱动真实赌场音效
+  // 21点完整流程：开牌阶段严格按 先报庄家几点 → 再报我的手牌几点 → 最后播报你赢还是庄家赢
   useEffect(() => {
     if (!data) return;
     const phaseKey = `${data.round}:${data.phase}`;
     if (phaseKey !== lastPhaseKeyRef.current) {
       lastPhaseKeyRef.current = phaseKey;
-      if (data.phase === 'play') {
+      if (data.phase === 'bet') {
+        cancelSeqRef.current?.();
+        cancelSeqRef.current = null;
+        setRevealStep(0);
+      } else if (data.phase === 'play') {
+        cancelSeqRef.current?.();
+        setRevealStep(0);
         audio.play('poker_deal');
         window.setTimeout(() => audio.play('poker_deal'), 140);
         window.setTimeout(() => audio.play('poker_deal'), 280);
         if (data.myPoints === 21 && data.myCards.length === 2) {
           window.setTimeout(() => audio.play('jackpot'), 420);
-          showBanner('allin', '👑 BLACKJACK 21点！', '天牌绝杀', 2000);
+          showBanner('allin', '👑 BLACKJACK 21点！', '天牌绝杀', 1800);
         } else {
-          showBanner('deal', '发牌完成', '请选择 要牌 / 停牌 / 加倍', 1300);
+          showBanner('deal', '发牌完成', '请选择 要牌 / 停牌 / 加倍', 1200);
         }
-      } else if (data.phase !== 'bet' && data.results.length > 0) {
-        audio.play('poker_deal');
+      } else if (data.phase === 'idle') {
+        setRevealStep(3);
+      } else if (data.phase === 'reveal') {
+        cancelSeqRef.current?.();
+        setRevealStep(0);
+
+        const dPts = data.dealerPoints;
+        const mPts = data.myPoints;
         const myRow = data.results.find((r) => r.playerId === myId);
-        window.setTimeout(() => {
-          if (myRow && myRow.delta > 0) audio.play('win');
-          else if (myRow && myRow.delta < 0) audio.play('lose');
-        }, 280);
-        if (myRow) {
-          showBanner(
-            myRow.delta > 0 ? 'raise' : myRow.delta < 0 ? 'fold' : 'showdown',
-            myRow.delta > 0 ? `🎉 赢取 +${myRow.delta.toLocaleString()}` : myRow.delta < 0 ? `本局 ${myRow.delta.toLocaleString()}` : '平局退回',
-            `我 ${data.myPoints ?? '—'} 点 vs 庄 ${data.dealerPoints ?? '—'} 点`,
-            1900,
-          );
+
+        const dealerVoice =
+          dPts === null ? '庄家开牌' : dPts > 21 ? '庄家爆牌！' : `庄家${cnPointText(dPts)}点`;
+        const dealerSub =
+          dPts === null ? '' : dPts > 21 ? `${dPts} 点（爆牌）` : `${dPts} 点`;
+
+        const steps: SpeechSequenceStep[] = [
+          {
+            text: dealerVoice,
+            onStart: () => {
+              setRevealStep(1);
+              audio.play('poker_deal');
+              showBanner('street', `庄家：${dealerSub || '开牌'}`, undefined, 1600);
+            },
+            delayAfterMs: 320,
+          },
+        ];
+
+        if (mPts !== null) {
+          const myVoice = mPts > 21 ? '我的手牌爆牌！' : `我的手牌${cnPointText(mPts)}点`;
+          const mySub = mPts > 21 ? `${mPts} 点（爆牌）` : `${mPts} 点`;
+          steps.push({
+            text: myVoice,
+            onStart: () => {
+              setRevealStep(2);
+              audio.play('poker_deal');
+              showBanner('deal', `我的手牌：${mySub}`, undefined, 1600);
+            },
+            delayAfterMs: 360,
+          });
         }
+
+        // 判断胜负播报：优先按我方手牌 vs 庄家手牌比较，无手牌时按结算盈亏
+        let verdict: 'player' | 'dealer' | 'tie' = 'tie';
+        if (mPts !== null && dPts !== null) {
+          if (mPts > 21) verdict = 'dealer';
+          else if (dPts > 21) verdict = 'player';
+          else if (mPts > dPts) verdict = 'player';
+          else if (mPts < dPts) verdict = 'dealer';
+          else verdict = 'tie';
+        } else if (myRow) {
+          verdict = myRow.delta > 0 ? 'player' : myRow.delta < 0 ? 'dealer' : 'tie';
+        }
+
+        const verdictVoice =
+          verdict === 'player'
+            ? mPts === 21
+              ? '二十一点，你赢了！'
+              : '恭喜你赢了！'
+            : verdict === 'dealer'
+              ? '庄家赢了！'
+              : '本局平局！';
+
+        const verdictTitle =
+          verdict === 'player'
+            ? mPts === 21
+              ? '👑 21点 · 你赢了！'
+              : '🎉 恭喜你赢了！'
+            : verdict === 'dealer'
+              ? '庄家赢了'
+              : '⚖️ 本局平局';
+
+        steps.push({
+          text: verdictVoice,
+          onStart: () => {
+            setRevealStep(3);
+            if (verdict === 'player') {
+              audio.play(mPts === 21 ? 'jackpot' : 'win');
+            } else if (verdict === 'dealer') {
+              audio.play('lose');
+            } else {
+              audio.play('dice_open');
+            }
+            showBanner(
+              verdict === 'player' ? 'raise' : verdict === 'dealer' ? 'fold' : 'showdown',
+              verdictTitle,
+              myRow && myRow.delta !== 0
+                ? myRow.delta > 0
+                  ? `赢得 +${myRow.delta.toLocaleString()} 欢乐豆`
+                  : `本局结算 ${myRow.delta.toLocaleString()}`
+                : `庄 ${dPts ?? '—'} 点 vs 我 ${mPts ?? '—'} 点`,
+              2300,
+            );
+          },
+          delayAfterMs: 0,
+        });
+
+        cancelSeqRef.current = speakDealerSequence(steps, { gapMs: 280, mutedStepMs: 1100 });
       }
     }
 
     const myCount = data.myCards.length;
     const dealerCount = data.dealerCards.length;
-    if (myCount > prevCardCountRef.current.my && prevCardCountRef.current.my > 0) {
+    if (data.phase === 'play' && myCount > prevCardCountRef.current.my && prevCardCountRef.current.my > 0) {
       audio.play('poker_deal');
       if (data.myPoints !== null && data.myPoints > 21) {
         window.setTimeout(() => audio.play('poker_fold'), 140);
-        showBanner('fold', `💥 爆牌 (${data.myPoints} 点)`, '超过 21 点', 1500);
+        showBanner('fold', `💥 爆牌 (${data.myPoints} 点)`, '超过 21 点', 1400);
       } else if (data.myPoints === 21) {
         window.setTimeout(() => audio.play('jackpot'), 160);
-        showBanner('allin', '✨ 恰好 21 点！', '完美停牌', 1600);
+        showBanner('allin', '✨ 恰好 21 点！', '完美停牌', 1400);
       }
-    } else if (dealerCount > prevCardCountRef.current.dealer && prevCardCountRef.current.dealer > 0) {
+    } else if (data.phase === 'play' && dealerCount > prevCardCountRef.current.dealer && prevCardCountRef.current.dealer > 0) {
       audio.play('poker_deal');
     }
     prevCardCountRef.current = { my: myCount, dealer: dealerCount };
-  }, [data?.round, data?.phase, data?.myCards?.length, data?.dealerCards?.length, data?.myPoints, data?.dealerPoints, data?.results, myId]);
+  }, [
+    data?.round,
+    data?.phase,
+    data?.myCards?.length,
+    data?.dealerCards?.length,
+    data?.myPoints,
+    data?.dealerPoints,
+    data?.results,
+    myId,
+  ]);
 
   const canBet = data?.phase === 'bet' && status === 'playing';
   const playing = data?.phase === 'play' && status === 'playing';
@@ -156,6 +259,10 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
     onAction('double');
   };
 
+  const isRevealing = data.phase === 'reveal' || data.phase === 'idle';
+  const dealerPointsVisible = !isRevealing || revealStep >= 1;
+  const resultsVisible = !isRevealing || revealStep >= 3;
+
   return (
     <div className="lobby-game lobby-game--bj lobby-game--poker-pro">
       {centerBanner && (
@@ -187,13 +294,23 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
           </div>
           <div className="dealer-text-badge">
             <span className="dealer-title">荷官·艾莉丝</span>
-            <span className="dealer-action">{playing ? '要牌还是停牌呢？' : '21点 · 买定离手'}</span>
+            <span className="dealer-action">
+              {playing
+                ? '要牌还是停牌呢？'
+                : data.phase === 'reveal'
+                  ? revealStep <= 1
+                    ? '报庄家点数…'
+                    : revealStep === 2
+                      ? '报玩家点数…'
+                      : '宣布本局胜负'
+                  : '21点 · 买定离手'}
+            </span>
           </div>
         </div>
 
         {/* 庄家手牌与我的超大高清手牌展台 */}
         <div className="dice-stage__cards bj-table-cards bj-table-cards--pro">
-          <div className="bj-row">
+          <div className={`bj-row ${revealStep === 1 ? 'is-focus-reveal' : ''}`}>
             <span className="bj-row__tag">庄家手牌</span>
             <div className="bj-row__hand">
               {data.dealerCards.length === 0 ? (
@@ -218,14 +335,14 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
                 ))
               )}
             </div>
-            {data.dealerPoints !== null && (
+            {dealerPointsVisible && data.dealerPoints !== null && (
               <strong className={`bj-row__points ${data.dealerPoints > 21 ? 'is-bust' : ''}`}>
                 {data.dealerPoints > 21 ? `${data.dealerPoints} 点 (爆牌)` : `${data.dealerPoints} 点`}
               </strong>
             )}
           </div>
 
-          <div className="bj-row">
+          <div className={`bj-row ${revealStep === 2 ? 'is-focus-reveal' : ''}`}>
             <span className="bj-row__tag">我的手牌</span>
             <div className="bj-row__hand">
               {data.myCards.length === 0 ? (
@@ -381,7 +498,7 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
         </div>
 
         {/* 结果栏 */}
-        {data.results.length > 0 && (
+        {resultsVisible && data.results.length > 0 && (
           <div className="lobby-results">
             {rankedResults.map((row) => (
               <span

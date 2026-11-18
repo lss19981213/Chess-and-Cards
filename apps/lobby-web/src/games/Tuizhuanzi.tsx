@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
+import { audio } from '../audio';
+import { cnPointText, speakDealerQuote, speakDealerSequence, stopDealerSpeech, type SpeechSequenceStep } from '../speech';
 import { MahjongTile } from '../components/MahjongTile';
 
 interface DoorView {
@@ -44,6 +46,13 @@ const DOOR_KEYS = ['heaven', 'earth', 'human'] as const;
 
 const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
+const TUI_BET_CALLS = [
+  '请下注，买定离手喔！',
+  '天地人三门请下注，买定离手啦！',
+  '买定离手啦，马上开牌比大小！',
+  '各位老板请下注，祝您三门通赢喔！',
+];
+
 function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: number }>; revealed: boolean }) {
   const list = revealed && cards.length > 0 ? cards : [null, null];
   return (
@@ -62,7 +71,197 @@ function DoorCards({ cards, revealed }: { cards: Array<{ id: string; rank: numbe
 
 export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as TuiSnapshot | undefined;
-  // 真人优先展示，其后按输赢排序，避免机器人结果被真人挤掉
+  /** 开牌进度：0=未开, 1=天门, 2=地门, 3=人门, 4=庄家, 5=最终通杀/通赔与胜负判定 */
+  const [revealStep, setRevealStep] = useState<number>(0);
+  const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
+    null,
+  );
+  const lastPhaseKeyRef = useRef<string>('');
+  const betCallIdxRef = useRef<number>(0);
+  const cancelSeqRef = useRef<(() => void) | null>(null);
+  const bannerIdRef = useRef<number>(1);
+  const bannerTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      cancelSeqRef.current?.();
+      stopDealerSpeech();
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    };
+  }, []);
+
+  // 下注阶段循环播报「买定离手」等热场话语
+  useEffect(() => {
+    if (data?.phase !== 'bet' || status !== 'playing') return;
+    const speakNext = () => {
+      if (!audio.sfxOn) return;
+      const line = TUI_BET_CALLS[betCallIdxRef.current % TUI_BET_CALLS.length]!;
+      betCallIdxRef.current += 1;
+      speakDealerQuote(line);
+    };
+    const firstTimer = window.setTimeout(speakNext, 700);
+    const interval = window.setInterval(speakNext, 7000);
+    return () => {
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
+    };
+  }, [data?.phase, data?.round, status]);
+
+  // 开牌阶段：依次播报 天门点数 → 地门点数 → 人门点数 → 庄家点数 → 通杀 / 通赔判定音效与语音
+  useEffect(() => {
+    if (!data) return;
+    const key = `${data.round}:${data.phase}`;
+    if (key === lastPhaseKeyRef.current) return;
+    lastPhaseKeyRef.current = key;
+
+    const showBanner = (kind: string, text: string, sub?: string, ms = 1900) => {
+      const id = bannerIdRef.current++;
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+      setCenterBanner({ id, kind, text, sub });
+      bannerTimerRef.current = window.setTimeout(() => {
+        setCenterBanner((cur) => (cur?.id === id ? null : cur));
+      }, ms);
+    };
+
+    if (data.phase === 'bet') {
+      cancelSeqRef.current?.();
+      cancelSeqRef.current = null;
+      setRevealStep(0);
+      if (data.round > 0) audio.play('mahjong_clack');
+      return;
+    }
+
+    if (data.phase === 'idle') {
+      setRevealStep(5);
+      return;
+    }
+
+    if (data.phase === 'reveal') {
+      cancelSeqRef.current?.();
+      setRevealStep(0);
+
+      const hPts = data.doors.heaven.points ?? 0;
+      const ePts = data.doors.earth.points ?? 0;
+      const uPts = data.doors.human.points ?? 0;
+      const bPts = data.banker.points ?? 0;
+
+      const winCount = (hPts > bPts ? 1 : 0) + (ePts > bPts ? 1 : 0) + (uPts > bPts ? 1 : 0);
+      const isTongSha = winCount === 0; // 庄家通杀（三门均不大于庄家）
+      const isTongPei = winCount === 3; // 庄家通赔（天、地、人三门全赢）
+      const myRow = data.results.find((r) => r.playerId === myId);
+
+      const steps: SpeechSequenceStep[] = [
+        {
+          text: `天门${cnPointText(hPts)}点`,
+          onStart: () => {
+            setRevealStep(1);
+            audio.play('mahjong_discard');
+            showBanner('deal', `天门 · ${hPts} 点`, undefined, 1300);
+          },
+          delayAfterMs: 220,
+        },
+        {
+          text: `地门${cnPointText(ePts)}点`,
+          onStart: () => {
+            setRevealStep(2);
+            audio.play('mahjong_discard');
+            showBanner('deal', `地门 · ${ePts} 点`, undefined, 1300);
+          },
+          delayAfterMs: 220,
+        },
+        {
+          text: `人门${cnPointText(uPts)}点`,
+          onStart: () => {
+            setRevealStep(3);
+            audio.play('mahjong_discard');
+            showBanner('deal', `人门 · ${uPts} 点`, undefined, 1300);
+          },
+          delayAfterMs: 260,
+        },
+        {
+          text: `庄家${cnPointText(bPts)}点`,
+          onStart: () => {
+            setRevealStep(4);
+            audio.play('mahjong_peng');
+            showBanner('street', `庄家 · ${bPts} 点`, undefined, 1400);
+          },
+          delayAfterMs: 320,
+        },
+      ];
+
+      if (isTongSha) {
+        steps.push({
+          text: '庄家通杀！',
+          onStart: () => {
+            setRevealStep(5);
+            audio.play('bomb');
+            window.setTimeout(() => audio.play('lose'), 220);
+            showBanner(
+              'allin',
+              '💥 庄家通杀！',
+              `庄 ${bPts} 点力压三门（天${hPts} · 地${ePts} · 人${uPts}）`,
+              2400,
+            );
+          },
+          delayAfterMs: 0,
+        });
+      } else if (isTongPei) {
+        steps.push({
+          text: '庄家通赔，三门全赢！',
+          onStart: () => {
+            setRevealStep(5);
+            audio.play('jackpot');
+            showBanner(
+              'raise',
+              '👑 庄家通赔 · 三门全赢！',
+              `天${hPts} · 地${ePts} · 人${uPts} 全部击败庄 ${bPts} 点`,
+              2400,
+            );
+          },
+          delayAfterMs: 0,
+        });
+      } else {
+        steps.push({
+          onStart: () => {
+            setRevealStep(5);
+            if (myRow && myRow.delta > 0) audio.play('win');
+            else if (myRow && myRow.delta < 0) audio.play('lose');
+            else audio.play('dice_open');
+            const winNames = [
+              hPts > bPts ? '天门' : '',
+              ePts > bPts ? '地门' : '',
+              uPts > bPts ? '人门' : '',
+            ]
+              .filter(Boolean)
+              .join('、');
+            showBanner(
+              'showdown',
+              `${winNames} 赢庄！`,
+              myRow && myRow.delta !== 0
+                ? myRow.delta > 0
+                  ? `恭喜赢取 +${myRow.delta.toLocaleString()} 欢乐豆`
+                  : `本局结算 ${myRow.delta.toLocaleString()}`
+                : `庄 ${bPts} 点（天${hPts} · 地${ePts} · 人${uPts}）`,
+              2100,
+            );
+          },
+          delayAfterMs: 0,
+        });
+      }
+
+      cancelSeqRef.current = speakDealerSequence(steps, { gapMs: 220, mutedStepMs: 850 });
+    }
+  }, [
+    data?.round,
+    data?.phase,
+    data?.doors?.heaven?.points,
+    data?.doors?.earth?.points,
+    data?.doors?.human?.points,
+    data?.banker?.points,
+    data?.results,
+    myId,
+  ]);
+
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
     list.sort((a, b) => {
@@ -78,7 +277,6 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    // 倒计时以秒为单位，1s 刷新足够
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -92,25 +290,35 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
   const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
-  const phaseLabel = data?.phase === 'reveal' ? '开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
-  const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
+  const phaseLabel = data?.phase === 'reveal' ? '依次开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
+  const phaseClass =
+    data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = data.phase === 'bet' && status === 'playing';
-  // 余额在下注时已即时扣除，不允许超额下注
   const canPlace = canBet && amount > 0 && amount <= balance;
-  const revealed = data.phase !== 'bet';
+  const isRevealing = data.phase !== 'bet';
+  const doorStepIndex: Record<(typeof DOOR_KEYS)[number], number> = { heaven: 1, earth: 2, human: 3 };
+  const bankerRevealed = isRevealing && revealStep >= 4;
+  const verdictRevealed = isRevealing && revealStep >= 5;
   const totals = data.myBet.heaven + data.myBet.earth + data.myBet.human;
   const history = data.history ?? [];
 
   return (
-    <div className="lobby-game">
+    <div className="lobby-game lobby-game--poker-pro">
+      {centerBanner && (
+        <div key={centerBanner.id} className={`texas-fx-banner is-${centerBanner.kind}`} role="status" aria-live="polite">
+          <strong>{centerBanner.text}</strong>
+          {centerBanner.sub && <span>{centerBanner.sub}</span>}
+        </div>
+      )}
+
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
           <span className={`lobby-game__phase ${phaseClass}`}>
             {phaseLabel} · {left}s
           </span>
-          {totals > 0 && <span className="lobby-game__mine">我押了 {totals}</span>}
+          {totals > 0 && <span className="lobby-game__mine">我押了 {totals.toLocaleString()}</span>}
           {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
@@ -122,15 +330,27 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
           </div>
           <div className="dealer-text-badge">
             <span className="dealer-title">荷官·艾莉丝</span>
-            <span className="dealer-action">{revealed ? '开牌核验' : '洗牌发牌中'}</span>
+            <span className="dealer-action">
+              {!isRevealing
+                ? '买定离手 · 天地人请下注'
+                : revealStep === 1
+                  ? '开天门…'
+                  : revealStep === 2
+                    ? '开地门…'
+                    : revealStep === 3
+                      ? '开人门…'
+                      : revealStep === 4
+                        ? '开庄家…'
+                        : '开牌结算完毕'}
+            </span>
           </div>
         </div>
 
-        <div className="banker-box">
+        <div className={`banker-box ${revealStep === 4 ? 'is-focus-reveal' : ''}`}>
           <div className="banker-box__label">庄家</div>
-          <DoorCards cards={data.banker.cards} revealed={revealed} />
+          <DoorCards cards={data.banker.cards} revealed={bankerRevealed} />
           <div className="banker-box__points">
-            {revealed && data.banker.points !== null ? `${data.banker.points} 点` : '—'}
+            {bankerRevealed && data.banker.points !== null ? `${data.banker.points} 点` : '—'}
           </div>
         </div>
 
@@ -138,30 +358,40 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
           {DOOR_KEYS.map((key) => {
             const door = data.doors[key];
             const bet = data.myBet[key] ?? 0;
-            const won = revealed && door.points !== null && data.banker.points !== null && door.points > data.banker.points;
+            const stepNeed = doorStepIndex[key];
+            const doorRevealed = isRevealing && revealStep >= stepNeed;
+            const isFocused = revealStep === stepNeed;
+            const won =
+              verdictRevealed &&
+              door.points !== null &&
+              data.banker.points !== null &&
+              door.points > data.banker.points;
             return (
               <button
                 key={key}
                 type="button"
-                className={`door ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''}`}
+                className={`door ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''} ${isFocused ? 'is-focus-reveal' : ''}`}
                 disabled={!canPlace}
-                onClick={() => onBet(key, amount)}
+                onClick={() => {
+                  audio.play('poker_chip_bet');
+                  onBet(key, amount);
+                }}
               >
-                <span className="door__label">{door.label}</span>
-                <DoorCards cards={door.cards} revealed={revealed} />
+                <span className="door__label">{door.label}门</span>
+                <DoorCards cards={door.cards} revealed={doorRevealed} />
                 <span className="door__points">
-                  {revealed && door.points !== null ? `${door.points} 点` : '待开牌'}
+                  {doorRevealed && door.points !== null ? `${door.points} 点` : '待开牌'}
                 </span>
                 {(data.doorTotals?.[key] ?? 0) > 0 && (
                   <span className="door__pool" key={`pool-${data.doorTotals[key]}`}>
                     <img src={chipArt(data.doorTotals[key])} alt="" />
-                    共押 {data.doorTotals[key]}
+                    共押 {data.doorTotals[key].toLocaleString()}
                   </span>
                 )}
                 {bet > 0 && (
                   <span className="door__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
-                    我 {bet}
+                    我 {bet.toLocaleString()}
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -170,11 +400,13 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
                         title="取消该区下注"
                         onClick={(event) => {
                           event.stopPropagation();
+                          audio.play('poker_fold');
                           onClear(key);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             event.stopPropagation();
+                            audio.play('poker_fold');
                             onClear(key);
                           }
                         }}
@@ -196,7 +428,10 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
                 key={value}
                 type="button"
                 className={`chip-btn ${amount === value ? 'is-active' : ''}`}
-                onClick={() => setAmount(value)}
+                onClick={() => {
+                  audio.play('click');
+                  setAmount(value);
+                }}
               >
                 <img src={chipArt(value)} alt="" />
                 <span>{value}</span>
@@ -204,7 +439,14 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
             ))}
           </div>
           {canBet && totals > 0 && (
-            <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
+            <button
+              type="button"
+              className="ghost clear-bet-btn"
+              onClick={() => {
+                audio.play('poker_fold');
+                onClear();
+              }}
+            >
               清空下注
             </button>
           )}
@@ -226,7 +468,7 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
           </div>
         </div>
 
-        {data.results.length > 0 && (
+        {verdictRevealed && data.results.length > 0 && (
           <div className="lobby-results">
             {rankedResults.map((row) => (
               <span
@@ -235,7 +477,8 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? '我' : row.nickname}{' '}
+                {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
               </span>
             ))}
           </div>

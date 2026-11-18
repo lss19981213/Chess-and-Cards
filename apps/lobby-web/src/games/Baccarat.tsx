@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
+import { cnPointText, speakDealerSequence, stopDealerSpeech } from '../speech';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 
 interface SideView {
@@ -45,12 +46,22 @@ const ZONES: Array<{ key: string; label: string; odds: string; desc: string }> =
   { key: 'banker_pair', label: '庄对子', odds: '1 : 11', desc: '庄家两张同点' },
 ];
 
-const OUTCOME_TEXT: Record<string, string> = { player: '闲赢', banker: '庄赢', tie: '和局' };
+const OUTCOME_TEXT: Record<string, string> = { player: '闲家赢', banker: '庄家赢', tie: '和局' };
 
-function Hand({ side, revealed, isWinner }: { side: SideView; revealed: boolean; isWinner?: boolean }) {
+function Hand({
+  side,
+  revealed,
+  isWinner,
+  isFocusing,
+}: {
+  side: SideView;
+  revealed: boolean;
+  isWinner?: boolean;
+  isFocusing?: boolean;
+}) {
   const cards = revealed ? side.cards : [];
   return (
-    <div className={`bac-hand ${isWinner ? 'is-winner-hand' : ''}`}>
+    <div className={`bac-hand ${isWinner ? 'is-winner-hand' : ''} ${isFocusing ? 'is-focus-reveal' : ''}`}>
       <div className="bac-hand__cards">
         {revealed ? (
           cards.map((card, idx) => (
@@ -80,20 +91,25 @@ function Hand({ side, revealed, isWinner }: { side: SideView; revealed: boolean;
 
 export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as BacSnapshot | undefined;
+  /** 开牌进度：0=未开牌, 1=已开闲家, 2=已开庄家, 3=已宣布胜负 */
+  const [revealStep, setRevealStep] = useState<number>(0);
   const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
     null,
   );
   const lastPhaseKeyRef = useRef<string>('');
+  const cancelSeqRef = useRef<(() => void) | null>(null);
   const bannerIdRef = useRef<number>(1);
   const bannerTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
+      cancelSeqRef.current?.();
+      stopDealerSpeech();
       if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
     };
   }, []);
 
-  // 监听开牌阶段与新局：播放连续清脆发牌声、胜负音效与居中播报
+  // 严格按标准百家乐流程：先开闲家牌并报点数 → 再开庄家牌并报点数 → 最后播报闲家赢/庄家赢/和局
   useEffect(() => {
     if (!data) return;
     const key = `${data.round}:${data.phase}`;
@@ -109,32 +125,85 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
       }, ms);
     };
 
-    if (data.phase === 'reveal') {
-      const totalCards = (data.player.cards?.length ?? 2) + (data.banker.cards?.length ?? 2);
-      for (let i = 0; i < Math.min(6, totalCards); i += 1) {
-        window.setTimeout(() => audio.play('poker_deal'), i * 115);
-      }
-      const myRow = data.results.find((r) => r.playerId === myId);
-      window.setTimeout(() => {
-        if (myRow && myRow.delta > 0) audio.play('win');
-        else if (myRow && myRow.delta < 0) audio.play('lose');
-      }, Math.min(6, totalCards) * 115 + 140);
-
-      const outcomeLabel = data.outcome ? OUTCOME_TEXT[data.outcome] ?? data.outcome : '开牌';
-      showBanner(
-        data.outcome === 'tie' ? 'raise' : 'showdown',
-        `👑 ${outcomeLabel}！（闲 ${data.player.points ?? '—'} : 庄 ${data.banker.points ?? '—'}）`,
-        myRow && myRow.delta !== 0
-          ? myRow.delta > 0
-            ? `恭喜赢取 +${myRow.delta.toLocaleString()} 欢乐豆`
-            : `本局结算 ${myRow.delta.toLocaleString()}`
-          : undefined,
-        2000,
-      );
-    } else if (data.phase === 'bet' && data.round > 0) {
-      audio.play('poker_deal');
+    if (data.phase === 'bet') {
+      cancelSeqRef.current?.();
+      cancelSeqRef.current = null;
+      setRevealStep(0);
+      if (data.round > 0) audio.play('poker_deal');
+      return;
     }
-  }, [data?.round, data?.phase, data?.outcome, data?.player?.points, data?.banker?.points, data?.player?.cards?.length, data?.banker?.cards?.length, data?.results, myId]);
+
+    if (data.phase === 'idle') {
+      setRevealStep(3);
+      return;
+    }
+
+    if (data.phase === 'reveal') {
+      cancelSeqRef.current?.();
+      setRevealStep(0);
+
+      const pPts = data.player.points ?? 0;
+      const bPts = data.banker.points ?? 0;
+      const outcome = data.outcome ?? (pPts > bPts ? 'player' : bPts > pPts ? 'banker' : 'tie');
+      const outcomeVoice = outcome === 'player' ? '闲家赢！' : outcome === 'banker' ? '庄家赢！' : '和局！';
+      const outcomeText = OUTCOME_TEXT[outcome] ?? outcome;
+      const myRow = data.results.find((r) => r.playerId === myId);
+
+      cancelSeqRef.current = speakDealerSequence(
+        [
+          {
+            text: `闲家${cnPointText(pPts)}点`,
+            onStart: () => {
+              setRevealStep(1);
+              audio.play('poker_deal');
+              window.setTimeout(() => audio.play('poker_deal'), 120);
+              showBanner('deal', `闲家开牌 · ${pPts} 点`, undefined, 1600);
+            },
+            delayAfterMs: 320,
+          },
+          {
+            text: `庄家${cnPointText(bPts)}点`,
+            onStart: () => {
+              setRevealStep(2);
+              audio.play('poker_deal');
+              window.setTimeout(() => audio.play('poker_deal'), 120);
+              showBanner('street', `庄家开牌 · ${bPts} 点`, undefined, 1600);
+            },
+            delayAfterMs: 360,
+          },
+          {
+            text: outcomeVoice,
+            onStart: () => {
+              setRevealStep(3);
+              if (myRow && myRow.delta > 0) audio.play('win');
+              else if (myRow && myRow.delta < 0) audio.play('lose');
+              else audio.play('dice_open');
+              showBanner(
+                outcome === 'tie' ? 'raise' : 'showdown',
+                `👑 ${outcomeText}！（闲 ${pPts} : 庄 ${bPts}）`,
+                myRow && myRow.delta !== 0
+                  ? myRow.delta > 0
+                    ? `恭喜赢取 +${myRow.delta.toLocaleString()} 欢乐豆`
+                    : `本局结算 ${myRow.delta.toLocaleString()}`
+                  : undefined,
+                2400,
+              );
+            },
+            delayAfterMs: 0,
+          },
+        ],
+        { gapMs: 280, mutedStepMs: 1100 },
+      );
+    }
+  }, [
+    data?.round,
+    data?.phase,
+    data?.outcome,
+    data?.player?.points,
+    data?.banker?.points,
+    data?.results,
+    myId,
+  ]);
 
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
@@ -169,7 +238,9 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
     data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
   const canBet = data.phase === 'bet' && status === 'playing';
   const canPlace = canBet && amount > 0 && amount <= balance;
-  const revealed = data.phase !== 'bet';
+  const playerRevealed = data.phase !== 'bet' && revealStep >= 1;
+  const bankerRevealed = data.phase !== 'bet' && revealStep >= 2;
+  const outcomeRevealed = data.phase !== 'bet' && revealStep >= 3;
   const betting = Object.values(data.myBet ?? {}).reduce((s, v) => s + (v ?? 0), 0);
 
   return (
@@ -199,18 +270,31 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
           </div>
           <div className="dealer-text-badge">
             <span className="dealer-title">荷官·艾莉丝</span>
-            <span className="dealer-action">{revealed ? '验牌开奖' : '派牌中 (闲/庄)'}</span>
+            <span className="dealer-action">
+              {data.phase === 'bet'
+                ? '买定离手 (闲/庄)'
+                : revealStep === 1
+                  ? '正在开闲家牌…'
+                  : revealStep === 2
+                    ? '正在开庄家牌…'
+                    : '开牌结算完毕'}
+            </span>
           </div>
         </div>
 
         <div className="bac-table">
           <div className="bac-side">
             <span className="bac-side__label">闲 (PLAYER)</span>
-            <Hand side={data.player} revealed={revealed} isWinner={revealed && data.outcome === 'player'} />
+            <Hand
+              side={data.player}
+              revealed={playerRevealed}
+              isWinner={outcomeRevealed && data.outcome === 'player'}
+              isFocusing={revealStep === 1}
+            />
           </div>
 
           <div className="bac-center">
-            {revealed && data.outcome ? (
+            {outcomeRevealed && data.outcome ? (
               <span className={`bac-outcome is-${data.outcome}`}>{OUTCOME_TEXT[data.outcome] ?? data.outcome}</span>
             ) : (
               <span className="muted">VS</span>
@@ -219,14 +303,19 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
 
           <div className="bac-side">
             <span className="bac-side__label">庄 (BANKER)</span>
-            <Hand side={data.banker} revealed={revealed} isWinner={revealed && data.outcome === 'banker'} />
+            <Hand
+              side={data.banker}
+              revealed={bankerRevealed}
+              isWinner={outcomeRevealed && data.outcome === 'banker'}
+              isFocusing={revealStep === 2}
+            />
           </div>
         </div>
 
         <div className="bac-zones bac-zones--six">
           {ZONES.map((zone) => {
             const bet = data.myBet[zone.key] ?? 0;
-            const won = revealed && data.outcome === zone.key;
+            const won = outcomeRevealed && data.outcome === zone.key;
             return (
               <button
                 key={zone.key}
@@ -328,7 +417,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
           </div>
         </div>
 
-        {data.results.length > 0 && (
+        {outcomeRevealed && data.results.length > 0 && (
           <div className="lobby-results">
             {rankedResults.map((row) => (
               <span

@@ -1,6 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
+import { audio } from '../audio';
+import { cnPointText, speakDealerSequence, stopDealerSpeech } from '../speech';
 
 interface DiceSnapshot {
   phase: 'bet' | 'reveal' | 'idle';
@@ -32,10 +34,10 @@ interface Props {
 const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 const SUM_KEYS = ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17'];
 
-function PhysicalDie({ value, rolling }: { value: number; rolling?: boolean }) {
+function PhysicalDie({ value, rolling, focused }: { value: number; rolling?: boolean; focused?: boolean }) {
   const isHidden = value <= 0;
   return (
-    <div className={`dice-3d-die ${rolling ? 'is-rolling' : ''}`}>
+    <div className={`dice-3d-die ${rolling ? 'is-rolling' : ''} ${focused ? 'is-focus-reveal' : ''}`}>
       {isHidden ? (
         <span style={{ fontSize: '26px', color: 'rgba(255,255,255,0.3)', fontWeight: 800 }}>?</span>
       ) : (
@@ -99,7 +101,127 @@ function PhysicalDie({ value, rolling }: { value: number; rolling?: boolean }) {
 
 export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as DiceSnapshot | undefined;
-  // 真人优先展示，其后按输赢排序，避免机器人结果被真人挤掉
+  /** 开盅进度：0=未开, 1=第1颗, 2=第2颗, 3=第3颗, 4=总点数揭晓 */
+  const [revealStep, setRevealStep] = useState<number>(0);
+  const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
+    null,
+  );
+  const lastPhaseKeyRef = useRef<string>('');
+  const cancelSeqRef = useRef<(() => void) | null>(null);
+  const bannerIdRef = useRef<number>(1);
+  const bannerTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      cancelSeqRef.current?.();
+      stopDealerSpeech();
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    };
+  }, []);
+
+  // 下注阶段持续循环播放摇骰子音效
+  useEffect(() => {
+    if (data?.phase !== 'bet' || status !== 'playing') return;
+    audio.play('dice_shake');
+    const timer = window.setInterval(() => {
+      audio.play('dice_shake');
+    }, 1750);
+    return () => window.clearInterval(timer);
+  }, [data?.phase, data?.round, status]);
+
+  // 开牌阶段：依次揭晓并语音播报每颗骰子点数 → 最后播报总点数（大/小/豹子）
+  useEffect(() => {
+    if (!data) return;
+    const key = `${data.round}:${data.phase}`;
+    if (key === lastPhaseKeyRef.current) return;
+    lastPhaseKeyRef.current = key;
+
+    const showBanner = (kind: string, text: string, sub?: string, ms = 1800) => {
+      const id = bannerIdRef.current++;
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+      setCenterBanner({ id, kind, text, sub });
+      bannerTimerRef.current = window.setTimeout(() => {
+        setCenterBanner((cur) => (cur?.id === id ? null : cur));
+      }, ms);
+    };
+
+    if (data.phase === 'bet') {
+      cancelSeqRef.current?.();
+      cancelSeqRef.current = null;
+      setRevealStep(0);
+      return;
+    }
+
+    if (data.phase === 'idle') {
+      setRevealStep(4);
+      return;
+    }
+
+    if (data.phase === 'reveal' && data.dice.length >= 3) {
+      cancelSeqRef.current?.();
+      setRevealStep(0);
+      audio.play('dice_open');
+
+      const d0 = data.dice[0] ?? 1;
+      const d1 = data.dice[1] ?? 1;
+      const d2 = data.dice[2] ?? 1;
+      const sum = data.sum ?? d0 + d1 + d2;
+      const tag = data.triple ? '豹子' : data.big ? '大' : '小';
+      const myRow = data.results.find((r) => r.playerId === myId);
+
+      cancelSeqRef.current = speakDealerSequence(
+        [
+          {
+            text: `${cnPointText(d0)}点`,
+            onStart: () => {
+              setRevealStep(1);
+              audio.play('chip_clack');
+            },
+            delayAfterMs: 220,
+          },
+          {
+            text: `${cnPointText(d1)}点`,
+            onStart: () => {
+              setRevealStep(2);
+              audio.play('chip_clack');
+            },
+            delayAfterMs: 220,
+          },
+          {
+            text: `${cnPointText(d2)}点`,
+            onStart: () => {
+              setRevealStep(3);
+              audio.play('chip_clack');
+            },
+            delayAfterMs: 320,
+          },
+          {
+            text: `总计${cnPointText(sum)}点，${tag}！`,
+            onStart: () => {
+              setRevealStep(4);
+              if (data.triple) audio.play('jackpot');
+              else if (myRow && myRow.delta > 0) audio.play('win');
+              else if (myRow && myRow.delta < 0) audio.play('lose');
+              else audio.play('dice_open');
+              showBanner(
+                data.triple ? 'allin' : 'showdown',
+                `🎲 ${d0} · ${d1} · ${d2} ＝ 总计 ${sum} 点（${tag}）`,
+                myRow && myRow.delta !== 0
+                  ? myRow.delta > 0
+                    ? `恭喜赢取 +${myRow.delta.toLocaleString()} 欢乐豆`
+                    : `本局结算 ${myRow.delta.toLocaleString()}`
+                  : undefined,
+                2300,
+              );
+            },
+            delayAfterMs: 0,
+          },
+        ],
+        { gapMs: 220, mutedStepMs: 800 },
+      );
+    }
+  }, [data?.round, data?.phase, data?.dice, data?.sum, data?.triple, data?.big, data?.results, myId]);
+
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
     list.sort((a, b) => {
@@ -115,7 +237,6 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    // 倒计时以秒为单位，1s 刷新足够
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -129,13 +250,14 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
   const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
-  const phaseLabel = data?.phase === 'reveal' ? '开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
-  const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
+  const phaseLabel = data?.phase === 'reveal' ? '开盅报点中' : data?.phase === 'idle' ? '准备下一局' : '摇骰下注中';
+  const phaseClass =
+    data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
 
   const canBet = data.phase === 'bet' && status === 'playing';
-  // 余额在下注时已即时扣除，不允许超额下注
   const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
+  const sumRevealed = revealed && revealStep >= 4;
   const betting = Object.values(data.myBet).reduce((sum, value) => sum + (value ?? 0), 0);
 
   const zones: Array<{ key: string; label: string; odds: number }> = [
@@ -147,14 +269,21 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
   ];
 
   return (
-    <div className="lobby-game">
+    <div className="lobby-game lobby-game--poker-pro">
+      {centerBanner && (
+        <div key={centerBanner.id} className={`texas-fx-banner is-${centerBanner.kind}`} role="status" aria-live="polite">
+          <strong>{centerBanner.text}</strong>
+          {centerBanner.sub && <span>{centerBanner.sub}</span>}
+        </div>
+      )}
+
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
           <span className={`lobby-game__phase ${phaseClass}`}>
             {phaseLabel} · {left}s
           </span>
-          {betting > 0 && <span className="lobby-game__mine">我押了 {betting}</span>}
+          {betting > 0 && <span className="lobby-game__mine">我押了 {betting.toLocaleString()}</span>}
           {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
@@ -166,7 +295,9 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
           </div>
           <div className="dealer-text-badge">
             <span className="dealer-title">荷官·艾莉丝</span>
-            <span className="dealer-action">{revealed ? '开盅见喜' : '摇骰封盅中'}</span>
+            <span className="dealer-action">
+              {!revealed ? '摇骰封盅中 · 请下注' : sumRevealed ? '开盅结算完毕' : '逐颗开骰报点中…'}
+            </span>
           </div>
         </div>
 
@@ -174,7 +305,12 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
           <div className="dice-real-tray">
             {revealed ? (
               [0, 1, 2].map((index) => (
-                <PhysicalDie key={index} value={data.dice[index] ?? 1} rolling={data.phase === 'reveal'} />
+                <PhysicalDie
+                  key={index}
+                  value={revealStep >= index + 1 ? (data.dice[index] ?? 1) : 0}
+                  rolling={data.phase === 'reveal' && revealStep === index + 1}
+                  focused={revealStep === index + 1}
+                />
               ))
             ) : (
               <div className="dice-cup-shaker">
@@ -184,7 +320,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
             )}
           </div>
           <div className="dice-stage__sum">
-            {revealed && data.sum !== null ? (
+            {sumRevealed && data.sum !== null ? (
               <>
                 <strong>{data.sum} 点</strong>
                 <span className={data.triple ? 'is-triple' : data.big ? 'is-big' : 'is-small'}>
@@ -192,7 +328,9 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 </span>
               </>
             ) : (
-              <span className="muted">开盅后揭晓 3 颗骰子点数</span>
+              <span className="muted">
+                {revealed ? '正在依次揭晓 3 颗骰子点数…' : '开盅后依次揭晓 3 颗骰子点数'}
+              </span>
             )}
           </div>
         </div>
@@ -200,25 +338,38 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
         <div className="dice-zones">
           {zones.map((zone) => {
             const bet = data.myBet[zone.key] ?? 0;
+            const won =
+              sumRevealed &&
+              data.sum !== null &&
+              ((zone.key === 'triple' && data.triple) ||
+                (!data.triple && zone.key === 'big' && data.big === true) ||
+                (!data.triple && zone.key === 'small' && data.big === false) ||
+                (!data.triple && zone.key === 'odd' && data.sum % 2 === 1) ||
+                (!data.triple && zone.key === 'even' && data.sum % 2 === 0));
             return (
               <button
                 key={zone.key}
                 type="button"
-                className={`dice-zone ${bet > 0 ? 'is-bet' : ''} ${zone.key === 'triple' ? 'is-triple' : ''}`}
+                className={`dice-zone ${bet > 0 ? 'is-bet' : ''} ${zone.key === 'triple' ? 'is-triple' : ''} ${
+                  won ? 'is-win' : ''
+                }`}
                 disabled={!canPlace}
-                onClick={() => onBet(zone.key, amount)}
+                onClick={() => {
+                  audio.play('poker_chip_bet');
+                  onBet(zone.key, amount);
+                }}
               >
                 <span className="dice-zone__label">{zone.label}</span>
                 <span className="dice-zone__odds">1:{zone.odds}</span>
                 {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
                   <span className="dice-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
-                    全台 {data.zoneTotals[zone.key]}
+                    全台 {data.zoneTotals[zone.key]?.toLocaleString()}
                   </span>
                 )}
                 {bet > 0 ? (
                   <span className="dice-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
-                    <span>我押 {bet}</span>
+                    <span>我押 {bet.toLocaleString()}</span>
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -227,11 +378,13 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                         title="取消该区下注"
                         onClick={(event) => {
                           event.stopPropagation();
+                          audio.play('poker_fold');
                           onClear(zone.key);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             event.stopPropagation();
+                            audio.play('poker_fold');
                             onClear(zone.key);
                           }
                         }}
@@ -252,13 +405,17 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
           {SUM_KEYS.map((key) => {
             const bet = data.myBet[`sum-${key}`] ?? 0;
             const pool = data.zoneTotals?.[`sum-${key}`] ?? 0;
+            const won = sumRevealed && data.sum !== null && String(data.sum) === key;
             return (
               <button
                 key={key}
                 type="button"
-                className={`dice-sum ${bet > 0 ? 'is-bet' : ''}`}
+                className={`dice-sum ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''}`}
                 disabled={!canPlace}
-                onClick={() => onBet(`sum-${key}`, amount)}
+                onClick={() => {
+                  audio.play('poker_chip_bet');
+                  onBet(`sum-${key}`, amount);
+                }}
                 title={`押和值 ${key}，赔率 1:${data.odds.sums[key]}${pool > 0 ? `，全台已押 ${pool}` : ''}`}
               >
                 <strong>{key}</strong>
@@ -280,7 +437,10 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                 key={value}
                 type="button"
                 className={`chip-btn ${amount === value ? 'is-active' : ''}`}
-                onClick={() => setAmount(value)}
+                onClick={() => {
+                  audio.play('click');
+                  setAmount(value);
+                }}
               >
                 <img src={chipArt(value)} alt="" />
                 <span>{value}</span>
@@ -288,7 +448,14 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
             ))}
           </div>
           {canBet && betting > 0 && (
-            <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
+            <button
+              type="button"
+              className="ghost clear-bet-btn"
+              onClick={() => {
+                audio.play('poker_fold');
+                onClear();
+              }}
+            >
               清空下注
             </button>
           )}
@@ -310,7 +477,7 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
           </div>
         </div>
 
-        {data.results.length > 0 && (
+        {sumRevealed && data.results.length > 0 && (
           <div className="lobby-results">
             {rankedResults.map((row) => (
               <span
@@ -319,7 +486,8 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? '我' : row.nickname}{' '}
+                {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
               </span>
             ))}
           </div>

@@ -14855,3 +14855,31 @@ button.secondary:hover:not(:disabled) {
   filter: brightness(1.1);
   transform: translateY(-1px);
 }
+
+
+/* ==================== 逐门/逐颗开牌报点聚焦金光高亮 ==================== */
+.is-focus-reveal {
+  box-shadow: 0 0 0 2px rgba(253, 224, 71, 0.9), 0 0 24px rgba(250, 204, 21, 0.62) !important;
+  border-color: #fde047 !important;
+  transform: scale(1.03);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.bac-hand.is-focus-reveal {
+  border-radius: 14px;
+  padding: 4px 8px;
+  background: rgba(250, 204, 21, 0.1);
+}
+
+.bj-row.is-focus-reveal {
+  border-radius: 12px;
+  padding: 6px 10px;
+  background: rgba(250, 204, 21, 0.12);
+}
+
+.dice-zone.is-win,
+.dice-sum.is-win {
+  border-color: #fde047 !important;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.36), rgba(217, 119, 6, 0.24)) !important;
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.65) !important;
+}

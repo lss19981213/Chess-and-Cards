@@ -20,8 +20,8 @@ let voiceBusInput: AudioNode | null = null;
 let activeBufferSource: AudioBufferSourceNode | null = null;
 let speakSeq = 0;
 
-/** 已解码音频 LRU 缓存，覆盖全部麻将牌语音与常用荷官台词，实现真正 0ms 瞬时播报 */
-const MAX_BUFFER_CACHE = 128;
+/** 已解码音频 LRU 缓存，覆盖全部麻将牌语音、荷官台词与百人场报点语音，实现真正 0ms 瞬时播报 */
+const MAX_BUFFER_CACHE = 220;
 const decodedAudioCache = new Map<string, AudioBuffer>();
 
 function getCachedBuffer(key: string): AudioBuffer | null {
@@ -191,26 +191,43 @@ function playDecodedBuffer(
   audioBuf: AudioBuffer,
   seq: number,
   isLegacyEngine: boolean,
-): void {
-  if (seq !== speakSeq) return;
-  const src = ctx.createBufferSource();
-  src.buffer = audioBuf;
-  // 神经语音保持 100% 原生音高与语速（零变调失真）；仅兜底旧引擎微调 +45 cents
-  if (isLegacyEngine) {
-    src.detune.value = 45;
-    src.playbackRate.value = 1.01;
-  } else {
-    src.detune.value = 0;
-    src.playbackRate.value = 1.0;
-  }
+): Promise<void> {
+  if (seq !== speakSeq) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const src = ctx.createBufferSource();
+    src.buffer = audioBuf;
+    // 神经语音保持 100% 原生音高与语速（零变调失真）；仅兜底旧引擎微调 +45 cents
+    if (isLegacyEngine) {
+      src.detune.value = 45;
+      src.playbackRate.value = 1.01;
+    } else {
+      src.detune.value = 0;
+      src.playbackRate.value = 1.0;
+    }
 
-  const bus = getVoiceBus(ctx);
-  src.connect(bus);
-  activeBufferSource = src;
-  src.onended = () => {
-    if (activeBufferSource === src) activeBufferSource = null;
-  };
-  src.start(0);
+    const bus = getVoiceBus(ctx);
+    src.connect(bus);
+    activeBufferSource = src;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (activeBufferSource === src) activeBufferSource = null;
+      resolve();
+    };
+    const safetyMs = Math.max(900, Math.ceil((audioBuf.duration || 2) * 1000) + 500);
+    const guard = window.setTimeout(finish, safetyMs);
+    src.onended = () => {
+      window.clearTimeout(guard);
+      finish();
+    };
+    try {
+      src.start(0);
+    } catch {
+      window.clearTimeout(guard);
+      finish();
+    }
+  });
 }
 
 async function fetchAndPlayMp3(
@@ -222,7 +239,7 @@ async function fetchAndPlayMp3(
 ): Promise<boolean> {
   if (seq !== speakSeq) return false;
 
-  // 1. 内存缓存命中：0ms 立即播放
+  // 1. 内存缓存命中：0ms 立即播放并等待播完
   if (ctx) {
     const cached = getCachedBuffer(cacheKey);
     if (cached) {
@@ -234,7 +251,7 @@ async function fetchAndPlayMp3(
         }
       }
       if (seq !== speakSeq) return true;
-      playDecodedBuffer(ctx, cached, seq, false);
+      await playDecodedBuffer(ctx, cached, seq, false);
       return true;
     }
   }
@@ -254,7 +271,7 @@ async function fetchAndPlayMp3(
         const audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
         if (seq !== speakSeq) return true;
         if (!isLegacy) setCachedBuffer(cacheKey, audioBuf);
-        playDecodedBuffer(ctx, audioBuf, seq, isLegacy);
+        await playDecodedBuffer(ctx, audioBuf, seq, isLegacy);
         return true;
       } catch {
         /* decodeAudioData 异常时降级到 HTMLAudioElement */
@@ -265,54 +282,87 @@ async function fetchAndPlayMp3(
     const el = new Audio(blobUrl);
     el.volume = 0.96;
     el.playbackRate = 1.0;
-    el.onended = () => {
-      URL.revokeObjectURL(blobUrl);
-      if (fallbackAudio === el) fallbackAudio = null;
-    };
-    el.onerror = () => {
-      URL.revokeObjectURL(blobUrl);
-      if (fallbackAudio === el) fallbackAudio = null;
-    };
     fallbackAudio = el;
-    await el.play();
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        URL.revokeObjectURL(blobUrl);
+        if (fallbackAudio === el) fallbackAudio = null;
+      };
+      el.onended = () => {
+        cleanup();
+        resolve();
+      };
+      el.onerror = () => {
+        cleanup();
+        reject(new Error('audio element error'));
+      };
+      void el.play().catch((err) => {
+        cleanup();
+        reject(err);
+      });
+    });
     return true;
   } catch {
     return false;
   }
 }
 
-function speakOfflineFallback(cleanText: string, seq: number): void {
-  if (seq !== speakSeq) return;
+function speakOfflineFallback(cleanText: string, seq: number): Promise<void> {
+  if (seq !== speakSeq) return Promise.resolve();
   if (typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
-    return;
+    return Promise.resolve();
   }
-  try {
-    const synth = window.speechSynthesis;
-    if (synth.paused) synth.resume();
-    const utter = new SpeechSynthesisUtterance(cleanText);
-    const voice = pickBestFallbackBrowserVoice();
-    if (voice) {
-      utter.voice = voice;
-      utter.lang = voice.lang;
-    } else {
-      utter.lang = 'zh-TW';
+  return new Promise<void>((resolve) => {
+    try {
+      const synth = window.speechSynthesis;
+      if (synth.paused) synth.resume();
+      const utter = new SpeechSynthesisUtterance(cleanText);
+      const voice = pickBestFallbackBrowserVoice();
+      if (voice) {
+        utter.voice = voice;
+        utter.lang = voice.lang;
+      } else {
+        utter.lang = 'zh-TW';
+      }
+      utter.pitch = 1.06;
+      utter.rate = 0.98;
+      utter.volume = 0.95;
+      const done = () => {
+        if (activeUtterance === utter) activeUtterance = null;
+        resolve();
+      };
+      utter.onend = done;
+      utter.onerror = done;
+      activeUtterance = utter;
+      (window as unknown as { __ccActiveUtterance?: SpeechSynthesisUtterance }).__ccActiveUtterance = utter;
+      synth.speak(utter);
+    } catch {
+      resolve();
     }
-    // 柔和微调，避免尖锐机器人感
-    utter.pitch = 1.06;
-    utter.rate = 0.98;
-    utter.volume = 0.95;
-    utter.onend = () => {
-      if (activeUtterance === utter) activeUtterance = null;
-    };
-    utter.onerror = () => {
-      if (activeUtterance === utter) activeUtterance = null;
-    };
-    activeUtterance = utter;
-    (window as unknown as { __ccActiveUtterance?: SpeechSynthesisUtterance }).__ccActiveUtterance = utter;
-    synth.speak(utter);
-  } catch {
-    /* ignore */
+  });
+}
+
+async function playSingleText(
+  rawText: string,
+  voiceStyleId: string,
+  seq: number,
+  ctx: AudioContext | null,
+): Promise<void> {
+  const cleanText = normalizeDealerVoiceText(rawText);
+  if (!cleanText || seq !== speakSeq) return;
+
+  const staticRelUrl = resolveStaticDealerVoiceUrl(voiceStyleId, cleanText);
+  if (staticRelUrl) {
+    const staticUrl = `${BASE_PATH}${staticRelUrl}`;
+    const ok = await fetchAndPlayMp3(staticUrl, `static:${staticRelUrl}`, seq, ctx, true);
+    if (ok || seq !== speakSeq) return;
   }
+
+  const apiUrl = `${BASE_PATH}/api/tts?text=${encodeURIComponent(cleanText.slice(0, 100))}&style=${encodeURIComponent(voiceStyleId)}`;
+  const ok = await fetchAndPlayMp3(apiUrl, `api:${voiceStyleId}:${cleanText}`, seq, ctx, false);
+  if (ok || seq !== speakSeq) return;
+
+  await speakOfflineFallback(cleanText, seq);
 }
 
 /**
@@ -325,28 +375,81 @@ export function speakDealerQuote(rawText: string, voiceStyleId = 'classic'): voi
   if (typeof window === 'undefined') return;
   audio.unlock();
   const ctx = ensureSpeechAudioContext();
-
-  const cleanText = normalizeDealerVoiceText(rawText);
-  if (!cleanText) return;
+  if (!normalizeDealerVoiceText(rawText)) return;
 
   stopDealerSpeech();
   const seq = ++speakSeq;
+  void playSingleText(rawText, voiceStyleId, seq, ctx);
+}
+
+export interface SpeechSequenceStep {
+  text?: string;
+  onStart?: () => void;
+  delayAfterMs?: number;
+}
+
+/**
+ * 依次串行播报多条荷官语音并同步触发画面翻牌/开盅回调（前一句播完再播下一句，绝不重叠卡断）：
+ * - 返回 cancel() 清理函数，切局或离桌时立即中止
+ * - 静音模式下自动按节奏推进 onStart，确保视觉开牌动画不受影响
+ */
+export function speakDealerSequence(
+  steps: SpeechSequenceStep[],
+  options: { voiceStyleId?: string; gapMs?: number; mutedStepMs?: number } = {},
+): () => void {
+  if (typeof window === 'undefined' || steps.length === 0) return () => {};
+  const { voiceStyleId = 'classic', gapMs = 200, mutedStepMs = 850 } = options;
+  audio.unlock();
+  const ctx = ensureSpeechAudioContext();
+
+  stopDealerSpeech();
+  const seq = ++speakSeq;
+  let cancelled = false;
+  let waitTimer: number | null = null;
+
+  const sleep = (ms: number) =>
+    new Promise<void>((resolve) => {
+      if (ms <= 0 || cancelled || seq !== speakSeq) {
+        resolve();
+        return;
+      }
+      waitTimer = window.setTimeout(() => {
+        waitTimer = null;
+        resolve();
+      }, ms);
+    });
 
   void (async () => {
-    // 1. 优先命中预置真人级神经语音包（零延迟、原声自然甜美、绝无机械感）
-    const staticRelUrl = resolveStaticDealerVoiceUrl(voiceStyleId, cleanText);
-    if (staticRelUrl) {
-      const staticUrl = `${BASE_PATH}${staticRelUrl}`;
-      const ok = await fetchAndPlayMp3(staticUrl, `static:${staticRelUrl}`, seq, ctx, true);
-      if (ok || seq !== speakSeq) return;
+    for (let i = 0; i < steps.length; i += 1) {
+      if (cancelled || seq !== speakSeq) return;
+      const step = steps[i]!;
+      step.onStart?.();
+      if (step.text && audio.sfxOn) {
+        await playSingleText(step.text, voiceStyleId, seq, ctx);
+      } else if (step.text) {
+        await sleep(mutedStepMs);
+      }
+      if (cancelled || seq !== speakSeq) return;
+      const pause = step.delayAfterMs ?? (i < steps.length - 1 ? gapMs : 0);
+      if (pause > 0) await sleep(pause);
     }
-
-    // 2. 动态台词走服务端微软 Edge Neural TTS v2
-    const apiUrl = `${BASE_PATH}/api/tts?text=${encodeURIComponent(cleanText.slice(0, 100))}&style=${encodeURIComponent(voiceStyleId)}`;
-    const ok = await fetchAndPlayMp3(apiUrl, `api:${voiceStyleId}:${cleanText}`, seq, ctx, false);
-    if (ok || seq !== speakSeq) return;
-
-    // 3. 最终离线兜底
-    speakOfflineFallback(cleanText, seq);
   })();
+
+  return () => {
+    cancelled = true;
+    if (waitTimer !== null) {
+      window.clearTimeout(waitTimer);
+      waitTimer = null;
+    }
+    if (seq === speakSeq) stopDealerSpeech();
+  };
+}
+
+const CN_DIGIT = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+export function cnPointText(n: number): string {
+  if (n <= 9) return CN_DIGIT[n] ?? String(n);
+  if (n === 10) return '十';
+  if (n < 20) return `十${CN_DIGIT[n - 10] ?? ''}`;
+  if (n === 20) return '二十';
+  return `二十${CN_DIGIT[n - 20] ?? ''}`;
 }

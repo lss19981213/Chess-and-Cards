@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
+import { speakDealerQuote, stopDealerSpeech } from '../speech';
 import { cardArt, cardBackArt, cardLabel, isRedCard, type CardView } from './cards';
 
 interface NiuniuSnapshot {
@@ -31,11 +32,25 @@ interface Props {
 
 const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
+const NIUNIU_BET_CALLS = [
+  '请下注，买定离手喔！',
+  '各位老板请下注，押中牛牛一赔五喔！',
+  '买定离手啦，好运马上开牌！',
+  '下注倒计时，买定离手咯！',
+];
+
 function niuValueToArea(niu: number | null): string | null {
   if (niu === null || niu === undefined) return null;
   if (niu === 0) return 'none';
   if (niu >= 10) return 'niu-n';
   return `niu-${niu}`;
+}
+
+function niuVoiceText(niu: number | null, label: string): string {
+  if (niu === 0 || label === '无牛') return '无牛！';
+  if (niu !== null && niu >= 10) return '恭喜开出牛牛！';
+  if (label === '牛牛') return '恭喜开出牛牛！';
+  return label ? `${label}！` : '无牛！';
 }
 
 export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Props) {
@@ -45,23 +60,42 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
     null,
   );
   const lastPhaseKeyRef = useRef<string>('');
+  const betCallIdxRef = useRef<number>(0);
   const bannerIdRef = useRef<number>(1);
   const bannerTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
+      stopDealerSpeech();
       if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
     };
   }, []);
 
-  // 监听开牌与结算阶段，播放真实发牌声 + 胜负音效 + 居中动效横幅
+  // 下注期循环播报「买定离手」等荷官热场话语
+  useEffect(() => {
+    if (data?.phase !== 'bet' || status !== 'playing') return;
+    const speakNext = () => {
+      if (!audio.sfxOn) return;
+      const line = NIUNIU_BET_CALLS[betCallIdxRef.current % NIUNIU_BET_CALLS.length]!;
+      betCallIdxRef.current += 1;
+      speakDealerQuote(line);
+    };
+    const firstTimer = window.setTimeout(speakNext, 700);
+    const interval = window.setInterval(speakNext, 7000);
+    return () => {
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
+    };
+  }, [data?.phase, data?.round, status]);
+
+  // 开牌阶段：连续发牌声 + 荷官语音播报「无牛 / 牛一 ~ 牛九 / 恭喜开出牛牛！」+ 胜负音效
   useEffect(() => {
     if (!data) return;
     const key = `${data.round}:${data.phase}`;
     if (key === lastPhaseKeyRef.current) return;
     lastPhaseKeyRef.current = key;
 
-    const showBanner = (kind: string, text: string, sub?: string, ms = 1750) => {
+    const showBanner = (kind: string, text: string, sub?: string, ms = 1850) => {
       const id = bannerIdRef.current++;
       if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
       setCenterBanner({ id, kind, text, sub });
@@ -70,12 +104,16 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
       }, ms);
     };
 
-    if (data.phase !== 'bet' && data.cards.length > 0) {
-      [0, 110, 220, 330, 440].forEach((delay) => {
+    if (data.phase === 'reveal' && data.cards.length > 0) {
+      stopDealerSpeech();
+      [0, 100, 200, 300, 400].forEach((delay) => {
         window.setTimeout(() => audio.play('poker_deal'), delay);
       });
       const myRow = data.results.find((r) => r.playerId === myId);
+      const voiceLine = niuVoiceText(data.niu, data.label);
+
       window.setTimeout(() => {
+        if (audio.sfxOn) speakDealerQuote(voiceLine);
         if (data.niu !== null && data.niu >= 10) {
           audio.play('jackpot');
         } else if (myRow && myRow.delta > 0) {
@@ -83,7 +121,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
         } else if (myRow && myRow.delta < 0) {
           audio.play('lose');
         }
-      }, 540);
+      }, 480);
 
       const isBig = data.niu !== null && data.niu >= 8;
       showBanner(
@@ -94,7 +132,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
             ? `恭喜赢取 +${myRow.delta.toLocaleString()} 欢乐豆`
             : `本局结算 ${myRow.delta.toLocaleString()}`
           : undefined,
-        2000,
+        2200,
       );
     } else if (data.phase === 'bet' && data.round > 0) {
       audio.play('poker_deal');
@@ -142,7 +180,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
           <span className={`lobby-game__phase ${data.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : 'is-reveal'}`}>
-            {data.phase === 'bet' ? `下注阶段 · ${left}s` : '开牌核算中'}
+            {data.phase === 'bet' ? `下注阶段 · ${left}s` : '开牌报牛中'}
           </span>
           {betting > 0 && <span className="lobby-game__mine">已下注 {betting.toLocaleString()}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
@@ -155,13 +193,13 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
           </div>
           <div className="dealer-text-badge">
             <span className="dealer-title">荷官·艾莉丝</span>
-            <span className="dealer-action">{data.phase === 'bet' ? '五张牛牛 · 买定离手' : '亮牌比牛中'}</span>
+            <span className="dealer-action">{data.phase === 'bet' ? '请下注 · 买定离手喔' : `开牌：${data.label || '比牛中'}`}</span>
           </div>
         </div>
 
         {/* 庄家超大清晰手牌展示 */}
         <div className="banker-box niuniu-banker-box">
-          <div className="banker-box__label">庄家五张牌</div>
+          <div className="banker-box__label">庄家手牌</div>
           <div className="niuniu-cards-row niuniu-cards-row--pro">
             {data.cards.length === 0
               ? [0, 1, 2, 3, 4].map((i) => (
@@ -295,7 +333,8 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
+                {row.playerId === myId ? '我' : row.nickname}{' '}
+                {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
               </span>
             ))}
           </div>

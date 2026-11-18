@@ -59,6 +59,68 @@ const SHARED_MAHJONG_TILES = [
   '东风', '南风', '西风', '北风', '红中', '发财', '白板',
 ];
 
+const CN_DIGIT = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+function cnPoint(n: number): string {
+  if (n <= 9) return CN_DIGIT[n]!;
+  if (n === 10) return '十';
+  if (n < 20) return `十${CN_DIGIT[n - 10]}`;
+  if (n === 20) return '二十';
+  return `二十${CN_DIGIT[n - 20]}`;
+}
+
+/** 百家乐 / 21点 / 骰宝 / 斗牛 / 推筒子 全套荷官流程播报语音 */
+const SHARED_CASINO_CALLOUTS: string[] = [
+  // 下注期买定离手语音（斗牛 & 推筒子）
+  '请下注，买定离手喔！',
+  '买定离手啦，好运马上开牌！',
+  '各位老板请下注，押中牛牛一赔五喔！',
+  '下注倒计时，买定离手咯！',
+  '天地人三门请下注，买定离手啦！',
+  '买定离手啦，马上开牌比大小！',
+  '各位老板请下注，祝您三门通赢喔！',
+
+  // 百家乐：闲家 0~9 点、庄家 0~9 点、胜负
+  ...Array.from({ length: 10 }, (_, i) => `闲家${cnPoint(i)}点`),
+  ...Array.from({ length: 10 }, (_, i) => `庄家${cnPoint(i)}点`),
+  '闲家赢！',
+  '庄家赢！',
+  '和局！',
+
+  // 21点：庄家 10~21 点 + 爆牌，我的手牌 2~21 点 + 爆牌，胜负
+  ...Array.from({ length: 12 }, (_, i) => `庄家${cnPoint(i + 10)}点`),
+  '庄家爆牌！',
+  ...Array.from({ length: 20 }, (_, i) => `我的手牌${cnPoint(i + 2)}点`),
+  '我的手牌爆牌！',
+  '恭喜你赢了！',
+  '二十一点，你赢了！',
+  '庄家赢了！',
+  '本局平局！',
+
+  // 骰宝：单骰 1~6 点 + 总点数（大小/豹子）
+  '一点', '二点', '三点', '四点', '五点', '六点',
+  '总计三点，豹子！',
+  '总计六点，豹子！',
+  '总计九点，豹子！',
+  '总计十二点，豹子！',
+  '总计十五点，豹子！',
+  '总计十八点，豹子！',
+  ...Array.from({ length: 7 }, (_, i) => `总计${cnPoint(i + 4)}点，小！`),
+  ...Array.from({ length: 7 }, (_, i) => `总计${cnPoint(i + 11)}点，大！`),
+
+  // 斗牛：无牛 ~ 牛牛
+  '无牛！',
+  '牛一！', '牛二！', '牛三！', '牛四！', '牛五！',
+  '牛六！', '牛七！', '牛八！', '牛九！',
+  '恭喜开出牛牛！',
+
+  // 推筒子：天门/地门/人门 0~9 点 + 通杀 / 通赔
+  ...Array.from({ length: 10 }, (_, i) => `天门${cnPoint(i)}点`),
+  ...Array.from({ length: 10 }, (_, i) => `地门${cnPoint(i)}点`),
+  ...Array.from({ length: 10 }, (_, i) => `人门${cnPoint(i)}点`),
+  '庄家通杀！',
+  '庄家通赔，三门全赢！',
+];
+
 interface Job {
   styleId: string;
   voice: string;
@@ -128,6 +190,9 @@ async function main() {
   }
   for (const tile of SHARED_MAHJONG_TILES) {
     enqueue('_shared', tile, { voice: 'zh-TW-HsiaoChenNeural', pitch: '+3Hz', rate: '+6%' });
+  }
+  for (const line of SHARED_CASINO_CALLOUTS) {
+    enqueue('_shared', line, { voice: 'zh-TW-HsiaoChenNeural', pitch: '+3Hz', rate: '+5%' });
   }
 
   console.log(`Preparing ${jobs.length} neural dealer voice clips...`);

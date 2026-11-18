@@ -18,7 +18,7 @@ import {
  */
 
 const BET_MS = 30_000;
-const REVEAL_MS = 5_000;
+const REVEAL_MS = 8_000;
 const IDLE_MS = 3_000;
 
 const { minBet: MIN_BET, maxBet: MAX_BET, maxTotal: MAX_TOTAL } = BET_LIMITS;
