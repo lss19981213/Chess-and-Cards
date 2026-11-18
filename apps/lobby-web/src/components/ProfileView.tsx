@@ -7,8 +7,10 @@ import {
   MAX_PLAYER_LEVEL,
   xpRequiredForLevel,
 } from '@cc/protocol';
-import { api, resolveAvatarUrl, type User } from '../api';
+import { api, type User } from '../api';
 import { audio } from '../audio';
+import { AvatarFrameModal } from './AvatarFrameModal';
+import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
 import { IconBack, IconCrown, IconGift, IconSparkle, IconUser } from './Icons';
 
@@ -95,8 +97,10 @@ export function ProfileView({
   const [bio, setBio] = useState('');
   const [email, setEmail] = useState(user.email ?? '');
   const [avatar, setAvatar] = useState<string | null>(user.avatar ?? null);
+  const [equippedFrame, setEquippedFrame] = useState<string>(user.equippedFrame ?? 'frame_default');
+  const [frameModalOpen, setFrameModalOpen] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [avatarBroken, setAvatarBroken] = useState(false);
+  const [, setAvatarBroken] = useState(false);
   const [balance, setBalance] = useState(user.balance);
   const [level, setLevel] = useState(user.level ?? 1);
   const [xp, setXp] = useState(user.xp ?? '0');
@@ -130,6 +134,7 @@ export function ProfileView({
       setNickname(data.profile.nickname);
       setBio(data.profile.bio);
       setAvatar(data.profile.avatar);
+      if (data.profile.equippedFrame) setEquippedFrame(data.profile.equippedFrame);
       setAvatarBroken(false);
       setBalance(data.balance);
       setLevel(data.profile.level ?? 1);
@@ -306,25 +311,18 @@ export function ProfileView({
 
           <button
             type="button"
-            className="profile-large-avatar is-editable"
+            className="profile-large-avatar profile-large-avatar--framed is-editable"
             onClick={() => !avatarUploading && fileRef.current?.click()}
             disabled={avatarUploading}
             title="点击立即更换头像"
             aria-label="更换头像"
           >
-            {(() => {
-              const avatarSrc = resolveAvatarUrl(avatar);
-              return avatarSrc && !avatarBroken ? (
-                <img
-                  src={avatarSrc}
-                  alt="我的头像"
-                  draggable={false}
-                  onError={() => setAvatarBroken(true)}
-                />
-              ) : (
-                <span>{nickname.slice(0, 1)}</span>
-              );
-            })()}
+            <AvatarWithFrame
+              nickname={nickname}
+              avatar={avatar}
+              frameId={equippedFrame}
+              size={92}
+            />
             <em className="avatar-edit-badge">{avatarUploading ? '上传中' : '更换'}</em>
           </button>
           <input
@@ -337,14 +335,26 @@ export function ProfileView({
               event.target.value = '';
             }}
           />
-          <button
-            type="button"
-            className="btn-change-avatar-pill"
-            disabled={avatarUploading}
-            onClick={() => fileRef.current?.click()}
-          >
-            {avatarUploading ? '⏳ 正在上传头像…' : '📷 更换头像'}
-          </button>
+          <div className="profile-avatar-btn-row">
+            <button
+              type="button"
+              className="btn-change-avatar-pill"
+              disabled={avatarUploading}
+              onClick={() => fileRef.current?.click()}
+            >
+              {avatarUploading ? '⏳ 上传中…' : '📷 更换头像'}
+            </button>
+            <button
+              type="button"
+              className="btn-change-avatar-pill is-frame"
+              onClick={() => {
+                audio.play('click');
+                setFrameModalOpen(true);
+              }}
+            >
+              🖼️ 更换头像框
+            </button>
+          </div>
 
           <h3>{nickname}</h3>
           <span className="profile-uid-pill">UID: {user.id.slice(0, 8)}</span>
@@ -626,6 +636,18 @@ export function ProfileView({
           </div>
         </section>
       </main>
+
+      {frameModalOpen && (
+        <AvatarFrameModal
+          user={{ ...user, nickname, avatar, balance, equippedFrame }}
+          onUserUpdate={(patch) => {
+            if (patch.equippedFrame) setEquippedFrame(patch.equippedFrame);
+            if (patch.balance !== undefined) setBalance(patch.balance);
+            onUserUpdate?.(patch);
+          }}
+          onClose={() => setFrameModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

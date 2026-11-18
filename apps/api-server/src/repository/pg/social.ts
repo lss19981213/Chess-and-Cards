@@ -449,11 +449,13 @@ export async function searchUsers(
     username: string | null;
     bio: string | null;
     avatar_url: string | null;
+    equipped_frame: string | null;
     banned: boolean;
     is_friend: boolean;
     request_pending: boolean;
   }>(
     `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url,
+            coalesce(p.equipped_frame, 'frame_default') as equipped_frame,
             coalesce(u.banned, false) as banned,
             exists (select 1 from friendships f
                      where f.user_id = $2 and f.friend_id = u.id) as is_friend,
@@ -473,6 +475,7 @@ export async function searchUsers(
     username: row.username,
     bio: row.bio ?? '',
     avatar: row.avatar_url ?? null,
+    equippedFrame: row.equipped_frame ?? 'frame_default',
     banned: Boolean(row.banned),
     isFriend: row.is_friend,
     requestPending: row.request_pending,
@@ -503,8 +506,10 @@ export async function listFriends(pool: pg.Pool, userId: string): Promise<Player
     username: string | null;
     bio: string | null;
     avatar_url: string | null;
+    equipped_frame: string | null;
   }>(
-    `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url
+    `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url,
+            coalesce(p.equipped_frame, 'frame_default') as equipped_frame
        from friendships f
        join users u on u.id = f.friend_id
        left join user_profiles p on p.user_id = u.id
@@ -518,6 +523,7 @@ export async function listFriends(pool: pg.Pool, userId: string): Promise<Player
     username: row.username,
     bio: row.bio ?? '',
     avatar: row.avatar_url ?? null,
+    equippedFrame: row.equipped_frame ?? 'frame_default',
     isFriend: true,
   }));
 }
@@ -566,9 +572,11 @@ export async function createFriendRequest(
     fromId,
     fromNickname: from.nickname,
     fromAvatar: from.avatar,
+    fromEquippedFrame: from.equippedFrame ?? 'frame_default',
     toId,
     toNickname: target.nickname,
     toAvatar: target.avatar,
+    toEquippedFrame: target.equippedFrame ?? 'frame_default',
     message,
     status,
     createdAt: Date.now(),
@@ -584,15 +592,19 @@ export async function listFriendRequests(
     from_id: string;
     from_nickname: string;
     from_avatar: string | null;
+    from_equipped_frame: string | null;
     to_id: string;
     to_nickname: string;
     to_avatar: string | null;
+    to_equipped_frame: string | null;
     message: string | null;
     status: FriendRequestStatus;
     created_at: Date;
   }>(
     `select r.id, r.from_id, fu.nickname as from_nickname, ${avatarUrlSql('fp', 'r.from_id')} as from_avatar,
+            coalesce(fp.equipped_frame, 'frame_default') as from_equipped_frame,
             r.to_id, tu.nickname as to_nickname, ${avatarUrlSql('tp', 'r.to_id')} as to_avatar,
+            coalesce(tp.equipped_frame, 'frame_default') as to_equipped_frame,
             r.message, r.status, r.created_at
        from friend_requests r
        join users fu on fu.id = r.from_id
@@ -609,9 +621,11 @@ export async function listFriendRequests(
     fromId: row.from_id,
     fromNickname: row.from_nickname,
     fromAvatar: row.from_avatar,
+    fromEquippedFrame: row.from_equipped_frame ?? 'frame_default',
     toId: row.to_id,
     toNickname: row.to_nickname,
     toAvatar: row.to_avatar,
+    toEquippedFrame: row.to_equipped_frame ?? 'frame_default',
     message: row.message,
     status: row.status,
     createdAt: new Date(row.created_at).getTime(),

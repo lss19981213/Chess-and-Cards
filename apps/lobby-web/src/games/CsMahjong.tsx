@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { AvatarWithFrame } from '../components/AvatarWithFrame';
 import { MahjongTile } from '../components/MahjongTile';
 import { audio } from '../audio';
 import { speakDealerQuote } from '../speech';
@@ -97,6 +98,7 @@ interface Props {
   myId: string;
   status: string;
   balance: number;
+  playerMedia?: Record<string, { avatar?: string | null; equippedFrame?: string }>;
   onAction: (cmd: string, payload?: Record<string, unknown>) => void;
 }
 
@@ -113,8 +115,6 @@ const WINDS: ReadonlyArray<{ cn: string; en: string; isEast: boolean }> = [
   { cn: '西', en: 'W', isEast: false },
   { cn: '北', en: 'N', isEast: false },
 ];
-
-const SEAT_AVATARS = ['🤠', '👩‍🎤', '🧙‍♂️', '👸'];
 
 const VARIANT_HIGHLIGHTS: Record<string, { badge: string; rules: string[] }> = {
   'cs-mahjong': {
@@ -177,7 +177,7 @@ const HU_CONFETTI = Array.from({ length: 24 }, (_, i) => {
   };
 });
 
-export function CsMahjong({ snapshot, myId, status, balance, onAction }: Props) {
+export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onAction }: Props) {
   const data = snapshot as unknown as CsMahjongSnapshot | undefined;
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [autoPass, setAutoPass] = useState(false);
@@ -571,7 +571,7 @@ export function CsMahjong({ snapshot, myId, status, balance, onAction }: Props) 
     player: MahjongPlayer | null,
     pos: 'top' | 'left' | 'right' | 'bottom',
     wind: { cn: string; en: string; isEast: boolean },
-    seatVisualIndex: number,
+    _seatVisualIndex: number,
   ) => {
     if (!player) return null;
     const isActive = data.phase === 'playing' && data.turn === player.playerId && status === 'playing';
@@ -582,12 +582,16 @@ export function CsMahjong({ snapshot, myId, status, balance, onAction }: Props) 
       ? `缺${player.dingqueSuit === 'wan' ? '万' : player.dingqueSuit === 'bamboo' ? '条' : '筒'}`
       : null;
 
+    const media = playerMedia?.[player.playerId];
     return (
       <div className={`mj3d-avatar-card mj3d-avatar-card--${pos}${isActive ? ' is-active' : ''}`}>
-        <div className="mj3d-avatar-portrait">
-          <span className="mj3d-avatar-emoji" aria-hidden="true">
-            {SEAT_AVATARS[seatVisualIndex % SEAT_AVATARS.length]}
-          </span>
+        <div className="mj3d-avatar-portrait mj3d-avatar-portrait--framed">
+          <AvatarWithFrame
+            nickname={player.nickname}
+            avatar={media?.avatar}
+            frameId={media?.equippedFrame ?? 'frame_default'}
+            size={54}
+          />
           <span className={`mj3d-wind-chip${wind.isEast ? ' is-east' : ''}`}>{wind.cn}</span>
           {isDealer && <span className="mj3d-dealer-tag">庄</span>}
           {player.huDone && <span className="mj3d-hudone-tag">已胡👑</span>}

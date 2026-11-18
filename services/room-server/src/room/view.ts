@@ -27,6 +27,8 @@ export function toPlayerViews(seats: Iterable<Seat>): PlayerView[] {
       score: s.score,
       isBot: s.isBot,
       ...(s.isBot ? { botDifficulty: s.botDifficulty ?? 'high' } : {}),
+      ...(s.avatar !== undefined ? { avatar: s.avatar } : {}),
+      ...(s.equippedFrame ? { equippedFrame: s.equippedFrame } : {}),
     }));
 }
 

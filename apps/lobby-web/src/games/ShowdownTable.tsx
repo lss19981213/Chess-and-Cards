@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 import { audio } from '../audio';
+import { AvatarWithFrame } from '../components/AvatarWithFrame';
 
 interface ShowdownSnapshot {
   phase: string;
@@ -43,10 +44,11 @@ interface Props {
   myId: string;
   status: string;
   balance: number;
+  playerMedia?: Record<string, { avatar?: string | null; equippedFrame?: string }>;
   onAction: (cmd: string, amount?: number) => void;
 }
 
-export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Props) {
+export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, onAction }: Props) {
   const data = snapshot as unknown as ShowdownSnapshot | undefined;
   const [raiseAdd, setRaiseAdd] = useState(100);
 
@@ -98,7 +100,15 @@ export function ShowdownTable({ snapshot, myId, status, balance, onAction }: Pro
               player.playerId === myId ? ' is-me' : ''
             }${player.folded ? ' is-folded' : ''}`}
           >
-            <span className="showdown__name">{player.nickname}</span>
+            <div className="showdown__head">
+              <AvatarWithFrame
+                nickname={player.nickname}
+                avatar={playerMedia?.[player.playerId]?.avatar}
+                frameId={playerMedia?.[player.playerId]?.equippedFrame}
+                size={40}
+              />
+              <span className="showdown__name">{player.nickname}</span>
+            </div>
             <div className="showdown__cards">
               {player.cards.length > 0
                 ? player.cards.map((card) => (

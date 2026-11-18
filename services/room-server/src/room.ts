@@ -237,10 +237,15 @@ export class GameRoom {
   }
 
   /** 以观战模式进入机器人自建房，默认只看牌不入座；点击入座后加入下一局或立即入座 */
-  joinAsSpectator(player: { playerId: string; nickname: string }, socket: WebSocket): void {
+  joinAsSpectator(
+    player: { playerId: string; nickname: string; avatar?: string | null; equippedFrame?: string },
+    socket: WebSocket,
+  ): void {
     if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
     const existingSeat = this.seats.get(player.playerId);
     if (existingSeat) {
+      if (player.avatar !== undefined) existingSeat.avatar = player.avatar;
+      if (player.equippedFrame) existingSeat.equippedFrame = player.equippedFrame;
       this.attach(player.playerId, socket);
       return;
     }
@@ -250,6 +255,8 @@ export class GameRoom {
       nickname: player.nickname,
       socket,
       queuedToSit: false,
+      avatar: player.avatar ?? null,
+      equippedFrame: player.equippedFrame ?? 'frame_default',
     });
 
     this.broadcastView();
@@ -301,6 +308,8 @@ export class GameRoom {
     if (!seat || !this.botHosted) return;
     const savedSocket = seat.socket;
     const savedNickname = seat.nickname;
+    const savedAvatar = seat.avatar ?? null;
+    const savedFrame = seat.equippedFrame ?? 'frame_default';
     this.autoReady.delete(playerId);
     this.pendingReady.delete(playerId);
     this.removeSeat(playerId);
@@ -310,6 +319,8 @@ export class GameRoom {
       nickname: savedNickname,
       socket: savedSocket,
       queuedToSit: false,
+      avatar: savedAvatar,
+      equippedFrame: savedFrame,
     });
 
     this.checkEnoughPlayers();
@@ -347,6 +358,8 @@ export class GameRoom {
       socket: spec.socket,
       graceTimer: null,
       isBot: false,
+      avatar: spec.avatar ?? null,
+      equippedFrame: spec.equippedFrame ?? 'frame_default',
     };
     this.seats.set(spec.playerId, seat);
     this.autoReady.add(spec.playerId);
@@ -398,9 +411,14 @@ export class GameRoom {
     }
   }
 
-  join(player: { playerId: string; nickname: string }, socket: WebSocket): void {
+  join(
+    player: { playerId: string; nickname: string; avatar?: string | null; equippedFrame?: string },
+    socket: WebSocket,
+  ): void {
     const existing = this.seats.get(player.playerId);
     if (existing) {
+      if (player.avatar !== undefined) existing.avatar = player.avatar;
+      if (player.equippedFrame) existing.equippedFrame = player.equippedFrame;
       this.attach(player.playerId, socket);
       return;
     }
@@ -424,6 +442,8 @@ export class GameRoom {
       socket,
       graceTimer: null,
       isBot: false,
+      avatar: player.avatar ?? null,
+      equippedFrame: player.equippedFrame ?? 'frame_default',
     };
     this.seats.set(player.playerId, seat);
     if (this.hostId === null) this.hostId = player.playerId;

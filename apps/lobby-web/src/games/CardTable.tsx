@@ -41,6 +41,7 @@ interface Props {
   myId: string;
   status: string;
   round: number;
+  playerMedia?: Record<string, { avatar?: string | null; equippedFrame?: string }>;
   onPlay: (cards: string[]) => void;
   onPass: () => void;
 }
@@ -64,7 +65,7 @@ function CardBacks({ count }: { count: number }) {
   );
 }
 
-export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPass }: Props) {
+export function CardTable({ variant, snapshot, myId, status, round, playerMedia, onPlay, onPass }: Props) {
   const data = snapshot as unknown as HandSnapshot | undefined;
   const [selected, setSelected] = useState<string[]>([]);
   const [fxTrigger, setFxTrigger] = useState<EffectTrigger | null>(null);
@@ -234,6 +235,8 @@ export function CardTable({ variant, snapshot, myId, status, round, onPlay, onPa
             <SeatPanel
               nickname={player.nickname}
               initial={player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
+              avatar={playerMedia?.[player.playerId]?.avatar}
+              frameId={playerMedia?.[player.playerId]?.equippedFrame}
               isBot={player.isBot}
               badge={player.isLandlord ? <em className="badge-landlord">地主</em> : null}
               active={data.turn === player.playerId}

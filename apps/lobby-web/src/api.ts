@@ -440,9 +440,11 @@ export interface FriendRequestView {
   fromId: string;
   fromNickname: string;
   fromAvatar: string | null;
+  fromEquippedFrame?: string;
   toId: string;
   toNickname: string;
   toAvatar: string | null;
+  toEquippedFrame?: string;
   message: string | null;
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: number;

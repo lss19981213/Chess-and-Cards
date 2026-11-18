@@ -11,12 +11,12 @@ interface Props {
   onClose: () => void;
 }
 
-const RARITY_MAP: Record<FrameRarity, { label: string; color: string }> = {
-  common: { label: '普通', color: '#94a3b8' },
-  rare: { label: '稀有', color: '#38bdf8' },
-  epic: { label: '史诗', color: '#c084fc' },
-  legendary: { label: '传说', color: '#fbbf24' },
-  mythic: { label: '神话', color: '#f43f5e' },
+const RARITY_MAP: Record<FrameRarity, { label: string; color: string; fxDesc: string }> = {
+  common: { label: '普通', color: '#94a3b8', fxDesc: '简约经典镶边' },
+  rare: { label: '稀有', color: '#38bdf8', fxDesc: '柔光呼吸光晕' },
+  epic: { label: '史诗', color: '#c084fc', fxDesc: '流光旋转能量环 + 呼吸辉光' },
+  legendary: { label: '传说', color: '#fbbf24', fxDesc: '流光涡环 + 双星轨绕行 + 专属徽章' },
+  mythic: { label: '神话', color: '#f43f5e', fxDesc: '三重神辉光环 + 双向星轨法阵 + 浮空神徽 + 脉冲神波' },
 };
 
 export function AvatarFrameModal({ user, onUserUpdate, onClose }: Props) {
@@ -110,7 +110,9 @@ export function AvatarFrameModal({ user, onUserUpdate, onClose }: Props) {
             <h2 className="avatar-frame-modal__title">
               <span className="frame-title-icon">🖼️</span> 头像框商城与更衣室
             </h2>
-            <p className="avatar-frame-modal__sub">内置 20 款尊享动态光效头像框 · 筹码购买即刻尊享</p>
+            <p className="avatar-frame-modal__sub">
+              内置 {AVATAR_FRAMES.length} 款尊享动态特效头像框 · 全平台大厅、个人中心、排行榜、好友、牌桌同步闪耀
+            </p>
           </div>
           <button type="button" className="ghost" onClick={onClose}>
             关闭
@@ -127,8 +129,7 @@ export function AvatarFrameModal({ user, onUserUpdate, onClose }: Props) {
                 nickname={user.nickname}
                 avatar={user.avatar}
                 frameId={selectedFrame.id}
-                size={100}
-                showCrown={selectedFrame.rarity === 'mythic'}
+                size={112}
               />
               <span className="preview-nickname">{user.nickname}</span>
               <span
@@ -141,6 +142,7 @@ export function AvatarFrameModal({ user, onUserUpdate, onClose }: Props) {
               >
                 {RARITY_MAP[selectedFrame.rarity].label}
               </span>
+              <span className="preview-fx-caption">✦ {RARITY_MAP[selectedFrame.rarity].fxDesc}</span>
             </div>
 
             <div className="preview-meta-box">

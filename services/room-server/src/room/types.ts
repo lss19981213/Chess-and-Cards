@@ -18,6 +18,8 @@ export interface Seat {
   graceTimer: NodeJS.Timeout | null;
   isBot: boolean;
   botDifficulty?: BotDifficulty;
+  avatar?: string | null;
+  equippedFrame?: string;
 }
 
 export interface Spectator {
@@ -25,6 +27,8 @@ export interface Spectator {
   nickname: string;
   socket: WebSocket | null;
   queuedToSit: boolean;
+  avatar?: string | null;
+  equippedFrame?: string;
 }
 
 export interface RoomDeps {

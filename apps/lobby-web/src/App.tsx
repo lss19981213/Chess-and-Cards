@@ -99,10 +99,17 @@ export default function App() {
 
   const socketRef = useRef<GameSocket | null>(null);
   const userIdRef = useRef<string | null>(null);
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
   const pendingJoinRef = useRef<GameMeta | null>(null);
   /** 邀请链接携带的房间号，连上 WebSocket 后优先入座 */
   const pendingInviteRef = useRef<{ game: GameMeta; roomId: string } | null>(null);
   const autoStartRef = useRef<boolean>(false);
+
+  const playerAppearance = () => ({
+    avatar: userRef.current?.avatar ?? null,
+    equippedFrame: userRef.current?.equippedFrame ?? 'frame_default',
+  });
 
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
@@ -195,14 +202,18 @@ export default function App() {
       if (invite) {
         pendingInviteRef.current = null;
         autoStartRef.current = false;
-        s.send(ClientMsg.JoinRoom, { gameId: invite.game.gameId, roomId: invite.roomId });
+        s.send(ClientMsg.JoinRoom, {
+          gameId: invite.game.gameId,
+          roomId: invite.roomId,
+          ...playerAppearance(),
+        });
         return;
       }
 
       const pending = pendingJoinRef.current;
       if (pending) {
         pendingJoinRef.current = null;
-        s.send(ClientMsg.JoinRoom, { gameId: pending.gameId });
+        s.send(ClientMsg.JoinRoom, { gameId: pending.gameId, ...playerAppearance() });
       }
     });
 
@@ -368,7 +379,11 @@ export default function App() {
       setRoom(null);
     }
 
-    socketRef.current.send(ClientMsg.JoinRoom, { gameId: game.gameId, create: false });
+    socketRef.current.send(ClientMsg.JoinRoom, {
+      gameId: game.gameId,
+      create: false,
+      ...playerAppearance(),
+    });
   };
 
   const handleEnter = (game: GameMeta): void => {
@@ -410,6 +425,7 @@ export default function App() {
       gameId: selectedGame.gameId,
       roomId: roomId ?? undefined,
       create,
+      ...playerAppearance(),
     });
   };
 

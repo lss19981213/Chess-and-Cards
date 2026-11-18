@@ -11,6 +11,7 @@ import type { User } from '../api';
 import { audio } from '../audio';
 import { speakDealerQuote } from '../speech';
 import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART } from '../assets';
+import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
 import { InviteFriendsModal } from './InviteFriendsModal';
 import { RulesModal } from './RulesModal';
@@ -114,6 +115,22 @@ export function Room({
   const isSpectator = !me && Boolean(spectatorMe);
   const isQueuedToSit = Boolean(spectatorMe?.queuedToSit);
   const isHost = room.hostId === myId;
+  const playerMedia = useMemo(() => {
+    const map: Record<string, { avatar?: string | null; equippedFrame?: string }> = {};
+    for (const p of room.players) {
+      map[p.playerId] = {
+        avatar: p.playerId === myId ? (user?.avatar ?? p.avatar ?? null) : (p.avatar ?? null),
+        equippedFrame:
+          p.playerId === myId
+            ? (user?.equippedFrame ?? p.equippedFrame ?? 'frame_default')
+            : (p.equippedFrame ?? 'frame_default'),
+      };
+    }
+    if (myId && user && !map[myId]) {
+      map[myId] = { avatar: user.avatar ?? null, equippedFrame: user.equippedFrame ?? 'frame_default' };
+    }
+    return map;
+  }, [room.players, myId, user]);
   const dealerAvatarSrc = DEALER_SKINS_ASSETS[user?.dealerSkin || 'classic'] || DEALER_MAIN;
   const activeVoice = useMemo(() => {
     const voiceId = user?.dealerVoice || 'classic';
@@ -221,6 +238,7 @@ export function Room({
             myId={myId}
             status={room.status}
             round={room.round}
+            playerMedia={playerMedia}
             onPlay={(cards) => dispatch('play', { cards })}
             onPass={() => dispatch('pass')}
           />
@@ -300,6 +318,7 @@ export function Room({
             myId={myId}
             status={room.status}
             balance={balance}
+            playerMedia={playerMedia}
             onAction={(cmd, amount) => dispatch(cmd, amount === undefined ? {} : { amount })}
           />
         );
@@ -310,6 +329,7 @@ export function Room({
             myId={myId}
             status={room.status}
             balance={balance}
+            playerMedia={playerMedia}
             onAction={(cmd, amount) => dispatch(cmd, amount === undefined ? {} : { amount })}
           />
         );
@@ -323,6 +343,7 @@ export function Room({
             myId={myId}
             status={room.status}
             balance={balance}
+            playerMedia={playerMedia}
             onAction={(cmd, payload) => dispatch(cmd, payload ?? {})}
           />
         );
@@ -419,6 +440,17 @@ export function Room({
           <button type="button" className="room-rules-btn" onClick={() => setRulesOpen(true)}>
             ? 规则
           </button>
+
+          {user && (
+            <div className="room-self-avatar-chip" title={`${user.nickname}`}>
+              <AvatarWithFrame
+                nickname={user.nickname}
+                avatar={user.avatar}
+                frameId={user.equippedFrame}
+                size={34}
+              />
+            </div>
+          )}
 
           <div className="room-wallet-badge">
             <Chip size={18} />
@@ -583,20 +615,28 @@ export function Room({
                 </div>
 
                 <div className="waiting-players-row">
-                  {room.players.map((p) => (
-                    <div key={p.playerId} className={`waiting-player-avatar ${p.ready ? 'is-ready' : ''}`}>
-                      <div className="avatar-disc">
-                        {p.nickname.slice(0, 1)}
-                        {p.ready && <span className="ready-badge">✓</span>}
+                  {room.players.map((p) => {
+                    const media = playerMedia[p.playerId];
+                    return (
+                      <div key={p.playerId} className={`waiting-player-avatar ${p.ready ? 'is-ready' : ''}`}>
+                        <div className="avatar-disc avatar-disc--framed">
+                          <AvatarWithFrame
+                            nickname={p.nickname}
+                            avatar={media?.avatar}
+                            frameId={media?.equippedFrame}
+                            size={58}
+                          />
+                          {p.ready && <span className="ready-badge">✓</span>}
+                        </div>
+                        <span className="avatar-name">{p.nickname}</span>
+                        {p.isBot && (
+                          <em className="waiting-bot-badge is-high">
+                            大师AI
+                          </em>
+                        )}
                       </div>
-                      <span className="avatar-name">{p.nickname}</span>
-                      {p.isBot && (
-                        <em className="waiting-bot-badge is-high">
-                          大师AI
-                        </em>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                   {Array.from({ length: Math.max(0, room.maxPlayers - room.players.length) }).map((_, idx) => (
                     <div key={`empty-${idx}`} className="waiting-player-avatar is-empty">
                       <div className="avatar-disc empty-disc">
@@ -710,28 +750,34 @@ export function Room({
               </button>
             </div>
             <ul className="drawer-player-list">
-              {room.players.map((p) => (
-                <li key={p.playerId} className={`drawer-player-item ${p.playerId === myId ? 'is-me' : ''}`}>
-                  <span className={`drawer-avatar ${p.isBot ? 'is-bot' : ''}`}>
-                    {p.nickname.slice(0, 1)}
-                  </span>
-                  <div className="drawer-meta">
-                    <span className="drawer-name">
-                      {p.nickname}
-                      {p.playerId === room.hostId && <em className="tag-host">房主</em>}
-                      {p.isBot && (
-                        <em className="tag-bot tag-bot--high">
-                          大师AI
-                        </em>
-                      )}
+              {room.players.map((p) => {
+                const media = playerMedia[p.playerId];
+                return (
+                  <li key={p.playerId} className={`drawer-player-item ${p.playerId === myId ? 'is-me' : ''}`}>
+                    <AvatarWithFrame
+                      nickname={p.nickname}
+                      avatar={media?.avatar}
+                      frameId={media?.equippedFrame}
+                      size={38}
+                    />
+                    <div className="drawer-meta">
+                      <span className="drawer-name">
+                        {p.nickname}
+                        {p.playerId === room.hostId && <em className="tag-host">房主</em>}
+                        {p.isBot && (
+                          <em className="tag-bot tag-bot--high">
+                            大师AI
+                          </em>
+                        )}
+                      </span>
+                      <span className="drawer-score">积分: {p.score}</span>
+                    </div>
+                    <span className={`drawer-status ${p.ready ? 'is-ready' : ''}`}>
+                      {p.ready ? '已准备' : '等待中'}
                     </span>
-                    <span className="drawer-score">积分: {p.score}</span>
-                  </div>
-                  <span className={`drawer-status ${p.ready ? 'is-ready' : ''}`}>
-                    {p.ready ? '已准备' : '等待中'}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </aside>
         )}

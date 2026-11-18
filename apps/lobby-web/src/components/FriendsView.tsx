@@ -1,24 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, resolveAvatarUrl, type FriendRequestView, type PlayerProfile } from '../api';
+import { api, type FriendRequestView, type PlayerProfile } from '../api';
 import { audio } from '../audio';
+import { AvatarWithFrame } from './AvatarWithFrame';
 import { IconBack, IconUser } from './Icons';
 
 interface Props {
   onBack: () => void;
 }
 
-/** 头像：有自定义图则显示图片，否则用昵称首字 */
+/** 玩家头像（统一佩戴动态头像框） */
 export function PlayerAvatar({ player, size = 44 }: { player: PlayerProfile; size?: number }) {
-  const initial = player.nickname?.slice(0, 1) ?? '牌';
-  const src = resolveAvatarUrl(player.avatar);
   return (
-    <div className="player-avatar" style={{ width: size, height: size, fontSize: size * 0.42 }}>
-      {src ? (
-        <img src={src} alt={player.nickname} draggable={false} loading="lazy" decoding="async" />
-      ) : (
-        <span>{initial}</span>
-      )}
-    </div>
+    <AvatarWithFrame
+      nickname={player.nickname || '牌友'}
+      avatar={player.avatar}
+      frameId={player.equippedFrame ?? 'frame_default'}
+      size={size}
+    />
   );
 }
 
@@ -256,6 +254,7 @@ export function FriendsView({ onBack }: Props) {
                     username: null,
                     bio: request.message ?? '',
                     avatar: request.fromAvatar,
+                    equippedFrame: request.fromEquippedFrame,
                   }}
                   size={44}
                 />
@@ -296,6 +295,7 @@ export function FriendsView({ onBack }: Props) {
                         username: null,
                         bio: '',
                         avatar: request.toAvatar,
+                        equippedFrame: request.toEquippedFrame,
                       }}
                       size={40}
                     />

@@ -13454,3 +13454,348 @@ button.secondary:hover:not(:disabled) {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ==========================================================================
+   全平台尊享动态头像框多维特效系统 (31款 · 流光涡环/双向星轨/能量球/神徽脉冲)
+   ========================================================================== */
+
+.avatar-with-frame-container {
+  --af-c1: #fbbf24;
+  --af-c2: #f59e0b;
+  --af-c3: #fef08a;
+  --af-glow: rgba(251, 191, 36, 0.55);
+  --af-conic: conic-gradient(from 0deg, var(--af-c1), var(--af-c2), var(--af-c3), var(--af-c2), var(--af-c1));
+  --af-speed: 4s;
+  --af-orbit-speed: 6s;
+  overflow: visible !important;
+  isolation: isolate;
+}
+
+.avatar-with-frame-container .avatar-frame-inner {
+  position: relative;
+  width: 84%;
+  height: 84%;
+  z-index: 4;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.55);
+}
+
+/* 1. 外层柔光环境光环（史诗/传说/神话） */
+.avatar-frame-aura {
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--af-glow) 0%, transparent 70%);
+  filter: blur(5px);
+  opacity: 0.72;
+  pointer-events: none;
+  z-index: 1;
+  animation: afAuraPulse 2.4s ease-in-out infinite;
+}
+
+.rarity-mythic .avatar-frame-aura {
+  inset: -22%;
+  opacity: 0.92;
+  filter: blur(7px);
+}
+
+/* 2. 至尊神话脉冲神纹波（28万+ 超神框专属） */
+.avatar-frame-divine-wave {
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  border: 2px solid var(--af-c3);
+  box-shadow: 0 0 14px var(--af-c1), inset 0 0 10px var(--af-c2);
+  pointer-events: none;
+  z-index: 1;
+  animation: afDivineWave 2.2s cubic-bezier(0.16, 0.88, 0.32, 1) infinite;
+}
+
+/* 3. 流光旋转能量涡环（conic-gradient 环形遮罩） */
+.avatar-frame-conic {
+  position: absolute;
+  inset: -4%;
+  border-radius: 50%;
+  background: var(--af-conic);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  pointer-events: none;
+  z-index: 5;
+  animation: afSpin var(--af-speed) linear infinite;
+  filter: drop-shadow(0 0 6px var(--af-glow));
+}
+
+.rarity-legendary .avatar-frame-conic {
+  inset: -6%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+}
+
+.rarity-mythic .avatar-frame-conic {
+  inset: -7%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  filter: drop-shadow(0 0 10px var(--af-c1)) drop-shadow(0 0 18px var(--af-c2));
+}
+
+/* 4. 外环星轨 + 环绕能量粒子（传说 2 颗，神话 4 颗） */
+.avatar-frame-orbit {
+  position: absolute;
+  inset: -13%;
+  border-radius: 50%;
+  border: 1px dashed var(--af-c3);
+  opacity: 0.85;
+  pointer-events: none;
+  z-index: 6;
+  animation: afSpin var(--af-orbit-speed) linear infinite;
+}
+
+.rarity-mythic .avatar-frame-orbit {
+  inset: -16%;
+  border-width: 1.5px;
+  box-shadow: 0 0 12px var(--af-glow);
+}
+
+.avatar-frame-orb {
+  position: absolute;
+  width: clamp(4px, calc(var(--af-size, 44px) * 0.11), 9px);
+  height: clamp(4px, calc(var(--af-size, 44px) * 0.11), 9px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffffff, var(--af-c3) 45%, var(--af-c1) 100%);
+  box-shadow: 0 0 8px #ffffff, 0 0 14px var(--af-c1);
+}
+
+.avatar-frame-orb--1 { top: -3px; left: 50%; transform: translateX(-50%); }
+.avatar-frame-orb--2 { bottom: -3px; left: 50%; transform: translateX(-50%); }
+.avatar-frame-orb--3 { left: -3px; top: 50%; transform: translateY(-50%); }
+.avatar-frame-orb--4 { right: -3px; top: 50%; transform: translateY(-50%); }
+
+/* 5. 神话专属逆向星环法阵 + 闪烁四角星芒 */
+.avatar-frame-orbit-reverse {
+  position: absolute;
+  inset: -21%;
+  border-radius: 50%;
+  border: 1px dotted var(--af-c1);
+  opacity: 0.78;
+  pointer-events: none;
+  z-index: 6;
+  animation: afSpinReverse calc(var(--af-orbit-speed) * 1.35) linear infinite;
+}
+
+.avatar-frame-spark {
+  position: absolute;
+  font-size: clamp(7px, calc(var(--af-size, 44px) * 0.18), 14px);
+  line-height: 1;
+  color: #fffbeb;
+  text-shadow: 0 0 6px #ffffff, 0 0 12px var(--af-c1);
+  animation: afSparkTwinkle 1.4s ease-in-out infinite alternate;
+}
+
+.avatar-frame-spark--1 { top: -4px; right: 12%; }
+.avatar-frame-spark--2 { bottom: -4px; left: 12%; animation-delay: 0.7s; }
+
+/* 顶部浮空神徽增强 */
+.frame-crown-top.is-mythic-crest {
+  filter: drop-shadow(0 0 6px #ffffff) drop-shadow(0 0 12px var(--af-c1));
+  z-index: 9;
+}
+
+/* 31 款头像框专属流光与神辉色板定制 */
+.frame-cyber-neon { --af-c1: #06b6d4; --af-c2: #a855f7; --af-c3: #67e8f9; --af-glow: rgba(6, 182, 212, 0.75); --af-speed: 2.8s; }
+.frame-steampunk { --af-c1: #f59e0b; --af-c2: #92400e; --af-c3: #fde68a; --af-glow: rgba(217, 119, 6, 0.7); --af-speed: 7s; }
+.frame-abyssal-deep { --af-c1: #0284c7; --af-c2: #0ea5e9; --af-c3: #7dd3fc; --af-glow: rgba(14, 165, 233, 0.75); }
+.frame-flame-demon { --af-c1: #ef4444; --af-c2: #f97316; --af-c3: #fef08a; --af-glow: rgba(239, 68, 68, 0.85); --af-speed: 2.4s; }
+.frame-emerald-phoenix { --af-c1: #10b981; --af-c2: #06b6d4; --af-c3: #a7f3d0; --af-glow: rgba(16, 185, 129, 0.78); }
+.frame-amethyst { --af-c1: #a855f7; --af-c2: #ec4899; --af-c3: #e9d5ff; --af-glow: rgba(168, 85, 247, 0.8); }
+
+/* 传说级专属流光涡环 */
+.frame-gold-dragon { --af-c1: #facc15; --af-c2: #b45309; --af-c3: #fffbeb; --af-glow: rgba(250, 204, 21, 0.88); --af-speed: 3.2s; }
+.frame-ice-crown { --af-c1: #38bdf8; --af-c2: #e0f2fe; --af-c3: #ffffff; --af-glow: rgba(56, 189, 248, 0.85); }
+.frame-galaxy-astral {
+  --af-c1: #818cf8; --af-c2: #ec4899; --af-c3: #e0e7ff; --af-glow: rgba(129, 140, 248, 0.9);
+  --af-conic: conic-gradient(from 0deg, #6366f1, #ec4899, #38bdf8, #a855f7, #6366f1);
+  --af-speed: 3.4s;
+}
+.frame-angelic-halo { --af-c1: #fef08a; --af-c2: #ffffff; --af-c3: #fde047; --af-glow: rgba(254, 240, 138, 0.92); }
+.frame-aurora {
+  --af-c1: #2dd4bf; --af-c2: #a855f7; --af-c3: #f43f5e; --af-glow: rgba(45, 212, 191, 0.88);
+  --af-conic: conic-gradient(from 0deg, #2dd4bf, #38bdf8, #a855f7, #f43f5e, #fbbf24, #2dd4bf);
+  --af-speed: 3s;
+}
+.frame-royal-flush { --af-c1: #fbbf24; --af-c2: #dc2626; --af-c3: #fef3c7; --af-glow: rgba(251, 191, 36, 0.88); }
+.frame-royal-diamond {
+  --af-c1: #e2e8f0; --af-c2: #38bdf8; --af-c3: #ffffff; --af-glow: rgba(186, 230, 253, 0.92);
+  --af-conic: conic-gradient(from 0deg, #ffffff, #38bdf8, #1e293b, #e2e8f0, #60a5fa, #ffffff);
+  --af-speed: 2.8s;
+}
+.frame-solar-wings { --af-c1: #f97316; --af-c2: #facc15; --af-c3: #fff7ed; --af-glow: rgba(249, 115, 22, 0.92); --af-speed: 2.6s; }
+.frame-ares-champion { --af-c1: #dc2626; --af-c2: #f59e0b; --af-c3: #fef08a; --af-glow: rgba(220, 38, 38, 0.92); --af-speed: 2.5s; }
+
+/* 神话级 & 百万级至尊神框（极致视觉冲击） */
+.frame-supreme-obsidian {
+  --af-c1: #ffd700; --af-c2: #18181b; --af-c3: #fef08a; --af-glow: rgba(255, 215, 0, 0.95);
+  --af-conic: conic-gradient(from 0deg, #ffd700, #27272a, #fde047, #09090b, #f59e0b, #ffd700);
+  --af-speed: 2.6s; --af-orbit-speed: 5s;
+}
+.frame-god-gambler {
+  --af-c1: #ffd700; --af-c2: #f59e0b; --af-c3: #ffffff; --af-glow: rgba(255, 215, 0, 1);
+  --af-conic: conic-gradient(from 0deg, #ffffff, #ffd700, #d97706, #fef08a, #b45309, #ffffff);
+  --af-speed: 2.2s; --af-orbit-speed: 4.6s;
+}
+.frame-genesis {
+  --af-c1: #f43f5e; --af-c2: #38bdf8; --af-c3: #fde047; --af-glow: rgba(244, 63, 94, 0.95);
+  --af-conic: conic-gradient(from 0deg, #f43f5e, #38bdf8, #ffd700, #a855f7, #f43f5e);
+  --af-speed: 2.4s; --af-orbit-speed: 4.5s;
+}
+.frame-chaos-sovereign {
+  --af-c1: #f59e0b; --af-c2: #dc2626; --af-c3: #fef08a; --af-glow: rgba(245, 158, 11, 0.95);
+  --af-conic: conic-gradient(from 0deg, #fbbf24, #dc2626, #18181b, #f97316, #fef08a, #fbbf24);
+  --af-speed: 2.2s; --af-orbit-speed: 4.2s;
+}
+.frame-eternal-abyss {
+  --af-c1: #a855f7; --af-c2: #e11d48; --af-c3: #f0abfc; --af-glow: rgba(168, 85, 247, 0.96);
+  --af-conic: conic-gradient(from 0deg, #9333ea, #e11d48, #3b0764, #c084fc, #f43f5e, #9333ea);
+  --af-speed: 2.1s; --af-orbit-speed: 4.2s;
+}
+.frame-sun-ra {
+  --af-c1: #fbbf24; --af-c2: #ea580c; --af-c3: #ffffff; --af-glow: rgba(251, 191, 36, 1);
+  --af-conic: conic-gradient(from 0deg, #ffffff, #fde047, #f97316, #dc2626, #fbbf24, #ffffff);
+  --af-speed: 2s; --af-orbit-speed: 4s;
+}
+.frame-celestial-emperor {
+  --af-c1: #ffd700; --af-c2: #9333ea; --af-c3: #fef9c3; --af-glow: rgba(255, 215, 0, 1);
+  --af-conic: conic-gradient(from 0deg, #ffd700, #a855f7, #ffffff, #eab308, #7e22ce, #ffd700);
+  --af-speed: 2.1s; --af-orbit-speed: 4s;
+}
+.frame-time-space-rift {
+  --af-c1: #06b6d4; --af-c2: #8b5cf6; --af-c3: #f472b6; --af-glow: rgba(6, 182, 212, 0.98);
+  --af-conic: conic-gradient(from 0deg, #06b6d4, #8b5cf6, #ec4899, #22d3ee, #6366f1, #06b6d4);
+  --af-speed: 1.9s; --af-orbit-speed: 3.8s;
+}
+.frame-asura-wrath {
+  --af-c1: #ef4444; --af-c2: #f97316; --af-c3: #fecaca; --af-glow: rgba(220, 38, 38, 1);
+  --af-conic: conic-gradient(from 0deg, #ff2a2a, #1c0505, #f97316, #fde047, #b91c1c, #ff2a2a);
+  --af-speed: 1.8s; --af-orbit-speed: 3.6s;
+}
+.frame-primordial-star {
+  --af-c1: #38bdf8; --af-c2: #ec4899; --af-c3: #facc15; --af-glow: rgba(56, 189, 248, 0.98);
+  --af-conic: conic-gradient(from 0deg, #38bdf8, #ec4899, #facc15, #818cf8, #ffffff, #38bdf8);
+  --af-speed: 2s; --af-orbit-speed: 3.8s;
+}
+.frame-dominion-throne {
+  --af-c1: #ffffff; --af-c2: #eab308; --af-c3: #fef08a; --af-glow: rgba(255, 255, 255, 0.98);
+  --af-conic: conic-gradient(from 0deg, #ffffff, #fde047, #ca8a04, #ffffff, #f59e0b, #ffffff);
+  --af-speed: 1.8s; --af-orbit-speed: 3.5s;
+}
+.frame-supernova-burst {
+  --af-c1: #f43f5e; --af-c2: #fbbf24; --af-c3: #ffffff; --af-glow: rgba(244, 63, 94, 1);
+  --af-conic: conic-gradient(from 0deg, #ffffff, #f43f5e, #fbbf24, #e11d48, #ffffff, #f43f5e);
+  --af-speed: 1.6s; --af-orbit-speed: 3.2s;
+}
+.frame-omniverse-god {
+  --af-c1: #a855f7; --af-c2: #38bdf8; --af-c3: #ffffff; --af-glow: rgba(168, 85, 247, 1);
+  --af-conic: conic-gradient(from 0deg, #ff3b8d, #ffd700, #22d3ee, #a855f7, #ffffff, #ff3b8d);
+  --af-speed: 1.5s; --af-orbit-speed: 3s;
+}
+
+@keyframes afSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes afSpinReverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes afAuraPulse {
+  0%, 100% { transform: scale(0.95); opacity: 0.65; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+@keyframes afDivineWave {
+  0% { transform: scale(0.92); opacity: 0.9; }
+  100% { transform: scale(1.52); opacity: 0; }
+}
+
+@keyframes afSparkTwinkle {
+  0% { transform: scale(0.75); opacity: 0.55; }
+  100% { transform: scale(1.3); opacity: 1; }
+}
+
+/* 商城预览区特效说明与容器增强 */
+.preview-fx-caption {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: #fde68a;
+  text-align: center;
+  opacity: 0.92;
+  max-width: 240px;
+  line-height: 1.4;
+}
+
+/* 个人中心佩戴头像框 + 更换头像框按钮 */
+.profile-large-avatar--framed {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 6px;
+}
+
+.profile-avatar-btn-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.btn-change-avatar-pill.is-frame {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(168, 85, 247, 0.25));
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+}
+
+.btn-change-avatar-pill.is-frame:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.42), rgba(168, 85, 247, 0.38));
+}
+
+/* 房间顶栏 / 等待室 / 牌桌座位头像框容器清洁适配 */
+.room-self-avatar-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+.avatar-disc--framed {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.seat__avatar--framed {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.showdown__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.mj3d-avatar-portrait--framed {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  width: 56px;
+  height: 56px;
+}

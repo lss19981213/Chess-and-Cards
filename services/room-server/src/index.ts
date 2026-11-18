@@ -499,7 +499,17 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
           : 2;
       const roomId = typeof payload.roomId === 'string' ? payload.roomId : undefined;
       const create = payload.create === true;
-      const player = { playerId: session.playerId, nickname: session.nickname ?? '玩家' };
+      const avatar = typeof payload.avatar === 'string' && payload.avatar.length <= 512 ? payload.avatar : null;
+      const equippedFrame =
+        typeof payload.equippedFrame === 'string' && /^frame_[a-z0-9_]+$/i.test(payload.equippedFrame)
+          ? payload.equippedFrame
+          : 'frame_default';
+      const player = {
+        playerId: session.playerId,
+        nickname: session.nickname ?? '玩家',
+        avatar,
+        equippedFrame,
+      };
 
       let room;
       if (roomId) {

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { AvatarWithFrame } from './AvatarWithFrame';
 
 /**
  * 顶级横屏移动端牌桌舞台：
@@ -90,10 +91,12 @@ export function TableStage({ seats, center, bottom, watermark, className = '' }:
   );
 }
 
-/** 奢华对手座位卡：带金属流光环、状态徽章、倒计时呼吸圈 */
+/** 奢华对手座位卡：带金属流光环、动态头像框、状态徽章、倒计时呼吸圈 */
 export function SeatPanel({
   nickname,
   initial,
+  avatar,
+  frameId,
   badge,
   meta,
   active,
@@ -102,6 +105,8 @@ export function SeatPanel({
 }: {
   nickname: string;
   initial: string;
+  avatar?: string | null;
+  frameId?: string;
   badge?: ReactNode;
   meta: ReactNode;
   active?: boolean;
@@ -112,8 +117,13 @@ export function SeatPanel({
     <div className={`seat seat--luxury ${active ? 'is-turn' : ''}`}>
       <div className="seat__avatar-box">
         {active && <div className="seat__turn-glow" />}
-        <div className={`seat__avatar ${isBot ? 'is-bot' : ''}`}>
-          <span>{initial}</span>
+        <div className={`seat__avatar seat__avatar--framed ${isBot ? 'is-bot' : ''}`}>
+          <AvatarWithFrame
+            nickname={nickname || initial}
+            avatar={avatar}
+            frameId={frameId ?? 'frame_default'}
+            size={44}
+          />
           {isBot && <span className="seat__bot-tag">人机</span>}
         </div>
       </div>

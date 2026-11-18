@@ -45,10 +45,11 @@ interface Props {
   myId: string;
   status: string;
   balance: number;
+  playerMedia?: Record<string, { avatar?: string | null; equippedFrame?: string }>;
   onAction: (cmd: string, amount?: number) => void;
 }
 
-export function Texas({ snapshot, myId, status, balance, onAction }: Props) {
+export function Texas({ snapshot, myId, status, balance, playerMedia, onAction }: Props) {
   const data = snapshot as unknown as TexasSnapshot | undefined;
   const [raiseAdd, setRaiseAdd] = useState(100);
 
@@ -95,6 +96,8 @@ export function Texas({ snapshot, myId, status, balance, onAction }: Props) {
           <SeatPanel
             nickname={player.nickname}
             initial={player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
+            avatar={playerMedia?.[player.playerId]?.avatar}
+            frameId={playerMedia?.[player.playerId]?.equippedFrame}
             isBot={player.nickname.startsWith('🤖')}
             badge={player.isDealer ? <em className="badge-dealer">D</em> : null}
             active={data.turn === player.playerId}
