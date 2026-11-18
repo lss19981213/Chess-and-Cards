@@ -4041,9 +4041,23 @@ html, body, #root {
   margin: 6px 0;
 }
 
-.bj-bet-zones {
-  display: flex;
-  gap: 8px;
+.bj-bet-zones,
+.bj-bet-zones--prominent {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  width: min(94%, 860px);
+  margin: 16px auto;
+  justify-content: center;
+}
+
+@media (max-width: 720px) {
+  .bj-bet-zones,
+  .bj-bet-zones--prominent {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 96%;
+  }
 }
 
 /* 牛牛专用 */
