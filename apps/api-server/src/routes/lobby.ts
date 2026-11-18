@@ -212,15 +212,19 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     return { reward: task.reward, balance: newBalance, tasks: await buildTasks(repo, claims.sub, newBalance) };
   });
 
-  // 打赏荷官：真实扣减筹码并推进当日打赏任务
+  // 打赏荷官：支持多数量批量打赏，真实扣减筹码并推进打赏任务与好感度
   app.post('/api/tip-dealer', async (req) => {
     const claims = authHeader(req);
     const body = (req.body ?? {}) as Record<string, unknown>;
+    const quantity = body.quantity === undefined ? 1 : Math.floor(Number(body.quantity));
     const amount = Math.floor(Number(body.amount ?? 0));
-    const giftName = String(body.giftName ?? '礼物').slice(0, 20);
+    const giftName = String(body.giftName ?? '礼物').slice(0, 24);
 
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 5_000) {
-      throw httpError('打赏金额不合法，单次打赏上限为 5,000 筹码', 400);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+      throw httpError('打赏道具数量需在 1 ~ 999 之间', 400);
+    }
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 5_000 * 999 || amount / quantity > 5_000) {
+      throw httpError('打赏金额不合法，单个道具上限 5,000 筹码，单次最多 999 个', 400);
     }
 
     const balance = await repo.getBalance(claims.sub, 'coin');
@@ -236,11 +240,11 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
       }
       throw error;
     }
-    await repo.bumpTask(claims.sub, 'daily_tip', periodKeyFor('daily'), 1);
-    await repo.bumpTask(claims.sub, 'total_tip', 'all', 1);
+    await repo.bumpTask(claims.sub, 'daily_tip', periodKeyFor('daily'), quantity);
+    await repo.bumpTask(claims.sub, 'total_tip', 'all', quantity);
     const affection = await repo.addDealerAffection(claims.sub, amount);
 
-    return { ok: true, balance: newBalance, amount, giftName, affection };
+    return { ok: true, balance: newBalance, amount, giftName, quantity, affection };
   });
 
   app.get('/api/leaderboard', async (req) => {

@@ -255,11 +255,14 @@ export const api = {
   records: () => request<{ records: unknown[] }>('/api/records?limit=20'),
 
   tasks: () => request<{ balance: number; tasks: TaskView[] }>('/api/tasks'),
-  tipDealer: (amount: number, giftName?: string) =>
-    request<{ ok: boolean; balance: number; amount: number; giftName: string; affection: number }>('/api/tip-dealer', {
-      method: 'POST',
-      body: JSON.stringify({ amount, giftName }),
-    }),
+  tipDealer: (amount: number, giftName?: string, quantity = 1) =>
+    request<{ ok: boolean; balance: number; amount: number; giftName: string; quantity: number; affection: number }>(
+      '/api/tip-dealer',
+      {
+        method: 'POST',
+        body: JSON.stringify({ amount, giftName, quantity }),
+      },
+    ),
   claimTask: (key: string) =>
     request<{ reward: number; balance: number; tasks: TaskView[] }>('/api/tasks/claim', {
       method: 'POST',
