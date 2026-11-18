@@ -22,6 +22,10 @@ namespace CcGmClient
         private bool _isConnected = false;
         private PlayerItem? _selectedPlayer;
         private RoomItem? _selectedRoom;
+        private List<GameCategoryItem> _categories = new();
+        private Dictionary<string, string> _gameCategoryMap = new();
+        private List<GameMetaItem> _allGames = new();
+        private GameAssignmentRow? _selectedGameAssignment;
 
         public MainWindow()
         {
@@ -196,6 +200,7 @@ namespace CcGmClient
             ViewPlayers.Visibility = tag == "players" ? Visibility.Visible : Visibility.Collapsed;
             ViewRooms.Visibility = tag == "rooms" ? Visibility.Visible : Visibility.Collapsed;
             ViewSlots.Visibility = tag == "slots" ? Visibility.Visible : Visibility.Collapsed;
+            ViewCategories.Visibility = tag == "categories" ? Visibility.Visible : Visibility.Collapsed;
             ViewMailbox.Visibility = tag == "mailbox" ? Visibility.Visible : Visibility.Collapsed;
             ViewBroadcast.Visibility = tag == "broadcast" ? Visibility.Visible : Visibility.Collapsed;
             ViewSecurity.Visibility = tag == "security" ? Visibility.Visible : Visibility.Collapsed;
@@ -206,7 +211,8 @@ namespace CcGmClient
                 "dashboard" => "📊 大盘总览与经济流动",
                 "players" => "👥 玩家管控与流水审计",
                 "rooms" => "🎲 房间实时透视与博弈管控",
-                "slots" => "🎰 老虎机经营数据与实时流水",
+                "slots" => "🎰 老虎机经营数据与概率调控",
+                "categories" => "🗂️ 大厅游戏分类与归属动态配置",
                 "mailbox" => "📬 全服邮箱发放与筹码直赠",
                 "broadcast" => "📢 即时跑马灯与系统公告",
                 "security" => "🛡️ 安全风控机制与解限",
@@ -257,6 +263,9 @@ namespace CcGmClient
                         break;
                     case "slots":
                         await RefreshSlotsAnalyticsAsync();
+                        break;
+                    case "categories":
+                        await RefreshCategoriesAsync();
                         break;
                     case "mailbox":
                         await RefreshMailsAsync();
@@ -445,10 +454,11 @@ namespace CcGmClient
             }
         }
 
-        // ==================== 1.5 老虎机经营数据 (Slots Analytics) ====================
+        // ==================== 1.5 老虎机经营数据与概率调控 (Slots Analytics) ====================
         private async Task RefreshSlotsAnalyticsAsync()
         {
-            var data = await _api.GetSlotsAnalyticsAsync(60);
+            var full = await _api.GetSlotsAnalyticsFullAsync(60);
+            var data = full.Analytics ?? new SlotsAnalytics();
             var today = data.Today;
             var total = data.Total;
 
@@ -472,8 +482,77 @@ namespace CcGmClient
             KpiSlotsTotalRtp.Text = $"{total.RtpPercent:F2}%";
             KpiSlotsTotalJackpots.Text = $"历史大奖总计: {total.Jackpots:N0} 次";
 
+            if (full.Config != null &&
+                !TxtSlotsHitRate.IsKeyboardFocused &&
+                !TxtSlotsPayoutMult.IsKeyboardFocused &&
+                !TxtSlotsJackpotRate.IsKeyboardFocused)
+            {
+                TxtSlotsHitRate.Text = full.Config.HitRatePercent.ToString("0.#");
+                TxtSlotsPayoutMult.Text = full.Config.PayoutMultiplier.ToString("0.##");
+                TxtSlotsJackpotRate.Text = full.Config.JackpotRatePercent.ToString("0.##");
+            }
+
             DgSlotsPlayers.ItemsSource = data.TopPlayers;
             DgSlotsRecent.ItemsSource = data.RecentSpins;
+        }
+
+        private void BtnSlotsPreset_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn || btn.Tag is not string raw) return;
+            var parts = raw.Split(',');
+            if (parts.Length == 3)
+            {
+                TxtSlotsHitRate.Text = parts[0];
+                TxtSlotsPayoutMult.Text = parts[1];
+                TxtSlotsJackpotRate.Text = parts[2];
+            }
+        }
+
+        private async void BtnSaveSlotsConfig_Click(object sender, RoutedEventArgs e)
+        {
+            if (!double.TryParse(TxtSlotsHitRate.Text.Trim(), out var hitRate) || hitRate < 0 || hitRate > 95)
+            {
+                MessageBox.Show("中奖概率需在 0 ~ 95 (%) 之间", "参数提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!double.TryParse(TxtSlotsPayoutMult.Text.Trim(), out var mult) || mult < 0.2 || mult > 3.0)
+            {
+                MessageBox.Show("派彩倍率系数需在 0.2 ~ 3.0 之间", "参数提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!double.TryParse(TxtSlotsJackpotRate.Text.Trim(), out var jpRate) || jpRate < 0 || jpRate > 20)
+            {
+                MessageBox.Show("超级大奖概率需在 0 ~ 20 (%) 之间", "参数提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                BtnSaveSlotsConfig.IsEnabled = false;
+                var saved = await _api.UpdateSlotsConfigAsync(new SlotsConfigModel
+                {
+                    HitRatePercent = hitRate,
+                    PayoutMultiplier = mult,
+                    JackpotRatePercent = jpRate
+                });
+                TxtSlotsHitRate.Text = saved.HitRatePercent.ToString("0.#");
+                TxtSlotsPayoutMult.Text = saved.PayoutMultiplier.ToString("0.##");
+                TxtSlotsJackpotRate.Text = saved.JackpotRatePercent.ToString("0.##");
+                SetStatus($"老虎机概率已保存生效：中奖率 {saved.HitRatePercent}% · 倍率 {saved.PayoutMultiplier}x · 大奖率 {saved.JackpotRatePercent}%");
+                MessageBox.Show(
+                    $"老虎机中奖概率已更新并即时生效！\n\n• 中奖概率：{saved.HitRatePercent}%\n• 派彩倍率：{saved.PayoutMultiplier}x\n• 超级大奖概率：{saved.JackpotRatePercent}%",
+                    "保存成功",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"保存老虎机概率失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnSaveSlotsConfig.IsEnabled = true;
+            }
         }
 
         private async void BtnRefreshSlots_Click(object sender, RoutedEventArgs e)
@@ -484,6 +563,186 @@ namespace CcGmClient
                 return;
             }
             await RefreshCurrentViewAsync();
+        }
+
+        // ==================== 1.6 游戏分类动态管理 (Categories) ====================
+        private async Task RefreshCategoriesAsync()
+        {
+            var res = await _api.GetGameCategoriesAsync();
+            _categories = res.Categories.OrderBy(c => c.Key == "all" ? -1 : c.SortOrder).ToList();
+            _gameCategoryMap = new Dictionary<string, string>(res.GameCategoryMap);
+            _allGames = res.Games.Where(g => g.GameId != "slots").ToList();
+            RenderCategoriesTables();
+        }
+
+        private void RenderCategoriesTables()
+        {
+            DgCategories.ItemsSource = null;
+            DgCategories.ItemsSource = _categories.OrderBy(c => c.Key == "all" ? -1 : c.SortOrder).ToList();
+
+            var assignable = _categories.Where(c => c.Key != "all").OrderBy(c => c.SortOrder).ToList();
+            CmbAssignCategory.ItemsSource = assignable;
+
+            var catMap = _categories.ToDictionary(c => c.Key, c => $"{c.Icon} {c.Label}");
+            var gameIds = new HashSet<string>(_allGames.Select(g => g.GameId));
+            foreach (var k in _gameCategoryMap.Keys)
+            {
+                if (k != "slots") gameIds.Add(k);
+            }
+
+            var nameLookup = _allGames.ToDictionary(g => g.GameId, g => g.Name);
+            var rows = gameIds
+                .OrderBy(id => _gameCategoryMap.TryGetValue(id, out var ck) ? ck : "zzz")
+                .ThenBy(id => id)
+                .Select(id =>
+                {
+                    var ck = _gameCategoryMap.TryGetValue(id, out var mapped) ? mapped : "all";
+                    return new GameAssignmentRow
+                    {
+                        GameId = id,
+                        GameName = nameLookup.TryGetValue(id, out var nm) ? nm : id,
+                        CategoryKey = ck,
+                        CategoryLabel = catMap.TryGetValue(ck, out var lbl) ? $"{lbl} ({ck})" : ck
+                    };
+                })
+                .ToList();
+
+            DgGameAssignments.ItemsSource = rows;
+        }
+
+        private void DgCategories_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DgCategories.SelectedItem is not GameCategoryItem item) return;
+            TxtCatKey.Text = item.Key;
+            TxtCatIcon.Text = item.Icon;
+            TxtCatLabel.Text = item.Label;
+            TxtCatBadge.Text = item.Badge ?? "";
+            TxtCatSort.Text = item.SortOrder.ToString();
+        }
+
+        private void BtnUpsertCategory_Click(object sender, RoutedEventArgs e)
+        {
+            var key = TxtCatKey.Text.Trim().ToLowerInvariant();
+            var label = TxtCatLabel.Text.Trim();
+            var icon = string.IsNullOrWhiteSpace(TxtCatIcon.Text) ? "🎮" : TxtCatIcon.Text.Trim();
+            var badge = string.IsNullOrWhiteSpace(TxtCatBadge.Text) ? null : TxtCatBadge.Text.Trim();
+            if (!int.TryParse(TxtCatSort.Text.Trim(), out var sortOrder)) sortOrder = _categories.Count;
+
+            if (string.IsNullOrEmpty(key) || !System.Text.RegularExpressions.Regex.IsMatch(key, "^[a-z0-9_-]{1,24}$"))
+            {
+                MessageBox.Show("分类标识 Key 仅支持 1-24 位小写字母、数字、下划线或短横线（如 mahjong）", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (string.IsNullOrEmpty(label))
+            {
+                MessageBox.Show("请输入分类显示名称（如 雀神麻将）", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var existing = _categories.FirstOrDefault(c => c.Key == key);
+            if (existing != null)
+            {
+                existing.Label = label;
+                existing.Icon = icon;
+                existing.Badge = badge;
+                existing.SortOrder = sortOrder;
+            }
+            else
+            {
+                _categories.Add(new GameCategoryItem
+                {
+                    Key = key,
+                    Label = label,
+                    Icon = icon,
+                    Badge = badge,
+                    SortOrder = sortOrder
+                });
+            }
+
+            RenderCategoriesTables();
+            SetStatus($"已本地更新分类「{icon} {label}」，请点击右上角「💾 保存并同步到大厅」生效");
+        }
+
+        private void BtnDeleteCategory_Click(object sender, RoutedEventArgs e)
+        {
+            if (DgCategories.SelectedItem is not GameCategoryItem item)
+            {
+                MessageBox.Show("请先在左侧列表选中要删除的分类", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (item.Key == "all")
+            {
+                MessageBox.Show("「全部热门 (all)」为系统默认分类，不可删除", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _categories.RemoveAll(c => c.Key == item.Key);
+            var fallback = _categories.FirstOrDefault(c => c.Key != "all")?.Key ?? "all";
+            foreach (var k in _gameCategoryMap.Keys.ToList())
+            {
+                if (_gameCategoryMap[k] == item.Key) _gameCategoryMap[k] = fallback;
+            }
+
+            RenderCategoriesTables();
+            SetStatus($"已本地移除分类「{item.Label}」，请点击「💾 保存并同步到大厅」生效");
+        }
+
+        private void DgGameAssignments_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DgGameAssignments.SelectedItem is not GameAssignmentRow row) return;
+            _selectedGameAssignment = row;
+            TxtSelectedGameAssign.Text = $"当前选中: {row.GameName} ({row.GameId})";
+            CmbAssignCategory.SelectedValue = row.CategoryKey;
+        }
+
+        private void BtnApplyGameCategory_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedGameAssignment == null)
+            {
+                MessageBox.Show("请先在右侧列表选中一款游戏", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (CmbAssignCategory.SelectedValue is not string targetKey || string.IsNullOrEmpty(targetKey))
+            {
+                MessageBox.Show("请选择目标分类", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _gameCategoryMap[_selectedGameAssignment.GameId] = targetKey;
+            RenderCategoriesTables();
+            SetStatus($"已将「{_selectedGameAssignment.GameName}」划归分类 {targetKey}，请点击「💾 保存并同步到大厅」生效");
+        }
+
+        private async void BtnRefreshCategories_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isConnected)
+            {
+                await ConnectServerAsync();
+                return;
+            }
+            await RefreshCurrentViewAsync();
+        }
+
+        private async void BtnSaveCategories_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                BtnSaveCategories.IsEnabled = false;
+                var saved = await _api.UpdateGameCategoriesAsync(_categories, _gameCategoryMap);
+                _categories = saved.Categories.OrderBy(c => c.Key == "all" ? -1 : c.SortOrder).ToList();
+                _gameCategoryMap = new Dictionary<string, string>(saved.GameCategoryMap);
+                RenderCategoriesTables();
+                SetStatus($"游戏分类配置已保存（共 {_categories.Count} 个分类），大厅已同步生效！");
+                MessageBox.Show("游戏分类配置已保存并同步到玩家大厅！", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"保存游戏分类失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnSaveCategories.IsEnabled = true;
+            }
         }
 
         // ==================== 2. 玩家管控与流水 (Players) ====================

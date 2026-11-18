@@ -109,6 +109,8 @@ export class MemoryRepository implements Repository {
     winningLines: number;
     createdAt: number;
   }> = [];
+  /** 动态运营配置（游戏分类、老虎机概率等） */
+  private readonly settings = new Map<string, unknown>();
   /** 系统与运营邮件 */
   private readonly mails = new Map<string, MailRecord>();
   /** 玩家邮件阅读与领奖状态：`${mailId}|${userId}` */
@@ -1176,6 +1178,15 @@ export class MemoryRepository implements Repository {
       topPlayers,
       recentSpins,
     };
+  }
+
+  async getSetting<T>(key: string): Promise<T | null> {
+    if (!this.settings.has(key)) return null;
+    return this.settings.get(key) as T;
+  }
+
+  async setSetting<T>(key: string, value: T): Promise<void> {
+    this.settings.set(key, value);
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {

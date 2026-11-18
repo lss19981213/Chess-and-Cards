@@ -8,7 +8,7 @@ function IconBolt() {
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeLevelInfo, DEALER_VOICES, type Announcement, type BotDifficulty, type GameMeta } from '@cc/protocol';
-import { api, fantasyClawOAuthStartUrl, type User } from '../api';
+import { api, fantasyClawOAuthStartUrl, type GameCategoryDef, type User } from '../api';
 import { audio } from '../audio';
 import { speakDealerQuote } from '../speech';
 import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART, HERO_BG } from '../assets';
@@ -49,25 +49,33 @@ interface Props {
   onUserUpdate?: (patch: Partial<User>) => void;
 }
 
-type CategoryKey = 'all' | 'live' | 'cards' | 'chess';
-
-interface TabItem {
-  key: CategoryKey;
-  label: string;
-  icon: string;
-  badge?: string;
-}
-
-const TABS: TabItem[] = [
-  { key: 'all', label: '全部热门', icon: '🔥', badge: '13款' },
-  { key: 'live', label: '百人竞技', icon: '🎰', badge: '火爆' },
-  { key: 'cards', label: '经典扑克', icon: '♠️' },
-  { key: 'chess', label: '智谋对弈', icon: '♟️' },
+const DEFAULT_TABS: GameCategoryDef[] = [
+  { key: 'all', label: '全部热门', icon: '🔥', sortOrder: 0 },
+  { key: 'live', label: '百人竞技', icon: '🎰', badge: '火爆', sortOrder: 1 },
+  { key: 'cards', label: '经典扑克', icon: '♠️', sortOrder: 2 },
+  { key: 'mahjong', label: '雀神麻将', icon: '🀄', badge: '热门', sortOrder: 3 },
+  { key: 'chess', label: '智谋对弈', icon: '♟️', sortOrder: 4 },
 ];
 
-const LIVE_GAMES = new Set(['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack']);
-const CARD_GAMES = new Set(['doudizhu', 'paodekuai', 'texas', 'stud', 'goldenflower']);
-const CHESS_GAMES = new Set(['xiangqi', 'gomoku', 'chess']);
+const DEFAULT_GAME_CATEGORY_MAP: Record<string, string> = {
+  tuizhuanzi: 'live',
+  dice: 'live',
+  baccarat: 'live',
+  niuniu: 'live',
+  blackjack: 'live',
+  doudizhu: 'cards',
+  paodekuai: 'cards',
+  texas: 'cards',
+  stud: 'cards',
+  goldenflower: 'cards',
+  'cs-mahjong': 'mahjong',
+  'sc-mahjong': 'mahjong',
+  'gd-mahjong': 'mahjong',
+  'guobiao-mahjong': 'mahjong',
+  xiangqi: 'chess',
+  gomoku: 'chess',
+  chess: 'chess',
+};
 
 /** 荷官与卡片 Hover 联动台词库 */
 const GAME_DEALER_QUOTES: Record<string, string> = {
@@ -79,6 +87,10 @@ const GAME_DEALER_QUOTES: Record<string, string> = {
   texas: '“All-in！看穿对手底牌，主人就是今晚叱咤风云的德州赌神！♠️”',
   goldenflower: '“闷抓看底，胆识与魄力的巅峰较量，快来试试主人今天的手气吧！🔥”',
   stud: '“一张底牌定乾坤，同花顺在向主人招手哦！🕶️”',
+  'cs-mahjong': '“长沙麻将开门抓鸟！258硬将、将将胡、七小对，祝主人把把自摸中大鸟！🀄”',
+  'sc-mahjong': '“四川血战麻将火辣开桌！清一色龙七对高番翻倍，艾莉丝陪主人血战到底！🌶️”',
+  'gd-mahjong': '“广东推倒胡极速成胡，胡牌豪买四匹马！中马翻倍赢到手软哦～🐎”',
+  'guobiao-mahjong': '“正宗大众国标麻将开席！碰碰胡、清一色、门清自摸，谁才是今晚真雀神？👑”',
   tuizhuanzi: '“万人推筒子正热烈开奖中！主人快去压天门试试手气～🎲”',
   niuniu: '“极速三张算牛，单注押牛一至牛牛，高倍奖池火爆开奖！🐂✨”',
   blackjack: '“Blackjack 豪华双倍！艾莉丝亲手给主人发黑杰克～🎩”',
@@ -90,6 +102,10 @@ const GAME_DEALER_QUOTES: Record<string, string> = {
 const LIVE_HEAT_MAP: Record<string, string> = {
   tuizhuanzi: '🎰 5,690 人同台',
   doudizhu: '🔥 4,320 人在线',
+  'cs-mahjong': '🀄 3,960 人搓麻',
+  'sc-mahjong': '🌶️ 4,180 人血战',
+  'gd-mahjong': '🐎 3,120 人买马',
+  'guobiao-mahjong': '👑 2,540 人竞技',
   niuniu: '🔥 3,850 人在玩',
   blackjack: '🎩 3,210 人在玩',
   paodekuai: '⚡ 2,780 人激战',
@@ -115,6 +131,10 @@ const STAKES_MAP: Record<string, string> = {
   texas: '💰 小盲 5 / 大盲 10 · 准入 200 豆',
   goldenflower: '💰 底分 10 豆 · 准入 100 豆',
   stud: '💰 底分 10 豆 · 准入 100 豆',
+  'cs-mahjong': '💰 底分 100 豆 · 258硬将抓2鸟',
+  'sc-mahjong': '💰 底分 150 豆 · 血战高番翻倍',
+  'gd-mahjong': '💰 底分 100 豆 · 推倒胡买4马',
+  'guobiao-mahjong': '💰 底分 120 豆 · 国标竞技番型',
   gomoku: '💰 胜负 100 豆 · 准入 100 豆',
   xiangqi: '💰 胜负 100 豆 · 准入 100 豆',
   chess: '💰 胜负 100 豆 · 准入 100 豆',
@@ -139,7 +159,9 @@ export function Lobby({
   onBalanceChange,
   onUserUpdate,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<CategoryKey>('all');
+  const [activeTab, setActiveTab] = useState<string>('all');
+  const [categories, setCategories] = useState<GameCategoryDef[]>(DEFAULT_TABS);
+  const [gameCategoryMap, setGameCategoryMap] = useState<Record<string, string>>(DEFAULT_GAME_CATEGORY_MAP);
   const [musicOn, setMusicOn] = useState(audio.musicOn);
   const [sfxOn, setSfxOn] = useState(audio.sfxOn);
   const [trackName, setTrackName] = useState(audio.trackName);
@@ -168,8 +190,25 @@ export function Lobby({
         .then((data) => setAnnouncements(data.announcements ?? []))
         .catch(() => undefined);
     };
+    const loadCategories = () => {
+      void api
+        .gameCategories()
+        .then((cfg) => {
+          if (Array.isArray(cfg.categories) && cfg.categories.length > 0) {
+            setCategories(cfg.categories);
+          }
+          if (cfg.gameCategoryMap && typeof cfg.gameCategoryMap === 'object') {
+            setGameCategoryMap(cfg.gameCategoryMap);
+          }
+        })
+        .catch(() => undefined);
+    };
     load();
-    const timer = window.setInterval(load, 30_000);
+    loadCategories();
+    const timer = window.setInterval(() => {
+      load();
+      loadCategories();
+    }, 30_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -199,17 +238,18 @@ export function Lobby({
   }, [user?.dealerVoice]);
 
   const filteredGames = useMemo(() => {
-    if (activeTab === 'live') {
-      return games.filter((g) => (LIVE_GAMES.has(g.gameId) || g.persistent) && g.gameId !== 'slots');
+    // 大厅九宫格不展示独立顶部入口的老虎机
+    const visibleGames = games.filter((g) => g.gameId !== 'slots');
+    if (activeTab === 'all') {
+      return visibleGames;
     }
-    if (activeTab === 'cards') {
-      return games.filter((g) => CARD_GAMES.has(g.gameId));
-    }
-    if (activeTab === 'chess') {
-      return games.filter((g) => CHESS_GAMES.has(g.gameId));
-    }
-    return games;
-  }, [games, activeTab]);
+    return visibleGames.filter((g) => {
+      const mapped = gameCategoryMap[g.gameId];
+      if (mapped) return mapped === activeTab;
+      if (activeTab === 'live') return Boolean(g.persistent);
+      return g.category === activeTab;
+    });
+  }, [games, activeTab, gameCategoryMap]);
 
   // 九宫格分页状态：固定 3x3 (9 款游戏/页)
   const [gridPage, setGridPage] = useState(0);
@@ -531,10 +571,14 @@ export function Lobby({
 
       {/* ================= 2. 商业级大厅主视口 (满幅展开，零上下黑边) ================= */}
       <main className="commercial-lobby-stage">
-        {/* 左侧专区快捷选项卡 */}
+        {/* 左侧专区快捷选项卡（支持 GM 端动态配置分类） */}
         <nav className="commercial-nav-rail">
-          {TABS.map((tab) => {
+          {categories.map((tab) => {
             const active = activeTab === tab.key;
+            const dynamicBadge =
+              tab.key === 'all' && !tab.badge
+                ? `${games.filter((g) => g.gameId !== 'slots').length}款`
+                : tab.badge;
             return (
               <button
                 key={tab.key}
@@ -547,7 +591,7 @@ export function Lobby({
               >
                 <span className="nav-rail-icon">{tab.icon}</span>
                 <span className="nav-rail-label">{tab.label}</span>
-                {tab.badge && <span className="nav-rail-badge">{tab.badge}</span>}
+                {dynamicBadge && <span className="nav-rail-badge">{dynamicBadge}</span>}
               </button>
             );
           })}
@@ -582,7 +626,7 @@ export function Lobby({
           <div className="commercial-nine-grid-container">
             <div className="commercial-nine-grid">
               {pageGames.map((game, index) => {
-                const isLive = game.persistent === true || LIVE_GAMES.has(game.gameId);
+                const isLive = game.persistent === true || gameCategoryMap[game.gameId] === 'live';
                 const artUrl = GAME_ART[game.gameId];
                 const heatText = LIVE_HEAT_MAP[game.gameId] ?? (isLive ? '🎰 万人同台' : '🔥 火热开局');
                 const stakesText = STAKES_MAP[game.gameId] ?? '💰 底分 10 豆 · 准入 100 豆';

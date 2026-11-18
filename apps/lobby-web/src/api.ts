@@ -167,6 +167,7 @@ export const api = {
 
   me: () => request<{ user: User }>('/api/me'),
   games: () => request<{ games: GameMeta[] }>('/api/games'),
+  gameCategories: () => request<GameCategoriesConfig>('/api/game-categories'),
   records: () => request<{ records: unknown[] }>('/api/records?limit=20'),
 
   tasks: () => request<{ balance: number; tasks: TaskView[] }>('/api/tasks'),
@@ -442,4 +443,17 @@ export interface SlotsSpinResponse {
   rewardedLevel: number;
   totalTurnover: string;
   levelsGained: number;
+}
+
+export interface GameCategoryDef {
+  key: string;
+  label: string;
+  icon: string;
+  badge?: string;
+  sortOrder: number;
+}
+
+export interface GameCategoriesConfig {
+  categories: GameCategoryDef[];
+  gameCategoryMap: Record<string, string>;
 }

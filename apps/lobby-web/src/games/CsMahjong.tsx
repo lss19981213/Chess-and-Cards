@@ -17,6 +17,9 @@ interface Meld {
 interface CsMahjongSnapshot {
   phase: string;
   round: number;
+  variantId?: string;
+  variantName?: string;
+  bonusLabel?: string;
   turn: string | null;
   remainingCount: number;
   lastDiscard: { playerId: string; tile: MahjongTileData } | null;
@@ -57,8 +60,10 @@ export function CsMahjong({ snapshot, myId, status, balance: _balance, onAction 
   const data = snapshot as unknown as CsMahjongSnapshot | undefined;
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
 
-  if (!data) return <div className="board-placeholder">正在进入长沙麻将雀局…</div>;
+  if (!data) return <div className="board-placeholder">正在进入雀神麻将牌局…</div>;
 
+  const variantName = data.variantName || '长沙麻将';
+  const bonusLabel = data.bonusLabel || '鸟';
   const isMyTurn = data.turn === myId && status === 'playing';
   const showResults = data.results && data.results.length > 0;
   const me = data.players.find((p) => p.playerId === myId);
@@ -100,7 +105,7 @@ export function CsMahjong({ snapshot, myId, status, balance: _balance, onAction 
       <div className="lobby-game__main">
         {/* 顶部状态栏 */}
         <div className="lobby-game__bar">
-          <span className="lobby-game__round">第 {data.round} 局 · 长沙麻将</span>
+          <span className="lobby-game__round">第 {data.round} 局 · {variantName}</span>
           <span className={`lobby-game__phase ${isMyTurn ? 'is-open' : 'is-idle'}`}>
             {isMyTurn ? '★ 轮到你出牌 ★' : '对手思考中…'}
           </span>
@@ -158,18 +163,23 @@ export function CsMahjong({ snapshot, myId, status, balance: _balance, onAction 
                 <MahjongTile tile={`${data.lastDiscard.tile.suit}${data.lastDiscard.tile.val}`} size="md" />
               </div>
             ) : (
-              <div className="mahjong-table-logo">🀄 长沙麻将</div>
+              <div className="mahjong-table-logo">🀄 {variantName}</div>
             )}
           </div>
 
-          {/* 结算结果 & 抓鸟展示 */}
+          {/* 结算结果 & 抓鸟/买马展示 */}
           {showResults && (
             <div className="mahjong-settle-overlay">
               <div className="mahjong-settle-card">
-                <h3>雀神结算 · 开门抓鸟</h3>
+                <h3>
+                  {variantName}结算
+                  {data.birds.length > 0 ? ` · 开门抓${bonusLabel}` : ' · 雀神定分'}
+                </h3>
                 {data.birds.length > 0 && (
                   <div className="birds-row">
-                    <span className="birds-label">抓鸟 ({data.birds.length}张):</span>
+                    <span className="birds-label">
+                      {bonusLabel === '马' ? '买马' : `抓${bonusLabel}`} ({data.birds.length}张):
+                    </span>
                     {data.birds.map((b) => (
                       <MahjongTile key={b.id} tile={`${b.suit}${b.val}`} size="sm" />
                     ))}

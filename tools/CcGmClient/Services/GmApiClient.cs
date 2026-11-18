@@ -145,10 +145,39 @@ namespace CcGmClient.Services
             return res.Overview;
         }
 
+        public async Task<SlotsAnalyticsResponse> GetSlotsAnalyticsFullAsync(int limit = 60)
+        {
+            return await SendAsync<SlotsAnalyticsResponse>(HttpMethod.Get, $"/api/admin/slots/analytics?limit={limit}");
+        }
+
         public async Task<SlotsAnalytics> GetSlotsAnalyticsAsync(int limit = 60)
         {
-            var res = await SendAsync<SlotsAnalyticsResponse>(HttpMethod.Get, $"/api/admin/slots/analytics?limit={limit}");
+            var res = await GetSlotsAnalyticsFullAsync(limit);
             return res.Analytics ?? new SlotsAnalytics();
+        }
+
+        public async Task<SlotsConfigModel> UpdateSlotsConfigAsync(SlotsConfigModel cfg)
+        {
+            var res = await SendAsync<SlotsAnalyticsResponse>(HttpMethod.Put, "/api/admin/slots/config", cfg);
+            return res.Config ?? cfg;
+        }
+
+        // ---------- 游戏分类动态管理 ----------
+        public async Task<GameCategoriesResponse> GetGameCategoriesAsync()
+        {
+            return await SendAsync<GameCategoriesResponse>(HttpMethod.Get, "/api/admin/game-categories");
+        }
+
+        public async Task<GameCategoriesResponse> UpdateGameCategoriesAsync(
+            List<GameCategoryItem> categories,
+            Dictionary<string, string> gameCategoryMap)
+        {
+            var body = new
+            {
+                categories,
+                gameCategoryMap
+            };
+            return await SendAsync<GameCategoriesResponse>(HttpMethod.Put, "/api/admin/game-categories", body);
         }
 
         // ---------- 2. 玩家管控 ----------

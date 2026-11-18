@@ -19,6 +19,9 @@ export const GAME_ART: Record<string, string> = {
   chess: asset('game-chess.jpg'),
   xiangqi: asset('game-xiangqi.jpg'),
   'cs-mahjong': asset('game-csmahjong.jpg'),
+  'sc-mahjong': asset('game-scmahjong.jpg'),
+  'gd-mahjong': asset('game-gdmahjong.jpg'),
+  'guobiao-mahjong': asset('game-guobiaomahjong.jpg'),
   slots: asset('game-slots.jpg'),
 };
 

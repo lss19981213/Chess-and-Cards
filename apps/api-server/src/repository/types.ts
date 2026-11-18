@@ -381,4 +381,8 @@ export interface Repository {
   // ---------- 老虎机服务端权威摇奖与 GM 经营分析 ----------
   playSlotsSpin(input: SlotsSpinInput): Promise<SlotsSpinOutcome>;
   getSlotsAnalytics(limit?: number): Promise<SlotsAnalytics>;
+
+  // ---------- 全局动态运营配置（游戏分类 / 老虎机概率等） ----------
+  getSetting<T>(key: string): Promise<T | null>;
+  setSetting<T>(key: string, value: T): Promise<void>;
 }

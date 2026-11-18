@@ -88,6 +88,9 @@ const GAME_TITLE: Record<string, string> = {
   chess: '国际象棋',
   xiangqi: '中国象棋',
   'cs-mahjong': '长沙麻将',
+  'sc-mahjong': '四川血战麻将',
+  'gd-mahjong': '广东推倒胡',
+  'guobiao-mahjong': '大众国标麻将',
   slots: '疯狂老虎机',
 };
 
@@ -317,6 +320,9 @@ export function Room({
           />
         );
       case 'cs-mahjong':
+      case 'sc-mahjong':
+      case 'gd-mahjong':
+      case 'guobiao-mahjong':
         return (
           <CsMahjong
             snapshot={snapshot?.snapshot ?? null}

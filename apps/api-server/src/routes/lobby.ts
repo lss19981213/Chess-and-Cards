@@ -6,7 +6,17 @@ import { FALLBACK_GAMES } from '../game-catalog';
 import { authHeader, httpError } from '../http-utils';
 import { LEADERBOARD_SIZE, beijingDayKey, rewardForRank } from '../leaderboard';
 import { InsufficientFundsError, type Repository } from '../repository/types';
-import { SLOT_BET_OPTIONS, SLOT_PAYLINES, rollSlots } from '../slots-engine';
+import {
+  sanitizeGameCategoriesConfig,
+  type GameCategoriesConfig,
+} from '../game-categories';
+import {
+  SLOT_BET_OPTIONS,
+  SLOT_PAYLINES,
+  rollSlots,
+  sanitizeSlotsConfig,
+  type SlotsConfig,
+} from '../slots-engine';
 import { TASKS, findTask, periodKeyFor, titleFor, type TaskView } from '../tasks';
 
 export async function buildTasks(
@@ -100,6 +110,12 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
   }
 
   app.get('/api/games', async () => ({ games: await getGames() }));
+
+  // 公开接口：获取由 GM 端动态配置的游戏分类与游戏归属映射
+  app.get('/api/game-categories', async () => {
+    const saved = await repo.getSetting<Partial<GameCategoriesConfig>>('game_categories');
+    return sanitizeGameCategoriesConfig(saved);
+  });
 
   app.get('/api/rooms', async (req) => {
     const query = req.query as { gameId?: string };
@@ -330,7 +346,8 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
       throw httpError(`赔付线数需在 1-${SLOT_PAYLINES.length} 之间`, 400);
     }
 
-    const rolled = rollSlots(betPerLine, lines);
+    const savedSlotsCfg = await repo.getSetting<Partial<SlotsConfig>>('slots_config');
+    const rolled = rollSlots(betPerLine, lines, sanitizeSlotsConfig(savedSlotsCfg));
     const spinId = randomUUID();
     try {
       const outcome = await repo.playSlotsSpin({

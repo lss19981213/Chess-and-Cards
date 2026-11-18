@@ -20,16 +20,22 @@ function isPluginConstructor(value: unknown): value is PluginConstructor {
   );
 }
 
-function resolvePluginConstructor(mod: Record<string, unknown>, pkgName: string): PluginConstructor {
-  if (isPluginConstructor(mod.default)) return mod.default;
+function resolvePluginConstructors(mod: Record<string, unknown>, pkgName: string): PluginConstructor[] {
+  const found = new Set<PluginConstructor>();
+  if (isPluginConstructor(mod.default)) found.add(mod.default);
 
   for (const [key, value] of Object.entries(mod)) {
-    if (key.endsWith('Plugin') && isPluginConstructor(value)) return value;
+    if (key.endsWith('Plugin') && isPluginConstructor(value)) found.add(value);
   }
-  for (const value of Object.values(mod)) {
-    if (isPluginConstructor(value)) return value;
+  if (found.size === 0) {
+    for (const value of Object.values(mod)) {
+      if (isPluginConstructor(value)) found.add(value);
+    }
   }
-  throw new Error(`插件包 ${pkgName} 未导出合法的 GamePlugin 类`);
+  if (found.size === 0) {
+    throw new Error(`插件包 ${pkgName} 未导出合法的 GamePlugin 类`);
+  }
+  return [...found];
 }
 
 function discoverPluginPackages(): DiscoveryEntry[] {
@@ -85,14 +91,16 @@ export async function registerBuiltinGames(manager: RoomManager): Promise<string
 
   for (const { specifier, pkgName } of packages) {
     const mod = (await import(specifier)) as Record<string, unknown>;
-    const PluginClass = resolvePluginConstructor(mod, pkgName);
-    const meta = manager.register(() => new PluginClass());
-    loaded.push(meta.gameId);
+    const pluginClasses = resolvePluginConstructors(mod, pkgName);
+    for (const PluginClass of pluginClasses) {
+      const meta = manager.register(() => new PluginClass());
+      loaded.push(meta.gameId);
 
-    if (meta.persistent) {
-      manager.ensurePlatformRooms(meta.gameId, PLATFORM_ROOMS_INITIAL);
-    } else if (BOT_HOSTED_POKER_GAMES.has(meta.gameId)) {
-      manager.ensureBotHostedRooms(meta.gameId);
+      if (meta.persistent) {
+        manager.ensurePlatformRooms(meta.gameId, PLATFORM_ROOMS_INITIAL);
+      } else if (BOT_HOSTED_POKER_GAMES.has(meta.gameId)) {
+        manager.ensureBotHostedRooms(meta.gameId);
+      }
     }
   }
 

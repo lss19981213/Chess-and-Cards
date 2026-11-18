@@ -114,6 +114,7 @@
                             <RadioButton x:Name="NavPlayers" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="👥  玩家管控与流水" Checked="Nav_Checked" Tag="players" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavRooms" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎲  房间实时透视" Checked="Nav_Checked" Tag="rooms" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavSlots" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎰  老虎机经营" Checked="Nav_Checked" Tag="slots" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavCategories" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🗂️  游戏分类管理" Checked="Nav_Checked" Tag="categories" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavMailbox" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📬  全服邮箱发放" Checked="Nav_Checked" Tag="mailbox" Margin="0,0,0,6"/>
 
                             <Border Height="1" Background="{StaticResource BrushBorder}" Margin="8,12,8,12"/>
@@ -713,6 +714,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
@@ -818,8 +820,42 @@
                             </Border>
                         </Grid>
 
+                        <!-- 第三排：GM 老虎机中奖概率实时调控面板 -->
+                        <Border Grid.Row="2" Style="{StaticResource CardPanel}" Margin="0,0,0,12" Padding="14,10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="🎛️ 老虎机中奖概率实时调控" FontSize="13" FontWeight="Bold" Foreground="{StaticResource BrushGold}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="（修改后立刻对下一局所有玩家生效，无需重启服务）" FontSize="11" Foreground="{StaticResource BrushTextDim}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Style="{StaticResource BtnSecondary}" Content="💎 吸金偏紧 (32%)" Click="BtnSlotsPreset_Click" Tag="32,0.8,0.3" Height="24" Padding="8,0" Margin="0,0,6,0" FontSize="11"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="⚖️ 标准平衡 (50%)" Click="BtnSlotsPreset_Click" Tag="50,1.0,0.8" Height="24" Padding="8,0" Margin="0,0,6,0" FontSize="11"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="🔥 狂欢放水 (72%)" Click="BtnSlotsPreset_Click" Tag="72,1.3,2.5" Height="24" Padding="8,0" FontSize="11"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="中奖概率 (%):" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="TxtSlotsHitRate" Text="50" Width="68" Height="28" VerticalContentAlignment="Center" Margin="0,0,16,0" ToolTip="0 ~ 95，控制摇奖命中中奖线的概率"/>
+
+                                    <TextBlock Text="派彩倍率系数 (x):" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="TxtSlotsPayoutMult" Text="1.0" Width="68" Height="28" VerticalContentAlignment="Center" Margin="0,0,16,0" ToolTip="0.2 ~ 3.0，缩放中奖派彩金额"/>
+
+                                    <TextBlock Text="超级大奖概率 (%):" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="TxtSlotsJackpotRate" Text="0.8" Width="68" Height="28" VerticalContentAlignment="Center" Margin="0,0,18,0" ToolTip="0 ~ 20，控制 SUPER JACKPOT 触发概率"/>
+
+                                    <Button x:Name="BtnSaveSlotsConfig" Style="{StaticResource BtnGold}" Content="💾 保存概率设置（即时生效）" Click="BtnSaveSlotsConfig_Click" Height="28" Padding="14,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
                         <!-- 下半部分：左为玩家流水排行 TOP 30，右为实时摇奖明细 -->
-                        <Grid Grid.Row="2">
+                        <Grid Grid.Row="3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="500"/>
                                 <ColumnDefinition Width="*"/>
@@ -898,6 +934,141 @@
                                             <DataGridTextColumn Header="开奖结果" Binding="{Binding JackpotBadge}" Width="*"/>
                                         </DataGrid.Columns>
                                     </DataGrid>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ==================== 4.6 游戏分类动态管理 (Categories) ==================== -->
+                    <Grid x:Name="ViewCategories" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,14" Padding="16,12">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="🗂️ 大厅游戏分类与游戏归属动态配置" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                                    <TextBlock Text="可随时新增/编辑/删除大厅左侧分类栏，并自由调整每款游戏归属的分类；点击右侧保存后玩家大厅即时同步生效。" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource BtnSecondary}" Content="🔄 重新加载" Click="BtnRefreshCategories_Click" Height="32" Padding="12,0" Margin="0,0,10,0"/>
+                                    <Button x:Name="BtnSaveCategories" Style="{StaticResource BtnGold}" Content="💾 保存并同步到大厅" Click="BtnSaveCategories_Click" Height="32" Padding="16,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="470"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 左侧：分类列表 + 新增/修改分类表单 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Text="📑 游戏分类清单（选中行可编辑或删除）" FontSize="13" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,0,0,10"/>
+
+                                    <DataGrid x:Name="DgCategories" Grid.Row="1" SelectionChanged="DgCategories_SelectionChanged" Margin="0,0,0,12">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="排序" Binding="{Binding SortOrder}" Width="48"/>
+                                            <DataGridTextColumn Header="图标" Binding="{Binding Icon}" Width="46"/>
+                                            <DataGridTextColumn Header="分类标识" Binding="{Binding Key}" Width="86"/>
+                                            <DataGridTextColumn Header="分类名称" Binding="{Binding Label}" Width="*"/>
+                                            <DataGridTextColumn Header="角标" Binding="{Binding Badge}" Width="66"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <Border Grid.Row="2" Background="#0F1724" CornerRadius="6" Padding="10" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="新增 / 修改分类" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,8"/>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="105"/>
+                                                    <ColumnDefinition Width="58"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock Text="标识 Key (英文):" FontSize="10" Foreground="{StaticResource BrushTextMuted}"/>
+                                                    <TextBox x:Name="TxtCatKey" Height="28" VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                                    <TextBlock Text="图标:" FontSize="10" Foreground="{StaticResource BrushTextMuted}"/>
+                                                    <TextBox x:Name="TxtCatIcon" Text="🀄" Height="28" VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="显示名称:" FontSize="10" Foreground="{StaticResource BrushTextMuted}"/>
+                                                    <TextBox x:Name="TxtCatLabel" Height="28" VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="70"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock Text="角标 (可选, 如 热门):" FontSize="10" Foreground="{StaticResource BrushTextMuted}"/>
+                                                    <TextBox x:Name="TxtCatBadge" Height="28" VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                    <TextBlock Text="排序:" FontSize="10" Foreground="{StaticResource BrushTextMuted}"/>
+                                                    <TextBox x:Name="TxtCatSort" Text="5" Height="28" VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="2" Style="{StaticResource BtnGold}" Content="➕ 添加/更新" Click="BtnUpsertCategory_Click" Height="28" VerticalAlignment="Bottom" Padding="10,0" Margin="0,0,6,0"/>
+                                                <Button Grid.Column="3" Style="{StaticResource BtnDanger}" Content="🗑️ 删除" Click="BtnDeleteCategory_Click" Height="28" VerticalAlignment="Bottom" Padding="10,0"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- 右侧：游戏归属分类调整 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                        <TextBlock Text="🎮 游戏归属分类配置" FontSize="13" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                        <TextBlock Text="选中任意游戏后，在下方选择目标分类并点击「修改归属」，最后点击右上角「保存并同步到大厅」" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <DataGrid x:Name="DgGameAssignments" Grid.Row="1" SelectionChanged="DgGameAssignments_SelectionChanged" Margin="0,0,0,12">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="游戏 ID" Binding="{Binding GameId}" Width="140"/>
+                                            <DataGridTextColumn Header="游戏名称" Binding="{Binding GameName}" Width="170"/>
+                                            <DataGridTextColumn Header="当前归属分类" Binding="{Binding CategoryLabel}" Width="*">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <Border Grid.Row="2" Background="#0F1724" CornerRadius="6" Padding="10" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TxtSelectedGameAssign" Text="请先在上方表格选中一款游戏" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,14,0" FontSize="12"/>
+                                            <TextBlock Text="划归分类:" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                                            <ComboBox x:Name="CmbAssignCategory" Width="190" Height="30" DisplayMemberPath="DisplayTitle" SelectedValuePath="Key" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
+                                            <Button Style="{StaticResource BtnGold}" Content="✅ 修改归属" Click="BtnApplyGameCategory_Click" Height="30" Padding="14,0"/>
+                                        </StackPanel>
+                                    </Border>
                                 </Grid>
                             </Border>
                         </Grid>
@@ -1115,7 +1286,7 @@
         </Border>
 
         <!-- ==================== 弹窗遮罩：玩家资金流水抽屉弹窗 ==================== -->
-        <Grid x:Name="ModalLedger" Background="#CC000000" Visibility="Collapsed">
+        <Grid x:Name="ModalLedger" Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="100" Background="#CC000000" Visibility="Collapsed">
             <Border Width="820" Height="580" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -1164,8 +1335,8 @@
         </Grid>
 
         <!-- ==================== 弹窗遮罩：批量开台对话框 ==================== -->
-        <Grid x:Name="ModalBatchRooms" Background="#CC000000" Visibility="Collapsed">
-            <Border Width="460" Height="320" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
+        <Grid x:Name="ModalBatchRooms" Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="100" Background="#CC000000" Visibility="Collapsed">
+            <Border Width="460" Height="340" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -1183,16 +1354,21 @@
                         <ComboBox x:Name="CmbBatchGame" Height="32" Margin="0,0,0,14" VerticalContentAlignment="Center">
                             <ComboBoxItem Content="斗地主 (doudizhu)" Tag="doudizhu" IsSelected="True"/>
                             <ComboBoxItem Content="跑得快 (paodekuai)" Tag="paodekuai"/>
-                            <ComboBoxItem Content="五子棋 (gomoku)" Tag="gomoku"/>
+                            <ComboBoxItem Content="德州扑克 (texas)" Tag="texas"/>
+                            <ComboBoxItem Content="翻金花 (goldenflower)" Tag="goldenflower"/>
+                            <ComboBoxItem Content="梭哈 (stud)" Tag="stud"/>
+                            <ComboBoxItem Content="长沙麻将 (cs-mahjong)" Tag="cs-mahjong"/>
+                            <ComboBoxItem Content="四川血战麻将 (sc-mahjong)" Tag="sc-mahjong"/>
+                            <ComboBoxItem Content="广东推倒胡 (gd-mahjong)" Tag="gd-mahjong"/>
+                            <ComboBoxItem Content="大众国标麻将 (guobiao-mahjong)" Tag="guobiao-mahjong"/>
+                            <ComboBoxItem Content="推筒子 (tuizhuanzi)" Tag="tuizhuanzi"/>
+                            <ComboBoxItem Content="百家乐 (baccarat)" Tag="baccarat"/>
                             <ComboBoxItem Content="21点 (blackjack)" Tag="blackjack"/>
                             <ComboBoxItem Content="斗牛 (niuniu)" Tag="niuniu"/>
                             <ComboBoxItem Content="骰宝 (dice)" Tag="dice"/>
-                            <ComboBoxItem Content="炸金花 (zhajinhua)" Tag="zhajinhua"/>
-                            <ComboBoxItem Content="百人牛牛 (bainiu)" Tag="bainiu"/>
-                            <ComboBoxItem Content="德州扑克 (texas)" Tag="texas"/>
+                            <ComboBoxItem Content="五子棋 (gomoku)" Tag="gomoku"/>
                             <ComboBoxItem Content="中国象棋 (xiangqi)" Tag="xiangqi"/>
                             <ComboBoxItem Content="国际象棋 (chess)" Tag="chess"/>
-                            <ComboBoxItem Content="推筒子 (tuizhuanzi)" Tag="tuizhuanzi"/>
                         </ComboBox>
 
                         <TextBlock Text="开台数量 (1~10 桌):" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,6"/>
@@ -1209,8 +1385,8 @@
         </Grid>
 
         <!-- ==================== 弹窗遮罩：批量创建账号对话框 ==================== -->
-        <Grid x:Name="ModalBatchPlayers" Background="#CC000000" Visibility="Collapsed">
-            <Border Width="640" MinHeight="420" MaxHeight="600" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
+        <Grid x:Name="ModalBatchPlayers" Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="100" Background="#CC000000" Visibility="Collapsed">
+            <Border Width="660" MaxHeight="660" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29" Padding="22">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>

@@ -606,10 +606,25 @@ namespace CcGmClient.Models
     }
 
     // ---------- 老虎机经营数据模型 ----------
+    public class SlotsConfigModel
+    {
+        [JsonPropertyName("hitRatePercent")]
+        public double HitRatePercent { get; set; } = 50;
+
+        [JsonPropertyName("payoutMultiplier")]
+        public double PayoutMultiplier { get; set; } = 1.0;
+
+        [JsonPropertyName("jackpotRatePercent")]
+        public double JackpotRatePercent { get; set; } = 0.8;
+    }
+
     public class SlotsAnalyticsResponse
     {
         [JsonPropertyName("analytics")]
         public SlotsAnalytics? Analytics { get; set; }
+
+        [JsonPropertyName("config")]
+        public SlotsConfigModel? Config { get; set; }
     }
 
     public class SlotsAnalytics
@@ -760,5 +775,62 @@ namespace CcGmClient.Models
                 return "-";
             }
         }
+    }
+
+    // ---------- 游戏分类动态配置模型 ----------
+    public class GameCategoryItem
+    {
+        [JsonPropertyName("key")]
+        public string Key { get; set; } = "";
+
+        [JsonPropertyName("label")]
+        public string Label { get; set; } = "";
+
+        [JsonPropertyName("icon")]
+        public string Icon { get; set; } = "🎮";
+
+        [JsonPropertyName("badge")]
+        public string? Badge { get; set; }
+
+        [JsonPropertyName("sortOrder")]
+        public int SortOrder { get; set; }
+
+        [JsonIgnore]
+        public string DisplayTitle => $"{Icon} {Label} ({Key})";
+    }
+
+    public class GameMetaItem
+    {
+        [JsonPropertyName("gameId")]
+        public string GameId { get; set; } = "";
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("icon")]
+        public string? Icon { get; set; }
+
+        [JsonPropertyName("category")]
+        public string? Category { get; set; }
+    }
+
+    public class GameCategoriesResponse
+    {
+        [JsonPropertyName("categories")]
+        public List<GameCategoryItem> Categories { get; set; } = new();
+
+        [JsonPropertyName("gameCategoryMap")]
+        public Dictionary<string, string> GameCategoryMap { get; set; } = new();
+
+        [JsonPropertyName("games")]
+        public List<GameMetaItem> Games { get; set; } = new();
+    }
+
+    public class GameAssignmentRow
+    {
+        public string GameId { get; set; } = "";
+        public string GameName { get; set; } = "";
+        public string CategoryKey { get; set; } = "";
+        public string CategoryLabel { get; set; } = "";
     }
 }

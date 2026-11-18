@@ -5,6 +5,11 @@ import { getLastSettlementAt, markSettlement, recentEvents, recordEvent } from '
 import { clientIp, httpError, safeEqual } from '../http-utils';
 import type { createLogger } from '../logger';
 import { InsufficientFundsError, type Repository } from '../repository/types';
+import {
+  sanitizeGameCategoriesConfig,
+  type GameCategoriesConfig,
+} from '../game-categories';
+import { sanitizeSlotsConfig, type SlotsConfig } from '../slots-engine';
 import { AttemptLimiter, hashPassword } from '../security';
 import { periodKeyFor } from '../tasks';
 
@@ -100,13 +105,74 @@ export function registerAdminAndInternalRoutes(
     return { overview };
   });
 
-  // 老虎机经营数据总览（今日/累计营收、RTP、热门玩家排行、最近摇奖记录）
+  // 老虎机经营数据总览（今日/累计营收、RTP、热门玩家排行、最近摇奖记录 + 当前概率配置）
   app.get('/api/admin/slots/analytics', async (req) => {
     requireAdmin(req);
     const query = req.query as { limit?: string };
     const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
-    const analytics = await repo.getSlotsAnalytics(limit);
-    return { analytics };
+    const [analytics, savedCfg] = await Promise.all([
+      repo.getSlotsAnalytics(limit),
+      repo.getSetting<Partial<SlotsConfig>>('slots_config'),
+    ]);
+    return { analytics, config: sanitizeSlotsConfig(savedCfg) };
+  });
+
+  // GM 实时读取与修改老虎机中奖概率配置
+  app.get('/api/admin/slots/config', async (req) => {
+    requireAdmin(req);
+    const saved = await repo.getSetting<Partial<SlotsConfig>>('slots_config');
+    return { config: sanitizeSlotsConfig(saved) };
+  });
+
+  app.put('/api/admin/slots/config', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as Partial<SlotsConfig>;
+    const next = sanitizeSlotsConfig(body);
+    await repo.setSetting('slots_config', next);
+    const nextDetail: Record<string, unknown> = { ...next };
+    apiLog.info('GM 更新老虎机中奖概率配置', nextDetail);
+    recordEvent(
+      'warn',
+      'slots',
+      `GM 调整老虎机概率：中奖率 ${next.hitRatePercent}% / 派彩倍率 ${next.payoutMultiplier}x / 大奖率 ${next.jackpotRatePercent}%`,
+      nextDetail,
+    );
+    return { ok: true, config: next };
+  });
+
+  // GM 实时读取与修改游戏分类配置（新增/重命名/排序分类、调整每个游戏归属分类）
+  app.get('/api/admin/game-categories', async (req) => {
+    requireAdmin(req);
+    const saved = await repo.getSetting<Partial<GameCategoriesConfig>>('game_categories');
+    let games: Array<Record<string, unknown>> = [];
+    try {
+      const res = await fetch(`${config.roomServerUrl}/games`, { signal: AbortSignal.timeout(2500) });
+      if (res.ok) {
+        const body = (await res.json()) as { games?: Array<Record<string, unknown>> };
+        if (Array.isArray(body.games)) games = body.games;
+      }
+    } catch {
+      /* room-server 不可达时仍允许编辑分类 */
+    }
+    const cfg = sanitizeGameCategoriesConfig(saved);
+    return { ...cfg, games };
+  });
+
+  app.put('/api/admin/game-categories', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as Partial<GameCategoriesConfig>;
+    const next = sanitizeGameCategoriesConfig(body);
+    await repo.setSetting('game_categories', next);
+    apiLog.info('GM 更新游戏分类配置', {
+      categories: next.categories.length,
+      mappedGames: Object.keys(next.gameCategoryMap).length,
+    });
+    recordEvent(
+      'info',
+      'category',
+      `GM 更新游戏分类配置（共 ${next.categories.length} 个分类）`,
+    );
+    return { ok: true, ...next };
   });
 
   app.get('/api/admin/players', async (req) => {

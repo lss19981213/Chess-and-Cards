@@ -252,4 +252,11 @@ create table if not exists slots_spins (
 
 create index if not exists slots_spins_created_idx on slots_spins (created_at desc);
 create index if not exists slots_spins_user_idx on slots_spins (user_id, created_at desc);
+
+-- 全局动态运营配置表（如游戏分类配置、老虎机中奖概率配置等，GM 端实时修改即时生效）
+create table if not exists app_settings (
+  key        text primary key,
+  value      jsonb not null,
+  updated_at timestamptz not null default now()
+);
 `;

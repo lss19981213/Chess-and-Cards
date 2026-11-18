@@ -24,6 +24,7 @@ import type {
   UserRecord,
 } from './types';
 import { getSlotsAnalytics, playSlotsSpin } from './pg/slots';
+import { getSetting, setSetting } from './pg/settings';
 import {
   adjustBet,
   applySettlement,
@@ -356,5 +357,13 @@ export class PostgresRepository implements Repository {
 
   getSlotsAnalytics(limit?: number): Promise<SlotsAnalytics> {
     return getSlotsAnalytics(this.pool, limit);
+  }
+
+  getSetting<T>(key: string): Promise<T | null> {
+    return getSetting<T>(this.pool, key);
+  }
+
+  setSetting<T>(key: string, value: T): Promise<void> {
+    return setSetting<T>(this.pool, key, value);
   }
 }
