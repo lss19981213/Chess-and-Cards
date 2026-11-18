@@ -20,8 +20,8 @@ let voiceBusInput: AudioNode | null = null;
 let activeBufferSource: AudioBufferSourceNode | null = null;
 let speakSeq = 0;
 
-/** 已解码音频 LRU 缓存，重复点击/报牌实现真正的 0ms 瞬时响应 */
-const MAX_BUFFER_CACHE = 64;
+/** 已解码音频 LRU 缓存，覆盖全部麻将牌语音与常用荷官台词，实现真正 0ms 瞬时播报 */
+const MAX_BUFFER_CACHE = 128;
 const decodedAudioCache = new Map<string, AudioBuffer>();
 
 function getCachedBuffer(key: string): AudioBuffer | null {

@@ -17,7 +17,10 @@ interface Props {
   balance: number;
   persistent: boolean;
   onContinue: () => void;
+  /** 点击右上角 X：立即退出牌桌返回大厅主页 */
   onClose: () => void;
+  /** 常驻玩法 8 秒自动收起气泡（仅隐藏提示，不退出房间） */
+  onAutoDismiss?: () => void;
 }
 
 const GAME_NAME: Record<string, string> = {
@@ -34,6 +37,11 @@ const GAME_NAME: Record<string, string> = {
   goldenflower: '翻金花',
   chess: '国际象棋',
   xiangqi: '中国象棋',
+  'cs-mahjong': '长沙麻将',
+  'sc-mahjong': '四川血战麻将',
+  'gd-mahjong': '广东推倒胡',
+  'guobiao-mahjong': '国标麻将',
+  'hz-mahjong': '红中麻将',
 };
 
 /**
@@ -48,6 +56,7 @@ export function SettleBubble({
   persistent,
   onContinue,
   onClose,
+  onAutoDismiss,
 }: Props) {
   const [closing, setClosing] = useState(false);
   const safeRows = Array.isArray(rows) ? rows : [];
@@ -59,19 +68,20 @@ export function SettleBubble({
   const ranked = [...safeRows].sort((a, b) => (b?.delta ?? 0) - (a?.delta ?? 0));
   const titleText = isWin ? '旗开得胜 · 收益入账' : isLose ? '局结惜败 · 虽败犹荣' : '本局平局 · 势均力敌';
 
-  // 常驻玩法 8 秒后自动收起气泡，不阻挡下注
+  // 常驻玩法 8 秒后仅自动收起气泡（绝不退出房间），不阻挡下注
   useEffect(() => {
     if (persistent) {
       const timer = window.setTimeout(() => {
-        handleDismiss();
+        setClosing(true);
+        window.setTimeout(() => (onAutoDismiss ?? (() => {}))(), 260);
       }, 8000);
       return () => window.clearTimeout(timer);
     }
-  }, [persistent]);
+  }, [persistent, onAutoDismiss]);
 
-  const handleDismiss = () => {
-    setClosing(true);
-    window.setTimeout(onClose, 260);
+  const handleExitToLobby = () => {
+    audio.play('click');
+    onClose();
   };
 
   const handleContinue = () => {
@@ -136,11 +146,9 @@ export function SettleBubble({
           <button
             type="button"
             className="bubble-btn bubble-btn--close"
-            onClick={() => {
-              audio.play('click');
-              handleDismiss();
-            }}
-            title="收起战报气泡"
+            onClick={handleExitToLobby}
+            title="退出牌桌并返回主页"
+            aria-label="退出牌桌并返回主页"
           >
             ✕
           </button>

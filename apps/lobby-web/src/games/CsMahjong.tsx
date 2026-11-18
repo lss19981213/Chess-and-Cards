@@ -302,7 +302,12 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
         break;
       case 'discard': {
         const isLocalRepeat = act.playerId === myId && act.tile?.id === localDiscardedIdRef.current;
-        if (!isLocalRepeat) audio.play('mahjong_discard');
+        if (!isLocalRepeat) {
+          audio.play('mahjong_discard');
+          if (audio.sfxOn && act.tile) {
+            speakDealerQuote(tileLabel(act.tile.suit, act.tile.val));
+          }
+        }
         localDiscardedIdRef.current = null;
         break;
       }
@@ -481,6 +486,7 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
     if (!isMyTurn) return;
     localDiscardedIdRef.current = tile.id;
     audio.play('mahjong_discard');
+    if (audio.sfxOn) speakDealerQuote(tileLabel(tile.suit, tile.val));
     onAction('discard', { tileId: tile.id });
     setSelectedTileId(null);
   };

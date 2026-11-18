@@ -495,7 +495,11 @@ export function Room({
               onReady(true);
             }
           }}
-          onClose={() => setDismissedKey(resultKey)}
+          onClose={() => {
+            setDismissedKey(resultKey);
+            onLeave();
+          }}
+          onAutoDismiss={() => setDismissedKey(resultKey)}
         />
       )}
 

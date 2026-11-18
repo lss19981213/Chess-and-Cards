@@ -362,7 +362,7 @@ export class GameRoom {
       equippedFrame: spec.equippedFrame ?? 'frame_default',
     };
     this.seats.set(spec.playerId, seat);
-    this.autoReady.add(spec.playerId);
+    this.pendingReady.set(spec.playerId, true);
     if (this.hostId === null) this.hostId = spec.playerId;
 
     this.plugin.onPlayerJoin(this.ctx, {
@@ -747,8 +747,10 @@ export class GameRoom {
       this.refillBotHostedSeats();
     }
     for (const seat of this.seats.values()) {
-      seat.ready = seat.isBot || this.autoReady.has(seat.playerId);
+      // 真人玩家本局结束后不再强行自动开下一把，必须明确点击「再来一局 / 立即准备」才继续
+      seat.ready = seat.isBot || this.pendingReady.get(seat.playerId) === true;
     }
+    this.autoReady.clear();
     this.pendingReady.clear();
     this.broadcastView();
     this.dirty = true;

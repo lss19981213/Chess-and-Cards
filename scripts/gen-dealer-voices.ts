@@ -52,6 +52,13 @@ const SHARED_MAHJONG_QUOTES = [
   '胡啦，太精彩了！',
 ];
 
+const SHARED_MAHJONG_TILES = [
+  '一万', '二万', '三万', '四万', '五万', '六万', '七万', '八万', '九万',
+  '一条', '二条', '三条', '四条', '五条', '六条', '七条', '八条', '九条',
+  '一筒', '二筒', '三筒', '四筒', '五筒', '六筒', '七筒', '八筒', '九筒',
+  '东风', '南风', '西风', '北风', '红中', '发财', '白板',
+];
+
 interface Job {
   styleId: string;
   voice: string;
@@ -118,6 +125,9 @@ async function main() {
   }
   for (const q of SHARED_MAHJONG_QUOTES) {
     enqueue('_shared', q, { voice: 'zh-TW-HsiaoChenNeural', pitch: '+4Hz', rate: '+5%' });
+  }
+  for (const tile of SHARED_MAHJONG_TILES) {
+    enqueue('_shared', tile, { voice: 'zh-TW-HsiaoChenNeural', pitch: '+3Hz', rate: '+6%' });
   }
 
   console.log(`Preparing ${jobs.length} neural dealer voice clips...`);
