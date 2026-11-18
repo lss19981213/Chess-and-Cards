@@ -1,5 +1,5 @@
 import type pg from 'pg';
-import type { Settlement } from '@cc/protocol';
+import { applyXpGain, parseBigIntSafe, type Settlement } from '@cc/protocol';
 import { periodKeyFor } from '../../tasks';
 import { InsufficientFundsError, type BetAdjustment, type GameRecordView, type SettlementResult } from '../types';
 import { bumpTaskTx } from './shared';
@@ -215,6 +215,37 @@ export async function applySettlement(pool: pg.Pool, settlement: Settlement): Pr
       if (entry.delta > 0) {
         await bumpTaskTx(client, entry.playerId, 'total_win', 'all', 1);
       }
+
+      // 有效流水转化为账号经验值（1 流水 = 1 经验），自动计算连升与剩余经验
+      const turnover = Math.max(-staked, Math.abs(entry.delta));
+      if (turnover > 0) {
+        await client.query(
+          `insert into user_profiles (user_id) values ($1) on conflict (user_id) do nothing`,
+          [entry.playerId],
+        );
+        const profRes = await client.query<{ level: number; xp: string; total_turnover: string }>(
+          `select coalesce(level, 1) as level,
+                  coalesce(xp, 0)::text as xp,
+                  coalesce(total_turnover, 0)::text as total_turnover
+             from user_profiles
+            where user_id = $1
+            for update`,
+          [entry.playerId],
+        );
+        const cur = profRes.rows[0];
+        const nextProg = applyXpGain(cur?.level ?? 1, cur?.xp ?? '0', turnover);
+        const nextTurnover = (parseBigIntSafe(cur?.total_turnover) + BigInt(Math.floor(turnover))).toString();
+        await client.query(
+          `update user_profiles
+              set level = $2,
+                  xp = $3::numeric,
+                  total_turnover = $4::numeric,
+                  updated_at = now()
+            where user_id = $1`,
+          [entry.playerId, nextProg.level, nextProg.xp, nextTurnover],
+        );
+      }
+
       applied += 1;
     }
 

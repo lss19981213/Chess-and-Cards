@@ -179,6 +179,9 @@ class AudioEngine {
     const ctx = this.ctx;
     const out = this.sfxGain;
     if (!ctx || !out) return;
+    if (ctx.state === 'suspended') {
+      void ctx.resume();
+    }
 
     switch (name) {
       case 'click':

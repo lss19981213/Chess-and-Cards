@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { GameMeta, RoomSummary, Settlement } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, RoomSummary, Settlement } from '@cc/protocol';
 import { AppError, ErrorCode } from '@cc/protocol';
 import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
+import { BOT_NAMES } from './bot';
 import { GameRoom, PLATFORM_CAPACITY, type RoomDeps } from './room';
 import type { RoomServerConfig } from './config';
 import type { ReleaseClient, WalletClient } from './wallet';
@@ -13,6 +14,14 @@ const PLATFORM_ROOMS_INITIAL = 3;
 const PLATFORM_ROOMS_MAX = 12;
 /** 三间平均使用率达到该比例就扩容 */
 const PLATFORM_SCALE_RATIO = 0.85;
+/** 经典扑克机器人自建房玩法清单（每个游戏随机初始化 3-7 间） */
+export const BOT_HOSTED_POKER_GAMES = new Set([
+  'doudizhu',
+  'goldenflower',
+  'paodekuai',
+  'stud',
+  'texas',
+]);
 
 const scaleLog = createLogger('scale');
 
@@ -105,6 +114,15 @@ export class RoomManager {
       }
     }
 
+    // 经典扑克机器人自建房：优先进入活跃的机器人对局桌（默认观战模式，点击入座参战）
+    const botHostedRooms = this.list(gameId).filter((r) => r.isBotHosted);
+    if (botHostedRooms.length > 0) {
+      const sorted = [...botHostedRooms].sort((a, b) => a.spectatorCount - b.spectatorCount);
+      const target = sorted[0]!;
+      target.joinAsSpectator(player, socket);
+      return target;
+    }
+
     let room = this.list(gameId).find((r) => r.isJoinable);
     if (!room) {
       const plugin = factory();
@@ -115,13 +133,14 @@ export class RoomManager {
     return room;
   }
 
-  /** 选台列表：常驻台在前，玩家房按人数排列 */
+  /** 选台列表：常驻台与机器人热战桌在前，玩家房按人数排列 */
   listPublic(gameId?: string): RoomSummary[] {
     return this.list(gameId)
       .map((room) => room.summary())
-      .filter((room) => room.status !== 'settled')
+      .filter((room) => room.persistent || room.botHosted || room.status !== 'settled')
       .sort((a, b) => {
         if (a.persistent !== b.persistent) return a.persistent ? -1 : 1;
+        if (Boolean(a.botHosted) !== Boolean(b.botHosted)) return a.botHosted ? -1 : 1;
         if (a.joinable !== b.joinable) return a.joinable ? -1 : 1;
         return b.players - a.players;
       });
@@ -174,6 +193,51 @@ export class RoomManager {
     if (!this.factories.has(gameId)) return;
     const current = this.list(gameId).filter((r) => r.isPersistent).length;
     for (let i = current; i < count; i += 1) this.createPlatform(gameId);
+  }
+
+  /** 创建一间经典扑克机器人自建房，坐满机器人并自动开战，玩家进入默认观战 */
+  createBotHostedRoom(gameId: string, tableNo?: number): GameRoom | null {
+    const factory = this.factories.get(gameId);
+    const meta = this.metas.get(gameId);
+    if (!factory || !meta) return null;
+
+    const no = tableNo ?? this.list(gameId).filter((r) => r.isBotHosted).length + 1;
+    const room = new GameRoom(randomUUID(), factory(), 'classic', meta.maxPlayers, this.deps, {
+      botHosted: true,
+    });
+    room.setPlatformNo(no);
+    this.rooms.set(room.id, room);
+
+    // 根据玩法人数安排机器人：3人固定局坐3个，2-6人局随机坐 2~5 个机器人热闹对战
+    const botCount =
+      meta.minPlayers === meta.maxPlayers
+        ? meta.maxPlayers
+        : Math.min(
+            meta.maxPlayers,
+            Math.max(meta.minPlayers, 2 + Math.floor(Math.random() * Math.min(4, meta.maxPlayers - 1))),
+          );
+
+    const diffs: BotDifficulty[] = ['low', 'medium', 'high'];
+    const pool = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < botCount; i += 1) {
+      const name = pool[i % pool.length] ?? `牌手${i + 1}`;
+      const diff = diffs[Math.floor(Math.random() * diffs.length)] ?? 'medium';
+      room.addBot(`bot:${randomUUID()}`, `🤖 ${name}`, diff);
+    }
+    return room;
+  }
+
+  /** 为经典扑克游戏随机创建 3-7 间机器人自建房 */
+  ensureBotHostedRooms(gameId: string): number {
+    if (!this.factories.has(gameId)) return 0;
+    const existing = this.list(gameId).filter((r) => r.isBotHosted).length;
+    if (existing > 0) return existing;
+    const targetCount = 3 + Math.floor(Math.random() * 5); // 3 ~ 7 间
+    for (let i = 0; i < targetCount; i += 1) {
+      this.createBotHostedRoom(gameId, i + 1);
+    }
+    scaleLog.info('经典扑克机器人自建房初始化完成', { gameId, count: targetCount });
+    return targetCount;
   }
 
   /** 三间都快满时自动加开一间，避免玩家挤不进来 */

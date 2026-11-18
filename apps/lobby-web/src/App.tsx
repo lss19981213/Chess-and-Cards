@@ -225,8 +225,9 @@ export default function App() {
         s.setRoomRef({ roomId: payload.room.roomId, playerId: userIdRef.current });
       }
 
-      // 极速开局：若在等待中，自动准备并按所选难度自动加满机器人
-      if (payload.room.status === 'waiting' && autoStartRef.current) {
+      // 极速开局：若在等待中且非机器人观战桌且我已入座，自动准备并按所选难度自动加满机器人
+      const amSeated = payload.room.players.some((p) => p.playerId === userIdRef.current);
+      if (payload.room.status === 'waiting' && autoStartRef.current && !payload.room.botHosted && amSeated) {
         autoStartRef.current = false;
         s.send(ClientMsg.Ready, { ready: true });
         if (payload.room.hostId === userIdRef.current) {
@@ -237,6 +238,8 @@ export default function App() {
             }, (i + 1) * 80);
           }
         }
+      } else if (payload.room.botHosted) {
+        autoStartRef.current = false;
       }
     });
 
@@ -263,12 +266,28 @@ export default function App() {
         }
       }
 
-      // 结算后主动与服务端对账刷新，彻底杜绝下注游戏重复扣款及产生负数金额
+      // 结算后主动与服务端对账刷新，同步筹码余额、账号等级与经验进度
       window.setTimeout(() => {
         void api.me().then((res) => {
-          setUser((prev) => (prev ? { ...prev, balance: Math.max(0, res.user.balance) } : res.user));
+          setUser((prev) => {
+            if (!prev) return res.user;
+            const prevLv = prev.level ?? 1;
+            const nextLv = res.user.level ?? prevLv;
+            if (nextLv > prevLv) {
+              audio.play('jackpot');
+              showToast(`🎉 恭喜升级至 Lv.${nextLv}！快前往个人中心领取升级筹码奖励！`);
+            }
+            return {
+              ...prev,
+              balance: Math.max(0, res.user.balance),
+              level: res.user.level ?? prev.level,
+              xp: res.user.xp ?? prev.xp,
+              rewardedLevel: res.user.rewardedLevel ?? prev.rewardedLevel,
+              totalTurnover: res.user.totalTurnover ?? prev.totalTurnover,
+            };
+          });
         }).catch(() => {});
-      }, 100);
+      }, 160);
     });
 
     s.on(ServerMsg.Wallet, (data) => {
@@ -440,6 +459,16 @@ export default function App() {
     socketRef.current?.send(ClientMsg.Emote, { key });
   };
 
+  const handleSitDown = (): void => {
+    audio.play('join');
+    socketRef.current?.send(ClientMsg.SitDown, {});
+  };
+
+  const handleStandUp = (): void => {
+    audio.play('click');
+    socketRef.current?.send(ClientMsg.StandUp, {});
+  };
+
   const handleBalanceChange = useCallback((newBalance: number) => {
     setUser((prev) => (prev ? { ...prev, balance: Math.max(0, Math.floor(newBalance)) } : prev));
   }, []);
@@ -494,6 +523,8 @@ export default function App() {
           onLeave={handleLeaveRoom}
           onIntent={handleIntent}
           onAddBot={handleAddBot}
+          onSitDown={handleSitDown}
+          onStandUp={handleStandUp}
           botDifficulty={botDifficulty}
           onChangeBotDifficulty={updateBotDifficulty}
           emotes={emotes}
@@ -553,6 +584,7 @@ export default function App() {
                 : prev,
             )
           }
+          onUserUpdate={(patch) => setUser((prev) => (prev ? { ...prev, ...patch } : prev))}
           onBack={() => setView('lobby')}
         />
       );

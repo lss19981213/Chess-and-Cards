@@ -1,5 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { Announcement, Currency, Settlement } from '@cc/protocol';
+import {
+  applyXpGain,
+  parseBigIntSafe,
+  totalClaimableLevelReward,
+  type Announcement,
+  type Currency,
+  type Settlement,
+} from '@cc/protocol';
 import { periodKeyFor } from '../tasks';
 import { InsufficientFundsError } from './types';
 import { LEADERBOARD_SIZE, rewardForRank } from '../leaderboard';
@@ -69,6 +76,10 @@ export class MemoryRepository implements Repository {
       dealerSkin?: string;
       dealerVoice?: string;
       dealerAffection?: number;
+      level?: number;
+      xp?: string;
+      rewardedLevel?: number;
+      totalTurnover?: string;
     }
   >();
   private readonly worshipRecords: { worshiperId: string; targetUserId: string; dayKey: string }[] = [];
@@ -265,6 +276,21 @@ export class MemoryRepository implements Repository {
       this.bumpCell(entry.playerId, 'total_play', 'all', 1);
       if (entry.delta > 0) this.bumpCell(entry.playerId, 'total_win', 'all', 1);
 
+      // 有效流水转化为账号经验（1 流水 = 1 经验）
+      const turnover = Math.max(-staked, Math.abs(entry.delta));
+      if (turnover > 0) {
+        const curProfile = this.profiles.get(entry.playerId) ?? { bio: '', avatar: null };
+        const nextProg = applyXpGain(curProfile.level ?? 1, curProfile.xp ?? '0', turnover);
+        const nextTurnover = (parseBigIntSafe(curProfile.totalTurnover) + BigInt(Math.floor(turnover))).toString();
+        this.profiles.set(entry.playerId, {
+          ...curProfile,
+          level: nextProg.level,
+          xp: nextProg.xp,
+          rewardedLevel: curProfile.rewardedLevel ?? 1,
+          totalTurnover: nextTurnover,
+        });
+      }
+
       // 当日净收益按自然日隔离，跨天自动从零开始
       const stat = this.daily.get(entry.playerId);
       const todayStat = stat && stat.dayKey === dayKey ? stat : { dayKey, net: 0, rounds: 0 };
@@ -455,6 +481,10 @@ export class MemoryRepository implements Repository {
       dealerSkin: extra?.dealerSkin ?? 'classic',
       dealerVoice: extra?.dealerVoice ?? 'classic',
       dealerAffection: extra?.dealerAffection ?? 0,
+      level: extra?.level ?? 1,
+      xp: extra?.xp ?? '0',
+      rewardedLevel: extra?.rewardedLevel ?? 1,
+      totalTurnover: extra?.totalTurnover ?? '0',
     };
   }
 
@@ -580,6 +610,38 @@ export class MemoryRepository implements Repository {
       dealerAffection: newAffection,
     });
     return newAffection;
+  }
+
+  async claimLevelReward(userId: string): Promise<{
+    ok: boolean;
+    claimedLevels: number;
+    reward: number;
+    balance: number;
+    level: number;
+    rewardedLevel: number;
+  }> {
+    const current = this.profiles.get(userId) ?? { bio: '', avatar: null };
+    const level = current.level ?? 1;
+    const rewardedLevel = current.rewardedLevel ?? 1;
+    const reward = totalClaimableLevelReward(level, rewardedLevel);
+    const claimedLevels = Math.max(0, level - rewardedLevel);
+    if (claimedLevels <= 0 || reward <= 0) {
+      throw new Error('暂无可领取的升级筹码奖励，快去对局积累流水升级吧！');
+    }
+    const newBalance = await this.credit(userId, reward, 'level_reward', `level:${userId}:${rewardedLevel}->${level}`);
+    this.profiles.set(userId, {
+      ...current,
+      level,
+      rewardedLevel: level,
+    });
+    return {
+      ok: true,
+      claimedLevels,
+      reward,
+      balance: newBalance,
+      level,
+      rewardedLevel: level,
+    };
   }
 
   async searchUsers(keyword: string, excludeUserId: string, limit: number): Promise<PlayerProfile[]> {

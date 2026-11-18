@@ -68,6 +68,7 @@ import {
   getWorshipRemainingToday,
   customizeDealer,
   addDealerAffection,
+  claimLevelReward,
 } from './pg/social';
 import {
   getEconomyOverview,
@@ -329,5 +330,9 @@ export class PostgresRepository implements Repository {
 
   addDealerAffection(userId: string, amount: number) {
     return addDealerAffection(this.pool, userId, amount);
+  }
+
+  claimLevelReward(userId: string) {
+    return claimLevelReward(this.pool, userId);
   }
 }

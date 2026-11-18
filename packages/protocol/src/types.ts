@@ -62,6 +62,13 @@ export interface PlayerView {
 /** 游戏快照：结构由各游戏插件自定义，客户端按 gameId 分发渲染。 */
 export type GameSnapshot = Record<string, unknown>;
 
+export interface SpectatorView {
+  playerId: string;
+  nickname: string;
+  /** 是否已预约入座（对局进行中点击入座，本局结束后自动加入） */
+  queuedToSit?: boolean;
+}
+
 export interface RoomView {
   roomId: string;
   gameId: string;
@@ -71,6 +78,10 @@ export interface RoomView {
   maxPlayers: number;
   players: PlayerView[];
   hostId: string | null;
+  /** 是否为机器人自建牌桌（默认观战进入，点击入座参战） */
+  botHosted?: boolean;
+  /** 当前观战玩家列表 */
+  spectators?: SpectatorView[];
 }
 
 export type Currency = 'coin';

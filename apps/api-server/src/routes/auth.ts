@@ -87,7 +87,10 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     const balance = await repo.getBalance(result.user.id, 'coin');
     await repo.bumpTask(result.user.id, 'daily_login', periodKeyFor('daily'), 1);
     const token = signToken(config.jwtSecret, { sub: result.user.id, name: result.user.nickname }, config.tokenTtlSeconds);
-    return { token, user: { ...result.user, balance } };
+    return {
+      token,
+      user: { ...result.user, balance, level: 1, xp: '0', rewardedLevel: 1, totalTurnover: '0' },
+    };
   });
 
   app.post('/api/register', async (req) => {
@@ -144,7 +147,10 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     const balance = await repo.getBalance(result.user.id, 'coin');
     await repo.bumpTask(result.user.id, 'daily_login', periodKeyFor('daily'), 1);
     const token = signToken(config.jwtSecret, { sub: result.user.id, name: result.user.nickname }, config.tokenTtlSeconds);
-    return { token, user: { ...result.user, balance } };
+    return {
+      token,
+      user: { ...result.user, balance, level: 1, xp: '0', rewardedLevel: 1, totalTurnover: '0' },
+    };
   });
 
   app.post('/api/login', async (req) => {
@@ -213,6 +219,10 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         dealerSkin: profile?.dealerSkin ?? 'classic',
         dealerVoice: profile?.dealerVoice ?? 'classic',
         dealerAffection: profile?.dealerAffection ?? 0,
+        level: profile?.level ?? 1,
+        xp: profile?.xp ?? '0',
+        rewardedLevel: profile?.rewardedLevel ?? 1,
+        totalTurnover: profile?.totalTurnover ?? '0',
       },
     };
   });
@@ -236,6 +246,10 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         dealerSkin: profile?.dealerSkin ?? 'classic',
         dealerVoice: profile?.dealerVoice ?? 'classic',
         dealerAffection: profile?.dealerAffection ?? 0,
+        level: profile?.level ?? 1,
+        xp: profile?.xp ?? '0',
+        rewardedLevel: profile?.rewardedLevel ?? 1,
+        totalTurnover: profile?.totalTurnover ?? '0',
       },
     };
   });

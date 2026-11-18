@@ -1,8 +1,17 @@
 import { useMemo, useState } from 'react';
-import { BOT_DIFFICULTY_LABEL, EMOTES, type BotDifficulty, type EmotePayload, type RoomView, type Settlement } from '@cc/protocol';
+import {
+  BOT_DIFFICULTY_LABEL,
+  DEALER_VOICES,
+  EMOTES,
+  type BotDifficulty,
+  type EmotePayload,
+  type RoomView,
+  type Settlement,
+} from '@cc/protocol';
 import type { SnapshotEnvelope } from '../App';
 import type { User } from '../api';
 import { audio } from '../audio';
+import { speakDealerQuote } from '../speech';
 import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART } from '../assets';
 import { Chip } from './Chip';
 import { InviteFriendsModal } from './InviteFriendsModal';
@@ -46,6 +55,8 @@ interface Props {
   onLeave: () => void;
   onIntent: (cmd: string, payload: Record<string, unknown>) => void;
   onAddBot: (difficulty?: BotDifficulty) => void;
+  onSitDown?: () => void;
+  onStandUp?: () => void;
   botDifficulty: BotDifficulty;
   onChangeBotDifficulty: (difficulty: BotDifficulty) => void;
   emotes: EmotePayload[];
@@ -92,6 +103,8 @@ export function Room({
   onLeave,
   onIntent,
   onAddBot,
+  onSitDown,
+  onStandUp,
   botDifficulty,
   onChangeBotDifficulty,
   emotes,
@@ -100,8 +113,15 @@ export function Room({
   onBalanceChange,
 }: Props) {
   const me = room.players.find((p) => p.playerId === myId);
+  const spectatorMe = room.spectators?.find((s) => s.playerId === myId);
+  const isSpectator = !me && Boolean(spectatorMe);
+  const isQueuedToSit = Boolean(spectatorMe?.queuedToSit);
   const isHost = room.hostId === myId;
   const dealerAvatarSrc = DEALER_SKINS_ASSETS[user?.dealerSkin || 'classic'] || DEALER_MAIN;
+  const activeVoice = useMemo(() => {
+    const voiceId = user?.dealerVoice || 'classic';
+    return DEALER_VOICES.find((v) => v.id === voiceId) || DEALER_VOICES[0]!;
+  }, [user?.dealerVoice]);
   const myDelta = useMemo(() => {
     const entries = Array.isArray(settlement?.entries) ? settlement.entries : [];
     return entries.find((e) => e.playerId === myId)?.delta ?? 0;
@@ -134,15 +154,10 @@ export function Room({
     audio.play('shunzi');
     setCheerEffect(true);
     window.setTimeout(() => setCheerEffect(false), 800);
-    const quotes = [
-      '主人加油～艾莉丝的心与您同在！💖',
-      '这把一定能赢！艾莉丝给您施加幸运魔法～✨',
-      '买定离手，大奖马上来～🎁',
-      '主人的帅气操作让艾莉丝好心动呢～🥰',
-      '不管输赢，艾莉丝永远陪在您身边～💕',
-    ];
+    const quotes = activeVoice.quotes.cheer.length > 0 ? activeVoice.quotes.cheer : activeVoice.quotes.idle;
     const picked = quotes[Math.floor(Math.random() * quotes.length)]!;
     setCustomDealerTip(picked);
+    speakDealerQuote(picked, activeVoice.id);
   };
 
   // 结果有两个来源：对战类用结算单，常驻类直接用快照里的本局明细
@@ -365,8 +380,20 @@ export function Room({
             👥 {room.players.length}/{room.maxPlayers}
           </button>
 
-          {/* 非 1对1 游戏允许随时快捷呼叫机器人陪玩 */}
-          {room.maxPlayers > 2 && room.players.length < room.maxPlayers && (
+          {/* 机器人自建桌：已入座玩家可随时切换回观战，观战玩家显示顶栏快捷入座 */}
+          {room.botHosted && !isSpectator && onStandUp && (
+            <button
+              type="button"
+              className="room-standup-top-btn"
+              onClick={onStandUp}
+              title="离开当前座位，切换为观战模式"
+            >
+              👁️ 离座观战
+            </button>
+          )}
+
+          {/* 非 1对1 游戏允许随时快捷呼叫机器人陪玩（观战模式下隐藏） */}
+          {!isSpectator && room.maxPlayers > 2 && room.players.length < room.maxPlayers && (
             <button
               type="button"
               className="room-add-bot-top-btn"
@@ -425,10 +452,14 @@ export function Room({
           rows={resultRows}
           myId={myId}
           balance={balance}
-          persistent={isPersistentGame}
+          persistent={isPersistentGame || isSpectator}
           onContinue={() => {
             setDismissedKey(resultKey);
-            onReady(true);
+            if (isSpectator) {
+              onSitDown?.();
+            } else {
+              onReady(true);
+            }
           }}
           onClose={() => setDismissedKey(resultKey)}
         />
@@ -483,7 +514,10 @@ export function Room({
               balance={balance}
               onBalanceChange={onBalanceChange ?? (() => {})}
               onAffectionChange={(newAffection) => onUserUpdate?.({ dealerAffection: newAffection })}
-              onAliceSpeak={(txt) => setCustomDealerTip(txt)}
+              onAliceSpeak={(txt) => {
+                setCustomDealerTip(txt);
+                speakDealerQuote(txt, activeVoice.id);
+              }}
               className="room-dealer-tip-slot"
             />
           </aside>
@@ -499,8 +533,47 @@ export function Room({
             {renderGame()}
           </Suspense>
 
+          {/* 观战模式底部悬浮控制条（机器人自建房默认观看，点击「入座」随时加入游戏） */}
+          {isSpectator && (
+            <div className="spectator-hud-bar" role="region" aria-label="观战控制栏">
+              <div className="spectator-hud-bar__info">
+                <span className="spectator-live-pill">👁️ 观战模式</span>
+                <div className="spectator-hud-bar__text">
+                  <strong>
+                    {isQueuedToSit
+                      ? '已预约入座，本局结束后将自动为您安排座位！'
+                      : '当前为实时观战视角，机器人正在激战对局中'}
+                  </strong>
+                  <span>
+                    桌上玩家 {room.players.length}/{room.maxPlayers} · 当前观战 {room.spectators?.length ?? 1} 人
+                  </span>
+                </div>
+              </div>
+              <div className="spectator-hud-bar__actions">
+                {isQueuedToSit ? (
+                  <>
+                    <span className="spectator-queued-badge">⏳ 等待本局结束自动上桌…</span>
+                    {onStandUp && (
+                      <button type="button" className="btn-spectator-cancel" onClick={onStandUp}>
+                        取消预约
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-spectator-sitdown"
+                    onClick={() => onSitDown?.()}
+                  >
+                    🪑 立即入座加入游戏
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 等待开局专属悬浮就绪控制台（沉浸式牌桌中心，彻底取代旧侧栏） */}
-          {room.status === 'waiting' && !isPersistentGame && (
+          {room.status === 'waiting' && !isPersistentGame && !isSpectator && (
             <div className="table-waiting-overlay">
               <div className="waiting-card">
                 <div className="waiting-card__title">

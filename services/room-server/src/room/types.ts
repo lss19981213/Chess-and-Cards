@@ -20,6 +20,13 @@ export interface Seat {
   botDifficulty?: BotDifficulty;
 }
 
+export interface Spectator {
+  playerId: string;
+  nickname: string;
+  socket: WebSocket | null;
+  queuedToSit: boolean;
+}
+
 export interface RoomDeps {
   config: RoomServerConfig;
   /** 上报结算到大厅（幂等落库 + 账本） */

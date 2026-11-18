@@ -1,6 +1,6 @@
-import type { GameMeta, PlayerView, RoomStatus, RoomSummary, RoomView, TrendMark } from '@cc/protocol';
+import type { GameMeta, PlayerView, RoomStatus, RoomSummary, RoomView, SpectatorView, TrendMark } from '@cc/protocol';
 import type { GamePlugin, PlayerContext, RoomContext } from '@cc/game-sdk';
-import type { Seat } from './types';
+import type { Seat, Spectator } from './types';
 
 export function toPlayerContexts(seats: Iterable<Seat>): PlayerContext[] {
   return [...seats]
@@ -30,6 +30,14 @@ export function toPlayerViews(seats: Iterable<Seat>): PlayerView[] {
     }));
 }
 
+export function toSpectatorViews(spectators: Iterable<Spectator>): SpectatorView[] {
+  return [...spectators].map((s) => ({
+    playerId: s.playerId,
+    nickname: s.nickname,
+    queuedToSit: s.queuedToSit,
+  }));
+}
+
 export function buildRoomView(input: {
   roomId: string;
   gameId: string;
@@ -39,6 +47,8 @@ export function buildRoomView(input: {
   maxPlayers: number;
   hostId: string | null;
   seats: Iterable<Seat>;
+  botHosted?: boolean;
+  spectators?: Iterable<Spectator>;
 }): RoomView {
   return {
     roomId: input.roomId,
@@ -49,6 +59,8 @@ export function buildRoomView(input: {
     maxPlayers: input.maxPlayers,
     players: toPlayerViews(input.seats),
     hostId: input.hostId,
+    ...(input.botHosted ? { botHosted: true } : {}),
+    ...(input.spectators ? { spectators: toSpectatorViews(input.spectators) } : {}),
   };
 }
 
@@ -99,9 +111,11 @@ export function buildRoomSummary(input: {
   roomId: string;
   meta: GameMeta;
   persistent: boolean;
+  botHosted?: boolean;
   platformNo: number;
   hostId: string | null;
   seats: Iterable<Seat>;
+  spectatorCount?: number;
   capacity: number;
   status: RoomStatus;
   joinable: boolean;
@@ -110,12 +124,15 @@ export function buildRoomSummary(input: {
   const list = [...input.seats];
   const host = list.find((seat) => seat.playerId === input.hostId);
   const bots = list.filter((seat) => seat.isBot).length;
+  const isBotHosted = input.botHosted === true;
   return {
     roomId: input.roomId,
     gameId: input.meta.gameId,
     roomName: input.persistent
       ? `${input.meta.name} · ${input.platformNo || 1} 号台`
-      : `${host?.nickname ?? '玩家'}的${input.meta.name}`,
+      : isBotHosted
+        ? `${input.meta.name} · 机器热战 ${input.platformNo || 1} 号桌`
+        : `${host?.nickname ?? '玩家'}的${input.meta.name}`,
     hostId: input.hostId,
     hostName: input.persistent ? '平台庄' : (host?.nickname ?? '玩家'),
     players: list.length,
@@ -124,7 +141,9 @@ export function buildRoomSummary(input: {
     maxPlayers: input.capacity,
     status: input.status === 'closed' ? 'settled' : input.status,
     persistent: input.persistent,
-    joinable: input.joinable || input.persistent,
+    ...(isBotHosted ? { botHosted: true } : {}),
+    ...(input.spectatorCount ? { spectators: input.spectatorCount } : {}),
+    joinable: input.joinable || input.persistent || isBotHosted,
     recent: input.recent,
   };
 }

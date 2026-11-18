@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  computeLevelInfo,
+  formatBigXp,
+  levelTitleFor,
+  levelUpRewardFor,
+  MAX_PLAYER_LEVEL,
+  xpRequiredForLevel,
+} from '@cc/protocol';
 import { api, resolveAvatarUrl, type User } from '../api';
 import { audio } from '../audio';
 import { Chip } from './Chip';
@@ -12,6 +20,8 @@ interface Props {
   onGoFriends?: () => void;
   /** 资料更新后同步到应用壳，顶栏昵称/头像即时刷新 */
   onProfileChange?: (patch: { nickname?: string; avatar?: string | null }) => void;
+  /** 余额或等级更新后同步到应用壳 */
+  onUserUpdate?: (patch: Partial<User>) => void;
 }
 
 /** 把用户选择的图片裁成方形并压缩，避免几十 MB 原图进数据库 */
@@ -54,12 +64,25 @@ async function fileToAvatar(file: File): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.86);
 }
 
-export function ProfileView({ user, onLogout, onGoTasks, onBack, onGoFriends, onProfileChange }: Props) {
+export function ProfileView({
+  user,
+  onLogout,
+  onGoTasks,
+  onBack,
+  onGoFriends,
+  onProfileChange,
+  onUserUpdate,
+}: Props) {
   const [nickname, setNickname] = useState(user.nickname);
   const [bio, setBio] = useState('');
   const [email, setEmail] = useState(user.email ?? '');
   const [avatar, setAvatar] = useState<string | null>(null);
   const [balance, setBalance] = useState(user.balance);
+  const [level, setLevel] = useState(user.level ?? 1);
+  const [xp, setXp] = useState(user.xp ?? '0');
+  const [rewardedLevel, setRewardedLevel] = useState(user.rewardedLevel ?? 1);
+  const [totalTurnover, setTotalTurnover] = useState(user.totalTurnover ?? '0');
+  const [claimingLevel, setClaimingLevel] = useState(false);
   const [rank, setRank] = useState<number | null>(null);
   const [friendsCount, setFriendsCount] = useState(0);
   const [achievements, setAchievements] = useState(0);
@@ -88,6 +111,10 @@ export function ProfileView({ user, onLogout, onGoTasks, onBack, onGoFriends, on
       setBio(data.profile.bio);
       setAvatar(data.profile.avatar);
       setBalance(data.balance);
+      setLevel(data.profile.level ?? 1);
+      setXp(data.profile.xp ?? '0');
+      setRewardedLevel(data.profile.rewardedLevel ?? 1);
+      setTotalTurnover(data.profile.totalTurnover ?? '0');
       setRank(data.rank);
       setFriendsCount(data.friendsCount);
       setAchievements(data.achievements);
@@ -95,6 +122,51 @@ export function ProfileView({ user, onLogout, onGoTasks, onBack, onGoFriends, on
       /* 未登录或接口异常时保留壳层传入的基础信息 */
     }
   }, []);
+
+  const levelInfo = useMemo(
+    () => computeLevelInfo(level, xp, rewardedLevel),
+    [level, xp, rewardedLevel],
+  );
+
+  const upcomingMilestones = useMemo(() => {
+    const start = Math.max(2, Math.min(MAX_PLAYER_LEVEL - 3, rewardedLevel + 1));
+    const list: Array<{ lv: number; reward: number; reqXp: string; status: 'claimed' | 'claimable' | 'locked' }> = [];
+    for (let lv = start; lv <= Math.min(MAX_PLAYER_LEVEL, start + 3); lv += 1) {
+      const status = lv <= rewardedLevel ? 'claimed' : lv <= level ? 'claimable' : 'locked';
+      list.push({
+        lv,
+        reward: levelUpRewardFor(lv),
+        reqXp: formatBigXp(xpRequiredForLevel(lv - 1)),
+        status,
+      });
+    }
+    return list;
+  }, [level, rewardedLevel]);
+
+  const handleClaimLevelReward = async () => {
+    if (claimingLevel || levelInfo.claimableReward <= 0) return;
+    setClaimingLevel(true);
+    try {
+      audio.play('click');
+      const res = await api.claimLevelReward();
+      audio.play('jackpot');
+      audio.play('coin_stream');
+      setBalance(res.balance);
+      setLevel(res.level);
+      setRewardedLevel(res.rewardedLevel);
+      onUserUpdate?.({
+        balance: res.balance,
+        level: res.level,
+        rewardedLevel: res.rewardedLevel,
+      });
+      notify(`🎉 成功领取 ${res.claimedLevels} 级升级奖励 +${res.reward.toLocaleString()} 筹码！`);
+    } catch (err) {
+      audio.play('alert');
+      notify(err instanceof Error ? err.message : '领取升级奖励失败', 'err');
+    } finally {
+      setClaimingLevel(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -228,6 +300,7 @@ export function ProfileView({ user, onLogout, onGoTasks, onBack, onGoFriends, on
           <span className="profile-uid-pill">UID: {user.id.slice(0, 8)}</span>
 
           <div className="profile-status-tags">
+            <span className="tag-level-gold">Lv.{levelInfo.level} {levelTitleFor(levelInfo.level)}</span>
             <span className="tag-gold-vip">{rank && rank <= 10 ? `财富榜第 ${rank} 名` : 'VIP 殿堂会员'}</span>
             <span className="tag-certified">{achievements} 项成就</span>
           </div>
@@ -260,6 +333,62 @@ export function ProfileView({ user, onLogout, onGoTasks, onBack, onGoFriends, on
               <strong>{balance.toLocaleString()}</strong>
             </div>
             <p className="asset-footnote">虚拟筹码不可提现、不可转让，仅用于记分娱乐与排行榜积分</p>
+          </div>
+
+          {/* 账号等级与流水经验进度卡 */}
+          <div className="profile-level-card">
+            <div className="profile-level-card__top">
+              <div className="level-identity">
+                <span className="level-badge-big">Lv.{levelInfo.level}</span>
+                <div className="level-identity__meta">
+                  <strong>{levelTitleFor(levelInfo.level)}</strong>
+                  <span>上限 Lv.{MAX_PLAYER_LEVEL} · 累计有效流水 {formatBigXp(totalTurnover)}</span>
+                </div>
+              </div>
+              {levelInfo.claimableReward > 0 ? (
+                <button
+                  type="button"
+                  className="btn-claim-level-reward"
+                  disabled={claimingLevel}
+                  onClick={() => void handleClaimLevelReward()}
+                >
+                  {claimingLevel
+                    ? '领取中…'
+                    : `🎁 领取升级奖励 +${levelInfo.claimableReward.toLocaleString()} 筹码`}
+                </button>
+              ) : (
+                <span className="level-claimed-status">
+                  {levelInfo.isMax
+                    ? '🏆 已达百级满级'
+                    : `下级奖励 +${levelInfo.nextReward.toLocaleString()} 筹码`}
+                </span>
+              )}
+            </div>
+
+            <div className="level-xp-bar-wrap">
+              <div className="level-xp-bar-labels">
+                <span>
+                  当前经验：<b>{levelInfo.xpFormatted}</b> / {levelInfo.requiredXpFormatted}
+                </span>
+                <span>{levelInfo.isMax ? '100% MAX' : `${levelInfo.percent}%`}</span>
+              </div>
+              <div className="level-xp-track">
+                <div className="level-xp-fill" style={{ width: `${levelInfo.percent}%` }} />
+              </div>
+              <p className="level-xp-rule-hint">
+                💡 对局有效流水 1:1 转化为经验；初始 100 经验升级，每级经验翻 2 倍（100 → 200 → 400 → 800…），升级可领 1,000 / 2,000 / 3,000… 递增筹码！
+              </p>
+            </div>
+
+            <div className="level-milestones-row">
+              {upcomingMilestones.map((m) => (
+                <div key={m.lv} className={`level-milestone-chip is-${m.status}`}>
+                  <span className="milestone-lv">Lv.{m.lv}</span>
+                  <strong className="milestone-reward">+{m.reward.toLocaleString()} 豆</strong>
+                  <small className="milestone-xp">需 {m.reqXp} 经验</small>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="profile-edit-card">

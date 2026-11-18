@@ -18,6 +18,8 @@ interface RoomItem {
   maxPlayers: number;
   status: 'waiting' | 'playing' | 'settled';
   persistent: boolean;
+  botHosted?: boolean;
+  spectators?: number;
   joinable: boolean;
   recent: TrendMark[];
 }
@@ -166,8 +168,8 @@ export function GameRooms({ game, botDifficulty, onChangeBotDifficulty, onBack, 
               return (
                 <div
                   key={room.roomId}
-                  className={`room-table-card ${room.status === 'playing' ? 'is-playing' : 'is-waiting'} ${!room.joinable ? 'is-full' : ''}`}
-                  onClick={() => room.joinable && handleSelectRoom(room.roomId)}
+                  className={`room-table-card ${room.status === 'playing' ? 'is-playing' : 'is-waiting'} ${room.botHosted ? 'is-bot-hosted' : ''} ${!room.joinable && !room.botHosted ? 'is-full' : ''}`}
+                  onClick={() => (room.joinable || room.botHosted) && handleSelectRoom(room.roomId)}
                   role="button"
                   tabIndex={0}
                 >
@@ -185,9 +187,16 @@ export function GameRooms({ game, botDifficulty, onChangeBotDifficulty, onBack, 
                   <div className="room-card__felt">
                     <div className="felt-ring-mini" />
                     <div className="felt-host-info">
-                      <span className="host-icon">{room.persistent ? '👑' : '👤'}</span>
-                      <span className="host-name">{room.hostName || '系统坐庄'}</span>
+                      <span className="host-icon">{room.persistent ? '👑' : room.botHosted ? '🤖' : '👤'}</span>
+                      <span className="host-name">
+                        {room.hostName || (room.botHosted ? '机器人牌桌' : '系统坐庄')}
+                      </span>
                     </div>
+                    {room.botHosted && (
+                      <div className="bot-hosted-pill">
+                        <span>👁️ 进房默认观战 · 可随时入座</span>
+                      </div>
+                    )}
 
                     {/* 近期走势路单小彩灯 */}
                     {marks.length > 0 && (
@@ -211,17 +220,20 @@ export function GameRooms({ game, botDifficulty, onChangeBotDifficulty, onBack, 
                       <span>
                         {room.players}/{room.maxPlayers}
                       </span>
+                      {room.botHosted && (room.spectators ?? 0) > 0 && (
+                        <span className="spectator-count-tag">👁️ {room.spectators}观战</span>
+                      )}
                     </div>
                     <button
                       type="button"
-                      className={`btn-table-join ${room.joinable ? 'is-ready' : 'is-disabled'}`}
-                      disabled={!room.joinable}
+                      className={`btn-table-join ${room.joinable || room.botHosted ? 'is-ready' : 'is-disabled'}`}
+                      disabled={!room.joinable && !room.botHosted}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (room.joinable) handleSelectRoom(room.roomId);
+                        if (room.joinable || room.botHosted) handleSelectRoom(room.roomId);
                       }}
                     >
-                      {room.joinable ? '立即入座' : '已满员'}
+                      {room.botHosted ? '👁️ 观战入座' : room.joinable ? '立即入座' : '已满员'}
                     </button>
                   </div>
                 </div>

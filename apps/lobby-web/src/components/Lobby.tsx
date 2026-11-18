@@ -7,9 +7,10 @@ function IconBolt() {
 }
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DEALER_VOICES, type Announcement, type BotDifficulty, type GameMeta } from '@cc/protocol';
+import { computeLevelInfo, DEALER_VOICES, type Announcement, type BotDifficulty, type GameMeta } from '@cc/protocol';
 import { api, type User } from '../api';
 import { audio } from '../audio';
+import { speakDealerQuote } from '../speech';
 import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART, HERO_BG } from '../assets';
 import { AvatarFrameModal } from './AvatarFrameModal';
 import { AvatarWithFrame } from './AvatarWithFrame';
@@ -251,6 +252,7 @@ export function Lobby({
     const quotes = activeVoice.quotes.touch;
     const nextQuote = quotes[Math.floor(Math.random() * quotes.length)]!;
     setCustomQuote(nextQuote);
+    speakDealerQuote(nextQuote, activeVoice.id);
   };
 
   const handleRandomPlay = () => {
@@ -276,6 +278,10 @@ export function Lobby({
   }, [hoveredGame, customQuote, activeTab, activeVoice]);
 
   const isLowBalance = user && user.balance < 100;
+  const levelInfo = useMemo(
+    () => computeLevelInfo(user?.level, user?.xp, user?.rewardedLevel),
+    [user?.level, user?.xp, user?.rewardedLevel],
+  );
 
   return (
     <div className="lobby lobby--luxury lobby--commercial-grade" style={{ ['--lobby-bg' as string]: `url(${HERO_BG})` }}>
@@ -288,7 +294,11 @@ export function Lobby({
             onClick={() => (user ? onProfile() : onLogin())}
             role="button"
             tabIndex={0}
-            title={user ? '点击查看个人资产' : '点击登录'}
+            title={
+              user
+                ? `Lv.${levelInfo.level} · 经验 ${levelInfo.xpFormatted}/${levelInfo.requiredXpFormatted} · 点击查看个人中心`
+                : '点击登录'
+            }
           >
             <div className="app-avatar-wrapper">
               <AvatarWithFrame
@@ -300,12 +310,27 @@ export function Lobby({
             </div>
             <div className="app-top__id">
               <div className="app-top__name-row">
-                <span className="app-avatar-badge">{user ? 'VIP' : 'GUEST'}</span>
+                <span className="app-level-pill">Lv.{levelInfo.level}</span>
                 <strong className="user-name-text" title={user ? user.nickname : '游客牌友'}>
                   {user ? user.nickname : '牌友_萌新'}
                 </strong>
                 {!user && <span className="login-pill">登录</span>}
+                {user && levelInfo.claimableReward > 0 && (
+                  <span className="level-reward-dot" title={`可领取 ${levelInfo.claimableReward.toLocaleString()} 升级筹码`}>
+                    领奖
+                  </span>
+                )}
               </div>
+              {user && (
+                <div className="app-top__xp-bar" title={`升级进度 ${levelInfo.xpFormatted} / ${levelInfo.requiredXpFormatted}`}>
+                  <div className="app-top__xp-track">
+                    <div className="app-top__xp-fill" style={{ width: `${levelInfo.percent}%` }} />
+                  </div>
+                  <span className="app-top__xp-num">
+                    {levelInfo.isMax ? 'MAX' : `${levelInfo.xpFormatted}/${levelInfo.requiredXpFormatted}`}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -682,7 +707,10 @@ export function Lobby({
                 balance={user?.balance ?? 0}
                 onBalanceChange={onBalanceChange ?? (() => {})}
                 onAffectionChange={(newAffection) => onUserUpdate?.({ dealerAffection: newAffection })}
-                onAliceSpeak={(txt) => setCustomQuote(txt)}
+                onAliceSpeak={(txt) => {
+                  setCustomQuote(txt);
+                  speakDealerQuote(txt, activeVoice.id);
+                }}
               />
             </div>
           </div>

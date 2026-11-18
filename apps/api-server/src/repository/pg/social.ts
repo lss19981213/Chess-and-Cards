@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { Announcement } from '@cc/protocol';
+import { totalClaimableLevelReward, type Announcement } from '@cc/protocol';
 import type { FriendRequestStatus, FriendRequestView, PlayerProfile, ProfilePatch } from '../types';
 import { avatarUrlSql } from './shared';
 
@@ -69,6 +69,10 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     dealer_skin: string | null;
     dealer_voice: string | null;
     dealer_affection: number | null;
+    level: number | null;
+    xp: string | null;
+    rewarded_level: number | null;
+    total_turnover: string | null;
   }>(
     `select u.id, u.nickname, u.username, p.bio, ${avatarUrlSql('p', 'u.id')} as avatar_url, coalesce(u.banned, false) as banned,
             coalesce(p.equipped_frame, 'frame_default') as equipped_frame,
@@ -76,7 +80,11 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
             coalesce(p.worship_count, 0) as worship_count,
             coalesce(p.dealer_skin, 'classic') as dealer_skin,
             coalesce(p.dealer_voice, 'classic') as dealer_voice,
-            coalesce(p.dealer_affection, 0) as dealer_affection
+            coalesce(p.dealer_affection, 0) as dealer_affection,
+            coalesce(p.level, 1) as level,
+            coalesce(p.xp, 0)::text as xp,
+            coalesce(p.rewarded_level, 1) as rewarded_level,
+            coalesce(p.total_turnover, 0)::text as total_turnover
        from users u
        left join user_profiles p on p.user_id = u.id
       where u.id = $1`,
@@ -97,6 +105,10 @@ export async function getProfile(pool: pg.Pool, userId: string): Promise<PlayerP
     dealerSkin: row.dealer_skin ?? 'classic',
     dealerVoice: row.dealer_voice ?? 'classic',
     dealerAffection: Number(row.dealer_affection ?? 0),
+    level: Number(row.level ?? 1),
+    xp: String(row.xp ?? '0'),
+    rewardedLevel: Number(row.rewarded_level ?? 1),
+    totalTurnover: String(row.total_turnover ?? '0'),
   };
 }
 
@@ -350,6 +362,78 @@ export async function addDealerAffection(
     [userId, safeAmount],
   );
   return res.rows[0]?.dealer_affection ?? safeAmount;
+}
+
+export async function claimLevelReward(
+  pool: pg.Pool,
+  userId: string,
+): Promise<{
+  ok: boolean;
+  claimedLevels: number;
+  reward: number;
+  balance: number;
+  level: number;
+  rewardedLevel: number;
+}> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `insert into user_profiles (user_id) values ($1) on conflict (user_id) do nothing`,
+      [userId],
+    );
+    const profRes = await client.query<{ level: number; rewarded_level: number }>(
+      `select coalesce(level, 1) as level, coalesce(rewarded_level, 1) as rewarded_level
+         from user_profiles
+        where user_id = $1
+        for update`,
+      [userId],
+    );
+    const level = Number(profRes.rows[0]?.level ?? 1);
+    const rewardedLevel = Number(profRes.rows[0]?.rewarded_level ?? 1);
+    const reward = totalClaimableLevelReward(level, rewardedLevel);
+    const claimedLevels = Math.max(0, level - rewardedLevel);
+    if (claimedLevels <= 0 || reward <= 0) {
+      throw new Error('暂无可领取的升级筹码奖励，快去对局积累流水升级吧！');
+    }
+
+    const wRes = await client.query<{ balance: string }>(
+      `select balance from wallets where user_id = $1 and currency = 'coin' for update`,
+      [userId],
+    );
+    const curBalance = Number(wRes.rows[0]?.balance ?? 0);
+    const newBalance = curBalance + reward;
+
+    await client.query(
+      `update wallets set balance = $2, version = version + 1 where user_id = $1 and currency = 'coin'`,
+      [userId, newBalance],
+    );
+    await client.query(
+      `insert into ledger (user_id, currency, delta, balance_after, biz_type, biz_id)
+       values ($1, 'coin', $2, $3, 'level_reward', $4)
+       on conflict (biz_type, biz_id, user_id) do nothing`,
+      [userId, reward, newBalance, `level:${userId}:${rewardedLevel}->${level}`],
+    );
+    await client.query(
+      `update user_profiles set rewarded_level = $2, updated_at = now() where user_id = $1`,
+      [userId, level],
+    );
+
+    await client.query('COMMIT');
+    return {
+      ok: true,
+      claimedLevels,
+      reward,
+      balance: newBalance,
+      level,
+      rewardedLevel: level,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function searchUsers(

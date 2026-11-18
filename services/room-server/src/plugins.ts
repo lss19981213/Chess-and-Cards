@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { GamePlugin } from '@cc/game-sdk';
-import { PLATFORM_ROOMS_INITIAL, type RoomManager } from './registry';
+import { BOT_HOSTED_POKER_GAMES, PLATFORM_ROOMS_INITIAL, type RoomManager } from './registry';
 
 type PluginConstructor = new () => GamePlugin;
 
@@ -91,6 +91,8 @@ export async function registerBuiltinGames(manager: RoomManager): Promise<string
 
     if (meta.persistent) {
       manager.ensurePlatformRooms(meta.gameId, PLATFORM_ROOMS_INITIAL);
+    } else if (BOT_HOSTED_POKER_GAMES.has(meta.gameId)) {
+      manager.ensureBotHostedRooms(meta.gameId);
     }
   }
 

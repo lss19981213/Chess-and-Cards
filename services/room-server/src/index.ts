@@ -508,11 +508,17 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
         if (!target || target.isClosed) {
           throw new AppError(ErrorCode.RoomNotFound, '房间不存在或已解散');
         }
-        if (!target.isJoinable && !target.isPersistent) {
-          throw new AppError(ErrorCode.RoomFull, '该房间已开局或已满员');
+        if (target.isBotHosted) {
+          // 机器人自建经典扑克房：玩家进入默认观战模式，点击入座按钮才能加入牌局
+          target.joinAsSpectator(player, session.ws);
+          room = target;
+        } else {
+          if (!target.isJoinable && !target.isPersistent) {
+            throw new AppError(ErrorCode.RoomFull, '该房间已开局或已满员');
+          }
+          target.join(player, session.ws);
+          room = target;
         }
-        target.join(player, session.ws);
-        room = target;
       } else if (create) {
         room = manager.createRoom(gameId, mode, maxPlayers, player, session.ws);
       } else {
@@ -587,6 +593,18 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       if (!session.roomId) return;
       manager.get(session.roomId)?.leave(session.playerId);
       session.roomId = null;
+      return;
+    }
+
+    case ClientMsg.SitDown: {
+      const room = requireRoom(session);
+      room.sitDown(session.playerId);
+      return;
+    }
+
+    case ClientMsg.StandUp: {
+      const room = requireRoom(session);
+      room.standUp(session.playerId);
       return;
     }
 

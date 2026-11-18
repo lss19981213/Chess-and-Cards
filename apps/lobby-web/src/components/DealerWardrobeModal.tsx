@@ -3,6 +3,7 @@ import { DEALER_SKINS, DEALER_VOICES, type DealerSkinMeta, type DealerVoiceMeta 
 import { api, type User } from '../api';
 import { DEALER_SKINS_ASSETS } from '../assets';
 import { audio } from '../audio';
+import { speakDealerQuote } from '../speech';
 
 interface Props {
   user: User;
@@ -47,21 +48,10 @@ export function DealerWardrobeModal({ user, onUserUpdate, onClose }: Props) {
     }
   };
 
-  const speakQuote = (text: string) => {
-    audio.play('worship');
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = 'zh-CN';
-        utter.rate = 1.05;
-        utter.pitch = selectedVoice.id === 'sweet' ? 1.3 : selectedVoice.id === 'tsundere' ? 1.2 : 1.0;
-        window.speechSynthesis.speak(utter);
-      } catch {
-        /* 忽略语音异常 */
-      }
-    }
-    showToast(`“${text}”`);
+  const speakQuote = (text: string, voiceId?: string) => {
+    const targetVoiceId = voiceId || selectedVoice.id;
+    speakDealerQuote(text, targetVoiceId);
+    showToast(`🎙️ “${text}”`);
   };
 
   // 判定好感度等级 (1-16 级全新升级)
@@ -267,7 +257,8 @@ export function DealerWardrobeModal({ user, onUserUpdate, onClose }: Props) {
                             className="btn-sample-speech"
                             onClick={(e) => {
                               e.stopPropagation();
-                              speakQuote(q);
+                              setSelectedVoice(voice);
+                              speakQuote(q, voice.id);
                             }}
                             title="点击试听此句语音"
                           >
@@ -286,7 +277,11 @@ export function DealerWardrobeModal({ user, onUserUpdate, onClose }: Props) {
                           className="btn-set-voice"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleApply(currentSkinId, voice.id);
+                            setSelectedVoice(voice);
+                            void handleApply(currentSkinId, voice.id).then(() => {
+                              const sample = voice.quotes.idle[0];
+                              if (sample) speakDealerQuote(sample, voice.id);
+                            });
                           }}
                           disabled={loading}
                         >

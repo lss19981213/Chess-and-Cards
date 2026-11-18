@@ -10177,3 +10177,422 @@ button.secondary:hover:not(:disabled) {
 .skin-galaxy { border-color: #a855f7 !important; box-shadow: 0 0 14px rgba(168, 85, 247, 0.6) !important; }
 .skin-dragoncheongsam { border-color: #ffd700 !important; box-shadow: 0 0 16px rgba(255, 215, 0, 0.8) !important; }
 .skin-aphrodite { border-color: #ffffff !important; box-shadow: 0 0 20px rgba(255, 255, 255, 0.95), 0 0 35px #f43f5e !important; }
+
+
+/* =====================================================================
+   账号等级与经验条（顶栏 + 个人中心）
+   ===================================================================== */
+.app-level-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #1c1304;
+  background: linear-gradient(135deg, #ffe28a 0%, #f5b935 55%, #d68b10 100%);
+  box-shadow: 0 0 8px rgba(245, 185, 53, 0.45);
+  flex-shrink: 0;
+}
+
+.level-reward-dot {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #ff512f, #dd2476);
+  box-shadow: 0 0 10px rgba(255, 81, 47, 0.7);
+  animation: levelPulse 1.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes levelPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+.app-top__xp-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  width: 100%;
+  min-width: 96px;
+}
+
+.app-top__xp-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+  border: 1px solid rgba(255, 215, 110, 0.2);
+}
+
+.app-top__xp-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8 0%, #fbbf24 55%, #f59e0b 100%);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-top__xp-num {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 232, 179, 0.82);
+  white-space: nowrap;
+}
+
+.tag-level-gold {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1c1304;
+  background: linear-gradient(135deg, #ffe58f, #f5b935);
+  box-shadow: 0 2px 10px rgba(245, 185, 53, 0.35);
+}
+
+.profile-level-card {
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(26, 33, 52, 0.92), rgba(16, 21, 35, 0.96));
+  border: 1px solid rgba(245, 196, 81, 0.32);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 230, 150, 0.14);
+}
+
+.profile-level-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.level-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.level-badge-big {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 66px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 900;
+  color: #1b1203;
+  background: linear-gradient(135deg, #fff0b3 0%, #f5b935 55%, #d9820b 100%);
+  box-shadow: 0 4px 16px rgba(245, 185, 53, 0.42);
+}
+
+.level-identity__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.level-identity__meta strong {
+  font-size: 16px;
+  color: #fff6dc;
+}
+
+.level-identity__meta span {
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.btn-claim-level-reward {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1d1202;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ffe793 0%, #ffb703 55%, #fb8500 100%);
+  box-shadow: 0 6px 20px rgba(255, 183, 3, 0.48);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  animation: levelPulse 1.8s ease-in-out infinite;
+}
+
+.btn-claim-level-reward:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(255, 183, 3, 0.65);
+}
+
+.btn-claim-level-reward:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  animation: none;
+}
+
+.level-claimed-status {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fde68a;
+  background: rgba(245, 185, 53, 0.12);
+  border: 1px solid rgba(245, 185, 53, 0.28);
+}
+
+.level-xp-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.level-xp-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: rgba(241, 245, 249, 0.85);
+}
+
+.level-xp-bar-labels b {
+  color: #ffd166;
+}
+
+.level-xp-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 215, 110, 0.24);
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.level-xp-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8 0%, #818cf8 38%, #f59e0b 75%, #fde047 100%);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.65);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.level-xp-rule-hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(203, 213, 225, 0.72);
+  line-height: 1.5;
+}
+
+.level-milestones-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.level-milestone-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+}
+
+.level-milestone-chip.is-claimable {
+  background: rgba(245, 185, 53, 0.16);
+  border-color: rgba(251, 191, 36, 0.65);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.25);
+}
+
+.level-milestone-chip.is-claimed {
+  opacity: 0.58;
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.milestone-lv {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fde68a;
+}
+
+.milestone-reward {
+  font-size: 13px;
+  color: #fff;
+}
+
+.milestone-xp {
+  font-size: 11px;
+  color: rgba(203, 213, 225, 0.68);
+}
+
+/* =====================================================================
+   经典扑克机器人自建房 & 观战入座控制条
+   ===================================================================== */
+.room-table-card.is-bot-hosted {
+  border-color: rgba(56, 189, 248, 0.36);
+}
+
+.bot-hosted-pill {
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  z-index: 2;
+}
+
+.spectator-count-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.16);
+}
+
+.room-standup-top-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  background: rgba(14, 165, 233, 0.18);
+  color: #e0f2fe;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.room-standup-top-btn:hover {
+  background: rgba(14, 165, 233, 0.32);
+  border-color: rgba(125, 211, 252, 0.8);
+}
+
+.spectator-hud-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 42;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: min(92%, 720px);
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(11, 18, 32, 0.92), rgba(20, 30, 50, 0.94));
+  border: 1px solid rgba(245, 196, 81, 0.48);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(245, 185, 53, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.spectator-hud-bar__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.spectator-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #e0f2fe;
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+  flex-shrink: 0;
+}
+
+.spectator-hud-bar__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.spectator-hud-bar__text strong {
+  font-size: 13px;
+  color: #fff7e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spectator-hud-bar__text span {
+  font-size: 11px;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.spectator-hud-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-spectator-sitdown {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 900;
+  color: #1f1202;
+  cursor: pointer;
+  background: linear-gradient(135deg, #fff0a6 0%, #fbbf24 50%, #f59e0b 100%);
+  box-shadow: 0 6px 22px rgba(251, 191, 36, 0.55);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-spectator-sitdown:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 10px 28px rgba(251, 191, 36, 0.75);
+}
+
+.spectator-queued-badge {
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.48);
+}
+
+.btn-spectator-cancel {
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+}
+
+.btn-spectator-cancel:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}

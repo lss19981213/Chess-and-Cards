@@ -14,6 +14,10 @@ export interface User {
   dealerSkin?: string;
   dealerVoice?: string;
   dealerAffection?: number;
+  level?: number;
+  xp?: string;
+  rewardedLevel?: number;
+  totalTurnover?: string;
 }
 
 export interface Captcha {
@@ -197,6 +201,8 @@ export const api = {
         maxPlayers: number;
         status: 'waiting' | 'playing' | 'settled';
         persistent: boolean;
+        botHosted?: boolean;
+        spectators?: number;
         joinable: boolean;
         recent: Array<{ round: number; text: string; tone: 'red' | 'blue' | 'green' | 'neutral' }>;
       }>;
@@ -255,6 +261,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ skin, voice }),
     }),
+
+  claimLevelReward: () =>
+    request<{
+      ok: boolean;
+      claimedLevels: number;
+      reward: number;
+      balance: number;
+      level: number;
+      rewardedLevel: number;
+    }>('/api/level/claim', { method: 'POST', body: '{}' }),
 
   leaderboardRewards: () =>
     request<{ dayKey: string; entries: LeaderboardRewardRow[] }>('/api/leaderboard/rewards'),
@@ -366,6 +382,11 @@ export interface PlayerProfile {
   worshipCount?: number;
   dealerSkin?: string;
   dealerVoice?: string;
+  dealerAffection?: number;
+  level?: number;
+  xp?: string;
+  rewardedLevel?: number;
+  totalTurnover?: string;
 }
 
 export interface FriendRequestView {

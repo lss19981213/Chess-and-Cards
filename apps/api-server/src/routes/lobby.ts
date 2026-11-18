@@ -305,6 +305,59 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     return res;
   });
 
+  // 领取账号升级筹码奖励（Lv.2=1000, Lv.3=2000, Lv.4=3000... 依次递增）
+  app.post('/api/level/claim', async (req) => {
+    const claims = authHeader(req);
+    try {
+      return await repo.claimLevelReward(claims.sub);
+    } catch (err) {
+      throw httpError(err instanceof Error ? err.message : '领取升级奖励失败', 400);
+    }
+  });
+
+  // 轻量级荷官中文语音合成兜底代理（当客户端浏览器缺失本地 TTS 语音包时提供稳定有声回退）
+  const ttsCache = new Map<string, Buffer>();
+  app.get('/api/tts', async (req, reply) => {
+    const rawText = String((req.query as { text?: string }).text ?? '').trim();
+    const cleaned = rawText
+      .replace(/[^\u4e00-\u9fa5a-zA-Z0-9，。！？、：；,.!?\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 100);
+    if (!cleaned) {
+      return reply.status(400).send({ error: '缺少朗读文本' });
+    }
+
+    const cached = ttsCache.get(cleaned);
+    if (cached) {
+      reply.header('cache-control', 'public, max-age=86400');
+      return reply.type('audio/mpeg').send(cached);
+    }
+
+    try {
+      const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(cleaned)}&le=zh`;
+      const res = await fetch(url, {
+        headers: {
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        signal: AbortSignal.timeout(4500),
+      });
+      if (!res.ok) throw new Error(`TTS upstream ${res.status}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 256) throw new Error('TTS empty payload');
+
+      if (ttsCache.size >= 120) {
+        const firstKey = ttsCache.keys().next().value;
+        if (firstKey !== undefined) ttsCache.delete(firstKey);
+      }
+      ttsCache.set(cleaned, buf);
+      reply.header('cache-control', 'public, max-age=86400');
+      return reply.type('audio/mpeg').send(buf);
+    } catch {
+      return reply.status(503).send({ error: '语音合成暂不可用' });
+    }
+  });
+
   app.get('/api/leaderboard/rewards', async () => {
     const today = beijingDayKey();
     let dayKey = today;

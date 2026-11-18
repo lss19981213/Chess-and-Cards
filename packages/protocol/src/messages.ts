@@ -15,6 +15,10 @@ export const ClientMsg = {
   AddBot: 'client:add_bot',
   /** 快捷喊话 */
   Emote: 'client:emote',
+  /** 观战玩家点击入座加入牌局 */
+  SitDown: 'client:sit_down',
+  /** 离座返回观战或取消入座预约 */
+  StandUp: 'client:stand_up',
 } as const;
 
 export type ClientMsgType = (typeof ClientMsg)[keyof typeof ClientMsg];
@@ -98,6 +102,10 @@ export interface RoomSummary {
   status: 'waiting' | 'playing' | 'settled';
   /** 平台坐庄的常驻台，玩家不可创建也不可关闭 */
   persistent: boolean;
+  /** 机器人自建的经典扑克热战桌（进入默认观战，点击入座加入对局） */
+  botHosted?: boolean;
+  /** 正在观战的人数 */
+  spectators?: number;
   /** 已开局且不可再加入 */
   joinable: boolean;
   /** 最近 3 把走势，常驻台专用 */

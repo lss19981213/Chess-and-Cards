@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import {
   AppError,
@@ -11,6 +11,7 @@ import {
   type RoomView,
 } from '@cc/protocol';
 import type { GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
+import { BOT_NAMES } from './bot';
 import { createLogger } from './logger';
 import { reconcileAmbientSeats } from './room/ambient';
 import { applySettlementScores, buildSettlementEnvelope } from './room/settlement';
@@ -21,6 +22,7 @@ import {
   sendEnvelope,
   type RoomDeps,
   type Seat,
+  type Spectator,
 } from './room/types';
 import { buildRoomSummary, buildRoomView, recentTrendFor, toPlayerContexts } from './room/view';
 
@@ -39,6 +41,7 @@ export class GameRoom {
   private readonly maxPlayers: number;
   private readonly deps: RoomDeps;
   private readonly seats = new Map<string, Seat>();
+  private readonly spectators = new Map<string, Spectator>();
   private readonly ctx: RoomContext;
 
   private hostId: string | null = null;
@@ -55,6 +58,7 @@ export class GameRoom {
   private tickTimer: NodeJS.Timeout | null = null;
   private closed = false;
   private readonly persistent: boolean;
+  private readonly botHosted: boolean;
   private platformNo = 0;
   private emoteTimes = new Map<string, number[]>();
   /** 结算展示期间预约的准备意愿 */
@@ -68,7 +72,7 @@ export class GameRoom {
     mode: string,
     maxPlayers: number,
     deps: RoomDeps,
-    options: { persistent?: boolean } = {},
+    options: { persistent?: boolean; botHosted?: boolean } = {},
   ) {
     this.id = id;
     this.plugin = plugin;
@@ -76,6 +80,7 @@ export class GameRoom {
     this.maxPlayers = Math.max(plugin.meta.minPlayers, Math.min(maxPlayers, plugin.meta.maxPlayers));
     this.deps = deps;
     this.persistent = options.persistent === true;
+    this.botHosted = options.botHosted === true;
 
     const getConfig = () => ({
       roomId: this.id,
@@ -97,9 +102,11 @@ export class GameRoom {
       getPlayer: (playerId: string) => toPlayerContexts(this.seats.values()).find((p) => p.playerId === playerId),
       broadcast: (t: string, d: unknown) => {
         for (const seat of this.seats.values()) sendEnvelope(seat.socket, t, d);
+        for (const spec of this.spectators.values()) sendEnvelope(spec.socket, t, d);
       },
       sendTo: (playerId: string, t: string, d: unknown) => {
-        sendEnvelope(this.seats.get(playerId)?.socket ?? null, t, d);
+        const sock = this.seats.get(playerId)?.socket ?? this.spectators.get(playerId)?.socket ?? null;
+        sendEnvelope(sock, t, d);
       },
       markDirty: () => {
         this.dirty = true;
@@ -132,6 +139,14 @@ export class GameRoom {
 
   get isPersistent(): boolean {
     return this.persistent;
+  }
+
+  get isBotHosted(): boolean {
+    return this.botHosted;
+  }
+
+  get spectatorCount(): number {
+    return this.spectators.size;
   }
 
   get pluginMeta(): GameMeta {
@@ -199,6 +214,8 @@ export class GameRoom {
       maxPlayers: this.maxPlayers,
       hostId: this.hostId,
       seats: this.seats.values(),
+      botHosted: this.botHosted,
+      spectators: this.spectators.values(),
     });
   }
 
@@ -207,14 +224,179 @@ export class GameRoom {
       roomId: this.id,
       meta: this.plugin.meta,
       persistent: this.persistent,
+      botHosted: this.botHosted,
       platformNo: this.platformNo,
       hostId: this.hostId,
       seats: this.seats.values(),
+      spectatorCount: this.spectators.size,
       capacity: this.capacity,
       status: this.status,
       joinable: this.isJoinable,
       recent: recentTrendFor(this.plugin, this.ctx, this.persistent),
     });
+  }
+
+  /** 以观战模式进入机器人自建房，默认只看牌不入座；点击入座后加入下一局或立即入座 */
+  joinAsSpectator(player: { playerId: string; nickname: string }, socket: WebSocket): void {
+    if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
+    const existingSeat = this.seats.get(player.playerId);
+    if (existingSeat) {
+      this.attach(player.playerId, socket);
+      return;
+    }
+
+    this.spectators.set(player.playerId, {
+      playerId: player.playerId,
+      nickname: player.nickname,
+      socket,
+      queuedToSit: false,
+    });
+
+    this.broadcastView();
+    if (this.round > 0 || this.status === 'playing' || this.status === 'settled') {
+      this.pushSnapshotToSocket(socket, null);
+    }
+  }
+
+  /** 观战玩家点击「入座」加入对局：若等待中立即入座（满员则替换一名机器人），若对局中则预约下局自动入座 */
+  sitDown(playerId: string): { status: 'seated' | 'queued'; message: string } {
+    if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
+    if (this.seats.has(playerId)) {
+      return { status: 'seated', message: '您已在牌桌上入座' };
+    }
+    const spec = this.spectators.get(playerId);
+    if (!spec) {
+      throw new AppError(ErrorCode.RoomNotFound, '请先进入房间');
+    }
+
+    if (this.status === 'waiting') {
+      const seated = this.seatSpectatorNow(spec);
+      if (!seated) {
+        throw new AppError(ErrorCode.RoomFull, '牌桌真人已满，请稍候观战');
+      }
+      this.broadcastView();
+      this.dirty = true;
+      this.tryStart();
+      return { status: 'seated', message: '入座成功，牌局即将开始！' };
+    }
+
+    spec.queuedToSit = true;
+    this.broadcastView();
+    return { status: 'queued', message: '已预约入座，本局结束后将自动为您安排座位！' };
+  }
+
+  /** 离座返回观战或取消入座预约 */
+  standUp(playerId: string): void {
+    if (this.closed) return;
+    const spec = this.spectators.get(playerId);
+    if (spec) {
+      if (spec.queuedToSit) {
+        spec.queuedToSit = false;
+        this.broadcastView();
+      }
+      return;
+    }
+
+    const seat = this.seats.get(playerId);
+    if (!seat || !this.botHosted) return;
+    const savedSocket = seat.socket;
+    const savedNickname = seat.nickname;
+    this.autoReady.delete(playerId);
+    this.pendingReady.delete(playerId);
+    this.removeSeat(playerId);
+
+    this.spectators.set(playerId, {
+      playerId,
+      nickname: savedNickname,
+      socket: savedSocket,
+      queuedToSit: false,
+    });
+
+    this.checkEnoughPlayers();
+    this.broadcastView();
+    this.dirty = true;
+    if (savedSocket && (this.round > 0 || this.status === 'playing' || this.status === 'settled')) {
+      this.pushSnapshotToSocket(savedSocket, null);
+    }
+  }
+
+  private evictOneBot(): boolean {
+    const bots = [...this.seats.values()].filter((s) => s.isBot);
+    if (bots.length === 0) return false;
+    // 优先请离非房主机器人
+    const victim = bots.find((b) => b.playerId !== this.hostId) ?? bots[0]!;
+    this.seats.delete(victim.playerId);
+    if (this.hostId === victim.playerId) {
+      const next = [...this.seats.values()].sort((a, b) => a.seat - b.seat)[0];
+      this.hostId = next ? next.playerId : null;
+    }
+    return true;
+  }
+
+  private seatSpectatorNow(spec: Spectator): boolean {
+    if (this.seats.size >= this.maxPlayers) {
+      if (!this.evictOneBot()) return false;
+    }
+    this.spectators.delete(spec.playerId);
+    const seat: Seat = {
+      playerId: spec.playerId,
+      nickname: spec.nickname,
+      seat: this.nextSeatIndex(),
+      ready: true,
+      score: 0,
+      socket: spec.socket,
+      graceTimer: null,
+      isBot: false,
+    };
+    this.seats.set(spec.playerId, seat);
+    this.autoReady.add(spec.playerId);
+    if (this.hostId === null) this.hostId = spec.playerId;
+
+    this.plugin.onPlayerJoin(this.ctx, {
+      playerId: seat.playerId,
+      nickname: seat.nickname,
+      seat: seat.seat,
+      connected: seat.socket !== null,
+      isBot: false,
+    });
+    return true;
+  }
+
+  private refillBotHostedSeats(): void {
+    if (!this.botHosted || this.closed) return;
+    const minTarget = this.plugin.meta.minPlayers;
+    if (this.seats.size >= minTarget) return;
+    const diffs: BotDifficulty[] = ['low', 'medium', 'high'];
+    const used = new Set([...this.seats.values()].map((s) => s.nickname));
+    while (this.seats.size < minTarget) {
+      const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
+      const picked = free[Math.floor(Math.random() * free.length)] ?? `机器人${this.seats.size + 1}`;
+      const nickname = `🤖 ${picked}`;
+      used.add(nickname);
+      const botId = `bot:${randomUUID()}`;
+      const diff = diffs[Math.floor(Math.random() * diffs.length)] ?? 'medium';
+      const seat: Seat = {
+        playerId: botId,
+        nickname,
+        seat: this.nextSeatIndex(),
+        ready: true,
+        score: 0,
+        socket: null,
+        graceTimer: null,
+        isBot: true,
+        botDifficulty: diff,
+      };
+      this.seats.set(botId, seat);
+      if (this.hostId === null) this.hostId = botId;
+      this.plugin.onPlayerJoin(this.ctx, {
+        playerId: botId,
+        nickname,
+        seat: seat.seat,
+        connected: true,
+        isBot: true,
+        botDifficulty: diff,
+      });
+    }
   }
 
   join(player: { playerId: string; nickname: string }, socket: WebSocket): void {
@@ -333,22 +515,41 @@ export class GameRoom {
     }
   }
 
-  /** 断线重连：复用原座位，保留分数与角色 */
+  /** 断线重连：复用原座位，保留分数与角色；观战者直接重绑连接 */
   attach(playerId: string, socket: WebSocket): void {
     const seat = this.seats.get(playerId);
-    if (!seat) throw new AppError(ErrorCode.RoomNotFound, '房间内不存在该玩家');
-    if (seat.graceTimer) {
-      clearTimeout(seat.graceTimer);
-      seat.graceTimer = null;
+    if (seat) {
+      if (seat.graceTimer) {
+        clearTimeout(seat.graceTimer);
+        seat.graceTimer = null;
+      }
+      seat.socket = socket;
+      this.broadcastView();
+      this.dirty = true;
+      this.ctx.sendTo(playerId, ServerMsg.RoomView, { room: this.view() });
+      return;
     }
-    seat.socket = socket;
-    this.broadcastView();
-    this.dirty = true;
-    this.ctx.sendTo(playerId, ServerMsg.RoomView, { room: this.view() });
+    const spec = this.spectators.get(playerId);
+    if (spec) {
+      spec.socket = socket;
+      this.ctx.sendTo(playerId, ServerMsg.RoomView, { room: this.view() });
+      if (this.round > 0 || this.status === 'playing' || this.status === 'settled') {
+        this.pushSnapshotToSocket(socket, null);
+      }
+      return;
+    }
+    throw new AppError(ErrorCode.RoomNotFound, '房间内不存在该玩家');
   }
 
   /** 连接断开：校验 socket 引用，避免双端切换时旧连接误删新连接 */
   detach(playerId: string, socket?: WebSocket | null): void {
+    const spec = this.spectators.get(playerId);
+    if (spec) {
+      if (socket && spec.socket !== socket) return;
+      this.spectators.delete(playerId);
+      this.broadcastView();
+      return;
+    }
     const seat = this.seats.get(playerId);
     if (!seat) return;
     if (socket && seat.socket !== socket) return;
@@ -405,6 +606,11 @@ export class GameRoom {
   }
 
   leave(playerId: string): void {
+    if (this.spectators.has(playerId)) {
+      this.spectators.delete(playerId);
+      this.broadcastView();
+      return;
+    }
     this.removeSeat(playerId);
     this.checkEnoughPlayers();
     this.broadcastView();
@@ -424,7 +630,15 @@ export class GameRoom {
         /* ignore */
       }
     }
+    for (const spec of this.spectators.values()) {
+      try {
+        spec.socket?.close(4001, 'room closed');
+      } catch {
+        /* ignore */
+      }
+    }
     this.seats.clear();
+    this.spectators.clear();
     this.plugin.onDestroy?.(this.ctx);
     void this.deps.releaseBets(this.id).catch(() => undefined);
     this.deps.empty(this.id);
@@ -480,7 +694,12 @@ export class GameRoom {
     applySettlementScores(this.seats, settlement);
 
     this.ctx.broadcast(ServerMsg.Settlement, { settlement });
-    this.deps.settle(settlement);
+    const hasHuman = settlement.entries.some(
+      (e) => !e.playerId.startsWith('bot:') && !e.playerId.startsWith('ambient:'),
+    );
+    if (!this.botHosted || hasHuman) {
+      this.deps.settle(settlement);
+    }
     this.dirty = true;
     this.pushSnapshots();
 
@@ -492,6 +711,15 @@ export class GameRoom {
   private resetRound(): void {
     if (this.closed) return;
     this.status = 'waiting';
+    if (this.botHosted) {
+      // 将预约入座的观战玩家安排上桌，并确保桌内机器人足够继续下一局
+      for (const spec of [...this.spectators.values()]) {
+        if (spec.queuedToSit && spec.socket) {
+          this.seatSpectatorNow(spec);
+        }
+      }
+      this.refillBotHostedSeats();
+    }
     for (const seat of this.seats.values()) {
       seat.ready = seat.isBot || this.autoReady.has(seat.playerId);
     }
@@ -515,8 +743,8 @@ export class GameRoom {
   }
 
   sendEmote(playerId: string, key: string, text: string): void {
-    const seat = this.seats.get(playerId);
-    if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+    const who = this.seats.get(playerId) ?? this.spectators.get(playerId);
+    if (!who) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
     if (this.closed) return;
 
     const now = Date.now();
@@ -529,7 +757,7 @@ export class GameRoom {
 
     this.ctx.broadcast(ServerMsg.Emote, {
       playerId,
-      nickname: seat.nickname,
+      nickname: who.nickname,
       key,
       text,
       at: now,
@@ -538,6 +766,25 @@ export class GameRoom {
 
   private checkEnoughPlayers(): void {
     if (this.persistent) return;
+    if (this.botHosted) {
+      if (this.status === 'playing' && this.seats.size < this.plugin.meta.minPlayers) {
+        void this.deps.releaseBets(this.id).catch((error: unknown) => {
+          roomLog.error('中止本局退款失败', { roomId: this.id, error: (error as Error).message });
+        });
+        this.status = 'waiting';
+        this.settledThisRound = false;
+        this.refillBotHostedSeats();
+        for (const seat of this.seats.values()) {
+          seat.ready = seat.isBot || this.autoReady.has(seat.playerId);
+        }
+        this.broadcastView();
+        this.tryStart();
+      } else if (this.status === 'waiting') {
+        this.refillBotHostedSeats();
+        this.tryStart();
+      }
+      return;
+    }
     if (this.seats.size === 0 || ![...this.seats.values()].some((seat) => !seat.isBot)) {
       this.destroy();
       return;
@@ -581,7 +828,7 @@ export class GameRoom {
       const next = [...this.seats.values()].sort((a, b) => a.seat - b.seat)[0];
       this.hostId = next ? next.playerId : null;
     }
-    if (this.seats.size === 0) this.destroy();
+    if (this.seats.size === 0 && !this.botHosted) this.destroy();
   }
 
   private nextSeatIndex(): number {
@@ -594,6 +841,23 @@ export class GameRoom {
 
   private broadcastView(): void {
     this.ctx.broadcast(ServerMsg.RoomView, { room: this.view() });
+  }
+
+  private pushSnapshotToSocket(socket: WebSocket, viewerId: string | null): void {
+    try {
+      const view = this.view();
+      const snapshot = this.plugin.getSnapshot(this.ctx, viewerId);
+      sendEnvelope(socket, ServerMsg.Snapshot, {
+        roomId: this.id,
+        gameId: this.plugin.meta.gameId,
+        status: view.status,
+        round: this.round,
+        seq: this.seq,
+        snapshot,
+      });
+    } catch (error) {
+      console.error(`[room ${this.id}] getSnapshot 异常`, error);
+    }
   }
 
   private pushSnapshots(): void {
@@ -613,6 +877,24 @@ export class GameRoom {
         });
       } catch (error) {
         console.error(`[room ${this.id}] getSnapshot 异常`, error);
+      }
+    }
+    if (this.spectators.size > 0) {
+      try {
+        const spectatorSnap = this.plugin.getSnapshot(this.ctx, null);
+        for (const spec of this.spectators.values()) {
+          if (!spec.socket) continue;
+          sendEnvelope(spec.socket, ServerMsg.Snapshot, {
+            roomId: this.id,
+            gameId: this.plugin.meta.gameId,
+            status: view.status,
+            round: this.round,
+            seq: this.seq,
+            snapshot: spectatorSnap,
+          });
+        }
+      } catch (error) {
+        console.error(`[room ${this.id}] spectator getSnapshot 异常`, error);
       }
     }
   }

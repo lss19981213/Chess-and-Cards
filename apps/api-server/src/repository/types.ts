@@ -111,6 +111,14 @@ export interface PlayerProfile {
   dealerVoice?: string;
   /** 荷官好感度 */
   dealerAffection?: number;
+  /** 账号等级（1-100） */
+  level?: number;
+  /** 当前等级经验值（BigInt 字符串，防止高等级溢出） */
+  xp?: string;
+  /** 已领取升级奖励的最高等级 */
+  rewardedLevel?: number;
+  /** 累计有效流水 */
+  totalTurnover?: string;
 }
 
 export interface LedgerRow {
@@ -286,4 +294,12 @@ export interface Repository {
   getWorshipRemainingToday(worshiperId: string, dayKey: string): Promise<number>;
   customizeDealer(userId: string, skin: string, voice: string): Promise<{ ok: boolean; dealerSkin: string; dealerVoice: string }>;
   addDealerAffection(userId: string, amount: number): Promise<number>;
+  claimLevelReward(userId: string): Promise<{
+    ok: boolean;
+    claimedLevels: number;
+    reward: number;
+    balance: number;
+    level: number;
+    rewardedLevel: number;
+  }>;
 }
