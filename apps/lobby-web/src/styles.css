@@ -12511,33 +12511,521 @@ button.secondary:hover:not(:disabled) {
   animation: mj3dHandTidy 0.28s ease;
 }
 
-/* 绿顶象牙白 3D 高清实体手牌（还原参考图底部大立牌质感） */
+/* 全平台 3D 立体雕花实体麻将手牌（直接使用原生 3D SVG 立体厚边素材） */
 .mj3d-hand-tile {
   position: relative;
-  border-radius: 8px 8px 6px 6px;
-  padding-top: 6px;
-  background: linear-gradient(180deg, #2bd461 0%, #169940 75%, #f5efe3 100%);
-  box-shadow:
-    0 8px 14px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  border-radius: 9px;
+  padding: 0;
+  background: transparent;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.52));
   transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), filter 0.16s ease;
 }
 
 .mj3d-hand-tile .mahjong-tile__body img {
-  width: clamp(36px, 5vw, 60px);
-  height: clamp(50px, 7vw, 84px);
-  border-radius: 6px;
+  width: clamp(38px, 5.1vw, 64px);
+  height: clamp(52px, 7vw, 87px);
 }
 
 .mj3d-hand-tile:hover {
-  transform: translateY(-9px);
-  filter: drop-shadow(0 10px 14px rgba(250, 204, 21, 0.45));
+  transform: translateY(-10px);
+  filter: drop-shadow(0 12px 16px rgba(250, 204, 21, 0.5));
 }
 
 .mj3d-hand-tile.is-active {
-  transform: translateY(-20px) scale(1.04);
-  filter: drop-shadow(0 14px 20px rgba(250, 204, 21, 0.8));
-  outline: 2px solid #fde047;
+  transform: translateY(-20px) scale(1.05);
+  filter: drop-shadow(0 16px 22px rgba(250, 204, 21, 0.85));
+}
+
+.mj3d-hand-tile.is-recommended {
+  filter: drop-shadow(0 8px 14px rgba(250, 204, 21, 0.72));
+}
+
+.mj3d-hand-tile.is-dingque {
+  filter: drop-shadow(0 6px 10px rgba(239, 68, 68, 0.52)) saturate(0.85);
+}
+
+/* 推荐打出角标「荐」与定缺角标「缺」 */
+.mahjong-tile {
+  position: relative;
+}
+
+.mahjong-tile__rec-badge,
+.mahjong-tile__dq-badge {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.55);
+}
+
+.mahjong-tile__rec-badge {
+  background: linear-gradient(135deg, #fde047, #f59e0b);
+  color: #451a03;
+  border: 1px solid #fffbeb;
+  animation: mj3dPointerBounce 0.9s ease-in-out infinite;
+}
+
+.mahjong-tile__dq-badge {
+  background: linear-gradient(135deg, #ef4444, #991b1b);
+  color: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+/* 吃牌青玉按钮 */
+.mj3d-call-btn.is-chow {
+  background: radial-gradient(circle at 30% 25%, #38bdf8, #0284c7 60%, #075985 100%);
+  border-color: #bae6fd;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.7), 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+
+.mj3d-call-burst.is-chow .mj3d-burst-glyph {
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.94), rgba(7, 89, 133, 0.92));
+  border: 3px solid #bae6fd;
+  box-shadow: 0 0 40px rgba(56, 189, 248, 0.85);
+}
+
+.mj3d-call-burst.is-chow .mj3d-burst-ring--1 {
+  border-color: #38bdf8;
+}
+
+/* 顶部玩法特色徽标按钮 */
+.mj3d-hud-feature-pill {
+  pointer-events: auto;
+}
+
+.mj3d-hud-feature-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.32);
+  background: rgba(5, 24, 17, 0.68);
+  backdrop-filter: blur(6px);
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.mj3d-hud-feature-btn:hover {
+  background: rgba(12, 46, 32, 0.88);
+  border-color: rgba(250, 204, 21, 0.65);
+}
+
+/* 玩家头像下方的定缺/杠分/起手胡动态小丸 */
+.mj3d-avatar-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+}
+
+.mj3d-pill-dq,
+.mj3d-pill-gang,
+.mj3d-pill-bonus {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.mj3d-pill-dq {
+  background: rgba(220, 38, 38, 0.85);
+  color: #fef2f2;
+  border: 1px solid rgba(254, 202, 202, 0.45);
+}
+
+.mj3d-pill-gang.is-pos {
+  background: rgba(16, 185, 129, 0.85);
+  color: #ecfdf5;
+}
+
+.mj3d-pill-gang.is-neg {
+  background: rgba(153, 27, 27, 0.82);
+  color: #fee2e2;
+}
+
+.mj3d-pill-bonus {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fffbeb;
+}
+
+.mj3d-hudone-tag {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ef4444, #f59e0b);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* 手牌正上方横向快捷工具栏（彻底替代左下竖条，零遮挡！） */
+.mj3d-hand-toolbar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(4, 24, 16, 0.78);
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.mj3d-tb-btn {
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d1fae5;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.mj3d-tb-btn:hover {
+  background: rgba(52, 211, 153, 0.22);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.mj3d-tb-btn.is-on {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.9));
+  border-color: rgba(167, 243, 208, 0.65);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+/* 智能军师建议与听牌预览条 */
+.mj3d-advisor-bar {
+  position: relative;
+  max-width: min(94vw, 820px);
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(6, 30, 21, 0.9), rgba(10, 22, 32, 0.92));
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+.mj3d-advisor-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #ecfdf5;
+}
+
+.mj3d-advisor-tag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fffbeb;
+  font-size: 11.5px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.mj3d-advisor-tag.is-tenpai {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  animation: mj3dHuBtnPulse 1.1s ease-in-out infinite;
+}
+
+.mj3d-advisor-tag.is-preview {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+}
+
+.mj3d-advisor-text {
+  color: #fef3c7;
+  font-weight: 600;
+}
+
+.mj3d-advisor-rate {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  color: #6ee7b7;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.mj3d-advisor-apply {
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid #fef08a;
+  background: linear-gradient(135deg, #eab308, #ca8a04);
+  color: #422006;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.14s ease, filter 0.14s ease;
+  white-space: nowrap;
+}
+
+.mj3d-advisor-apply:hover {
+  transform: scale(1.06);
+  filter: brightness(1.08);
+}
+
+.mj3d-advisor-waits {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mj3d-wait-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px 2px 3px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+}
+
+.mj3d-wait-chip em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fde68a;
+}
+
+/* 留牌攻略气泡弹窗 */
+.mj3d-keep-tips-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(90vw, 440px);
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(6, 26, 18, 0.96);
+  border: 1.5px solid rgba(250, 204, 21, 0.55);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.75);
+  z-index: 30;
+}
+
+.mj3d-keep-tips-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: #fde68a;
+  font-size: 13px;
+}
+
+.mj3d-keep-tips-head button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.mj3d-keep-tips-pop ul {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #d1fae5;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+/* 吃牌组合选择器 */
+.mj3d-chow-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(7, 25, 38, 0.94);
+  border: 1.5px solid #38bdf8;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.65);
+  pointer-events: auto;
+}
+
+.mj3d-chow-picker__title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #bae6fd;
+}
+
+.mj3d-chow-option {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease;
+}
+
+.mj3d-chow-option:hover {
+  transform: translateY(-2px);
+  border-color: #fde047;
+}
+
+/* 四川血战开局定缺选择浮层 */
+.mj3d-dingque-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 14, 10, 0.72);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 32;
+}
+
+.mj3d-dingque-card {
+  width: min(92vw, 460px);
+  padding: 22px 24px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #163226 0%, #0a1b14 100%);
+  border: 2px solid #f59e0b;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.8);
+  text-align: center;
+}
+
+.mj3d-dingque-card h3 {
+  margin: 0 0 6px;
+  color: #fde68a;
+  font-size: 20px;
+}
+
+.mj3d-dingque-card p {
+  margin: 0 0 16px;
+  color: #a7f3d0;
+  font-size: 13px;
+}
+
+.mj3d-dingque-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.mj3d-dq-choice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.mj3d-dq-choice:hover {
+  transform: translateY(-4px);
+  border-color: #fde047;
+  background: rgba(250, 204, 21, 0.12);
+}
+
+.mj3d-dq-choice.is-rec {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.16);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.35);
+}
+
+.mj3d-dq-rec-tag {
+  position: absolute;
+  top: -10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mj3d-dq-choice strong {
+  font-size: 14px;
+  color: #fef3c7;
+}
+
+.mj3d-dq-choice small {
+  font-size: 11.5px;
+  color: #a7f3d0;
+}
+
+/* 局内玩法番型速查抽屉 */
+.mj3d-rules-drawer {
+  position: absolute;
+  top: 52px;
+  left: 14px;
+  width: min(88vw, 400px);
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(6, 24, 17, 0.95);
+  border: 1.5px solid rgba(250, 204, 21, 0.5);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.72);
+  z-index: 28;
+}
+
+.mj3d-rules-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #fde68a;
+  font-size: 14px;
+}
+
+.mj3d-rules-drawer__head button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.mj3d-rules-drawer ul {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #d1fae5;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* 调整底部自家头像避开左下角 💬 表情按钮，整洁不重叠 */
+.mj3d-avatar-card--bottom {
+  left: 14px;
+  bottom: 138px;
 }
 
 /* 最新摸到的牌独立隔开，带金色入位下落动效 */

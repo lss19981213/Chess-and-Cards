@@ -1,43 +1,160 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="100" height="140">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 116 158" width="116" height="158">
   <defs>
-    <linearGradient id="ivoryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- 3D 翡翠绿背厚度层（顶部 + 右侧立体拔模） -->
+    <linearGradient id="jadeTop" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34e073"/>
+      <stop offset="50%" stop-color="#19a84b"/>
+      <stop offset="100%" stop-color="#0f6d31"/>
+    </linearGradient>
+    <linearGradient id="jadeSide" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1cb854"/>
+      <stop offset="60%" stop-color="#107835"/>
+      <stop offset="100%" stop-color="#07441d"/>
+    </linearGradient>
+    <!-- 3D 象牙白中层过渡厚度 -->
+    <linearGradient id="ivorySide" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f2eadb"/>
+      <stop offset="100%" stop-color="#c4b59a"/>
+    </linearGradient>
+    <!-- 正面温润象牙白玉面 -->
+    <linearGradient id="ivoryFace" x1="12%" y1="4%" x2="88%" y2="96%">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="50%" stop-color="#fdfbf7"/>
-      <stop offset="100%" stop-color="#ece5d8"/>
+      <stop offset="48%" stop-color="#fdf9f0"/>
+      <stop offset="86%" stop-color="#f0e6d2"/>
+      <stop offset="100%" stop-color="#dfd1b8"/>
     </linearGradient>
-    <linearGradient id="jadeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1b5e3a"/>
-      <stop offset="100%" stop-color="#0b3820"/>
+    <!-- 瓷面玻璃高光 -->
+    <linearGradient id="gloss" x1="0%" y1="0%" x2="60%" y2="85%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.72"/>
+      <stop offset="35%" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <radialGradient id="dotRed" cx="35%" cy="30%" r="70%">
-      <stop offset="0%" stop-color="#ff4d4f"/>
-      <stop offset="100%" stop-color="#b91c1c"/>
+    <!-- 立体雕花色系 -->
+    <radialGradient id="cRed" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#f84242"/>
+      <stop offset="65%" stop-color="#c81e1e"/>
+      <stop offset="100%" stop-color="#7f1010"/>
     </radialGradient>
-    <radialGradient id="dotGreen" cx="35%" cy="30%" r="70%">
-      <stop offset="0%" stop-color="#10b981"/>
-      <stop offset="100%" stop-color="#047857"/>
+    <radialGradient id="cGreen" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="65%" stop-color="#15803d"/>
+      <stop offset="100%" stop-color="#064e3b"/>
     </radialGradient>
-    <radialGradient id="dotBlue" cx="35%" cy="30%" r="70%">
+    <radialGradient id="cBlue" cx="35%" cy="30%" r="70%">
       <stop offset="0%" stop-color="#3b82f6"/>
-      <stop offset="100%" stop-color="#1d4ed8"/>
+      <stop offset="65%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#172554"/>
     </radialGradient>
+    <linearGradient id="bamGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0d6630"/>
+      <stop offset="38%" stop-color="#22c55e"/>
+      <stop offset="72%" stop-color="#15803d"/>
+      <stop offset="100%" stop-color="#064e24"/>
+    </linearGradient>
+    <linearGradient id="bamRed" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8c1515"/>
+      <stop offset="40%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#7f1010"/>
+    </linearGradient>
+    <linearGradient id="bamBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="42%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#172554"/>
+    </linearGradient>
+    <filter id="engrave" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="1.1" stdDeviation="0.5" flood-color="#ffffff" flood-opacity="0.75"/>
+    </filter>
   </defs>
 
-  <!-- 3D Tile Shadow & Thickness -->
-  <rect x="3" y="5" width="94" height="134" rx="12" fill="#0b3820" opacity="0.3"/>
-  <rect x="2" y="2" width="96" height="136" rx="10" fill="url(#ivoryGrad)" stroke="#c4b59d" stroke-width="1.6"/>
-  <rect x="6" y="6" width="88" height="128" rx="7" fill="none" stroke="#d5cbba" stroke-width="1" opacity="0.8"/>
+  <!-- 底部落地柔影 -->
+  <rect x="7" y="14" width="106" height="142" rx="15" fill="#03140b" opacity="0.34"/>
 
-  <!-- Engraved Face Content -->
-  
-      <circle cx="30" cy="34" r="9" fill="url(#dotBlue)"/>
-      <circle cx="70" cy="34" r="9" fill="url(#dotBlue)"/>
-      <circle cx="30" cy="58" r="9" fill="url(#dotBlue)"/>
-      <circle cx="70" cy="58" r="9" fill="url(#dotBlue)"/>
-      <circle cx="30" cy="82" r="9" fill="url(#dotBlue)"/>
-      <circle cx="70" cy="82" r="9" fill="url(#dotBlue)"/>
-      <circle cx="30" cy="106" r="9" fill="url(#dotBlue)"/>
-      <circle cx="70" cy="106" r="9" fill="url(#dotBlue)"/>
+  <!-- 3D 翡翠绿背厚度块（向右上方立体突出） -->
+  <rect x="8" y="2" width="104" height="142" rx="14" fill="url(#jadeSide)" stroke="#073d1a" stroke-width="1.4"/>
+  <!-- 翡翠顶部反光带 -->
+  <path d="M18 3.5 H100 Q109 3.5 110 12 V18 Q108 10 99 10 H16 Q10 10 9 16 V12 Q10 3.5 18 3.5 Z" fill="url(#jadeTop)" opacity="0.95"/>
+
+  <!-- 中层象牙白骨质侧厚 -->
+  <rect x="5" y="7" width="102" height="142" rx="13" fill="url(#ivorySide)" stroke="#b3a184" stroke-width="1"/>
+
+  <!-- 正面象牙白精抛光瓷面 -->
+  <rect x="2.5" y="10.5" width="100" height="142" rx="12" fill="url(#ivoryFace)" stroke="#cfc0a6" stroke-width="1.5"/>
+
+  <!-- 瓷面微凹刻槽边框 -->
+  <rect x="8" y="16" width="89" height="131" rx="8" fill="none" stroke="#e5d9c3" stroke-width="1.2"/>
+
+  <!-- 左上角弧形瓷釉高光 -->
+  <path d="M14 12 H90 Q100 12 100 22 V48 Q56 62 4 38 V22 Q4 12 14 12 Z" fill="url(#gloss)"/>
+
+  <!-- 牌面内容（位于正面 x:2.5..102.5, y:10.5..152.5，中心 52.5, 81.5） -->
+  <g filter="url(#engrave)">
     
+    <g transform="translate(33,38)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+    <g transform="translate(72,38)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+    <g transform="translate(33,67)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+    <g transform="translate(72,67)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+    <g transform="translate(33,96)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+    <g transform="translate(72,96)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+    <g transform="translate(33,125)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+    <g transform="translate(72,125)">
+      <circle r="12.5" fill="url(#cBlue)" stroke="#0f172a" stroke-opacity="0.22" stroke-width="1"/>
+      <circle r="8.5" fill="none" stroke="#dbeafe" stroke-width="2.0" stroke-dasharray="5.3 2.8"/>
+      <circle r="4.3" fill="#ffffff" opacity="0.92"/>
+      <circle r="2.0" fill="url(#cBlue)"/>
+      <ellipse cx="-3.3" cy="-4.0" rx="3.3" ry="1.8" fill="#ffffff" opacity="0.45" transform="rotate(-28)"/>
+    </g>
+  
+  </g>
+
+  <text x="92" y="29" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="800" fill="#1d4ed8" opacity="0.72">8</text>
 </svg>

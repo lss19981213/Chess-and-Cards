@@ -2,7 +2,8 @@ import type { BotDifficulty, GameMeta, GameSnapshot, SettlementEntry } from '@cc
 import type { GameIntent, RoomContext } from '@cc/game-sdk';
 import { BaseGamePlugin, shuffleWithSeed } from '@cc/game-sdk';
 
-export type MahjongSuit = 'dot' | 'bamboo' | 'wan';
+export type MahjongSuit = 'wan' | 'bamboo' | 'dot' | 'wind' | 'dragon';
+export type NumericSuit = 'wan' | 'bamboo' | 'dot';
 
 export interface MahjongTileData {
   id: string;
@@ -12,7 +13,23 @@ export interface MahjongTileData {
 
 export interface Meld {
   type: 'pong' | 'kong' | 'chow';
+  concealed?: boolean;
   tiles: MahjongTileData[];
+}
+
+export interface ChowOption {
+  tileIds: [string, string];
+  tiles: MahjongTileData[];
+}
+
+export interface MahjongActionEvent {
+  seq: number;
+  type: 'start' | 'start_bonus' | 'dingque_done' | 'discard' | 'chow' | 'pong' | 'kong' | 'hu' | 'zimo' | 'draw_game';
+  playerId: string;
+  nickname: string;
+  tile?: MahjongTileData;
+  huType?: string;
+  detail?: string;
 }
 
 interface ResultRow {
@@ -23,25 +40,32 @@ interface ResultRow {
   birds: MahjongTileData[];
 }
 
-export interface MahjongActionEvent {
-  seq: number;
-  type: 'start' | 'discard' | 'pong' | 'kong' | 'hu' | 'zimo' | 'draw_game';
-  playerId: string;
-  nickname: string;
-  tile?: MahjongTileData;
-  huType?: string;
+interface HuEval {
+  ok: boolean;
+  type: string;
+  fan: number;
+  fanTags: string[];
 }
 
 interface State {
+  phase: 'dingque' | 'playing' | 'settled';
   wall: MahjongTileData[];
   hands: Map<string, MahjongTileData[]>;
   melds: Map<string, Meld[]>;
   discards: Map<string, MahjongTileData[]>;
+  dingque: Map<string, NumericSuit>;
+  gangScore: Map<string, number>;
+  startBonusLabels: Map<string, string[]>;
+  huDone: Set<string>;
+  huTypes: Map<string, string>;
+  runningDelta: Map<string, number>;
   turn: string | null;
   dealerId: string | null;
   lastDiscard: { playerId: string; tile: MahjongTileData } | null;
   lastAction: MahjongActionEvent | null;
   actionSeq: number;
+  afterKong: boolean;
+  turnCount: number;
   settled: boolean;
   winners: string[];
   birds: MahjongTileData[];
@@ -51,31 +75,72 @@ interface State {
 
 export interface MahjongVariantConfig {
   meta: GameMeta;
-  /** 平胡是否严格要求 2/5/8 硬将（长沙麻将为 true，四川/广东/国标为 false） */
+  /** 是否包含风牌(东南西北)与箭牌(中发白)，共 136 张 */
+  includeHonors: boolean;
+  /** 是否允许吃牌（仅限上家顺子） */
+  allowChow: boolean;
+  /** 普通平胡是否要求 2/5/8 硬将（长沙麻将） */
   is258Strict: boolean;
-  /** 胡牌后摸鸟/买马张数（0 表示不摸鸟） */
+  /** 是否启用长沙起手胡（四喜/板板胡/缺一色/六六顺） */
+  hasStartBonuses: boolean;
+  /** 是否启用四川定缺 */
+  hasDingque: boolean;
+  /** 是否启用四川血战到底（一家胡后继续至三家胡或摸完牌墙，含查花猪/查大叫） */
+  bloodBattle: boolean;
+  /** 杠牌是否即时计分（四川刮风下雨 / 广东杠分） */
+  gangInstantScore: boolean;
+  /** 是否采用国标麻将多番种累加与 8 番起胡 */
+  guobiaoScoring: boolean;
+  /** 起胡最低番数 */
+  minHuFan: number;
+  /** 胡牌后摸鸟/买马张数 */
   birdCount: number;
-  /** 奖励牌展示文案（如 抓鸟 / 买马） */
+  /** 鸟/马规则类型 */
+  birdMode: 'none' | 'changsha' | 'guangdong';
+  /** 奖励牌展示文案（如 鸟 / 马 / 番） */
   bonusLabel: string;
-  /** 基础胡牌底分 */
+  /** 基础底分 */
   baseWin: number;
-  /** 番型倍率加成（如四川血战高番玩法） */
+  /** 番型倍率系数 */
   fanBoost: number;
   /** 结算原因标识 */
   settleReason: string;
 }
 
+const SUIT_ORDER: Record<MahjongSuit, number> = {
+  wan: 1,
+  bamboo: 2,
+  dot: 3,
+  wind: 4,
+  dragon: 5,
+};
+
+const NUMERIC_SUITS: NumericSuit[] = ['wan', 'bamboo', 'dot'];
+
+function isNumericSuit(suit: MahjongSuit): suit is NumericSuit {
+  return suit === 'wan' || suit === 'bamboo' || suit === 'dot';
+}
+
 function emptyState(): State {
   return {
+    phase: 'playing',
     wall: [],
     hands: new Map(),
     melds: new Map(),
     discards: new Map(),
+    dingque: new Map(),
+    gangScore: new Map(),
+    startBonusLabels: new Map(),
+    huDone: new Set(),
+    huTypes: new Map(),
+    runningDelta: new Map(),
     turn: null,
     dealerId: null,
     lastDiscard: null,
     lastAction: null,
     actionSeq: 0,
+    afterKong: false,
+    turnCount: 0,
     settled: false,
     winners: [],
     birds: [],
@@ -84,141 +149,677 @@ function emptyState(): State {
   };
 }
 
-/** 生成 108 张筒条万麻将牌（筒、条、万 各 1~9，每样 4 张） */
-function buildMahjongDeck(): MahjongTileData[] {
-  const suits: MahjongSuit[] = ['dot', 'bamboo', 'wan'];
+/** 生成 108 张（筒条万）或 136 张（筒条万 + 东南西北中发白）牌墙 */
+function buildMahjongDeck(includeHonors: boolean): MahjongTileData[] {
   const deck: MahjongTileData[] = [];
-  for (const suit of suits) {
+  for (const suit of NUMERIC_SUITS) {
     for (let val = 1; val <= 9; val++) {
       for (let copy = 0; copy < 4; copy++) {
         deck.push({ id: `${suit}${val}_${copy}`, suit, val });
       }
     }
   }
+  if (includeHonors) {
+    for (let val = 1; val <= 4; val++) {
+      for (let copy = 0; copy < 4; copy++) {
+        deck.push({ id: `wind${val}_${copy}`, suit: 'wind', val });
+      }
+    }
+    for (let val = 1; val <= 3; val++) {
+      for (let copy = 0; copy < 4; copy++) {
+        deck.push({ id: `dragon${val}_${copy}`, suit: 'dragon', val });
+      }
+    }
+  }
   return deck;
 }
 
-function sortHand(tiles: MahjongTileData[]): MahjongTileData[] {
-  const suitOrder: Record<MahjongSuit, number> = { wan: 1, bamboo: 2, dot: 3 };
+function sortHand(tiles: MahjongTileData[], dingqueSuit?: NumericSuit): MahjongTileData[] {
   return [...tiles].sort((a, b) => {
-    if (a.suit !== b.suit) return suitOrder[a.suit] - suitOrder[b.suit];
+    // 四川定缺花色排到最右侧，方便一眼识别优先打出
+    if (dingqueSuit) {
+      const aDq = a.suit === dingqueSuit ? 1 : 0;
+      const bDq = b.suit === dingqueSuit ? 1 : 0;
+      if (aDq !== bDq) return aDq - bDq;
+    }
+    if (a.suit !== b.suit) return SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
     return a.val - b.val;
   });
 }
 
-/** 判断是否符合胡牌：将将胡、清一色、七小对/龙七对、碰碰胡或标准平胡 */
-function canHu(
-  tiles: MahjongTileData[],
-  is258Strict: boolean,
-): { ok: boolean; type: string; fan: number } {
-  if (tiles.length % 3 !== 2) return { ok: false, type: '', fan: 0 };
+function tileKey(t: { suit: MahjongSuit; val: number }): string {
+  return `${t.suit}_${t.val}`;
+}
 
-  const allJiang = tiles.every((t) => t.val === 2 || t.val === 5 || t.val === 8);
-  if (allJiang) return { ok: true, type: '将将胡', fan: 3 };
+function isTerminalOrHonor(t: { suit: MahjongSuit; val: number }): boolean {
+  if (!isNumericSuit(t.suit)) return true;
+  return t.val === 1 || t.val === 9;
+}
 
-  const sameSuit = tiles.every((t) => t.suit === tiles[0]!.suit);
+interface DecomposedSet {
+  kind: 'triplet' | 'sequence';
+  suit: MahjongSuit;
+  val: number;
+}
 
-  // 七小对 / 龙七对
-  if (tiles.length === 14) {
-    const counts = new Map<string, number>();
-    for (const t of tiles) {
-      counts.set(`${t.suit}${t.val}`, (counts.get(`${t.suit}${t.val}`) ?? 0) + 1);
-    }
-    let pairCount = 0;
-    let hasQuad = false;
-    for (const count of counts.values()) {
-      if (count === 4) {
-        pairCount += 2;
-        hasQuad = true;
-      } else if (count === 2) {
-        pairCount += 1;
-      }
-    }
-    if (pairCount === 7) {
-      if (sameSuit && hasQuad) return { ok: true, type: '清龙七对', fan: 6 };
-      if (sameSuit) return { ok: true, type: '清一色七小对', fan: 4 };
-      if (hasQuad) return { ok: true, type: '龙七对', fan: 4 };
-      return { ok: true, type: '七小对', fan: 2 };
+/** 将手牌（不含将牌）拆解为面子集合，返回所有可行拆解之一（优先最大刻子或顺子） */
+function decomposeSets(
+  counts: Map<string, number>,
+  preferTriplets: boolean,
+  acc: DecomposedSet[] = [],
+): DecomposedSet[] | null {
+  let firstKey: string | null = null;
+  for (const [k, c] of counts.entries()) {
+    if (c > 0) {
+      firstKey = k;
+      break;
     }
   }
+  if (!firstKey) return acc;
 
-  // 标准拆解：1 个将对 + 若干刻子/顺子
+  const [suit, valStr] = firstKey.split('_') as [MahjongSuit, string];
+  const val = Number(valStr);
+  const count = counts.get(firstKey) ?? 0;
+
+  const tryTriplet = (): DecomposedSet[] | null => {
+    if (count < 3) return null;
+    counts.set(firstKey!, count - 3);
+    acc.push({ kind: 'triplet', suit, val });
+    const res = decomposeSets(counts, preferTriplets, acc);
+    if (res) return res;
+    acc.pop();
+    counts.set(firstKey!, count);
+    return null;
+  };
+
+  const trySequence = (): DecomposedSet[] | null => {
+    if (!isNumericSuit(suit) || val > 7) return null;
+    const k2 = `${suit}_${val + 1}`;
+    const k3 = `${suit}_${val + 2}`;
+    const c2 = counts.get(k2) ?? 0;
+    const c3 = counts.get(k3) ?? 0;
+    if (c2 <= 0 || c3 <= 0) return null;
+    counts.set(firstKey!, count - 1);
+    counts.set(k2, c2 - 1);
+    counts.set(k3, c3 - 1);
+    acc.push({ kind: 'sequence', suit, val });
+    const res = decomposeSets(counts, preferTriplets, acc);
+    if (res) return res;
+    acc.pop();
+    counts.set(firstKey!, count);
+    counts.set(k2, c2);
+    counts.set(k3, c3);
+    return null;
+  };
+
+  return preferTriplets ? tryTriplet() ?? trySequence() : trySequence() ?? tryTriplet();
+}
+
+function findStandardDecomp(
+  tiles: MahjongTileData[],
+  require258Pair: boolean,
+): { pair: { suit: MahjongSuit; val: number }; sets: DecomposedSet[] } | null {
+  if (tiles.length % 3 !== 2) return null;
   const counts = new Map<string, number>();
   for (const t of tiles) {
-    counts.set(`${t.suit}_${t.val}`, (counts.get(`${t.suit}_${t.val}`) ?? 0) + 1);
+    const k = tileKey(t);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
   }
+  const orderedKeys = [...counts.keys()].sort((a, b) => {
+    const [sa, va] = a.split('_') as [MahjongSuit, string];
+    const [sb, vb] = b.split('_') as [MahjongSuit, string];
+    if (sa !== sb) return SUIT_ORDER[sa] - SUIT_ORDER[sb];
+    return Number(va) - Number(vb);
+  });
 
-  const keys = [...counts.keys()];
-  for (const pairKey of keys) {
-    if ((counts.get(pairKey) ?? 0) < 2) continue;
-    const [, valStr] = pairKey.split('_') as [MahjongSuit, string];
+  for (const pk of orderedKeys) {
+    const c = counts.get(pk) ?? 0;
+    if (c < 2) continue;
+    const [suit, valStr] = pk.split('_') as [MahjongSuit, string];
     const val = Number(valStr);
-
-    // 碰碰胡（全刻子）
-    const clonePeng = new Map(counts);
-    clonePeng.set(pairKey, (clonePeng.get(pairKey) ?? 0) - 2);
-    if (canSplitOnlyTriplets(clonePeng)) {
-      return {
-        ok: true,
-        type: sameSuit ? '清一色碰碰胡' : '碰碰胡',
-        fan: sameSuit ? 4 : 2,
-      };
+    if (require258Pair && (!isNumericSuit(suit) || (val !== 2 && val !== 5 && val !== 8))) {
+      continue;
     }
-
-    // 长沙麻将平胡必须 2/5/8 硬将
-    if (is258Strict && !sameSuit && val !== 2 && val !== 5 && val !== 8) continue;
-
-    const clone = new Map(counts);
-    clone.set(pairKey, (clone.get(pairKey) ?? 0) - 2);
-    if (canSplitSets(clone)) {
-      return {
-        ok: true,
-        type: sameSuit ? '清一色' : '平胡',
-        fan: sameSuit ? 3 : 1,
-      };
-    }
+    const copy = new Map<string, number>();
+    for (const k of orderedKeys) copy.set(k, counts.get(k) ?? 0);
+    copy.set(pk, c - 2);
+    const sets = decomposeSets(copy, true, []) ?? decomposeSets(new Map(copy), false, []);
+    if (sets) return { pair: { suit, val }, sets };
   }
-
-  return { ok: false, type: '', fan: 0 };
+  return null;
 }
 
-function canSplitOnlyTriplets(map: Map<string, number>): boolean {
-  for (const count of map.values()) {
-    if (count > 0 && count !== 3) return false;
+/** 检测十三幺（136 张牌玩法专属顶级大胡） */
+function isThirteenOrphans(tiles: MahjongTileData[]): boolean {
+  if (tiles.length !== 14) return false;
+  const required = [
+    'wan_1', 'wan_9', 'bamboo_1', 'bamboo_9', 'dot_1', 'dot_9',
+    'wind_1', 'wind_2', 'wind_3', 'wind_4', 'dragon_1', 'dragon_2', 'dragon_3',
+  ];
+  const counts = new Map<string, number>();
+  for (const t of tiles) {
+    const k = tileKey(t);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
   }
-  return true;
+  let hasPair = false;
+  for (const req of required) {
+    const c = counts.get(req) ?? 0;
+    if (c === 0) return false;
+    if (c === 2) hasPair = true;
+    if (c > 2) return false;
+  }
+  return hasPair && counts.size === 13;
 }
 
-function canSplitSets(map: Map<string, number>): boolean {
-  for (const [key, count] of map) {
-    if (count <= 0) continue;
-    const [suit, valStr] = key.split('_') as [MahjongSuit, string];
-    const val = Number(valStr);
+/** 检测七小对 / 豪华七小对 */
+function checkSevenPairs(tiles: MahjongTileData[]): { ok: boolean; quadCount: number } {
+  if (tiles.length !== 14) return { ok: false, quadCount: 0 };
+  const counts = new Map<string, number>();
+  for (const t of tiles) {
+    const k = tileKey(t);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  let pairs = 0;
+  let quadCount = 0;
+  for (const c of counts.values()) {
+    if (c === 4) {
+      pairs += 2;
+      quadCount += 1;
+    } else if (c === 2) {
+      pairs += 1;
+    } else {
+      return { ok: false, quadCount: 0 };
+    }
+  }
+  return { ok: pairs === 7, quadCount };
+}
 
-    if (count >= 3) {
-      map.set(key, count - 3);
-      if (canSplitSets(map)) return true;
-      map.set(key, count);
+/** 统计全手牌（含副露）中的「根」数（四张相同） */
+function countRoots(hand: MahjongTileData[], melds: Meld[]): number {
+  const counts = new Map<string, number>();
+  for (const t of hand) counts.set(tileKey(t), (counts.get(tileKey(t)) ?? 0) + 1);
+  for (const m of melds) {
+    for (const t of m.tiles) counts.set(tileKey(t), (counts.get(tileKey(t)) ?? 0) + 1);
+  }
+  let roots = 0;
+  for (const c of counts.values()) {
+    if (c >= 4) roots += 1;
+  }
+  return roots;
+}
+
+/** 统一四玩法正宗胡牌与番型判别器 */
+function evaluateHu(params: {
+  hand: MahjongTileData[];
+  melds: Meld[];
+  variant: MahjongVariantConfig;
+  dingqueSuit?: NumericSuit;
+  isSelfDraw: boolean;
+  afterKong: boolean;
+  isLastWallTile: boolean;
+  isFirstTurnDealer: boolean;
+  seatWindVal: number; // 1..4 对应东南西北
+}): HuEval {
+  const { hand, melds, variant, dingqueSuit, isSelfDraw, afterKong, isLastWallTile, isFirstTurnDealer, seatWindVal } =
+    params;
+
+  if (hand.length % 3 !== 2) return { ok: false, type: '', fan: 0, fanTags: [] };
+
+  const allTiles: MahjongTileData[] = [...hand, ...melds.flatMap((m) => m.tiles)];
+
+  // 四川血战强约束：胡牌时手牌及副露绝不能含定缺花色
+  if (variant.hasDingque && dingqueSuit) {
+    if (allTiles.some((t) => t.suit === dingqueSuit)) {
+      return { ok: false, type: '', fan: 0, fanTags: [] };
+    }
+  }
+
+  const numericSuitsUsed = new Set(allTiles.filter((t) => isNumericSuit(t.suit)).map((t) => t.suit));
+  const hasHonors = allTiles.some((t) => !isNumericSuit(t.suit));
+  const isPureOneSuit = !hasHonors && numericSuitsUsed.size === 1;
+  const isHalfOneSuit = hasHonors && numericSuitsUsed.size === 1;
+  const isAllHonors = hasHonors && numericSuitsUsed.size === 0;
+  const all258 = allTiles.every((t) => isNumericSuit(t.suit) && (t.val === 2 || t.val === 5 || t.val === 8));
+  const exposedMelds = melds.filter((m) => !m.concealed);
+  const isMenqing = exposedMelds.length === 0;
+
+  // 1) 十三幺（广东/国标）
+  if (variant.includeHonors && melds.length === 0 && isThirteenOrphans(hand)) {
+    const fan = variant.guobiaoScoring ? 88 : 13;
+    return { ok: true, type: '十三幺', fan, fanTags: [`十三幺(${fan}番)`] };
+  }
+
+  // 2) 长沙将将胡（全部 2/5/8 即可直接胡，不要求顺刻成面）
+  if (variant.meta.gameId === 'cs-mahjong' && all258) {
+    const tags = ['将将胡(3番)'];
+    let fan = 3;
+    if (afterKong) {
+      fan += 2;
+      tags.push('杠上开花(+2番)');
+    }
+    return { ok: true, type: '将将胡', fan, fanTags: tags };
+  }
+
+  // 3) 七小对 / 豪华七对 / 龙七对
+  const seven = melds.length === 0 ? checkSevenPairs(hand) : { ok: false, quadCount: 0 };
+  const decompAny = findStandardDecomp(hand, false);
+  const decomp258 = variant.is258Strict ? findStandardDecomp(hand, true) : decompAny;
+
+  if (!seven.ok && !decompAny) {
+    return { ok: false, type: '', fan: 0, fanTags: [] };
+  }
+
+  // 汇总全部面子（手牌拆解 + 副露）
+  const allSets: DecomposedSet[] = decompAny
+    ? [
+        ...decompAny.sets,
+        ...melds.map((m): DecomposedSet => ({
+          kind: m.type === 'chow' ? 'sequence' : 'triplet',
+          suit: m.tiles[0]!.suit,
+          val: Math.min(...m.tiles.map((t) => t.val)),
+        })),
+      ]
+    : [];
+
+  const isAllTriplets = decompAny !== null && allSets.every((s) => s.kind === 'triplet');
+  const isAllSequences = decompAny !== null && allSets.every((s) => s.kind === 'sequence');
+  const isQuanQiuRen = hand.length === 2 && !isSelfDraw && exposedMelds.length === 4;
+  const isJinGouDiao = hand.length === 2 && melds.length === 4;
+
+  // 统计三元与四喜刻子
+  const dragonTriplets = allSets.filter((s) => s.kind === 'triplet' && s.suit === 'dragon').length;
+  const windTriplets = allSets.filter((s) => s.kind === 'triplet' && s.suit === 'wind').length;
+  const pairIsDragon = decompAny?.pair.suit === 'dragon';
+  const pairIsWind = decompAny?.pair.suit === 'wind';
+
+  // ---------------- A. 大众国标麻将（正宗多番种叠加 + 8番起胡） ----------------
+  if (variant.guobiaoScoring) {
+    const tags: string[] = [];
+    let total = 0;
+    const add = (label: string, f: number) => {
+      total += f;
+      tags.push(`${label}${f}番`);
+    };
+
+    if (windTriplets === 4) add('大四喜', 88);
+    else if (dragonTriplets === 3) add('大三元', 88);
+    else if (isAllHonors) add('字一色', 64);
+    else if (windTriplets === 3 && pairIsWind) add('小四喜', 64);
+    else if (dragonTriplets === 2 && pairIsDragon) add('小三元', 64);
+
+    if (seven.ok) {
+      add('七对', 24);
+      if (seven.quadCount > 0) add('四归一', 2 * seven.quadCount);
     }
 
-    if (val <= 7) {
-      const k2 = `${suit}_${val + 1}`;
-      const k3 = `${suit}_${val + 2}`;
-      const c2 = map.get(k2) ?? 0;
-      const c3 = map.get(k3) ?? 0;
-      if (c2 > 0 && c3 > 0) {
-        map.set(key, count - 1);
-        map.set(k2, c2 - 1);
-        map.set(k3, c3 - 1);
-        if (canSplitSets(map)) return true;
-        map.set(key, count);
-        map.set(k2, c2);
-        map.set(k3, c3);
+    if (isPureOneSuit) {
+      add('清一色', 24);
+    } else if (isHalfOneSuit) {
+      add('混一色', 6);
+    }
+
+    if (decompAny) {
+      // 清龙（同花色 123+456+789）
+      for (const s of NUMERIC_SUITS) {
+        const seqVals = new Set(allSets.filter((x) => x.kind === 'sequence' && x.suit === s).map((x) => x.val));
+        if (seqVals.has(1) && seqVals.has(4) && seqVals.has(7)) {
+          add('清龙', 16);
+          break;
+        }
+      }
+
+      if (isAllTriplets && total < 64) add('碰碰和', 6);
+
+      // 暗刻数
+      const concealedTriplets =
+        decompAny.sets.filter((s) => s.kind === 'triplet').length +
+        melds.filter((m) => m.type === 'kong' && m.concealed).length;
+      if (concealedTriplets >= 4) add('四暗刻', 64);
+      else if (concealedTriplets === 3) add('三暗刻', 16);
+      else if (concealedTriplets === 2) add('双暗刻', 2);
+
+      // 箭刻 & 门风刻
+      if (dragonTriplets > 0 && dragonTriplets < 3) {
+        add('箭刻', 2 * dragonTriplets);
+      }
+      if (allSets.some((s) => s.kind === 'triplet' && s.suit === 'wind' && s.val === seatWindVal)) {
+        add('门风刻', 2);
+      }
+
+      // 全带幺
+      const allCarryTerminal =
+        isTerminalOrHonor(decompAny.pair) &&
+        allSets.every((s) =>
+          s.kind === 'triplet'
+            ? isTerminalOrHonor({ suit: s.suit, val: s.val })
+            : s.val === 1 || s.val === 7,
+        );
+      if (allCarryTerminal) add('全带幺', 4);
+
+      // 平和（全顺子 + 序数牌将）
+      if (isAllSequences && isNumericSuit(decompAny.pair.suit)) add('平和', 2);
+
+      // 一般高（两副相同顺子）
+      const seqCounts = new Map<string, number>();
+      for (const s of allSets) {
+        if (s.kind === 'sequence') {
+          const k = `${s.suit}_${s.val}`;
+          seqCounts.set(k, (seqCounts.get(k) ?? 0) + 1);
+        }
+      }
+      if ([...seqCounts.values()].some((c) => c >= 2)) add('一般高', 1);
+    }
+
+    // 五门齐（万筒条风箭俱全）
+    const categories = new Set(allTiles.map((t) => t.suit));
+    if (categories.size === 5) add('五门齐', 6);
+
+    // 断幺（无1/9/字牌）
+    if (allTiles.every((t) => !isTerminalOrHonor(t))) add('断幺', 2);
+
+    // 杠类加番
+    const kongCount = melds.filter((m) => m.type === 'kong').length;
+    const concealedKong = melds.filter((m) => m.type === 'kong' && m.concealed).length;
+    if (concealedKong >= 2) add('双暗杠', 6);
+    else if (concealedKong === 1) add('暗杠', 2);
+    if (kongCount - concealedKong >= 2) add('双明杠', 4);
+    else if (kongCount - concealedKong === 1) add('明杠', 1);
+
+    // 门清 / 不求人 / 全求人
+    if (isQuanQiuRen) add('全求人', 6);
+    else if (isMenqing && isSelfDraw) add('不求人', 4);
+    else if (isMenqing) add('门前清', 2);
+
+    if (afterKong) add('杠上开花', 8);
+    if (isLastWallTile) add('海底捞月', 8);
+    if (!hasHonors && !isPureOneSuit) add('无字', 1);
+    if (!isPureOneSuit && numericSuitsUsed.size <= 2) add('缺一门', 1);
+    if (isSelfDraw && !tags.some((t) => t.startsWith('不求人'))) add('自摸', 1);
+
+    if (total < variant.minHuFan) {
+      return { ok: false, type: `不足${variant.minHuFan}番(当前${total}番)`, fan: total, fanTags: tags };
+    }
+    return {
+      ok: true,
+      type: `${tags.slice(0, 3).join('·')}（共${total}番）`,
+      fan: total,
+      fanTags: tags,
+    };
+  }
+
+  // ---------------- B. 四川血战到底（成都番型 + 根加番） ----------------
+  if (variant.meta.gameId === 'sc-mahjong') {
+    const tags: string[] = [];
+    let fan = 1; // 基础平胡 1 番
+    let mainName = '平胡';
+
+    if (seven.ok) {
+      if (isPureOneSuit && seven.quadCount > 0) {
+        mainName = '清龙七对';
+        fan = 5;
+      } else if (isPureOneSuit) {
+        mainName = '清七对';
+        fan = 4;
+      } else if (seven.quadCount > 0) {
+        mainName = '龙七对';
+        fan = 3;
+      } else {
+        mainName = '暗七对';
+        fan = 2;
+      }
+      tags.push(mainName);
+    } else if (decompAny) {
+      const allCarry19 =
+        isTerminalOrHonor(decompAny.pair) &&
+        allSets.every((s) =>
+          s.kind === 'triplet'
+            ? isTerminalOrHonor({ suit: s.suit, val: s.val })
+            : s.val === 1 || s.val === 7,
+        );
+      if (isPureOneSuit && isAllTriplets) {
+        mainName = '清对';
+        fan = 4;
+      } else if (isPureOneSuit) {
+        mainName = '清一色';
+        fan = 3;
+      } else if (allCarry19) {
+        mainName = '带幺九';
+        fan = 3;
+      } else if (isAllTriplets) {
+        mainName = '对对胡';
+        fan = 2;
+      }
+      tags.push(mainName);
+      if (isJinGouDiao) {
+        fan += 1;
+        tags.push('金钩钓');
       }
     }
-    return false;
+
+    const roots = countRoots(hand, melds);
+    const extraRoots = seven.ok ? Math.max(0, roots - seven.quadCount) : roots;
+    if (extraRoots > 0) {
+      fan += extraRoots;
+      tags.push(`${extraRoots}根`);
+    }
+    if (isFirstTurnDealer && isSelfDraw) {
+      fan += 3;
+      tags.push('天胡');
+    }
+    if (afterKong) {
+      fan += 1;
+      tags.push('杠上开花');
+    }
+    if (isSelfDraw) {
+      fan += 1;
+      tags.push('自摸');
+    }
+
+    return { ok: true, type: `${tags.join('·')}（${fan}番）`, fan, fanTags: tags };
   }
-  return true;
+
+  // ---------------- C. 广东推倒胡（136张含字牌 + 经典岭南大胡） ----------------
+  if (variant.meta.gameId === 'gd-mahjong') {
+    const tags: string[] = [];
+    let fan = 1;
+    let mainName = '鸡胡';
+
+    if (windTriplets === 4) {
+      mainName = '大四喜';
+      fan = 8;
+    } else if (dragonTriplets === 3) {
+      mainName = '大三元';
+      fan = 8;
+    } else if (isAllHonors) {
+      mainName = '字一色';
+      fan = 6;
+    } else if (windTriplets === 3 && pairIsWind) {
+      mainName = '小四喜';
+      fan = 6;
+    } else if (dragonTriplets === 2 && pairIsDragon) {
+      mainName = '小三元';
+      fan = 5;
+    } else if (seven.ok) {
+      mainName = seven.quadCount > 0 ? '豪华七对' : '七对子';
+      fan = seven.quadCount > 0 ? 4 : 3;
+    } else if (isPureOneSuit && isAllTriplets) {
+      mainName = '清碰';
+      fan = 5;
+    } else if (isPureOneSuit) {
+      mainName = '清一色';
+      fan = 4;
+    } else if (isHalfOneSuit && isAllTriplets) {
+      mainName = '混碰';
+      fan = 3;
+    } else if (isHalfOneSuit) {
+      mainName = '混一色';
+      fan = 2;
+    } else if (isAllTriplets) {
+      mainName = '碰碰胡';
+      fan = 2;
+    }
+    tags.push(mainName);
+
+    if (isFirstTurnDealer && isSelfDraw) {
+      fan += 3;
+      tags.push('天胡');
+    }
+    if (afterKong) {
+      fan += 2;
+      tags.push('杠上开花');
+    }
+    return { ok: true, type: tags.join('·'), fan, fanTags: tags };
+  }
+
+  // ---------------- D. 长沙麻将（大胡乱将，小胡严格 258 硬将） ----------------
+  const tags: string[] = [];
+  let isBigHu = false;
+  let fan = 1;
+
+  if (seven.ok) {
+    isBigHu = true;
+    fan = seven.quadCount > 0 ? (isPureOneSuit ? 6 : 4) : isPureOneSuit ? 4 : 2;
+    tags.push(seven.quadCount > 0 ? '豪华七小对' : '七小对');
+    if (isPureOneSuit) tags.push('清一色');
+  } else {
+    if (isPureOneSuit) {
+      isBigHu = true;
+      fan += 2;
+      tags.push('清一色');
+    }
+    if (isAllTriplets) {
+      isBigHu = true;
+      fan += 2;
+      tags.push('碰碰胡');
+    }
+    if (isQuanQiuRen) {
+      isBigHu = true;
+      fan += 2;
+      tags.push('全求人');
+    }
+  }
+
+  if (isFirstTurnDealer && isSelfDraw) {
+    isBigHu = true;
+    fan += 3;
+    tags.push('天胡');
+  }
+  if (afterKong) {
+    isBigHu = true;
+    fan += 2;
+    tags.push('杠上开花');
+  }
+  if (isLastWallTile) {
+    isBigHu = true;
+    fan += 2;
+    tags.push('海底捞月');
+  }
+
+  // 普通小胡必须满足 258 硬将
+  if (!isBigHu) {
+    if (!decomp258) return { ok: false, type: '', fan: 0, fanTags: [] };
+    tags.push('258平胡');
+  }
+
+  return { ok: true, type: tags.join('·'), fan, fanTags: tags };
+}
+
+/** 长沙麻将起手胡检测（四喜 / 板板胡 / 缺一色 / 六六顺） */
+function detectChangshaStartBonuses(hand: MahjongTileData[]): string[] {
+  const bonuses: string[] = [];
+  const counts = new Map<string, number>();
+  const suits = new Set<MahjongSuit>();
+  let has258 = false;
+
+  for (const t of hand) {
+    counts.set(tileKey(t), (counts.get(tileKey(t)) ?? 0) + 1);
+    suits.add(t.suit);
+    if (t.val === 2 || t.val === 5 || t.val === 8) has258 = true;
+  }
+
+  let triplets = 0;
+  let hasQuad = false;
+  for (const c of counts.values()) {
+    if (c >= 4) hasQuad = true;
+    if (c >= 3) triplets += 1;
+  }
+
+  if (hasQuad) bonuses.push('大四喜');
+  if (!has258) bonuses.push('板板胡');
+  if (suits.size < 3) bonuses.push('缺一色');
+  if (triplets >= 2) bonuses.push('六六顺');
+  return bonuses;
+}
+
+/** 计算给定 13/10/7/4/1 张手牌的所有可听胡牌与最高番数（供四川查大叫 & AI 评估） */
+function findTenpaiMaxFan(params: {
+  hand: MahjongTileData[];
+  melds: Meld[];
+  variant: MahjongVariantConfig;
+  dingqueSuit?: NumericSuit;
+  seatWindVal: number;
+}): number {
+  const candidates: Array<{ suit: MahjongSuit; val: number }> = [];
+  for (const suit of NUMERIC_SUITS) {
+    if (params.variant.hasDingque && params.dingqueSuit === suit) continue;
+    for (let val = 1; val <= 9; val++) candidates.push({ suit, val });
+  }
+  if (params.variant.includeHonors) {
+    for (let val = 1; val <= 4; val++) candidates.push({ suit: 'wind', val });
+    for (let val = 1; val <= 3; val++) candidates.push({ suit: 'dragon', val });
+  }
+
+  let maxFan = 0;
+  for (const cand of candidates) {
+    const testHand = [...params.hand, { id: 'test', suit: cand.suit, val: cand.val }];
+    const res = evaluateHu({
+      hand: testHand,
+      melds: params.melds,
+      variant: params.variant,
+      dingqueSuit: params.dingqueSuit,
+      isSelfDraw: false,
+      afterKong: false,
+      isLastWallTile: false,
+      isFirstTurnDealer: false,
+      seatWindVal: params.seatWindVal,
+    });
+    if (res.ok && res.fan > maxFan) maxFan = res.fan;
+  }
+  return maxFan;
+}
+
+/** 计算上家出牌对应的所有合法吃牌组合 */
+function computeChowOptions(hand: MahjongTileData[], target: MahjongTileData): ChowOption[] {
+  if (!isNumericSuit(target.suit)) return [];
+  const options: ChowOption[] = [];
+  const patterns: Array<[number, number]> = [
+    [target.val - 2, target.val - 1],
+    [target.val - 1, target.val + 1],
+    [target.val + 1, target.val + 2],
+  ];
+  for (const [v1, v2] of patterns) {
+    if (v1 < 1 || v2 > 9) continue;
+    const t1 = hand.find((t) => t.suit === target.suit && t.val === v1);
+    const t2 = hand.find((t) => t.suit === target.suit && t.val === v2);
+    if (t1 && t2) {
+      const seq = [t1, t2, target].sort((a, b) => a.val - b.val);
+      options.push({ tileIds: [t1.id, t2.id], tiles: seq });
+    }
+  }
+  return options;
+}
+
+/** 选出张数最少的花色作为自动定缺建议 */
+function recommendDingqueSuit(hand: MahjongTileData[]): NumericSuit {
+  const counts: Record<NumericSuit, number> = { wan: 0, bamboo: 0, dot: 0 };
+  for (const t of hand) {
+    if (isNumericSuit(t.suit)) counts[t.suit] += 1;
+  }
+  let best: NumericSuit = 'wan';
+  for (const s of NUMERIC_SUITS) {
+    if (counts[s] < counts[best]) best = s;
+  }
+  return best;
 }
 
 function handIsFourteen(len: number): boolean {
@@ -227,7 +828,7 @@ function handIsFourteen(len: number): boolean {
 
 class VariantMahjongPlugin extends BaseGamePlugin {
   override readonly meta: GameMeta;
-  override readonly commands = ['discard', 'pong', 'kong', 'chow', 'hu', 'pass'] as const;
+  override readonly commands = ['dingque', 'discard', 'chow', 'pong', 'kong', 'hu', 'pass'] as const;
 
   private readonly variant: MahjongVariantConfig;
   private state: State = emptyState();
@@ -242,13 +843,39 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     this.state = emptyState();
   }
 
+  private seatWindOf(ctx: RoomContext, playerId: string): number {
+    const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
+    const dIdx = Math.max(0, players.findIndex((p) => p.playerId === this.state.dealerId));
+    const pIdx = Math.max(0, players.findIndex((p) => p.playerId === playerId));
+    return ((pIdx - dIdx + 4) % 4) + 1;
+  }
+
+  private recordAction(
+    ctx: RoomContext,
+    type: MahjongActionEvent['type'],
+    playerId: string,
+    extra?: { tile?: MahjongTileData; huType?: string; detail?: string },
+  ): void {
+    const nick = ctx.players.find((p) => p.playerId === playerId)?.nickname ?? '牌手';
+    this.state.actionSeq += 1;
+    this.state.lastAction = {
+      seq: this.state.actionSeq,
+      type,
+      playerId,
+      nickname: nick,
+      ...(extra?.tile ? { tile: extra.tile } : {}),
+      ...(extra?.huType ? { huType: extra.huType } : {}),
+      ...(extra?.detail ? { detail: extra.detail } : {}),
+    };
+  }
+
   override onRoundStart(ctx: RoomContext): void {
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
-    // 雀神麻将所有玩法均严格要求 4 人开局
+    // 雀神麻将所有玩法严格要求 4 人满座开局
     if (players.length < 4) return;
 
     this.state = emptyState();
-    const deck = shuffleWithSeed(buildMahjongDeck(), ctx.config.seed);
+    const deck = shuffleWithSeed(buildMahjongDeck(this.variant.includeHonors), ctx.config.seed);
 
     let cursor = 0;
     for (const player of players) {
@@ -259,6 +886,9 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       this.state.hands.set(player.playerId, sortHand(hand));
       this.state.melds.set(player.playerId, []);
       this.state.discards.set(player.playerId, []);
+      this.state.gangScore.set(player.playerId, 0);
+      this.state.runningDelta.set(player.playerId, 0);
+      this.state.startBonusLabels.set(player.playerId, []);
     }
 
     const dealer = players[(ctx.config.round - 1) % players.length] ?? players[0]!;
@@ -271,38 +901,110 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     this.state.wall = deck.slice(cursor);
     this.state.dealerId = dealer.playerId;
     this.state.turn = dealer.playerId;
-    this.state.actionSeq = 1;
-    this.state.lastAction = {
-      seq: 1,
-      type: 'start',
-      playerId: dealer.playerId,
-      nickname: dealer.nickname,
-    };
+
+    // 长沙麻将起手胡自动检测与喜钱奖励（不影响正常行牌）
+    if (this.variant.hasStartBonuses) {
+      const bonusAnnouncements: string[] = [];
+      for (const p of players) {
+        const h = this.state.hands.get(p.playerId) ?? [];
+        const bonuses = detectChangshaStartBonuses(h);
+        if (bonuses.length > 0) {
+          this.state.startBonusLabels.set(p.playerId, bonuses);
+          const perOpp = 40 * bonuses.length;
+          for (const other of players) {
+            if (other.playerId === p.playerId) {
+              this.state.runningDelta.set(
+                other.playerId,
+                (this.state.runningDelta.get(other.playerId) ?? 0) + perOpp * (players.length - 1),
+              );
+            } else {
+              this.state.runningDelta.set(
+                other.playerId,
+                (this.state.runningDelta.get(other.playerId) ?? 0) - perOpp,
+              );
+            }
+          }
+          bonusAnnouncements.push(`${p.nickname}【${bonuses.join('+')}】`);
+        }
+      }
+      if (bonusAnnouncements.length > 0) {
+        this.recordAction(ctx, 'start_bonus', dealer.playerId, {
+          detail: bonusAnnouncements.join(' · '),
+        });
+      }
+    }
+
+    // 四川血战定缺阶段：AI 瞬间完成定缺，真人玩家手动挑选定缺花色
+    if (this.variant.hasDingque) {
+      let anyHuman = false;
+      for (const p of players) {
+        const h = this.state.hands.get(p.playerId) ?? [];
+        if (p.isBot) {
+          const rec = recommendDingqueSuit(h);
+          this.state.dingque.set(p.playerId, rec);
+          this.state.hands.set(p.playerId, sortHand(h, rec));
+        } else {
+          anyHuman = true;
+        }
+      }
+      this.state.phase = anyHuman ? 'dingque' : 'playing';
+    } else {
+      this.state.phase = 'playing';
+    }
+
+    if (!this.state.lastAction) {
+      this.recordAction(ctx, 'start', dealer.playerId);
+    }
     ctx.markDirty();
   }
 
-  private recordAction(
-    ctx: RoomContext,
-    type: MahjongActionEvent['type'],
-    playerId: string,
-    extra?: { tile?: MahjongTileData; huType?: string },
-  ): void {
-    const nick = ctx.players.find((p) => p.playerId === playerId)?.nickname ?? '牌手';
-    this.state.actionSeq += 1;
-    this.state.lastAction = {
-      seq: this.state.actionSeq,
-      type,
-      playerId,
-      nickname: nick,
-      ...(extra?.tile ? { tile: extra.tile } : {}),
-      ...(extra?.huType ? { huType: extra.huType } : {}),
-    };
+  private addGangBonus(ctx: RoomContext, gainerId: string, payerIds: string[], unit: number): void {
+    if (!this.variant.gangInstantScore) return;
+    let total = 0;
+    for (const pid of payerIds) {
+      if (pid === gainerId || this.state.huDone.has(pid)) continue;
+      this.state.gangScore.set(pid, (this.state.gangScore.get(pid) ?? 0) - unit);
+      total += unit;
+    }
+    this.state.gangScore.set(gainerId, (this.state.gangScore.get(gainerId) ?? 0) + total);
+  }
+
+  private isPrevPlayer(ctx: RoomContext, discarderId: string, claimerId: string): boolean {
+    const activePlayers = [...ctx.players]
+      .sort((a, b) => a.seat - b.seat)
+      .filter((p) => !this.state.huDone.has(p.playerId));
+    const dIdx = activePlayers.findIndex((p) => p.playerId === discarderId);
+    if (dIdx < 0) return false;
+    const next = activePlayers[(dIdx + 1) % activePlayers.length];
+    return next?.playerId === claimerId;
   }
 
   override async onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): Promise<void> {
     if (this.state.settled) throw new Error('本局已结束');
 
+    if (intent.cmd === 'dingque') {
+      if (this.state.phase !== 'dingque') throw new Error('当前不在定缺阶段');
+      const suit = String(intent.payload?.suit ?? '') as NumericSuit;
+      if (!isNumericSuit(suit)) throw new Error('请选择万、条或筒作为定缺花色');
+      this.state.dingque.set(playerId, suit);
+      const hand = this.state.hands.get(playerId) ?? [];
+      this.state.hands.set(playerId, sortHand(hand, suit));
+      const allDone = ctx.players.every((p) => this.state.dingque.has(p.playerId));
+      if (allDone) {
+        this.state.phase = 'playing';
+        this.recordAction(ctx, 'dingque_done', this.state.dealerId ?? playerId, {
+          detail: '四家定缺完成 · 血战开打',
+        });
+      }
+      ctx.markDirty();
+      return;
+    }
+
+    if (this.state.phase !== 'playing') throw new Error('请先完成定缺');
+    if (this.state.huDone.has(playerId)) throw new Error('你已胡牌，静候本局血战结算');
+
     const hand = this.state.hands.get(playerId) ?? [];
+    const dq = this.state.dingque.get(playerId);
 
     switch (intent.cmd) {
       case 'discard': {
@@ -313,24 +1015,66 @@ class VariantMahjongPlugin extends BaseGamePlugin {
         const [discarded] = hand.splice(index, 1);
         if (!discarded) throw new Error('出牌失败');
 
-        this.state.hands.set(playerId, sortHand(hand));
+        this.state.hands.set(playerId, sortHand(hand, dq));
         const playerDiscards = this.state.discards.get(playerId) ?? [];
         playerDiscards.push(discarded);
         this.state.discards.set(playerId, playerDiscards);
 
         this.state.lastDiscard = { playerId, tile: discarded };
         this.state.drawnTile.set(playerId, null);
+        this.state.afterKong = false;
+        this.state.turnCount += 1;
         this.recordAction(ctx, 'discard', playerId, { tile: discarded });
 
         this.advanceToNextDraw(ctx, playerId);
         break;
       }
+
+      case 'chow': {
+        if (!this.variant.allowChow) throw new Error('本玩法不允许吃牌');
+        if (!this.state.lastDiscard || !this.isPrevPlayer(ctx, this.state.lastDiscard.playerId, playerId)) {
+          throw new Error('只能吃上家刚打出的牌');
+        }
+        const target = this.state.lastDiscard.tile;
+        const options = computeChowOptions(hand, target);
+        if (options.length === 0) throw new Error('手牌无法组成顺子吃牌');
+
+        const reqIds = Array.isArray(intent.payload?.tileIds)
+          ? (intent.payload?.tileIds as string[])
+          : null;
+        const chosen =
+          (reqIds
+            ? options.find((o) => o.tileIds[0] === reqIds[0] && o.tileIds[1] === reqIds[1])
+            : null) ?? options[0]!;
+
+        const removeSet = new Set(chosen.tileIds);
+        const kept = hand.filter((t) => !removeSet.has(t.id));
+        this.state.hands.set(playerId, sortHand(kept, dq));
+
+        const discList = this.state.discards.get(this.state.lastDiscard.playerId);
+        if (discList && discList.length > 0 && discList[discList.length - 1]?.id === target.id) {
+          discList.pop();
+        }
+
+        const melds = this.state.melds.get(playerId) ?? [];
+        melds.push({ type: 'chow', tiles: chosen.tiles });
+        this.state.melds.set(playerId, melds);
+
+        this.state.turn = playerId;
+        this.state.lastDiscard = null;
+        this.state.drawnTile.set(playerId, null);
+        this.state.afterKong = false;
+        this.recordAction(ctx, 'chow', playerId, { tile: target });
+        break;
+      }
+
       case 'pong': {
         if (!this.state.lastDiscard || this.state.lastDiscard.playerId === playerId) {
           throw new Error('没有可以碰的牌');
         }
         const discarderId = this.state.lastDiscard.playerId;
         const target = this.state.lastDiscard.tile;
+        if (dq && target.suit === dq) throw new Error('不能碰定缺花色');
         const matches = hand.filter((t) => t.suit === target.suit && t.val === target.val);
         if (matches.length < 2) throw new Error('手牌不足两张相同牌，无法碰牌');
 
@@ -342,9 +1086,8 @@ class VariantMahjongPlugin extends BaseGamePlugin {
             removed++;
           }
         }
-        this.state.hands.set(playerId, sortHand(kept));
+        this.state.hands.set(playerId, sortHand(kept, dq));
 
-        // 从出牌者牌河中取走被碰走的那张牌
         const discList = this.state.discards.get(discarderId);
         if (discList && discList.length > 0 && discList[discList.length - 1]?.id === target.id) {
           discList.pop();
@@ -357,47 +1100,91 @@ class VariantMahjongPlugin extends BaseGamePlugin {
         this.state.turn = playerId;
         this.state.lastDiscard = null;
         this.state.drawnTile.set(playerId, null);
+        this.state.afterKong = false;
         this.recordAction(ctx, 'pong', playerId, { tile: target });
         break;
       }
+
       case 'kong': {
-        // 支持暗杠（轮到自己且手牌有 4 张同牌）与明杠（接别人刚打出的牌，手牌有 3 张同牌）
+        const otherIds = ctx.players.map((p) => p.playerId).filter((id) => id !== playerId);
+
         if (this.state.turn === playerId) {
+          // 1) 暗杠（手牌4张同牌）
           const grouped = new Map<string, MahjongTileData[]>();
           for (const t of hand) {
-            const k = `${t.suit}_${t.val}`;
+            if (dq && t.suit === dq) continue;
+            const k = tileKey(t);
             const list = grouped.get(k) ?? [];
             list.push(t);
             grouped.set(k, list);
           }
           const quad = [...grouped.values()].find((list) => list.length === 4);
-          if (!quad) throw new Error('手牌没有四张相同的牌，无法暗杠');
+          if (quad) {
+            const quadIds = new Set(quad.map((t) => t.id));
+            const kept = hand.filter((t) => !quadIds.has(t.id));
+            const melds = this.state.melds.get(playerId) ?? [];
+            melds.push({ type: 'kong', concealed: true, tiles: quad });
+            this.state.melds.set(playerId, melds);
+            this.addGangBonus(ctx, playerId, otherIds, this.variant.baseWin);
 
-          const quadIds = new Set(quad.map((t) => t.id));
-          const kept = hand.filter((t) => !quadIds.has(t.id));
+            if (this.state.wall.length === 0) {
+              this.state.hands.set(playerId, sortHand(kept, dq));
+              this.finishWallExhausted(ctx);
+              return;
+            }
+            const replacement = this.state.wall.pop()!;
+            kept.push(replacement);
+            this.state.hands.set(playerId, sortHand(kept, dq));
+            this.state.drawnTile.set(playerId, replacement);
+            this.state.afterKong = true;
+            this.recordAction(ctx, 'kong', playerId, {
+              tile: quad[0]!,
+              detail: this.variant.gangInstantScore ? '下雨(暗杠)' : '暗杠',
+            });
+            break;
+          }
+
+          // 2) 补杠 / 面下杠（手牌有第4张匹配已碰刻子）
           const melds = this.state.melds.get(playerId) ?? [];
-          melds.push({ type: 'kong', tiles: quad });
-          this.state.melds.set(playerId, melds);
+          let upgradedTile: MahjongTileData | null = null;
+          for (const m of melds) {
+            if (m.type !== 'pong') continue;
+            const ref = m.tiles[0]!;
+            const idx = hand.findIndex((t) => t.suit === ref.suit && t.val === ref.val);
+            if (idx >= 0) {
+              upgradedTile = hand.splice(idx, 1)[0]!;
+              m.type = 'kong';
+              m.tiles.push(upgradedTile);
+              break;
+            }
+          }
+          if (!upgradedTile) throw new Error('当前没有可暗杠或补杠的牌');
 
-          // 杠后从牌尾补摸一张
+          this.addGangBonus(ctx, playerId, otherIds, Math.round(this.variant.baseWin * 0.5));
           if (this.state.wall.length === 0) {
-            this.state.hands.set(playerId, sortHand(kept));
-            this.settleDraw(ctx);
+            this.state.hands.set(playerId, sortHand(hand, dq));
+            this.finishWallExhausted(ctx);
             return;
           }
           const replacement = this.state.wall.pop()!;
-          kept.push(replacement);
-          this.state.hands.set(playerId, sortHand(kept));
+          hand.push(replacement);
+          this.state.hands.set(playerId, sortHand(hand, dq));
           this.state.drawnTile.set(playerId, replacement);
-          this.recordAction(ctx, 'kong', playerId, { tile: quad[0]! });
+          this.state.afterKong = true;
+          this.recordAction(ctx, 'kong', playerId, {
+            tile: upgradedTile,
+            detail: this.variant.gangInstantScore ? '刮风(补杠)' : '补杠',
+          });
           break;
         }
 
+        // 3) 明杠 / 直杠（接别家刚打出的第4张）
         if (!this.state.lastDiscard || this.state.lastDiscard.playerId === playerId) {
           throw new Error('没有可以杠的牌');
         }
         const discarderId = this.state.lastDiscard.playerId;
         const target = this.state.lastDiscard.tile;
+        if (dq && target.suit === dq) throw new Error('不能杠定缺花色');
         const matches = hand.filter((t) => t.suit === target.suit && t.val === target.val);
         if (matches.length < 3) throw new Error('手牌不足三张相同牌，无法明杠');
 
@@ -418,34 +1205,64 @@ class VariantMahjongPlugin extends BaseGamePlugin {
         this.state.melds.set(playerId, melds);
         this.state.lastDiscard = null;
         this.state.turn = playerId;
+        this.addGangBonus(ctx, playerId, [discarderId], this.variant.baseWin);
 
         if (this.state.wall.length === 0) {
-          this.state.hands.set(playerId, sortHand(kept));
-          this.settleDraw(ctx);
+          this.state.hands.set(playerId, sortHand(kept, dq));
+          this.finishWallExhausted(ctx);
           return;
         }
         const replacement = this.state.wall.pop()!;
         kept.push(replacement);
-        this.state.hands.set(playerId, sortHand(kept));
+        this.state.hands.set(playerId, sortHand(kept, dq));
         this.state.drawnTile.set(playerId, replacement);
-        this.recordAction(ctx, 'kong', playerId, { tile: target });
+        this.state.afterKong = true;
+        this.recordAction(ctx, 'kong', playerId, {
+          tile: target,
+          detail: this.variant.gangInstantScore ? '刮风(明杠)' : '明杠',
+        });
         break;
       }
+
       case 'hu': {
         const isSelfDraw = this.state.turn === playerId && handIsFourteen(hand.length);
+        const discarderId = !isSelfDraw ? this.state.lastDiscard?.playerId ?? null : null;
         const checkTiles = [...hand];
         if (!isSelfDraw && this.state.lastDiscard && this.state.lastDiscard.playerId !== playerId) {
           checkTiles.push(this.state.lastDiscard.tile);
         }
-        const res = canHu(checkTiles, this.variant.is258Strict);
-        if (!res.ok) throw new Error('当前手牌未达到胡牌标准');
+        const evalRes = evaluateHu({
+          hand: checkTiles,
+          melds: this.state.melds.get(playerId) ?? [],
+          variant: this.variant,
+          dingqueSuit: dq,
+          isSelfDraw,
+          afterKong: this.state.afterKong && isSelfDraw,
+          isLastWallTile: this.state.wall.length === 0,
+          isFirstTurnDealer: this.state.turnCount === 0 && playerId === this.state.dealerId,
+          seatWindVal: this.seatWindOf(ctx, playerId),
+        });
+        if (!evalRes.ok) {
+          throw new Error(evalRes.type || '当前手牌未达到胡牌标准');
+        }
 
-        this.settleHu(ctx, playerId, res.type, res.fan, isSelfDraw);
+        if (!isSelfDraw && this.state.lastDiscard) {
+          const discList = this.state.discards.get(this.state.lastDiscard.playerId);
+          if (discList && discList[discList.length - 1]?.id === this.state.lastDiscard.tile.id) {
+            discList.pop();
+          }
+          this.state.hands.set(playerId, sortHand(checkTiles, dq));
+          this.state.lastDiscard = null;
+        }
+
+        this.handleHu(ctx, playerId, discarderId, evalRes, isSelfDraw);
         return;
       }
+
       case 'pass': {
         break;
       }
+
       default:
         throw new Error(`未知操作: ${intent.cmd}`);
     }
@@ -456,33 +1273,84 @@ class VariantMahjongPlugin extends BaseGamePlugin {
   private advanceToNextDraw(ctx: RoomContext, currentId: string): void {
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
     const currIndex = players.findIndex((p) => p.playerId === currentId);
-    const nextPlayer = players[(currIndex + 1) % players.length]!;
+    let nextPlayer = players[(currIndex + 1) % players.length]!;
+    for (let step = 1; step <= players.length; step++) {
+      const cand = players[(currIndex + step) % players.length]!;
+      if (!this.state.huDone.has(cand.playerId)) {
+        nextPlayer = cand;
+        break;
+      }
+    }
 
     if (this.state.wall.length === 0) {
-      this.settleDraw(ctx);
+      this.finishWallExhausted(ctx);
       return;
     }
 
     const drawn = this.state.wall.shift()!;
     const nextHand = this.state.hands.get(nextPlayer.playerId) ?? [];
     nextHand.push(drawn);
-    this.state.hands.set(nextPlayer.playerId, sortHand(nextHand));
+    this.state.hands.set(nextPlayer.playerId, sortHand(nextHand, this.state.dingque.get(nextPlayer.playerId)));
     this.state.drawnTile.set(nextPlayer.playerId, drawn);
     this.state.turn = nextPlayer.playerId;
   }
 
-  private settleHu(
+  private handleHu(
     ctx: RoomContext,
     winnerId: string,
-    huType: string,
-    fan: number,
+    discarderId: string | null,
+    evalRes: HuEval,
     isSelfDraw: boolean,
   ): void {
+    this.recordAction(ctx, isSelfDraw ? 'zimo' : 'hu', winnerId, { huType: evalRes.type });
+
+    // ---------- 四川血战到底：一家胡后继续至 3 家胡或牌墙摸完 ----------
+    if (this.variant.bloodBattle) {
+      this.state.huDone.add(winnerId);
+      if (!this.state.winners.includes(winnerId)) this.state.winners.push(winnerId);
+
+      const expMult = Math.min(64, Math.pow(2, Math.max(0, evalRes.fan - 1)));
+      const unitScore = Math.round(this.variant.baseWin * expMult * this.variant.fanBoost);
+
+      const activePayers = ctx.players
+        .map((p) => p.playerId)
+        .filter((pid) => pid !== winnerId && !this.state.huDone.has(pid));
+
+      const payers = isSelfDraw
+        ? activePayers
+        : discarderId && !this.state.huDone.has(discarderId)
+          ? [discarderId]
+          : activePayers;
+
+      let gained = 0;
+      for (const pid of payers) {
+        this.state.runningDelta.set(pid, (this.state.runningDelta.get(pid) ?? 0) - unitScore);
+        gained += unitScore;
+      }
+      this.state.runningDelta.set(winnerId, (this.state.runningDelta.get(winnerId) ?? 0) + gained);
+      this.state.huTypes.set(winnerId, `${isSelfDraw ? '自摸·' : '点炮·'}${evalRes.type}`);
+
+      // 若已满 3 家胡牌或牌墙耗尽，立即血战总清算
+      const remainingActive = ctx.players.filter((p) => !this.state.huDone.has(p.playerId));
+      if (remainingActive.length <= 1 || this.state.wall.length === 0) {
+        this.finalizeBloodBattle(ctx);
+        return;
+      }
+
+      // 否则继续下一位未胡玩家摸牌血战
+      this.state.afterKong = false;
+      this.advanceToNextDraw(ctx, winnerId);
+      ctx.markDirty();
+      return;
+    }
+
+    // ---------- 常规一局一胡玩法（长沙 / 广东 / 国标） ----------
     this.state.settled = true;
+    this.state.phase = 'settled';
     this.state.winners = [winnerId];
     this.state.turn = null;
-    this.recordAction(ctx, isSelfDraw ? 'zimo' : 'hu', winnerId, { huType });
 
+    // 抓鸟 / 买马
     const birds: MahjongTileData[] = [];
     for (let i = 0; i < this.variant.birdCount && this.state.wall.length > 0; i++) {
       birds.push(this.state.wall.pop()!);
@@ -491,105 +1359,329 @@ class VariantMahjongPlugin extends BaseGamePlugin {
 
     let birdHit = 0;
     for (const b of birds) {
-      if (b.val === 1 || b.val === 5 || b.val === 9) birdHit++;
+      if (this.variant.birdMode === 'guangdong') {
+        if (
+          (isNumericSuit(b.suit) && (b.val === 1 || b.val === 5 || b.val === 9)) ||
+          (b.suit === 'wind' && b.val === 1) ||
+          (b.suit === 'dragon' && b.val === 1)
+        ) {
+          birdHit += 1;
+        }
+      } else if (this.variant.birdMode === 'changsha') {
+        if (isNumericSuit(b.suit) && (b.val === 1 || b.val === 5 || b.val === 9)) {
+          birdHit += 1;
+        }
+      }
     }
 
-    const selfDrawMult = isSelfDraw ? 2 : 1;
-    const baseWin = Math.round(
-      this.variant.baseWin * fan * this.variant.fanBoost * selfDrawMult * (1 + birdHit),
-    );
-    const losers = ctx.players.filter((p) => p.playerId !== winnerId);
-    const totalWin = baseWin * losers.length;
+    const deltas = new Map<string, number>();
+    for (const p of ctx.players) {
+      deltas.set(
+        p.playerId,
+        (this.state.runningDelta.get(p.playerId) ?? 0) + (this.state.gangScore.get(p.playerId) ?? 0),
+      );
+    }
+
+    if (this.variant.guobiaoScoring) {
+      // 国标计分：8 底分 + 番数（每分 = baseWin 筹码），自摸三家全付，点和放炮包番 + 三家各出底分
+      const basePts = 8 * this.variant.baseWin;
+      const fanPts = evalRes.fan * this.variant.baseWin;
+      if (isSelfDraw) {
+        const perLoser = basePts + fanPts;
+        for (const p of ctx.players) {
+          if (p.playerId === winnerId) deltas.set(p.playerId, (deltas.get(p.playerId) ?? 0) + perLoser * 3);
+          else deltas.set(p.playerId, (deltas.get(p.playerId) ?? 0) - perLoser);
+        }
+      } else {
+        for (const p of ctx.players) {
+          if (p.playerId === winnerId) {
+            deltas.set(p.playerId, (deltas.get(p.playerId) ?? 0) + basePts * 3 + fanPts);
+          } else if (p.playerId === discarderId) {
+            deltas.set(p.playerId, (deltas.get(p.playerId) ?? 0) - (basePts + fanPts));
+          } else {
+            deltas.set(p.playerId, (deltas.get(p.playerId) ?? 0) - basePts);
+          }
+        }
+      }
+    } else {
+      const selfDrawMult = isSelfDraw ? 2 : 1;
+      const unitWin = Math.round(
+        this.variant.baseWin * evalRes.fan * this.variant.fanBoost * selfDrawMult * (1 + birdHit),
+      );
+      if (isSelfDraw || !discarderId) {
+        const losers = ctx.players.filter((p) => p.playerId !== winnerId);
+        for (const p of losers) {
+          deltas.set(p.playerId, (deltas.get(p.playerId) ?? 0) - unitWin);
+        }
+        deltas.set(winnerId, (deltas.get(winnerId) ?? 0) + unitWin * losers.length);
+      } else {
+        // 点炮：放炮者承担双倍或全包主体，闲家不赔
+        const paoLoss = unitWin * 2;
+        deltas.set(discarderId, (deltas.get(discarderId) ?? 0) - paoLoss);
+        deltas.set(winnerId, (deltas.get(winnerId) ?? 0) + paoLoss);
+      }
+    }
 
     const bonusSuffix =
       this.variant.birdCount > 0
         ? ` (${isSelfDraw ? '自摸·' : ''}中${birdHit}${this.variant.bonusLabel})`
         : isSelfDraw
-          ? ' (自摸加倍)'
-          : ` (${fan}番)`;
+          ? ' (自摸)'
+          : '';
 
-    const results: ResultRow[] = ctx.players.map((p) => ({
-      playerId: p.playerId,
-      nickname: p.nickname,
-      delta: p.playerId === winnerId ? totalWin : -baseWin,
-      huType: p.playerId === winnerId ? `${huType}${bonusSuffix}` : '未胡',
-      birds,
-    }));
-    this.state.results = results;
+    this.state.results = ctx.players.map((p) => {
+      const startTags = this.state.startBonusLabels.get(p.playerId) ?? [];
+      const extraTag = startTags.length > 0 ? ` [${startTags.join('+')}]` : '';
+      return {
+        playerId: p.playerId,
+        nickname: p.nickname,
+        delta: deltas.get(p.playerId) ?? 0,
+        huType:
+          p.playerId === winnerId
+            ? `${evalRes.type}${bonusSuffix}${extraTag}`
+            : p.playerId === discarderId
+              ? `放炮${extraTag}`
+              : `未胡${extraTag}`,
+        birds,
+      };
+    });
 
-    const entries: SettlementEntry[] = ctx.players.map((p) => ({
-      playerId: p.playerId,
-      currency: 'coin' as const,
-      delta: p.playerId === winnerId ? totalWin : -baseWin,
-      reason: this.variant.settleReason,
-    }));
+    const entries: SettlementEntry[] = ctx.players
+      .map((p) => ({
+        playerId: p.playerId,
+        currency: 'coin' as const,
+        delta: deltas.get(p.playerId) ?? 0,
+        reason: this.variant.settleReason,
+      }))
+      .filter((e) => e.delta !== 0);
 
     ctx.markDirty();
     ctx.settle({ entries, winners: [winnerId] });
   }
 
-  private settleDraw(ctx: RoomContext): void {
+  /** 四川血战流局 / 终局总清算（查花猪 + 查大叫 + 退税 + 刮风下雨） */
+  private finalizeBloodBattle(ctx: RoomContext): void {
     this.state.settled = true;
+    this.state.phase = 'settled';
+    this.state.turn = null;
+
+    const remaining = ctx.players.filter((p) => !this.state.huDone.has(p.playerId));
+    const huazhuIds = new Set<string>();
+    const tenpaiFan = new Map<string, number>();
+
+    // 若墙空流局仍有 >= 2 家未胡，执行查花猪与查大叫
+    if (remaining.length >= 2) {
+      for (const p of remaining) {
+        const h = this.state.hands.get(p.playerId) ?? [];
+        const dq = this.state.dingque.get(p.playerId);
+        if (dq && h.some((t) => t.suit === dq)) {
+          huazhuIds.add(p.playerId);
+          // 花猪退还刮风下雨收益
+          if ((this.state.gangScore.get(p.playerId) ?? 0) > 0) {
+            this.state.gangScore.set(p.playerId, 0);
+          }
+          this.state.huTypes.set(p.playerId, '花猪(未打缺)');
+        } else {
+          const maxF = findTenpaiMaxFan({
+            hand: h,
+            melds: this.state.melds.get(p.playerId) ?? [],
+            variant: this.variant,
+            dingqueSuit: dq,
+            seatWindVal: this.seatWindOf(ctx, p.playerId),
+          });
+          tenpaiFan.set(p.playerId, maxF);
+          this.state.huTypes.set(p.playerId, maxF > 0 ? `有叫(${maxF}番)` : '无叫(查大叫)');
+        }
+      }
+
+      // 查花猪赔付
+      const huazhuPenalty = this.variant.baseWin * 8;
+      for (const hzId of huazhuIds) {
+        for (const p of ctx.players) {
+          if (p.playerId === hzId || huazhuIds.has(p.playerId)) continue;
+          this.state.runningDelta.set(hzId, (this.state.runningDelta.get(hzId) ?? 0) - huazhuPenalty);
+          this.state.runningDelta.set(p.playerId, (this.state.runningDelta.get(p.playerId) ?? 0) + huazhuPenalty);
+        }
+      }
+
+      // 查大叫赔付（无叫赔有叫）
+      for (const p of remaining) {
+        if (huazhuIds.has(p.playerId)) continue;
+        const myFan = tenpaiFan.get(p.playerId) ?? 0;
+        if (myFan === 0) {
+          for (const other of remaining) {
+            const otherFan = tenpaiFan.get(other.playerId) ?? 0;
+            if (otherFan > 0) {
+              const pay = Math.round(this.variant.baseWin * Math.pow(2, Math.min(4, otherFan - 1)));
+              this.state.runningDelta.set(p.playerId, (this.state.runningDelta.get(p.playerId) ?? 0) - pay);
+              this.state.runningDelta.set(other.playerId, (this.state.runningDelta.get(other.playerId) ?? 0) + pay);
+            }
+          }
+        }
+      }
+    }
+
+    const finalDeltas = new Map<string, number>();
+    for (const p of ctx.players) {
+      const total =
+        (this.state.runningDelta.get(p.playerId) ?? 0) + (this.state.gangScore.get(p.playerId) ?? 0);
+      finalDeltas.set(p.playerId, total);
+    }
+
+    this.state.results = ctx.players.map((p) => {
+      const gs = this.state.gangScore.get(p.playerId) ?? 0;
+      const gangTxt = gs !== 0 ? ` · 刮风下雨${gs > 0 ? `+${gs}` : gs}` : '';
+      return {
+        playerId: p.playerId,
+        nickname: p.nickname,
+        delta: finalDeltas.get(p.playerId) ?? 0,
+        huType: `${this.state.huTypes.get(p.playerId) ?? '未胡'}${gangTxt}`,
+        birds: [],
+      };
+    });
+
+    const entries: SettlementEntry[] = ctx.players
+      .map((p) => ({
+        playerId: p.playerId,
+        currency: 'coin' as const,
+        delta: finalDeltas.get(p.playerId) ?? 0,
+        reason: this.variant.settleReason,
+      }))
+      .filter((e) => e.delta !== 0);
+
+    const winners = ctx.players.filter((p) => (finalDeltas.get(p.playerId) ?? 0) > 0).map((p) => p.playerId);
+    this.state.winners = winners;
+    ctx.markDirty();
+    ctx.settle({ entries, winners });
+  }
+
+  private finishWallExhausted(ctx: RoomContext): void {
+    this.recordAction(ctx, 'draw_game', ctx.players[0]?.playerId ?? '');
+    if (this.variant.bloodBattle) {
+      this.finalizeBloodBattle(ctx);
+      return;
+    }
+
+    this.state.settled = true;
+    this.state.phase = 'settled';
     this.state.winners = [];
     this.state.turn = null;
-    this.recordAction(ctx, 'draw_game', ctx.players[0]?.playerId ?? '');
-    this.state.results = ctx.players.map((p) => ({
-      playerId: p.playerId,
-      nickname: p.nickname,
-      delta: 0,
-      huType: '黄庄 (海底无牌)',
-      birds: [],
-    }));
-    ctx.settle({ entries: [], winners: [] });
+    this.state.results = ctx.players.map((p) => {
+      const d = (this.state.runningDelta.get(p.playerId) ?? 0) + (this.state.gangScore.get(p.playerId) ?? 0);
+      return {
+        playerId: p.playerId,
+        nickname: p.nickname,
+        delta: d,
+        huType: '荒庄 (海底无牌)',
+        birds: [],
+      };
+    });
+    const entries: SettlementEntry[] = this.state.results
+      .filter((r) => r.delta !== 0)
+      .map((r) => ({
+        playerId: r.playerId,
+        currency: 'coin' as const,
+        delta: r.delta,
+        reason: this.variant.settleReason,
+      }));
+    ctx.settle({ entries, winners: [] });
     ctx.markDirty();
   }
 
   override botIntent(
-    _ctx: RoomContext,
+    ctx: RoomContext,
     playerId: string,
     _difficulty: BotDifficulty = 'high',
   ): GameIntent | null {
-    if (this.state.settled) return null;
-    const hand = this.state.hands.get(playerId) ?? [];
+    if (this.state.settled || this.state.phase !== 'playing') return null;
+    if (this.state.huDone.has(playerId)) return null;
 
+    const hand = this.state.hands.get(playerId) ?? [];
+    const melds = this.state.melds.get(playerId) ?? [];
+    const dq = this.state.dingque.get(playerId);
+    const windVal = this.seatWindOf(ctx, playerId);
+
+    // 抢胡 / 明杠机会
     if (this.state.lastDiscard && this.state.lastDiscard.playerId !== playerId) {
       const check = [...hand, this.state.lastDiscard.tile];
-      if (canHu(check, this.variant.is258Strict).ok) {
+      if (
+        evaluateHu({
+          hand: check,
+          melds,
+          variant: this.variant,
+          dingqueSuit: dq,
+          isSelfDraw: false,
+          afterKong: false,
+          isLastWallTile: this.state.wall.length === 0,
+          isFirstTurnDealer: false,
+          seatWindVal: windVal,
+        }).ok
+      ) {
         return { cmd: 'hu', payload: {} };
       }
       const target = this.state.lastDiscard.tile;
-      const sameCount = hand.filter((t) => t.suit === target.suit && t.val === target.val).length;
-      if (sameCount >= 3 && this.state.wall.length > 0) {
-        return { cmd: 'kong', payload: {} };
+      if (!dq || target.suit !== dq) {
+        const sameCount = hand.filter((t) => t.suit === target.suit && t.val === target.val).length;
+        if (sameCount >= 3 && this.state.wall.length > 0) {
+          return { cmd: 'kong', payload: {} };
+        }
       }
     }
 
     if (this.state.turn === playerId && hand.length > 0) {
-      if (canHu(hand, this.variant.is258Strict).ok) {
+      if (
+        evaluateHu({
+          hand,
+          melds,
+          variant: this.variant,
+          dingqueSuit: dq,
+          isSelfDraw: true,
+          afterKong: this.state.afterKong,
+          isLastWallTile: this.state.wall.length === 0,
+          isFirstTurnDealer: this.state.turnCount === 0 && playerId === this.state.dealerId,
+          seatWindVal: windVal,
+        }).ok
+      ) {
         return { cmd: 'hu', payload: {} };
       }
-      const counts = new Map<string, number>();
-      for (const t of hand) {
-        counts.set(`${t.suit}${t.val}`, (counts.get(`${t.suit}${t.val}`) ?? 0) + 1);
+
+      // 优先打出定缺花色（避免四川流局花猪）
+      if (dq) {
+        const dqTile = hand.find((t) => t.suit === dq);
+        if (dqTile) return { cmd: 'discard', payload: { tileId: dqTile.id } };
       }
-      // 暗杠机会
-      for (const c of counts.values()) {
-        if (c === 4 && this.state.wall.length > 0) {
-          return { cmd: 'kong', payload: {} };
+
+      const counts = new Map<string, number>();
+      for (const t of hand) counts.set(tileKey(t), (counts.get(tileKey(t)) ?? 0) + 1);
+
+      // 暗杠或补杠机会
+      if (this.state.wall.length > 0) {
+        for (const [k, c] of counts.entries()) {
+          if (c === 4 && (!dq || !k.startsWith(`${dq}_`))) {
+            return { cmd: 'kong', payload: {} };
+          }
+        }
+        for (const m of melds) {
+          if (m.type === 'pong' && (counts.get(tileKey(m.tiles[0]!)) ?? 0) >= 1) {
+            return { cmd: 'kong', payload: {} };
+          }
         }
       }
-      // 智能舍牌：优先舍弃完全孤张（无同张且无相邻顺子搭子）
+
+      // 高智商舍牌评估：优先保留顺子/刻子/双面搭子与听牌最大进张
       let bestTile = hand[hand.length - 1]!;
       let lowestScore = Number.POSITIVE_INFINITY;
       for (const t of hand) {
-        const same = counts.get(`${t.suit}${t.val}`) ?? 1;
-        const left1 = counts.get(`${t.suit}${t.val - 1}`) ?? 0;
-        const right1 = counts.get(`${t.suit}${t.val + 1}`) ?? 0;
-        const left2 = counts.get(`${t.suit}${t.val - 2}`) ?? 0;
-        const right2 = counts.get(`${t.suit}${t.val + 2}`) ?? 0;
-        const centerBonus = t.val >= 3 && t.val <= 7 ? 0.5 : 0;
-        const jiangBonus = this.variant.is258Strict && (t.val === 2 || t.val === 5 || t.val === 8) ? 0.6 : 0;
-        const score = same * 4 + (left1 + right1) * 2 + (left2 + right2) * 0.8 + centerBonus + jiangBonus;
+        const same = counts.get(tileKey(t)) ?? 1;
+        const isNum = isNumericSuit(t.suit);
+        const left1 = isNum ? counts.get(`${t.suit}_${t.val - 1}`) ?? 0 : 0;
+        const right1 = isNum ? counts.get(`${t.suit}_${t.val + 1}`) ?? 0 : 0;
+        const left2 = isNum ? counts.get(`${t.suit}_${t.val - 2}`) ?? 0 : 0;
+        const right2 = isNum ? counts.get(`${t.suit}_${t.val + 2}`) ?? 0 : 0;
+        const centerBonus = isNum && t.val >= 3 && t.val <= 7 ? 0.6 : 0;
+        const jiangBonus = this.variant.is258Strict && isNum && (t.val === 2 || t.val === 5 || t.val === 8) ? 0.8 : 0;
+        const honorPenalty = !isNum && same === 1 ? -1.4 : 0;
+        const score = same * 4.2 + (left1 + right1) * 2.2 + (left2 + right2) * 0.85 + centerBonus + jiangBonus + honorPenalty;
         if (score < lowestScore) {
           lowestScore = score;
           bestTile = t;
@@ -604,37 +1696,81 @@ class VariantMahjongPlugin extends BaseGamePlugin {
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
     const myHand = viewerId ? this.state.hands.get(viewerId) ?? [] : [];
+    const myMelds = viewerId ? this.state.melds.get(viewerId) ?? [] : [];
     const myDrawn = viewerId ? this.state.drawnTile.get(viewerId) ?? null : null;
+    const myDq = viewerId ? this.state.dingque.get(viewerId) : undefined;
 
     let canHuFlag = false;
     let canPongFlag = false;
     let canKongFlag = false;
-    if (viewerId && !this.state.settled) {
+    let chowOptions: ChowOption[] = [];
+
+    if (viewerId && this.state.phase === 'playing' && !this.state.settled && !this.state.huDone.has(viewerId)) {
+      const windVal = this.seatWindOf(ctx, viewerId);
       if (this.state.turn === viewerId && handIsFourteen(myHand.length)) {
-        canHuFlag = canHu(myHand, this.variant.is258Strict).ok;
+        canHuFlag = evaluateHu({
+          hand: myHand,
+          melds: myMelds,
+          variant: this.variant,
+          dingqueSuit: myDq,
+          isSelfDraw: true,
+          afterKong: this.state.afterKong,
+          isLastWallTile: this.state.wall.length === 0,
+          isFirstTurnDealer: this.state.turnCount === 0 && viewerId === this.state.dealerId,
+          seatWindVal: windVal,
+        }).ok;
+
         if (this.state.wall.length > 0) {
           const counts = new Map<string, number>();
           for (const t of myHand) {
-            counts.set(`${t.suit}_${t.val}`, (counts.get(`${t.suit}_${t.val}`) ?? 0) + 1);
+            if (myDq && t.suit === myDq) continue;
+            counts.set(tileKey(t), (counts.get(tileKey(t)) ?? 0) + 1);
           }
-          canKongFlag = [...counts.values()].some((c) => c === 4);
+          const hasConcealedKong = [...counts.values()].some((c) => c === 4);
+          const hasUpgradeKong = myMelds.some(
+            (m) => m.type === 'pong' && (counts.get(tileKey(m.tiles[0]!)) ?? 0) >= 1,
+          );
+          canKongFlag = hasConcealedKong || hasUpgradeKong;
         }
       } else if (this.state.lastDiscard && this.state.lastDiscard.playerId !== viewerId) {
-        canHuFlag = canHu([...myHand, this.state.lastDiscard.tile], this.variant.is258Strict).ok;
         const target = this.state.lastDiscard.tile;
-        const matches = myHand.filter((t) => t.suit === target.suit && t.val === target.val);
-        canPongFlag = matches.length >= 2;
-        canKongFlag = matches.length >= 3 && this.state.wall.length > 0;
+        canHuFlag = evaluateHu({
+          hand: [...myHand, target],
+          melds: myMelds,
+          variant: this.variant,
+          dingqueSuit: myDq,
+          isSelfDraw: false,
+          afterKong: false,
+          isLastWallTile: this.state.wall.length === 0,
+          isFirstTurnDealer: false,
+          seatWindVal: windVal,
+        }).ok;
+
+        if (!myDq || target.suit !== myDq) {
+          const matches = myHand.filter((t) => t.suit === target.suit && t.val === target.val);
+          canPongFlag = matches.length >= 2;
+          canKongFlag = matches.length >= 3 && this.state.wall.length > 0;
+        }
+
+        if (this.variant.allowChow && this.isPrevPlayer(ctx, this.state.lastDiscard.playerId, viewerId)) {
+          chowOptions = computeChowOptions(myHand, target);
+        }
       }
     }
 
     return {
-      phase: this.state.settled ? 'settled' : 'playing',
+      phase: this.state.phase,
       round: ctx.config.round,
       variantId: this.meta.gameId,
       variantName: this.meta.name,
       bonusLabel: this.variant.bonusLabel,
       baseWin: this.variant.baseWin,
+      includeHonors: this.variant.includeHonors,
+      allowChow: this.variant.allowChow,
+      hasDingque: this.variant.hasDingque,
+      bloodBattle: this.variant.bloodBattle,
+      minHuFan: this.variant.minHuFan,
+      is258Strict: this.variant.is258Strict,
       dealerId: this.state.dealerId,
       turn: this.state.turn,
       remainingCount: this.state.wall.length,
@@ -642,9 +1778,13 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       lastAction: this.state.lastAction,
       myHand,
       myDrawn,
+      myDingque: myDq ?? null,
+      recommendedDingque: this.variant.hasDingque && !myDq ? recommendDingqueSuit(myHand) : null,
       canHu: canHuFlag,
       canPong: canPongFlag,
       canKong: canKongFlag,
+      canChow: chowOptions.length > 0,
+      chowOptions,
       birds: this.state.birds,
       winners: this.state.winners,
       results: this.state.results,
@@ -660,6 +1800,11 @@ class VariantMahjongPlugin extends BaseGamePlugin {
           cardCount: hand.length,
           melds,
           discards,
+          dingqueSuit: this.state.dingque.get(p.playerId) ?? null,
+          huDone: this.state.huDone.has(p.playerId),
+          huType: this.state.huTypes.get(p.playerId) ?? null,
+          gangScore: this.state.gangScore.get(p.playerId) ?? 0,
+          startBonuses: this.state.startBonusLabels.get(p.playerId) ?? [],
           hand: this.state.settled || p.playerId === viewerId ? hand : [],
         };
       }),
@@ -667,7 +1812,8 @@ class VariantMahjongPlugin extends BaseGamePlugin {
   }
 
   override getCurrentActor(): string | null {
-    return this.state.settled ? null : this.state.turn;
+    if (this.state.settled || this.state.phase !== 'playing') return null;
+    return this.state.turn;
   }
 }
 
@@ -677,17 +1823,26 @@ export class CsMahjongPlugin extends VariantMahjongPlugin {
       meta: {
         gameId: 'cs-mahjong',
         name: '长沙麻将',
-        description: '地道湖南长沙麻将，258硬将、将将胡、清一色七小对，开门抓2鸟翻倍',
+        description: '地道湖南长沙麻将，108张无字牌，起手胡（四喜/板板胡/缺一色/六六顺）、258硬将、吃碰杠与开门抓2鸟翻倍',
         icon: '🀄',
         minPlayers: 4,
         maxPlayers: 4,
-        version: '1.1.0',
+        version: '2.0.0',
         clientBundle: '',
-        tags: ['麻将', '抓鸟', '258将', '国粹'],
+        tags: ['麻将', '起手胡', '258将', '抓鸟'],
         category: 'mahjong',
       },
+      includeHonors: false,
+      allowChow: true,
       is258Strict: true,
+      hasStartBonuses: true,
+      hasDingque: false,
+      bloodBattle: false,
+      gangInstantScore: false,
+      guobiaoScoring: false,
+      minHuFan: 1,
       birdCount: 2,
+      birdMode: 'changsha',
       bonusLabel: '鸟',
       baseWin: 100,
       fanBoost: 1,
@@ -702,20 +1857,29 @@ export class ScMahjongPlugin extends VariantMahjongPlugin {
       meta: {
         gameId: 'sc-mahjong',
         name: '四川血战麻将',
-        description: '巴蜀血战高番玩法，108张筒条万快节奏成胡，清一色龙七对碰碰胡翻倍爽赢',
+        description: '正宗成都血战到底！108张开局定缺、不可吃牌、刮风下雨即时收豆、一家胡继续战到底、流局查花猪查大叫',
         icon: '🌶️',
         minPlayers: 4,
         maxPlayers: 4,
-        version: '1.0.0',
+        version: '2.0.0',
         clientBundle: '',
-        tags: ['麻将', '血战', '高番', '热门'],
+        tags: ['麻将', '血战到底', '定缺', '刮风下雨'],
         category: 'mahjong',
       },
+      includeHonors: false,
+      allowChow: false,
       is258Strict: false,
+      hasStartBonuses: false,
+      hasDingque: true,
+      bloodBattle: true,
+      gangInstantScore: true,
+      guobiaoScoring: false,
+      minHuFan: 1,
       birdCount: 0,
+      birdMode: 'none',
       bonusLabel: '番',
-      baseWin: 150,
-      fanBoost: 1.5,
+      baseWin: 100,
+      fanBoost: 1.2,
       settleReason: 'sc-mahjong.hu',
     });
   }
@@ -727,17 +1891,26 @@ export class GdMahjongPlugin extends VariantMahjongPlugin {
       meta: {
         gameId: 'gd-mahjong',
         name: '广东推倒胡',
-        description: '岭南经典推倒胡，任意将牌极速开胡，胡牌豪买 4 匹马中马全翻倍',
+        description: '岭南经典136张推倒胡（含东南西北中发白），不可吃牌、明暗补杠即时杠分、十三幺/大三元/清一色，胡牌豪买4匹马',
         icon: '🐎',
         minPlayers: 4,
         maxPlayers: 4,
-        version: '1.0.0',
+        version: '2.0.0',
         clientBundle: '',
-        tags: ['麻将', '推倒胡', '买马', '爽局'],
+        tags: ['麻将', '136张', '买4马', '推倒胡'],
         category: 'mahjong',
       },
+      includeHonors: true,
+      allowChow: false,
       is258Strict: false,
+      hasStartBonuses: false,
+      hasDingque: false,
+      bloodBattle: false,
+      gangInstantScore: true,
+      guobiaoScoring: false,
+      minHuFan: 1,
       birdCount: 4,
+      birdMode: 'guangdong',
       bonusLabel: '马',
       baseWin: 100,
       fanBoost: 1,
@@ -752,20 +1925,29 @@ export class GuobiaoMahjongPlugin extends VariantMahjongPlugin {
       meta: {
         gameId: 'guobiao-mahjong',
         name: '大众国标麻将',
-        description: '经典竞技国标麻将，碰碰胡、七小对、清一色、自摸翻倍，原汁原味雀坛对决',
+        description: '国家体育总局竞技国标麻将！136张全牌可吃碰杠，经典多番种叠加8番起胡，8底分+总番精准竞技计分',
         icon: '👑',
         minPlayers: 4,
         maxPlayers: 4,
-        version: '1.0.0',
+        version: '2.0.0',
         clientBundle: '',
-        tags: ['麻将', '国标', '竞技', '经典'],
+        tags: ['麻将', '136张', '8番起胡', '国标'],
         category: 'mahjong',
       },
+      includeHonors: true,
+      allowChow: true,
       is258Strict: false,
+      hasStartBonuses: false,
+      hasDingque: false,
+      bloodBattle: false,
+      gangInstantScore: false,
+      guobiaoScoring: true,
+      minHuFan: 8,
       birdCount: 0,
+      birdMode: 'none',
       bonusLabel: '番',
-      baseWin: 120,
-      fanBoost: 1.2,
+      baseWin: 10,
+      fanBoost: 1,
       settleReason: 'guobiao-mahjong.hu',
     });
   }
