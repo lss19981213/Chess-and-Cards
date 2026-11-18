@@ -1,0 +1,29 @@
+name: Auto Deploy to 1Panel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # 仅在仓库 Secrets 配置了 DEPLOY_HOST 时执行，未配置时自动跳过不影响正常 CI
+    if: ${{ secrets.DEPLOY_HOST != '' }}
+    steps:
+      - name: Trigger 1Panel One-Click Update via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER || 'root' }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            APP_DIR="${{ secrets.DEPLOY_DIR || '/opt/1panel/apps/chess-and-cards' }}"
+            if [ -f "${APP_DIR}/infra/1panel-update.sh" ]; then
+              APP_DIR="${APP_DIR}" bash "${APP_DIR}/infra/1panel-update.sh"
+            else
+              curl -fsSL https://raw.githubusercontent.com/lss19981213/Chess-and-Cards/main/infra/1panel-update.sh | APP_DIR="${APP_DIR}" bash
+            fi

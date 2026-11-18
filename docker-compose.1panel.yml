@@ -1,0 +1,115 @@
+# 1Panel 一键部署编排文件（支持 1Panel -> 容器 -> 编排 直接导入，或配合 infra/1panel-update.sh 自动滚动更新）
+name: chess-and-cards
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cc_change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-chess_cards}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cc} -d ${POSTGRES_DB:-chess_cards}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - cc-net
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: chess-and-cards-runtime:latest
+    container_name: cc-api-server
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@cc/api-server", "start"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8080
+      TRUST_PROXY: loopback, linklocal, uniquelocal
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_KEY: ${INTERNAL_KEY}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      TOKEN_TTL: ${TOKEN_TTL:-7200}
+      INITIAL_COINS: ${INITIAL_COINS:-1000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      ROOM_SERVER_URL: http://room-server:9000
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-cc}:${POSTGRES_PASSWORD:-cc_change_me_please}@postgres:5432/${POSTGRES_DB:-chess_cards}}
+      TZ: Asia/Shanghai
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cc-net
+
+  room-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: chess-and-cards-runtime:latest
+    container_name: cc-room-server
+    restart: unless-stopped
+    command: ["pnpm", "--filter", "@cc/room-server", "start"]
+    depends_on:
+      api-server:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      ROOM_HOST: 0.0.0.0
+      ROOM_PORT: 9000
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_KEY: ${INTERNAL_KEY}
+      API_BASE_URL: http://api-server:8080
+      WS_ALLOWED_ORIGINS: ${WS_ALLOWED_ORIGINS:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      SETTLEMENT_OUTBOX_DIR: /data/outbox
+      DISCONNECT_GRACE_MS: ${DISCONNECT_GRACE_MS:-60000}
+      BOT_ENABLED: ${BOT_ENABLED:-true}
+      BOT_THINK_MS: ${BOT_THINK_MS:-700}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/outbox:/data/outbox
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cc-net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    image: chess-and-cards-web:latest
+    container_name: cc-web
+    restart: unless-stopped
+    depends_on:
+      api-server:
+        condition: service_healthy
+      room-server:
+        condition: service_healthy
+    ports:
+      # 默认绑定本机端口，由 1Panel 网站(OpenResty) 反代；若需直接公网 IP 访问可在 .env 设 WEB_BIND=0.0.0.0
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8090}:80"
+    networks:
+      - cc-net
+
+networks:
+  cc-net:
+    driver: bridge
