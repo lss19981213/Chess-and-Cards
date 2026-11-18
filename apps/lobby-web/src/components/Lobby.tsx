@@ -17,6 +17,7 @@ import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
 import { DealerTipWidget } from './DealerTipWidget';
 import { DealerWardrobeModal } from './DealerWardrobeModal';
+import { FeedbackModal } from './FeedbackModal';
 import {
   IconFriends,
   IconGift,
@@ -177,13 +178,16 @@ export function Lobby({
   const [showSlotsModal, setShowSlotsModal] = useState(false);
   const [showAvatarFrameModal, setShowAvatarFrameModal] = useState(false);
   const [showDealerWardrobe, setShowDealerWardrobe] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [mailAlertCount, setMailAlertCount] = useState(0);
+  const [ticketUnreadCount, setTicketUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!user) {
       setPendingFriendRequests(0);
       setMailAlertCount(0);
+      setTicketUnreadCount(0);
       return;
     }
     let alive = true;
@@ -201,6 +205,12 @@ export function Lobby({
           const mails = data.mails ?? [];
           const actionable = mails.filter((m) => !m.isRead || (m.rewardCoins > 0 && !m.isClaimed)).length;
           setMailAlertCount(actionable);
+        })
+        .catch(() => undefined);
+      void api
+        .listTickets()
+        .then((data) => {
+          if (alive) setTicketUnreadCount(data.unreadCount ?? 0);
         })
         .catch(() => undefined);
     };
@@ -618,6 +628,22 @@ export function Lobby({
             >
               <IconNext size={14} />
             </button>
+            <button
+              type="button"
+              className="top-feature-pill top-feature-pill--feedback"
+              title={user ? '提交问题反馈 / 查看工单进度' : '登录后即可提交问题工单'}
+              onClick={() => {
+                audio.play('click');
+                if (user) setShowFeedbackModal(true);
+                else onLogin();
+              }}
+            >
+              <span>🛠️</span>
+              <span>问题反馈</span>
+              {ticketUnreadCount > 0 && (
+                <span className="feedback-btn-badge">{ticketUnreadCount > 9 ? '9+' : ticketUnreadCount}</span>
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -949,6 +975,14 @@ export function Lobby({
             if (onUserUpdate) onUserUpdate(patch);
           }}
           onClose={() => setShowDealerWardrobe(false)}
+        />
+      )}
+
+      {showFeedbackModal && user && (
+        <FeedbackModal
+          user={user}
+          onUnreadChange={setTicketUnreadCount}
+          onClose={() => setShowFeedbackModal(false)}
         />
       )}
     </div>

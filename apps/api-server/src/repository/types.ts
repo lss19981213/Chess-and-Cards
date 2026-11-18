@@ -405,4 +405,89 @@ export interface Repository {
   // ---------- 全局动态运营配置（游戏分类 / 老虎机概率等） ----------
   getSetting<T>(key: string): Promise<T | null>;
   setSetting<T>(key: string, value: T): Promise<void>;
+
+  // ---------- 问题反馈工单系统 ----------
+  createTicket(input: CreateTicketInput): Promise<FeedbackTicket>;
+  listPlayerTickets(userId: string, limit?: number): Promise<FeedbackTicket[]>;
+  getTicketDetail(ticketId: string): Promise<FeedbackTicket | null>;
+  markTicketReadByPlayer(ticketId: string, userId: string): Promise<void>;
+  addTicketReply(input: AddTicketReplyInput): Promise<FeedbackTicketReply>;
+  updateTicketStatus(
+    ticketId: string,
+    status: TicketStatus,
+    adminNote?: string,
+  ): Promise<FeedbackTicket | null>;
+  listAdminTickets(filter?: AdminTicketFilter): Promise<{ tickets: FeedbackTicket[]; stats: TicketStats }>;
+  deleteTicket(ticketId: string): Promise<boolean>;
+}
+
+export type TicketCategory = 'bug' | 'suggestion' | 'wallet' | 'gameplay' | 'account' | 'report' | 'other';
+export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type TicketStatus = 'open' | 'in_progress' | 'replied' | 'resolved' | 'closed';
+
+export interface FeedbackTicketReply {
+  id: string;
+  ticketId: string;
+  senderRole: 'player' | 'gm';
+  senderName: string;
+  content: string;
+  createdAt: number;
+}
+
+export interface FeedbackTicket {
+  id: string;
+  userId: string;
+  username: string;
+  nickname: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  title: string;
+  content: string;
+  contact: string;
+  attachment: string | null;
+  clientInfo: string;
+  adminNote: string;
+  hasUnreadReply: boolean;
+  replyCount: number;
+  createdAt: number;
+  updatedAt: number;
+  replies?: FeedbackTicketReply[];
+}
+
+export interface CreateTicketInput {
+  userId: string;
+  username: string;
+  nickname: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  title: string;
+  content: string;
+  contact: string;
+  attachment: string | null;
+  clientInfo: string;
+}
+
+export interface AddTicketReplyInput {
+  ticketId: string;
+  senderRole: 'player' | 'gm';
+  senderName: string;
+  content: string;
+  nextStatus?: TicketStatus;
+}
+
+export interface AdminTicketFilter {
+  status?: string;
+  category?: string;
+  keyword?: string;
+  limit?: number;
+}
+
+export interface TicketStats {
+  total: number;
+  open: number;
+  inProgress: number;
+  replied: number;
+  resolved: number;
+  closed: number;
 }

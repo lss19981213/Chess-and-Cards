@@ -42,6 +42,19 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
+/** 校验 GM 后台访问口令（兼容 x-admin-token 与 Authorization: Bearer） */
+export function requireAdmin(req: FastifyRequest): void {
+  const headerToken = req.headers['x-admin-token'];
+  let provided = typeof headerToken === 'string' ? headerToken.trim() : '';
+  if (!provided) {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) provided = auth.slice(7).trim();
+  }
+  if (!config.adminToken || !provided || !safeEqual(provided, config.adminToken)) {
+    throw httpError('后台口令错误或无权限', 401);
+  }
+}
+
 /** 解析 data URL 格式头像，校验体积与真实文件头 */
 export function decodeAvatarDataUrl(raw: string): DecodedAvatar | null {
   const match = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=]+)$/.exec(raw);

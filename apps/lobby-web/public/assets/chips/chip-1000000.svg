@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="obsidianCore100" cx="42%" cy="28%" r="74%">
+      <stop offset="0%" stop-color="#3b270c"/>
+      <stop offset="38%" stop-color="#171108"/>
+      <stop offset="78%" stop-color="#09080b"/>
+      <stop offset="100%" stop-color="#020204"/>
+    </radialGradient>
+    <linearGradient id="goldRim100" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="22%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#eab308"/>
+      <stop offset="76%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#92400e"/>
+    </linearGradient>
+    <linearGradient id="ruby100" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe4e6"/>
+      <stop offset="35%" stop-color="#fb7185"/>
+      <stop offset="75%" stop-color="#be123c"/>
+      <stop offset="100%" stop-color="#4c0519"/>
+    </linearGradient>
+    <linearGradient id="textGold100" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="36%" stop-color="#fef08a"/>
+      <stop offset="72%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="gloss100" x1="0.1" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#fffbeb" stop-opacity="0.4"/>
+      <stop offset="35%" stop-color="#ffffff" stop-opacity="0.03"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.45"/>
+    </linearGradient>
+  </defs>
+  <!-- 24K 纯金多层次皇室厚边 -->
+  <circle cx="64" cy="64" r="63" fill="url(#goldRim100)"/>
+  <circle cx="64" cy="64" r="59.2" fill="#140d05"/>
+  <circle cx="64" cy="64" r="59.2" fill="none" stroke="url(#goldRim100)" stroke-width="2.6"/>
+  <!-- 四向红宝石 + 鎏金镶钻外圈 -->
+  <g>
+    <polygon points="0,-6.4 5,0 0,6.4 -5,0" transform="translate(117.50,64.00) rotate(0)" fill="url(#ruby100)" stroke="#fff7c2" stroke-width="1"/>
+    <g transform="translate(110.33,90.75) rotate(30)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+    <g transform="translate(90.75,110.33) rotate(60)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+    <polygon points="0,-6.4 5,0 0,6.4 -5,0" transform="translate(64.00,117.50) rotate(90)" fill="url(#ruby100)" stroke="#fff7c2" stroke-width="1"/>
+    <g transform="translate(37.25,110.33) rotate(120)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+    <g transform="translate(17.67,90.75) rotate(150)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+    <polygon points="0,-6.4 5,0 0,6.4 -5,0" transform="translate(10.50,64.00) rotate(180)" fill="url(#ruby100)" stroke="#fff7c2" stroke-width="1"/>
+    <g transform="translate(17.67,37.25) rotate(210)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+    <g transform="translate(37.25,17.67) rotate(240)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+    <polygon points="0,-6.4 5,0 0,6.4 -5,0" transform="translate(64.00,10.50) rotate(270)" fill="url(#ruby100)" stroke="#fff7c2" stroke-width="1"/>
+    <g transform="translate(90.75,17.67) rotate(300)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+    <g transform="translate(110.33,37.25) rotate(330)">
+      <rect x="-3.4" y="-5.2" width="6.8" height="10.4" rx="2" fill="url(#goldRim100)" stroke="#451a03" stroke-width="0.6"/>
+      <polygon points="0,-2.8 2,0 0,2.8 -2,0" fill="#ffffff" opacity="0.92"/>
+    </g>
+  </g>
+  <!-- 中心黑金太阳芒帝皇盘 -->
+  <circle cx="64" cy="64" r="46.5" fill="url(#goldRim100)"/>
+  <circle cx="64" cy="64" r="43.5" fill="url(#obsidianCore100)"/>
+  <g>
+    <line x1="98.00" y1="64.00" x2="107.00" y2="64.00" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="96.84" y1="72.80" x2="105.53" y2="75.13" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="93.44" y1="81.00" x2="101.24" y2="85.50" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="88.04" y1="88.04" x2="94.41" y2="94.41" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="81.00" y1="93.44" x2="85.50" y2="101.24" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="72.80" y1="96.84" x2="75.13" y2="105.53" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="64.00" y1="98.00" x2="64.00" y2="107.00" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="55.20" y1="96.84" x2="52.87" y2="105.53" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="47.00" y1="93.44" x2="42.50" y2="101.24" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="39.96" y1="88.04" x2="33.59" y2="94.41" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="34.56" y1="81.00" x2="26.76" y2="85.50" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="31.16" y1="72.80" x2="22.47" y2="75.13" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="30.00" y1="64.00" x2="21.00" y2="64.00" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="31.16" y1="55.20" x2="22.47" y2="52.87" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="34.56" y1="47.00" x2="26.76" y2="42.50" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="39.96" y1="39.96" x2="33.59" y2="33.59" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="47.00" y1="34.56" x2="42.50" y2="26.76" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="55.20" y1="31.16" x2="52.87" y2="22.47" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="64.00" y1="30.00" x2="64.00" y2="21.00" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="72.80" y1="31.16" x2="75.13" y2="22.47" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="81.00" y1="34.56" x2="85.50" y2="26.76" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="88.04" y1="39.96" x2="94.41" y2="33.59" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="93.44" y1="47.00" x2="101.24" y2="42.50" stroke="#fde68a" stroke-width="1.3" stroke-opacity="0.45"/>
+    <line x1="96.84" y1="55.20" x2="105.53" y2="52.87" stroke="#fde68a" stroke-width="0.6" stroke-opacity="0.2"/>
+  </g>
+  <circle cx="64" cy="64" r="39" fill="none" stroke="url(#goldRim100)" stroke-width="1.5" stroke-opacity="0.85"/>
+  <circle cx="64" cy="64" r="34.5" fill="none" stroke="#fde68a" stroke-width="0.8" stroke-dasharray="2 3" stroke-opacity="0.55"/>
+  <!-- 顶部帝皇五尖皇冠 + 红宝石主钻 -->
+  <path d="M48.5 44 L51.5 33.5 L57.5 39 L64 30 L70.5 39 L76.5 33.5 L79.5 44 Z" fill="url(#goldRim100)" stroke="#fffbeb" stroke-width="0.8"/>
+  <polygon points="64,34 66.4,37.8 64,41.6 61.6,37.8" fill="url(#ruby100)" stroke="#fff7d6" stroke-width="0.5"/>
+  <circle cx="64" cy="29.5" r="2" fill="#ffffff"/>
+  <circle cx="51.2" cy="33" r="1.3" fill="#fef08a"/>
+  <circle cx="76.8" cy="33" r="1.3" fill="#fef08a"/>
+  <!-- 至尊主面额 100W -->
+  <text x="64" y="75" text-anchor="middle" font-family="'Segoe UI',Arial,Helvetica,sans-serif" font-weight="900" font-size="24.5" fill="#000000" opacity="0.85" dy="2">100W</text>
+  <text x="64" y="75" text-anchor="middle" font-family="'Segoe UI',Arial,Helvetica,sans-serif" font-weight="900" font-size="24.5" fill="url(#textGold100)" letter-spacing="0.2">100W</text>
+  <!-- 底部铭文 -->
+  <text x="64" y="91.5" text-anchor="middle" font-family="'Segoe UI',Arial,sans-serif" font-weight="900" font-size="7.2" fill="#fde047" letter-spacing="2.4">SUPREME</text>
+  <!-- 星芒高光点缀 -->
+  <path d="M35 39 L36.6 34.5 L38.2 39 L42.7 40.6 L38.2 42.2 L36.6 46.7 L35 42.2 L30.5 40.6 Z" fill="#ffffff" opacity="0.9"/>
+  <circle cx="64" cy="64" r="62.2" fill="url(#gloss100)"/>
+  <circle cx="64" cy="64" r="62" fill="none" stroke="#fffbeb" stroke-opacity="0.72" stroke-width="1.3"/>
+</svg>

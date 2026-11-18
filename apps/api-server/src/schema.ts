@@ -259,4 +259,39 @@ create table if not exists app_settings (
   value      jsonb not null,
   updated_at timestamptz not null default now()
 );
+
+-- 玩家问题反馈工单表
+create table if not exists feedback_tickets (
+  id               text primary key,
+  user_id          text not null references users(id) on delete cascade,
+  username         text not null default '',
+  nickname         text not null default '玩家',
+  category         text not null default 'bug',
+  priority         text not null default 'normal',
+  status           text not null default 'open',
+  title            text not null,
+  content          text not null,
+  contact          text not null default '',
+  attachment       text,
+  client_info      text not null default '',
+  admin_note       text not null default '',
+  has_unread_reply boolean not null default false,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+
+create index if not exists feedback_tickets_user_idx on feedback_tickets (user_id, updated_at desc);
+create index if not exists feedback_tickets_status_idx on feedback_tickets (status, updated_at desc);
+
+-- 工单回复会话记录表（玩家追加 / GM 官方回复）
+create table if not exists feedback_ticket_replies (
+  id          text primary key,
+  ticket_id   text not null references feedback_tickets(id) on delete cascade,
+  sender_role text not null,
+  sender_name text not null,
+  content     text not null,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists feedback_ticket_replies_ticket_idx on feedback_ticket_replies (ticket_id, created_at asc);
 `;

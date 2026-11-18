@@ -13,6 +13,7 @@ import { registerLobbyRoutes } from './routes/lobby';
 import { registerSocialRoutes } from './routes/social';
 import { registerAdminAndInternalRoutes } from './routes/admin-internal';
 import { registerMaintenanceRoutes } from './routes/maintenance';
+import { registerTicketRoutes } from './routes/tickets';
 
 /** 需要进入后台事件流的路径（轮询类接口不记，避免刷屏） */
 const EVENT_PATHS = new Set(['/api/guest', '/api/register', '/api/login', '/api/tasks/claim']);
@@ -37,7 +38,7 @@ export function createApiApp(repo: Repository): {
     logger: false,
     // 默认只信任本机反代（nginx）。跨机部署时用 TRUST_PROXY 指定具体代理地址。
     trustProxy: process.env.TRUST_PROXY ?? '127.0.0.1',
-    bodyLimit: 1024 * 1024,
+    bodyLimit: 4 * 1024 * 1024,
   });
 
   // 宽容处理空 JSON 请求体（部分无参 POST/DELETE 请求带 application/json 头时不再报 400）
@@ -105,6 +106,7 @@ export function createApiApp(repo: Repository): {
   const pruneInvites = registerSocialRoutes(app, repo);
   registerAdminAndInternalRoutes(app, repo, apiLog);
   registerMaintenanceRoutes(app, repo, apiLog);
+  registerTicketRoutes(app, repo, apiLog);
 
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: 'not found' }));
 

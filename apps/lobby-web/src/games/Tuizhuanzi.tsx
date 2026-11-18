@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { chipArt } from '../chips';
+import { BET_PRESET_CHIPS, chipArt, chipTierClass, formatChipLabel } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
 import { cnPointText, speakDealerQuote, speakDealerSequence, stopDealerSpeech, type SpeechSequenceStep } from '../speech';
@@ -45,7 +45,7 @@ interface Props {
 
 const DOOR_KEYS = ['heaven', 'earth', 'human'] as const;
 
-const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
+const PRESET = BET_PRESET_CHIPS;
 
 const TUI_BET_CALLS = [
   '请下注，买定离手喔！',
@@ -421,14 +421,14 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
               <button
                 key={value}
                 type="button"
-                className={`chip-btn ${amount === value ? 'is-active' : ''}`}
+                className={`chip-btn ${chipTierClass(value)} ${amount === value ? 'is-active' : ''}`}
                 onClick={() => {
                   audio.play('click');
                   setAmount(value);
                 }}
               >
                 <img src={chipArt(value)} alt="" />
-                <span>{value}</span>
+                <span>{formatChipLabel(value)}</span>
               </button>
             ))}
           </div>

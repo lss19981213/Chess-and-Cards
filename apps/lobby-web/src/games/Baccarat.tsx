@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { chipArt } from '../chips';
+import { BET_PRESET_CHIPS, chipArt, chipTierClass, formatChipLabel } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
 import { cnPointText, speakDealerQuote, speakDealerSequence, stopDealerSpeech } from '../speech';
@@ -36,7 +36,7 @@ interface Props {
   onClear: (area?: string) => void;
 }
 
-const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
+const PRESET = BET_PRESET_CHIPS;
 
 const ZONES: Array<{ key: string; label: string; odds: string; desc: string }> = [
   { key: 'player_pair', label: '闲对子', odds: '1 : 11', desc: '闲家两张同点' },
@@ -395,14 +395,14 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
               <button
                 key={value}
                 type="button"
-                className={`chip-btn ${amount === value ? 'is-active' : ''}`}
+                className={`chip-btn ${chipTierClass(value)} ${amount === value ? 'is-active' : ''}`}
                 onClick={() => {
                   audio.play('click');
                   setAmount(value);
                 }}
               >
                 <img src={chipArt(value)} alt="" />
-                <span>{value}</span>
+                <span>{formatChipLabel(value)}</span>
               </button>
             ))}
           </div>

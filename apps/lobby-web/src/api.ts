@@ -471,7 +471,75 @@ export const api = {
     }),
   deleteMail: (id: string) =>
     request<{ ok: boolean }>(`/api/mail/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  // ---------- 问题反馈工单系统 ----------
+  listTickets: () =>
+    request<{ tickets: FeedbackTicket[]; unreadCount: number }>('/api/tickets'),
+  ticketDetail: (id: string) =>
+    request<{ ticket: FeedbackTicket }>(`/api/tickets/${encodeURIComponent(id)}`),
+  createTicket: (input: {
+    category: TicketCategory;
+    priority: TicketPriority;
+    title: string;
+    content: string;
+    contact?: string;
+    attachment?: string | null;
+    clientInfo?: string;
+  }) =>
+    request<{ ok: boolean; ticket: FeedbackTicket }>('/api/tickets', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  replyTicket: (id: string, content: string) =>
+    request<{ ok: boolean; reply: FeedbackTicketReply; ticket: FeedbackTicket | null }>(
+      `/api/tickets/${encodeURIComponent(id)}/reply`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      },
+    ),
+  closeTicket: (id: string) =>
+    request<{ ok: boolean; ticket: FeedbackTicket | null }>(
+      `/api/tickets/${encodeURIComponent(id)}/close`,
+      {
+        method: 'POST',
+        body: '{}',
+      },
+    ),
 };
+
+export type TicketCategory = 'bug' | 'suggestion' | 'wallet' | 'gameplay' | 'account' | 'report' | 'other';
+export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type TicketStatus = 'open' | 'in_progress' | 'replied' | 'resolved' | 'closed';
+
+export interface FeedbackTicketReply {
+  id: string;
+  ticketId: string;
+  senderRole: 'player' | 'gm';
+  senderName: string;
+  content: string;
+  createdAt: number;
+}
+
+export interface FeedbackTicket {
+  id: string;
+  userId: string;
+  username: string;
+  nickname: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  title: string;
+  content: string;
+  contact: string;
+  attachment: string | null;
+  clientInfo: string;
+  hasUnreadReply: boolean;
+  replyCount: number;
+  createdAt: number;
+  updatedAt: number;
+  replies?: FeedbackTicketReply[];
+}
 
 export interface PlayerMailView {
   id: string;

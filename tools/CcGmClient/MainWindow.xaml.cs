@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CcGmClient.Models;
 using CcGmClient.Services;
@@ -22,6 +24,7 @@ namespace CcGmClient
         private bool _isConnected = false;
         private PlayerItem? _selectedPlayer;
         private RoomItem? _selectedRoom;
+        private FeedbackTicketItem? _selectedTicket;
         private List<GameCategoryItem> _categories = new();
         private Dictionary<string, string> _gameCategoryMap = new();
         private List<GameMetaItem> _allGames = new();
@@ -203,6 +206,7 @@ namespace CcGmClient
             ViewCategories.Visibility = tag == "categories" ? Visibility.Visible : Visibility.Collapsed;
             ViewTasks.Visibility = tag == "tasks" ? Visibility.Visible : Visibility.Collapsed;
             ViewMailbox.Visibility = tag == "mailbox" ? Visibility.Visible : Visibility.Collapsed;
+            ViewTickets.Visibility = tag == "tickets" ? Visibility.Visible : Visibility.Collapsed;
             ViewBroadcast.Visibility = tag == "broadcast" ? Visibility.Visible : Visibility.Collapsed;
             ViewSecurity.Visibility = tag == "security" ? Visibility.Visible : Visibility.Collapsed;
             ViewDevOps.Visibility = tag == "devops" ? Visibility.Visible : Visibility.Collapsed;
@@ -216,6 +220,7 @@ namespace CcGmClient
                 "categories" => "🗂️ 大厅游戏分类与归属动态配置",
                 "tasks" => "🎯 每日任务与成长任务动态管理",
                 "mailbox" => "📬 全服邮箱发放与筹码直赠",
+                "tickets" => "🎫 玩家问题工单受理与客服回复",
                 "broadcast" => "📢 即时跑马灯与系统公告",
                 "security" => "🛡️ 安全风控机制与解限",
                 "devops" => "🚀 运维诊断与远程持续部署",
@@ -274,6 +279,9 @@ namespace CcGmClient
                         break;
                     case "mailbox":
                         await RefreshMailsAsync();
+                        break;
+                    case "tickets":
+                        await RefreshTicketsAsync();
                         break;
                     case "broadcast":
                         await RefreshAnnouncementsAsync();
@@ -1946,6 +1954,264 @@ namespace CcGmClient
         private void BtnClearTerminal_Click(object sender, RoutedEventArgs e)
         {
             TxtTerminalOutput.Text = "";
+        }
+
+        // ==================== 6.5 玩家问题工单管理 ====================
+        private string GetComboTag(ComboBox cmb, string fallback)
+        {
+            if (cmb.SelectedItem is ComboBoxItem item && item.Tag is string tag && !string.IsNullOrWhiteSpace(tag))
+                return tag;
+            return fallback;
+        }
+
+        private void SelectComboByTag(ComboBox cmb, string tag)
+        {
+            foreach (var obj in cmb.Items)
+            {
+                if (obj is ComboBoxItem item && string.Equals(item.Tag as string, tag, StringComparison.OrdinalIgnoreCase))
+                {
+                    cmb.SelectedItem = item;
+                    return;
+                }
+            }
+        }
+
+        private async Task RefreshTicketsAsync()
+        {
+            var status = GetComboTag(CmbTicketStatusFilter, "all");
+            var category = GetComboTag(CmbTicketCategoryFilter, "all");
+            var keyword = TxtTicketSearch.Text.Trim();
+
+            var data = await _api.GetTicketsAsync(status, category, keyword, 150);
+            KpiTicketsTotal.Text = data.Stats.Total.ToString("N0");
+            KpiTicketsOpen.Text = data.Stats.Open.ToString("N0");
+            KpiTicketsInProgress.Text = data.Stats.InProgress.ToString("N0");
+            KpiTicketsReplied.Text = data.Stats.Replied.ToString("N0");
+            KpiTicketsDone.Text = (data.Stats.Resolved + data.Stats.Closed).ToString("N0");
+
+            var prevId = _selectedTicket?.Id;
+            DgTickets.ItemsSource = data.Tickets;
+
+            if (!string.IsNullOrEmpty(prevId))
+            {
+                var found = data.Tickets.FirstOrDefault(t => t.Id == prevId);
+                if (found != null)
+                {
+                    DgTickets.SelectedItem = found;
+                    await LoadTicketDetailAsync(prevId);
+                }
+            }
+        }
+
+        private async void TicketFilter_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isConnected || !IsLoaded || _activeView != "tickets") return;
+            try
+            {
+                await RefreshTicketsAsync();
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"筛选工单失败: {ex.Message}");
+            }
+        }
+
+        private async void BtnSearchTickets_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isConnected)
+            {
+                MessageBox.Show("请先连接服务器。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            try
+            {
+                await RefreshTicketsAsync();
+                SetStatus("工单列表已更新");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"查询工单失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void DgTickets_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DgTickets.SelectedItem is not FeedbackTicketItem item) return;
+            await LoadTicketDetailAsync(item.Id);
+        }
+
+        private async Task LoadTicketDetailAsync(string ticketId)
+        {
+            try
+            {
+                var res = await _api.GetTicketDetailAsync(ticketId);
+                if (res.Ticket == null) return;
+                _selectedTicket = res.Ticket;
+                RenderTicketDetail(res.Ticket, res.PlayerBalance);
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"读取工单详情失败: {ex.Message}");
+            }
+        }
+
+        private void RenderTicketDetail(FeedbackTicketItem t, long playerBalance)
+        {
+            TxtTicketDetailTitle.Text = $"[{t.DisplayCategory} · {t.DisplayPriority}] {t.Title}";
+            TxtTicketDetailMeta.Text = $"工单号: {t.Id}  |  提交玩家: {t.DisplayPlayer} (UID: {t.UserId})  |  当前余额: {playerBalance:N0} 豆  |  提交时间: {t.DisplayCreatedAt}";
+            var contactStr = string.IsNullOrWhiteSpace(t.Contact) ? "未填写" : t.Contact;
+            var clientStr = string.IsNullOrWhiteSpace(t.ClientInfo) ? "未知" : t.ClientInfo;
+            TxtTicketDetailExtra.Text = $"联系方式: {contactStr}  |  环境: {clientStr}";
+
+            TxtTicketDetailContent.Text = t.Content;
+            TxtTicketAdminNote.Text = t.AdminNote ?? "";
+            SelectComboByTag(CmbTicketDetailStatus, t.Status);
+
+            // 渲染截图附件（若存在 Base64 data URL）
+            if (!string.IsNullOrWhiteSpace(t.Attachment) && t.Attachment.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var commaIdx = t.Attachment.IndexOf(',');
+                    if (commaIdx > 0)
+                    {
+                        var bytes = Convert.FromBase64String(t.Attachment[(commaIdx + 1)..]);
+                        using var ms = new MemoryStream(bytes);
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.StreamSource = ms;
+                        bmp.EndInit();
+                        bmp.Freeze();
+                        ImgTicketAttachment.Source = bmp;
+                        PanelTicketAttachment.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        PanelTicketAttachment.Visibility = Visibility.Collapsed;
+                    }
+                }
+                catch
+                {
+                    PanelTicketAttachment.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                ImgTicketAttachment.Source = null;
+                PanelTicketAttachment.Visibility = Visibility.Collapsed;
+            }
+
+            IcTicketReplies.ItemsSource = t.Replies ?? new List<FeedbackTicketReplyItem>();
+            BtnUpdateTicketStatus.IsEnabled = true;
+            BtnReplyTicket.IsEnabled = true;
+            BtnDeleteTicket.IsEnabled = true;
+            ScrollTicketThread.ScrollToEnd();
+        }
+
+        private async void BtnUpdateTicketStatus_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTicket == null) return;
+            var nextStatus = GetComboTag(CmbTicketDetailStatus, _selectedTicket.Status);
+            var adminNote = TxtTicketAdminNote.Text.Trim();
+            try
+            {
+                BtnUpdateTicketStatus.IsEnabled = false;
+                var updated = await _api.UpdateTicketStatusAsync(_selectedTicket.Id, nextStatus, adminNote);
+                if (updated != null)
+                {
+                    _selectedTicket = updated;
+                }
+                await RefreshTicketsAsync();
+                SetStatus($"工单 [{_selectedTicket.Id}] 状态与备注已保存");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"更新工单状态失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnUpdateTicketStatus.IsEnabled = true;
+            }
+        }
+
+        private async void BtnReplyTicket_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTicket == null) return;
+            var content = TxtTicketReply.Text.Trim();
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                MessageBox.Show("请先输入官方回复内容。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            long rewardCoins = 0;
+            if (!string.IsNullOrWhiteSpace(TxtTicketRewardCoins.Text))
+            {
+                if (!long.TryParse(TxtTicketRewardCoins.Text.Trim(), out rewardCoins) || rewardCoins < 0)
+                {
+                    MessageBox.Show("附赠感谢豆需为非负整数。", "参数错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            var nextStatus = GetComboTag(CmbTicketReplyStatus, "replied");
+            var notifyMail = ChkTicketNotifyMail.IsChecked == true;
+            var adminNote = TxtTicketAdminNote.Text.Trim();
+
+            try
+            {
+                BtnReplyTicket.IsEnabled = false;
+                await _api.ReplyTicketAsync(_selectedTicket.Id, content, nextStatus, rewardCoins, notifyMail, adminNote);
+                TxtTicketReply.Text = "";
+                TxtTicketRewardCoins.Text = "0";
+                await RefreshTicketsAsync();
+                SetStatus($"已回复工单 [{_selectedTicket.Id}]" + (rewardCoins > 0 ? $" 并附赠 {rewardCoins:N0} 豆" : ""));
+                MessageBox.Show("官方回复已发送" + (notifyMail || rewardCoins > 0 ? "，并已同步推送至玩家站内信箱！" : "！"), "回复成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"回复工单失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnReplyTicket.IsEnabled = true;
+            }
+        }
+
+        private async void BtnDeleteTicket_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTicket == null) return;
+            var confirm = MessageBox.Show(
+                $"确定永久删除工单 [{_selectedTicket.Id}]「{_selectedTicket.Title}」吗？该操作不可恢复。",
+                "删除确认",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                var delId = _selectedTicket.Id;
+                await _api.DeleteTicketAsync(delId);
+                _selectedTicket = null;
+                TxtTicketDetailTitle.Text = "请在左侧选择一条工单查看详情";
+                TxtTicketDetailMeta.Text = "工单号: --  |  提交玩家: --  |  当前余额: --";
+                TxtTicketDetailExtra.Text = "联系方式: --  |  客户端环境: --";
+                TxtTicketDetailContent.Text = "未选择工单";
+                TxtTicketAdminNote.Text = "";
+                ImgTicketAttachment.Source = null;
+                PanelTicketAttachment.Visibility = Visibility.Collapsed;
+                IcTicketReplies.ItemsSource = null;
+                BtnUpdateTicketStatus.IsEnabled = false;
+                BtnReplyTicket.IsEnabled = false;
+                BtnDeleteTicket.IsEnabled = false;
+                await RefreshTicketsAsync();
+                SetStatus($"已删除工单 [{delId}]");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"删除工单失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }

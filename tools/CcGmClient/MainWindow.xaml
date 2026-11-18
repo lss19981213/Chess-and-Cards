@@ -117,6 +117,7 @@
                             <RadioButton x:Name="NavCategories" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🗂️  游戏分类管理" Checked="Nav_Checked" Tag="categories" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavTasks" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎯  任务配置管理" Checked="Nav_Checked" Tag="tasks" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavMailbox" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📬  全服邮箱发放" Checked="Nav_Checked" Tag="mailbox" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavTickets" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎫  玩家问题工单" Checked="Nav_Checked" Tag="tickets" Margin="0,0,0,6"/>
 
                             <Border Height="1" Background="{StaticResource BrushBorder}" Margin="8,12,8,12"/>
 
@@ -1398,6 +1399,222 @@
                                 </DataGrid>
                             </Grid>
                         </Border>
+                    </Grid>
+
+                    <!-- ==================== 6.5 🎫 玩家问题工单管理 (Tickets) ==================== -->
+                    <Grid x:Name="ViewTickets" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 工单统计 KPI 卡 -->
+                        <Grid Grid.Row="0" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,8,0" Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="📋 累计工单总数" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTicketsTotal" Text="0" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0,4,0" Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="🔔 待处理工单" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTicketsOpen" Text="0" FontSize="20" FontWeight="Bold" Foreground="#F59E0B" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0,4,0" Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="🔧 处理中" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTicketsInProgress" Text="0" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushBlue}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0,4,0" Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="💬 已回复" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTicketsReplied" Text="0" FontSize="20" FontWeight="Bold" Foreground="#C084FC" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="8,0,0,0" Padding="12,10">
+                                <StackPanel>
+                                    <TextBlock Text="✅ 已解决/已关闭" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiTicketsDone" Text="0" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushGreen}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- 主体左右分栏：左侧工单列表 + 右侧工单详情与处理工作台 -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48*"/>
+                                <ColumnDefinition Width="52*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 左侧：筛选与工单表格 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,10,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <WrapPanel Grid.Row="0" Margin="0,0,0,10">
+                                        <ComboBox x:Name="CmbTicketStatusFilter" Width="104" Height="30" Margin="0,0,6,6" SelectionChanged="TicketFilter_Changed">
+                                            <ComboBoxItem Content="全部状态" Tag="all" IsSelected="True"/>
+                                            <ComboBoxItem Content="待处理" Tag="open"/>
+                                            <ComboBoxItem Content="处理中" Tag="in_progress"/>
+                                            <ComboBoxItem Content="已回复" Tag="replied"/>
+                                            <ComboBoxItem Content="已解决" Tag="resolved"/>
+                                            <ComboBoxItem Content="已关闭" Tag="closed"/>
+                                        </ComboBox>
+                                        <ComboBox x:Name="CmbTicketCategoryFilter" Width="112" Height="30" Margin="0,0,6,6" SelectionChanged="TicketFilter_Changed">
+                                            <ComboBoxItem Content="全部分类" Tag="all" IsSelected="True"/>
+                                            <ComboBoxItem Content="🐛 Bug异常" Tag="bug"/>
+                                            <ComboBoxItem Content="🎮 游戏玩法" Tag="gameplay"/>
+                                            <ComboBoxItem Content="💰 筹码账务" Tag="wallet"/>
+                                            <ComboBoxItem Content="💡 功能建议" Tag="suggestion"/>
+                                            <ComboBoxItem Content="👤 账号安全" Tag="account"/>
+                                            <ComboBoxItem Content="📢 投诉举报" Tag="report"/>
+                                            <ComboBoxItem Content="📝 其他问题" Tag="other"/>
+                                        </ComboBox>
+                                        <TextBox x:Name="TxtTicketSearch" Width="140" Height="30" Margin="0,0,6,6" VerticalContentAlignment="Center" ToolTip="按工单号 / 标题 / 昵称搜索"/>
+                                        <Button Style="{StaticResource BtnGold}" Content="🔍 查询" Click="BtnSearchTickets_Click" Height="30" Padding="12,0" Margin="0,0,0,6"/>
+                                    </WrapPanel>
+
+                                    <DataGrid x:Name="DgTickets" Grid.Row="1" SelectionChanged="DgTickets_SelectionChanged" IsReadOnly="True" SelectionMode="Single">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="工单号" Binding="{Binding Id}" Width="105"/>
+                                            <DataGridTextColumn Header="状态" Binding="{Binding DisplayStatus}" Width="66">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{Binding StatusColor}"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="优先级" Binding="{Binding DisplayPriority}" Width="72"/>
+                                            <DataGridTextColumn Header="分类" Binding="{Binding DisplayCategory}" Width="92"/>
+                                            <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="*"/>
+                                            <DataGridTextColumn Header="玩家" Binding="{Binding Nickname}" Width="88"/>
+                                            <DataGridTextColumn Header="回复" Binding="{Binding ReplyCount}" Width="46"/>
+                                            <DataGridTextColumn Header="更新时间" Binding="{Binding DisplayUpdatedAt}" Width="92"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+
+                            <!-- 右侧：工单详情、附件预览、会话历史与官方回复工作台 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 顶部元信息与快捷状态管理 -->
+                                    <Border Grid.Row="0" Background="#101826" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid>
+                                                <StackPanel>
+                                                    <TextBlock x:Name="TxtTicketDetailTitle" Text="请在左侧选择一条工单查看详情" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}" TextWrapping="Wrap"/>
+                                                    <TextBlock x:Name="TxtTicketDetailMeta" Text="工单号: --  |  提交玩家: --  |  当前余额: --" FontSize="11.5" Foreground="{StaticResource BrushTextMuted}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                                    <TextBlock x:Name="TxtTicketDetailExtra" Text="联系方式: --  |  客户端环境: --" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <Button x:Name="BtnDeleteTicket" Style="{StaticResource BtnDanger}" Content="🗑️ 删除" Click="BtnDeleteTicket_Click" HorizontalAlignment="Right" VerticalAlignment="Top" Height="26" Padding="10,0" FontSize="11" IsEnabled="False"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="116"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="工单状态:" FontSize="11.5" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="CmbTicketDetailStatus" Grid.Column="1" Height="28" Margin="0,0,8,0">
+                                                    <ComboBoxItem Content="待处理" Tag="open" IsSelected="True"/>
+                                                    <ComboBoxItem Content="处理中" Tag="in_progress"/>
+                                                    <ComboBoxItem Content="已回复" Tag="replied"/>
+                                                    <ComboBoxItem Content="已解决" Tag="resolved"/>
+                                                    <ComboBoxItem Content="已关闭" Tag="closed"/>
+                                                </ComboBox>
+                                                <TextBox x:Name="TxtTicketAdminNote" Grid.Column="2" Height="28" Margin="0,0,8,0" VerticalContentAlignment="Center" ToolTip="内部处理备注（仅 GM 可见）"/>
+                                                <Button x:Name="BtnUpdateTicketStatus" Grid.Column="3" Style="{StaticResource BtnSecondary}" Content="💾 更新状态/备注" Click="BtnUpdateTicketStatus_Click" Height="28" Padding="10,0" FontSize="11.5" IsEnabled="False"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 中间：问题描述 + 附件图片 + 对话记录 -->
+                                    <ScrollViewer x:Name="ScrollTicketThread" Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Border Background="#131F30" BorderBrush="#263B57" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
+                                                <StackPanel>
+                                                    <TextBlock Text="📝 玩家原始反馈描述" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,6"/>
+                                                    <TextBlock x:Name="TxtTicketDetailContent" Text="未选择工单" FontSize="12.5" Foreground="{StaticResource BrushText}" TextWrapping="Wrap"/>
+                                                    <Border x:Name="PanelTicketAttachment" Visibility="Collapsed" Margin="0,10,0,0" BorderBrush="#334B6B" BorderThickness="1" CornerRadius="6" Padding="6" Background="#0B111B">
+                                                        <StackPanel>
+                                                            <TextBlock Text="📎 玩家上传的截图凭证：" FontSize="11" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,6"/>
+                                                            <Image x:Name="ImgTicketAttachment" MaxHeight="220" Stretch="Uniform" HorizontalAlignment="Left"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <TextBlock Text="💬 工单沟通记录" FontSize="12" FontWeight="Bold" Foreground="{StaticResource BrushTextMuted}" Margin="2,0,0,6"/>
+                                            <ItemsControl x:Name="IcTicketReplies">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="{Binding BubbleBg}" BorderBrush="{Binding BubbleBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
+                                                            <StackPanel>
+                                                                <Grid Margin="0,0,0,4">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="{Binding RoleBadge}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,0,8,0"/>
+                                                                        <TextBlock Text="{Binding SenderName}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource BrushText}"/>
+                                                                    </StackPanel>
+                                                                    <TextBlock Text="{Binding DisplayTime}" FontSize="10.5" Foreground="{StaticResource BrushTextDim}" HorizontalAlignment="Right"/>
+                                                                </Grid>
+                                                                <TextBlock Text="{Binding Content}" FontSize="12.5" Foreground="{StaticResource BrushText}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+
+                                    <!-- 底部：GM 官方回复与附赠反馈补偿 -->
+                                    <Border Grid.Row="2" Background="#101826" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                                        <StackPanel>
+                                            <TextBox x:Name="TxtTicketReply" Height="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="8,6" Margin="0,0,0,8" ToolTip="输入官方客服回复内容"/>
+                                            <Grid>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="附赠感谢豆:" FontSize="11.5" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBox x:Name="TxtTicketRewardCoins" Text="0" Width="80" Height="28" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                                                    <CheckBox x:Name="ChkTicketNotifyMail" Content="同步发送站内信通知" IsChecked="True" Foreground="{StaticResource BrushTextMuted}" VerticalAlignment="Center" FontSize="11.5"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <ComboBox x:Name="CmbTicketReplyStatus" Width="104" Height="30" Margin="0,0,8,0">
+                                                        <ComboBoxItem Content="回复→已回复" Tag="replied" IsSelected="True"/>
+                                                        <ComboBoxItem Content="回复→已解决" Tag="resolved"/>
+                                                        <ComboBoxItem Content="回复→处理中" Tag="in_progress"/>
+                                                        <ComboBoxItem Content="回复→已关闭" Tag="closed"/>
+                                                    </ComboBox>
+                                                    <Button x:Name="BtnReplyTicket" Style="{StaticResource BtnGold}" Content="📨 发送官方回复" Click="BtnReplyTicket_Click" Height="30" Padding="14,0" IsEnabled="False"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </Grid>
 
                     <!-- ==================== 7. 运维与远程部署 (DevOps) ==================== -->

@@ -477,5 +477,70 @@ namespace CcGmClient.Services
             await SendAsync<object>(HttpMethod.Post, "/api/admin/security/clear-limits", new { });
             return true;
         }
+
+        // ---------- 7. 玩家问题反馈工单管理 ----------
+        public async Task<AdminTicketsResponse> GetTicketsAsync(
+            string status = "all",
+            string category = "all",
+            string keyword = "",
+            int limit = 150)
+        {
+            var qs = new List<string> { $"limit={limit}" };
+            if (!string.IsNullOrWhiteSpace(status) && status != "all")
+                qs.Add($"status={Uri.EscapeDataString(status)}");
+            if (!string.IsNullOrWhiteSpace(category) && category != "all")
+                qs.Add($"category={Uri.EscapeDataString(category)}");
+            if (!string.IsNullOrWhiteSpace(keyword))
+                qs.Add($"keyword={Uri.EscapeDataString(keyword.Trim())}");
+            var path = "/api/admin/tickets?" + string.Join("&", qs);
+            return await SendAsync<AdminTicketsResponse>(HttpMethod.Get, path);
+        }
+
+        public async Task<AdminTicketDetailResponse> GetTicketDetailAsync(string ticketId)
+        {
+            var path = $"/api/admin/tickets/{Uri.EscapeDataString(ticketId)}";
+            return await SendAsync<AdminTicketDetailResponse>(HttpMethod.Get, path);
+        }
+
+        public async Task<FeedbackTicketItem?> ReplyTicketAsync(
+            string ticketId,
+            string content,
+            string status = "replied",
+            long rewardCoins = 0,
+            bool notifyMail = true,
+            string? adminNote = null)
+        {
+            var path = $"/api/admin/tickets/{Uri.EscapeDataString(ticketId)}/reply";
+            var res = await SendAsync<AdminTicketDetailResponse>(HttpMethod.Post, path, new
+            {
+                content,
+                status,
+                rewardCoins,
+                notifyMail,
+                adminNote
+            });
+            return res.Ticket;
+        }
+
+        public async Task<FeedbackTicketItem?> UpdateTicketStatusAsync(
+            string ticketId,
+            string status,
+            string? adminNote = null)
+        {
+            var path = $"/api/admin/tickets/{Uri.EscapeDataString(ticketId)}/status";
+            var res = await SendAsync<AdminTicketDetailResponse>(HttpMethod.Post, path, new
+            {
+                status,
+                adminNote
+            });
+            return res.Ticket;
+        }
+
+        public async Task<bool> DeleteTicketAsync(string ticketId)
+        {
+            var path = $"/api/admin/tickets/{Uri.EscapeDataString(ticketId)}";
+            await SendAsync<object>(HttpMethod.Delete, path);
+            return true;
+        }
     }
 }

@@ -95,11 +95,28 @@ import {
   markMailRead,
   sendMail,
 } from './pg/mail';
+import {
+  addTicketReply,
+  createTicket,
+  deleteTicket,
+  getTicketDetail,
+  listAdminTickets,
+  listPlayerTickets,
+  markTicketReadByPlayer,
+  updateTicketStatus,
+} from './pg/tickets';
 import type {
+  AddTicketReplyInput,
+  AdminTicketFilter,
   ClaimMailResult,
+  CreateTicketInput,
+  FeedbackTicket,
+  FeedbackTicketReply,
   MailRecord,
   PlayerMailView,
   SendMailInput,
+  TicketStats,
+  TicketStatus,
 } from './types';
 
 const { Pool } = pg;
@@ -376,5 +393,41 @@ export class PostgresRepository implements Repository {
 
   setSetting<T>(key: string, value: T): Promise<void> {
     return setSetting<T>(this.pool, key, value);
+  }
+
+  createTicket(input: CreateTicketInput): Promise<FeedbackTicket> {
+    return createTicket(this.pool, input);
+  }
+
+  listPlayerTickets(userId: string, limit?: number): Promise<FeedbackTicket[]> {
+    return listPlayerTickets(this.pool, userId, limit);
+  }
+
+  getTicketDetail(ticketId: string): Promise<FeedbackTicket | null> {
+    return getTicketDetail(this.pool, ticketId);
+  }
+
+  markTicketReadByPlayer(ticketId: string, userId: string): Promise<void> {
+    return markTicketReadByPlayer(this.pool, ticketId, userId);
+  }
+
+  addTicketReply(input: AddTicketReplyInput): Promise<FeedbackTicketReply> {
+    return addTicketReply(this.pool, input);
+  }
+
+  updateTicketStatus(
+    ticketId: string,
+    status: TicketStatus,
+    adminNote?: string,
+  ): Promise<FeedbackTicket | null> {
+    return updateTicketStatus(this.pool, ticketId, status, adminNote);
+  }
+
+  listAdminTickets(filter?: AdminTicketFilter): Promise<{ tickets: FeedbackTicket[]; stats: TicketStats }> {
+    return listAdminTickets(this.pool, filter);
+  }
+
+  deleteTicket(ticketId: string): Promise<boolean> {
+    return deleteTicket(this.pool, ticketId);
   }
 }

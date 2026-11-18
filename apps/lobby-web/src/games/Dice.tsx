@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { chipArt } from '../chips';
+import { BET_PRESET_CHIPS, chipArt, chipTierClass, formatChipLabel } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
 import { cnPointText, speakDealerSequence, stopDealerSpeech } from '../speech';
@@ -32,7 +32,7 @@ interface Props {
   onClear: (area?: string) => void;
 }
 
-const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
+const PRESET = BET_PRESET_CHIPS;
 const SUM_KEYS = ['4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17'];
 
 function PhysicalDie({ value, rolling, focused }: { value: number; rolling?: boolean; focused?: boolean }) {
@@ -430,14 +430,14 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
               <button
                 key={value}
                 type="button"
-                className={`chip-btn ${amount === value ? 'is-active' : ''}`}
+                className={`chip-btn ${chipTierClass(value)} ${amount === value ? 'is-active' : ''}`}
                 onClick={() => {
                   audio.play('click');
                   setAmount(value);
                 }}
               >
                 <img src={chipArt(value)} alt="" />
-                <span>{value}</span>
+                <span>{formatChipLabel(value)}</span>
               </button>
             ))}
           </div>

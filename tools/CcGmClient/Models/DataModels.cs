@@ -1040,4 +1040,193 @@ namespace CcGmClient.Models
         [JsonPropertyName("metrics")]
         public List<TaskMetricOption>? Metrics { get; set; }
     }
+
+    // ---------- 问题反馈工单模型 ----------
+    public class FeedbackTicketReplyItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("ticketId")]
+        public string TicketId { get; set; } = "";
+
+        [JsonPropertyName("senderRole")]
+        public string SenderRole { get; set; } = "player";
+
+        [JsonPropertyName("senderName")]
+        public string SenderName { get; set; } = "";
+
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = "";
+
+        [JsonPropertyName("createdAt")]
+        public long CreatedAt { get; set; }
+
+        [JsonIgnore]
+        public bool IsGm => SenderRole == "gm";
+
+        [JsonIgnore]
+        public string RoleBadge => IsGm ? "👑 官方客服" : "👤 玩家";
+
+        [JsonIgnore]
+        public string BubbleBg => IsGm ? "#231E12" : "#152336";
+
+        [JsonIgnore]
+        public string BubbleBorder => IsGm ? "#D9A441" : "#2D4769";
+
+        [JsonIgnore]
+        public string DisplayTime => CreatedAt > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(CreatedAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+            : "-";
+    }
+
+    public class FeedbackTicketItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("userId")]
+        public string UserId { get; set; } = "";
+
+        [JsonPropertyName("username")]
+        public string Username { get; set; } = "";
+
+        [JsonPropertyName("nickname")]
+        public string Nickname { get; set; } = "玩家";
+
+        [JsonPropertyName("category")]
+        public string Category { get; set; } = "bug";
+
+        [JsonPropertyName("priority")]
+        public string Priority { get; set; } = "normal";
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = "open";
+
+        [JsonPropertyName("title")]
+        public string Title { get; set; } = "";
+
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = "";
+
+        [JsonPropertyName("contact")]
+        public string Contact { get; set; } = "";
+
+        [JsonPropertyName("attachment")]
+        public string? Attachment { get; set; }
+
+        [JsonPropertyName("clientInfo")]
+        public string ClientInfo { get; set; } = "";
+
+        [JsonPropertyName("adminNote")]
+        public string AdminNote { get; set; } = "";
+
+        [JsonPropertyName("replyCount")]
+        public int ReplyCount { get; set; }
+
+        [JsonPropertyName("createdAt")]
+        public long CreatedAt { get; set; }
+
+        [JsonPropertyName("updatedAt")]
+        public long UpdatedAt { get; set; }
+
+        [JsonPropertyName("replies")]
+        public List<FeedbackTicketReplyItem>? Replies { get; set; }
+
+        [JsonIgnore]
+        public string DisplayCategory => Category switch
+        {
+            "bug" => "🐛 Bug异常",
+            "gameplay" => "🎮 游戏玩法",
+            "wallet" => "💰 筹码账务",
+            "suggestion" => "💡 功能建议",
+            "account" => "👤 账号安全",
+            "report" => "📢 投诉举报",
+            _ => "📝 其他问题"
+        };
+
+        [JsonIgnore]
+        public string DisplayPriority => Priority switch
+        {
+            "urgent" => "🔴 紧急",
+            "high" => "🟠 重要",
+            "normal" => "🔵 普通",
+            _ => "⚪ 一般"
+        };
+
+        [JsonIgnore]
+        public string DisplayStatus => Status switch
+        {
+            "open" => "待处理",
+            "in_progress" => "处理中",
+            "replied" => "已回复",
+            "resolved" => "已解决",
+            "closed" => "已关闭",
+            _ => Status
+        };
+
+        [JsonIgnore]
+        public string StatusColor => Status switch
+        {
+            "open" => "#F59E0B",
+            "in_progress" => "#38BDF8",
+            "replied" => "#C084FC",
+            "resolved" => "#38D39F",
+            _ => "#8E9DB5"
+        };
+
+        [JsonIgnore]
+        public string DisplayPlayer => string.IsNullOrWhiteSpace(Username)
+            ? Nickname
+            : $"{Nickname} ({Username})";
+
+        [JsonIgnore]
+        public string DisplayUpdatedAt => UpdatedAt > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(UpdatedAt).ToLocalTime().ToString("MM-dd HH:mm")
+            : "-";
+
+        [JsonIgnore]
+        public string DisplayCreatedAt => CreatedAt > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(CreatedAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+            : "-";
+    }
+
+    public class TicketStatsModel
+    {
+        [JsonPropertyName("total")]
+        public int Total { get; set; }
+
+        [JsonPropertyName("open")]
+        public int Open { get; set; }
+
+        [JsonPropertyName("inProgress")]
+        public int InProgress { get; set; }
+
+        [JsonPropertyName("replied")]
+        public int Replied { get; set; }
+
+        [JsonPropertyName("resolved")]
+        public int Resolved { get; set; }
+
+        [JsonPropertyName("closed")]
+        public int Closed { get; set; }
+    }
+
+    public class AdminTicketsResponse
+    {
+        [JsonPropertyName("tickets")]
+        public List<FeedbackTicketItem> Tickets { get; set; } = new();
+
+        [JsonPropertyName("stats")]
+        public TicketStatsModel Stats { get; set; } = new();
+    }
+
+    public class AdminTicketDetailResponse
+    {
+        [JsonPropertyName("ticket")]
+        public FeedbackTicketItem? Ticket { get; set; }
+
+        [JsonPropertyName("playerBalance")]
+        public long PlayerBalance { get; set; }
+    }
 }

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   applyXpGain,
   parseBigIntSafe,
@@ -11,10 +11,15 @@ import { periodKeyFor } from '../tasks';
 import { InsufficientFundsError } from './types';
 import { LEADERBOARD_SIZE, rewardForRank } from '../leaderboard';
 import type {
+  AddTicketReplyInput,
+  AdminTicketFilter,
   BetAdjustment,
   AuthUser,
   ClaimMailResult,
+  CreateTicketInput,
   EconomyOverview,
+  FeedbackTicket,
+  FeedbackTicketReply,
   LeaderboardSnapshotRow,
   DailyWinnerRow,
   FriendRequestView,
@@ -38,6 +43,8 @@ import type {
   SlotsSpinOutcome,
   SlotsSummaryMetrics,
   TaskProgressRow,
+  TicketStats,
+  TicketStatus,
   UserRecord,
 } from './types';
 import { beijingDayKey } from '../leaderboard';
@@ -112,6 +119,8 @@ export class MemoryRepository implements Repository {
   }> = [];
   /** 动态运营配置（游戏分类、老虎机概率等） */
   private readonly settings = new Map<string, unknown>();
+  private readonly tickets = new Map<string, FeedbackTicket>();
+  private readonly ticketReplies = new Map<string, FeedbackTicketReply[]>();
   /** 系统与运营邮件 */
   private readonly mails = new Map<string, MailRecord>();
   /** 玩家邮件阅读与领奖状态：`${mailId}|${userId}` */
@@ -1248,6 +1257,149 @@ export class MemoryRepository implements Repository {
 
   async setSetting<T>(key: string, value: T): Promise<void> {
     this.settings.set(key, value);
+  }
+
+  // ---------- 问题反馈工单系统 ----------
+
+  async createTicket(input: CreateTicketInput): Promise<FeedbackTicket> {
+    const now = new Date();
+    const y = now.getFullYear().toString().slice(-2);
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const id = `TK${y}${m}${d}-${randomBytes(2).toString('hex').toUpperCase()}`;
+    const ts = Date.now();
+    const ticket: FeedbackTicket = {
+      id,
+      userId: input.userId,
+      username: input.username,
+      nickname: input.nickname,
+      category: input.category,
+      priority: input.priority,
+      status: 'open',
+      title: input.title,
+      content: input.content,
+      contact: input.contact,
+      attachment: input.attachment,
+      clientInfo: input.clientInfo,
+      adminNote: '',
+      hasUnreadReply: false,
+      replyCount: 0,
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    this.tickets.set(id, ticket);
+    this.ticketReplies.set(id, []);
+    return { ...ticket, replies: [] };
+  }
+
+  async listPlayerTickets(userId: string, limit = 50): Promise<FeedbackTicket[]> {
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    return [...this.tickets.values()]
+      .filter((t) => t.userId === userId)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, safeLimit)
+      .map((t) => ({
+        ...t,
+        attachment: t.attachment ? '[image]' : null,
+        replyCount: (this.ticketReplies.get(t.id) ?? []).length,
+      }));
+  }
+
+  async getTicketDetail(ticketId: string): Promise<FeedbackTicket | null> {
+    const t = this.tickets.get(ticketId);
+    if (!t) return null;
+    const replies = [...(this.ticketReplies.get(ticketId) ?? [])];
+    return { ...t, replyCount: replies.length, replies };
+  }
+
+  async markTicketReadByPlayer(ticketId: string, userId: string): Promise<void> {
+    const t = this.tickets.get(ticketId);
+    if (t && t.userId === userId) {
+      t.hasUnreadReply = false;
+    }
+  }
+
+  async addTicketReply(input: AddTicketReplyInput): Promise<FeedbackTicketReply> {
+    const t = this.tickets.get(input.ticketId);
+    if (!t) throw new Error('工单不存在');
+    const reply: FeedbackTicketReply = {
+      id: randomUUID(),
+      ticketId: input.ticketId,
+      senderRole: input.senderRole,
+      senderName: input.senderName,
+      content: input.content,
+      createdAt: Date.now(),
+    };
+    const list = this.ticketReplies.get(input.ticketId) ?? [];
+    list.push(reply);
+    this.ticketReplies.set(input.ticketId, list);
+    t.replyCount = list.length;
+    t.updatedAt = reply.createdAt;
+    if (input.senderRole === 'gm') {
+      t.status = input.nextStatus ?? 'replied';
+      t.hasUnreadReply = true;
+    } else {
+      if (t.status === 'replied' || t.status === 'resolved') {
+        t.status = input.nextStatus ?? 'open';
+      }
+      t.hasUnreadReply = false;
+    }
+    return reply;
+  }
+
+  async updateTicketStatus(
+    ticketId: string,
+    status: TicketStatus,
+    adminNote?: string,
+  ): Promise<FeedbackTicket | null> {
+    const t = this.tickets.get(ticketId);
+    if (!t) return null;
+    t.status = status;
+    if (adminNote !== undefined) t.adminNote = adminNote;
+    t.updatedAt = Date.now();
+    return { ...t, replies: [...(this.ticketReplies.get(ticketId) ?? [])] };
+  }
+
+  async listAdminTickets(
+    filter: AdminTicketFilter = {},
+  ): Promise<{ tickets: FeedbackTicket[]; stats: TicketStats }> {
+    const all = [...this.tickets.values()];
+    const stats: TicketStats = { total: all.length, open: 0, inProgress: 0, replied: 0, resolved: 0, closed: 0 };
+    for (const t of all) {
+      if (t.status === 'open') stats.open += 1;
+      else if (t.status === 'in_progress') stats.inProgress += 1;
+      else if (t.status === 'replied') stats.replied += 1;
+      else if (t.status === 'resolved') stats.resolved += 1;
+      else if (t.status === 'closed') stats.closed += 1;
+    }
+
+    const kw = (filter.keyword ?? '').trim().toLowerCase();
+    const order: Record<TicketStatus, number> = { open: 0, in_progress: 1, replied: 2, resolved: 3, closed: 4 };
+    const limit = Math.min(Math.max(filter.limit ?? 100, 1), 300);
+    const filtered = all
+      .filter((t) => {
+        if (filter.status && filter.status !== 'all' && t.status !== filter.status) return false;
+        if (filter.category && filter.category !== 'all' && t.category !== filter.category) return false;
+        if (kw) {
+          const hay = `${t.id} ${t.title} ${t.content} ${t.nickname} ${t.username}`.toLowerCase();
+          if (!hay.includes(kw)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => order[a.status] - order[b.status] || b.updatedAt - a.updatedAt)
+      .slice(0, limit)
+      .map((t) => ({
+        ...t,
+        attachment: t.attachment ? '[image]' : null,
+        replyCount: (this.ticketReplies.get(t.id) ?? []).length,
+      }));
+
+    return { tickets: filtered, stats };
+  }
+
+  async deleteTicket(ticketId: string): Promise<boolean> {
+    this.ticketReplies.delete(ticketId);
+    return this.tickets.delete(ticketId);
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {
