@@ -77,94 +77,103 @@ function fromIndex(idx: number): { suit: AdvisorSuit; val: number } {
   return { suit: 'dragon', val: idx - 31 + 1 };
 }
 
-/** 精确计算 34 种牌计数数组的标准向听数（含已副露面子数 meldsCount，支持七小对） */
-function computeShanten(counts: number[], meldsCount: number): number {
+/** 精确计算 34 种牌计数数组的标准向听数（含已副露面子数 meldsCount，支持七小对与红中癞子） */
+function computeShanten(counts: number[], meldsCount: number, wildIdx = -1): number {
+  const wilds = wildIdx >= 0 ? counts[wildIdx]! : 0;
+  if (wilds >= 4) return -1; // 四红中直接胡牌！
+
   let best = 8;
+  const savedWild = wildIdx >= 0 ? counts[wildIdx]! : 0;
+  if (wildIdx >= 0) counts[wildIdx] = 0;
 
-  // 1) 七小对向听（仅无副露时）
-  if (meldsCount === 0) {
-    let pairs = 0;
-    let kinds = 0;
-    for (let i = 0; i < 34; i++) {
-      if (counts[i]! > 0) kinds += 1;
-      if (counts[i]! >= 2) pairs += 1;
+  try {
+    // 1) 七小对向听（仅无副露时）
+    if (meldsCount === 0) {
+      let pairs = 0;
+      let kinds = 0;
+      for (let i = 0; i < 34; i++) {
+        if (counts[i]! > 0) kinds += 1;
+        if (counts[i]! >= 2) pairs += 1;
+      }
+      const sevenShanten = 6 - pairs - wilds + Math.max(0, 7 - (kinds + wilds));
+      if (sevenShanten < best) best = sevenShanten;
     }
-    const sevenShanten = 6 - pairs + Math.max(0, 7 - kinds);
-    if (sevenShanten < best) best = sevenShanten;
+
+    // 2) 标准 4 面子 + 1 将牌向听（快速回溯 + 搭子估价 + 癞子折减）
+    const maxGroups = 4 - meldsCount;
+
+    const search = (idx: number, groups: number, taatsu: number, hasPair: boolean) => {
+      const effTaatsu = Math.min(taatsu, maxGroups - groups);
+      const sh = 2 * (maxGroups - groups) - effTaatsu - (hasPair ? 1 : 0) - wilds;
+      if (sh < best) best = sh;
+      if (best <= -1) return;
+
+      while (idx < 34 && counts[idx] === 0) idx++;
+      if (idx >= 34) return;
+
+      const c = counts[idx]!;
+      const isNum = idx < 27;
+      const rank = idx % 9;
+
+      // 刻子
+      if (c >= 3 && groups < maxGroups) {
+        counts[idx]! -= 3;
+        search(idx, groups + 1, taatsu, hasPair);
+        counts[idx]! += 3;
+      }
+
+      // 顺子
+      if (isNum && rank <= 6 && counts[idx + 1]! > 0 && counts[idx + 2]! > 0 && groups < maxGroups) {
+        counts[idx]! -= 1;
+        counts[idx + 1]! -= 1;
+        counts[idx + 2]! -= 1;
+        search(idx, groups + 1, taatsu, hasPair);
+        counts[idx]! += 1;
+        counts[idx + 1]! += 1;
+        counts[idx + 2]! += 1;
+      }
+
+      // 雀头（将牌）
+      if (c >= 2 && !hasPair) {
+        counts[idx]! -= 2;
+        search(idx, groups, taatsu, true);
+        counts[idx]! += 2;
+      }
+
+      // 对子搭子
+      if (c >= 2 && groups + taatsu < maxGroups) {
+        counts[idx]! -= 2;
+        search(idx, groups, taatsu + 1, hasPair);
+        counts[idx]! += 2;
+      }
+
+      // 两面 / 边张搭子
+      if (isNum && rank <= 7 && counts[idx + 1]! > 0 && groups + taatsu < maxGroups) {
+        counts[idx]! -= 1;
+        counts[idx + 1]! -= 1;
+        search(idx, groups, taatsu + 1, hasPair);
+        counts[idx]! += 1;
+        counts[idx + 1]! += 1;
+      }
+
+      // 坎张搭子
+      if (isNum && rank <= 6 && counts[idx + 2]! > 0 && groups + taatsu < maxGroups) {
+        counts[idx]! -= 1;
+        counts[idx + 2]! -= 1;
+        search(idx, groups, taatsu + 1, hasPair);
+        counts[idx]! += 1;
+        counts[idx + 2]! += 1;
+      }
+
+      // 跳过当前单张
+      search(idx + 1, groups, taatsu, hasPair);
+    };
+
+    search(0, 0, 0, false);
+  } finally {
+    if (wildIdx >= 0) counts[wildIdx] = savedWild;
   }
-
-  // 2) 标准 4 面子 + 1 将牌向听（快速回溯 + 搭子估价）
-  const maxGroups = 4 - meldsCount;
-
-  const search = (idx: number, groups: number, taatsu: number, hasPair: boolean) => {
-    const effTaatsu = Math.min(taatsu, maxGroups - groups);
-    const sh = 2 * (maxGroups - groups) - effTaatsu - (hasPair ? 1 : 0);
-    if (sh < best) best = sh;
-    if (best <= -1) return;
-
-    while (idx < 34 && counts[idx] === 0) idx++;
-    if (idx >= 34) return;
-
-    const c = counts[idx]!;
-    const isNum = idx < 27;
-    const rank = idx % 9;
-
-    // 刻子
-    if (c >= 3 && groups < maxGroups) {
-      counts[idx]! -= 3;
-      search(idx, groups + 1, taatsu, hasPair);
-      counts[idx]! += 3;
-    }
-
-    // 顺子
-    if (isNum && rank <= 6 && counts[idx + 1]! > 0 && counts[idx + 2]! > 0 && groups < maxGroups) {
-      counts[idx]! -= 1;
-      counts[idx + 1]! -= 1;
-      counts[idx + 2]! -= 1;
-      search(idx, groups + 1, taatsu, hasPair);
-      counts[idx]! += 1;
-      counts[idx + 1]! += 1;
-      counts[idx + 2]! += 1;
-    }
-
-    // 雀头（将牌）
-    if (c >= 2 && !hasPair) {
-      counts[idx]! -= 2;
-      search(idx, groups, taatsu, true);
-      counts[idx]! += 2;
-    }
-
-    // 对子搭子
-    if (c >= 2 && groups + taatsu < maxGroups) {
-      counts[idx]! -= 2;
-      search(idx, groups, taatsu + 1, hasPair);
-      counts[idx]! += 2;
-    }
-
-    // 两面 / 边张搭子
-    if (isNum && rank <= 7 && counts[idx + 1]! > 0 && groups + taatsu < maxGroups) {
-      counts[idx]! -= 1;
-      counts[idx + 1]! -= 1;
-      search(idx, groups, taatsu + 1, hasPair);
-      counts[idx]! += 1;
-      counts[idx + 1]! += 1;
-    }
-
-    // 坎张搭子
-    if (isNum && rank <= 6 && counts[idx + 2]! > 0 && groups + taatsu < maxGroups) {
-      counts[idx]! -= 1;
-      counts[idx + 2]! -= 1;
-      search(idx, groups, taatsu + 1, hasPair);
-      counts[idx]! += 1;
-      counts[idx + 2]! += 1;
-    }
-
-    // 跳过当前单张
-    search(idx + 1, groups, taatsu, hasPair);
-  };
-
-  search(0, 0, 0, false);
-  return best;
+  return Math.max(-1, best);
 }
 
 /** 统计某个 13/10/7/4/1 张手牌的所有有效进张（降低向听数或直接胡牌的可见剩余牌） */
@@ -174,19 +183,24 @@ function computeEffectiveWaits(
   meldsCount: number,
   includeHonors: boolean,
   dingqueSuit: AdvisorNumericSuit | null,
+  wildIdx = -1,
 ): { shanten: number; waits: WaitTileInfo[]; totalLive: number } {
-  const baseShanten = computeShanten(counts, meldsCount);
+  const baseShanten = computeShanten(counts, meldsCount, wildIdx);
+  const candidateIndices: number[] = [];
   const maxIdx = includeHonors ? 34 : 27;
+  for (let i = 0; i < maxIdx; i++) candidateIndices.push(i);
+  if (wildIdx >= maxIdx) candidateIndices.push(wildIdx);
+
   const waits: WaitTileInfo[] = [];
   let totalLive = 0;
 
-  for (let i = 0; i < maxIdx; i++) {
+  for (const i of candidateIndices) {
     const info = fromIndex(i);
     if (dingqueSuit && info.suit === dingqueSuit) continue;
     const rem = Math.max(0, 4 - seen[i]!);
     if (counts[i]! >= 4) continue;
     counts[i]! += 1;
-    const nextSh = computeShanten(counts, meldsCount);
+    const nextSh = computeShanten(counts, meldsCount, wildIdx);
     counts[i]! -= 1;
     if (nextSh < baseShanten) {
       waits.push({
@@ -261,8 +275,17 @@ function buildKeepTips(params: {
     }
   }
 
-  // 国标 8 番起胡策略提醒
-  if (variantId === 'guobiao-mahjong') {
+  // 国标 8 番起胡 & 红中癞子策略提醒
+  if (variantId === 'hz-mahjong') {
+    const wilds = hand.filter((t) => t.suit === 'dragon' && t.val === 1).length;
+    if (wilds >= 2) {
+      tips.push(`手握 ${wilds} 张【红中】万能癞子！切勿打出红中，优先碰牌快速自摸胡牌并冲刺扎 4 码！`);
+    } else if (wilds === 1) {
+      tips.push('持有 1 张【红中】万能癞子，绝不可打出；可任意补齐顺子/刻子/将牌，极速自摸！');
+    } else {
+      tips.push('当前手中无红中，若直接自摸可享【无红中硬胡】+2番翻倍奖励！');
+    }
+  } else if (variantId === 'guobiao-mahjong') {
     tips.push('国标 8 番起胡：可结合【清一色/混一色/碰碰和/断幺/箭刻/门清】凑足 8 番！');
   } else if (includeHonors && variantId === 'gd-mahjong') {
     tips.push('广东推倒胡：孤张风牌优先打，保留中/发/白对子与 3–7 中张顺子搭子胜率更高。');
@@ -285,8 +308,20 @@ export function analyzeMahjongHand(params: {
   includeHonors: boolean;
   is258Strict: boolean;
   dingqueSuit: AdvisorNumericSuit | null;
+  wildCard?: { suit: AdvisorSuit; val: number } | null;
 }): HandAdvice {
-  const { myHand, myMelds, allVisibleTiles, isMyTurn, variantId, includeHonors, is258Strict, dingqueSuit } = params;
+  const {
+    myHand,
+    myMelds,
+    allVisibleTiles,
+    isMyTurn,
+    variantId,
+    includeHonors,
+    is258Strict,
+    dingqueSuit,
+    wildCard,
+  } = params;
+  const wildIdx = wildCard ? toIndex(wildCard.suit, wildCard.val) : -1;
 
   const seen = new Array<number>(34).fill(0);
   for (const t of allVisibleTiles) {
@@ -325,8 +360,9 @@ export function analyzeMahjongHand(params: {
       seenCandidates.add(k);
 
       const idx = toIndex(tile.suit, tile.val);
+      const isWild = wildIdx >= 0 && idx === wildIdx;
       handCounts[idx]! -= 1;
-      const eff = computeEffectiveWaits(handCounts, seen, meldsCount, includeHonors, dingqueSuit);
+      const eff = computeEffectiveWaits(handCounts, seen, meldsCount, includeHonors, dingqueSuit, wildIdx);
       handCounts[idx]! += 1;
 
       const isDqTile = Boolean(dingqueSuit && tile.suit === dingqueSuit);
@@ -334,23 +370,28 @@ export function analyzeMahjongHand(params: {
       const isTerminal = !isHonor && (tile.val === 1 || tile.val === 9);
       const is258 = !isHonor && (tile.val === 2 || tile.val === 5 || tile.val === 8);
 
-      // 综合胜率评分（定缺必优先 > 最低向听 > 最大活张数 > 保留258/中张弹性）
-      let rankScore =
+      // 综合胜率评分（绝不推荐打出红中癞子！定缺必优先 > 最低向听 > 最大活张数 > 保留258/中张弹性）
+      const rankScore =
+        (isWild ? -99999 : 0) +
         (hasDingqueInHand && isDqTile ? 5000 : 0) -
         eff.shanten * 400 +
         eff.totalLive * 14 +
-        (isHonor ? 16 : 0) +
+        (isHonor && !isWild ? 16 : 0) +
         (isTerminal ? 10 : 0) -
         (is258Strict && is258 ? 8 : 0);
 
       // 计算直观可读的相对胜率估算 (18% ~ 95%)
-      const winRatePct = Math.max(
-        18,
-        Math.min(95, Math.round(86 - eff.shanten * 19 + Math.min(24, eff.totalLive * 1.4))),
-      );
+      const winRatePct = isWild
+        ? 10
+        : Math.max(
+            18,
+            Math.min(96, Math.round(86 - eff.shanten * 19 + Math.min(24, eff.totalLive * 1.4))),
+          );
 
       let reason: string;
-      if (hasDingqueInHand && isDqTile) {
+      if (isWild) {
+        reason = '【红中】为万能癞子王牌，强烈建议保留，切勿打出！';
+      } else if (hasDingqueInHand && isDqTile) {
         reason = `优先清空定缺【${suitLabel(dingqueSuit!)}】，避免被查花猪！`;
       } else if (eff.shanten <= 0) {
         const topWaits = eff.waits
@@ -395,7 +436,7 @@ export function analyzeMahjongHand(params: {
   }
 
   // 等待阶段（13/10/7/4/1张）：计算当前是否听牌与胡牌张
-  const eff = computeEffectiveWaits(handCounts, seen, meldsCount, includeHonors, dingqueSuit);
+  const eff = computeEffectiveWaits(handCounts, seen, meldsCount, includeHonors, dingqueSuit, wildIdx);
   const isTenpai = eff.shanten <= 0 && !(dingqueSuit && myHand.some((t) => t.suit === dingqueSuit));
 
   return {

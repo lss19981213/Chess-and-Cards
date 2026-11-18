@@ -325,7 +325,8 @@ export class MemoryRepository implements Repository {
         settlement.gameId === 'cs-mahjong' ||
         settlement.gameId === 'sc-mahjong' ||
         settlement.gameId === 'gd-mahjong' ||
-        settlement.gameId === 'guobiao-mahjong'
+        settlement.gameId === 'guobiao-mahjong' ||
+        settlement.gameId === 'hz-mahjong'
       ) {
         this.bumpCell(entry.playerId, 'daily_mahjong', dayKey, 1);
       }

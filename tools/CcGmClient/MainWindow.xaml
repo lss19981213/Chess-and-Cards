@@ -1653,6 +1653,7 @@
                             <ComboBoxItem Content="四川血战麻将 (sc-mahjong)" Tag="sc-mahjong"/>
                             <ComboBoxItem Content="广东推倒胡 (gd-mahjong)" Tag="gd-mahjong"/>
                             <ComboBoxItem Content="大众国标麻将 (guobiao-mahjong)" Tag="guobiao-mahjong"/>
+                            <ComboBoxItem Content="红中麻将 (hz-mahjong)" Tag="hz-mahjong"/>
                             <ComboBoxItem Content="推筒子 (tuizhuanzi)" Tag="tuizhuanzi"/>
                             <ComboBoxItem Content="百家乐 (baccarat)" Tag="baccarat"/>
                             <ComboBoxItem Content="21点 (blackjack)" Tag="blackjack"/>

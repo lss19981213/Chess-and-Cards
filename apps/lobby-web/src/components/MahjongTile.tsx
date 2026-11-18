@@ -9,6 +9,7 @@ interface Props {
   isLastDiscard?: boolean;
   recommended?: boolean;
   isDingque?: boolean;
+  isWild?: boolean;
   onClick?: () => void;
   onDoubleClick?: () => void;
   className?: string;
@@ -39,6 +40,7 @@ export function MahjongTile({
   isLastDiscard = false,
   recommended = false,
   isDingque = false,
+  isWild = false,
   onClick,
   onDoubleClick,
   className = '',
@@ -49,18 +51,23 @@ export function MahjongTile({
     <div
       className={`mahjong-tile mahjong-tile--${size}${active ? ' is-active' : ''}${isNew ? ' is-new-draw' : ''}${
         isLastDiscard ? ' is-last-discard' : ''
-      }${recommended ? ' is-recommended' : ''}${isDingque ? ' is-dingque' : ''} ${className}`.trim()}
+      }${recommended ? ' is-recommended' : ''}${isDingque ? ' is-dingque' : ''}${isWild ? ' is-wild' : ''} ${className}`.trim()}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
-      {recommended && (
+      {isWild && (
+        <span className="mahjong-tile__wild-badge" title="红中万能癞子（可当任意牌）">
+          赖
+        </span>
+      )}
+      {recommended && !isWild && (
         <span className="mahjong-tile__rec-badge" title="智能军师推荐优先打出">
           荐
         </span>
       )}
-      {isDingque && !recommended && (
+      {isDingque && !recommended && !isWild && (
         <span className="mahjong-tile__dq-badge" title="定缺花色，须优先打出">
           缺
         </span>

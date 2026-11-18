@@ -213,7 +213,8 @@ export async function applySettlement(pool: pg.Pool, settlement: Settlement): Pr
         settlement.gameId === 'cs-mahjong' ||
         settlement.gameId === 'sc-mahjong' ||
         settlement.gameId === 'gd-mahjong' ||
-        settlement.gameId === 'guobiao-mahjong'
+        settlement.gameId === 'guobiao-mahjong' ||
+        settlement.gameId === 'hz-mahjong'
       ) {
         await bumpTaskTx(client, entry.playerId, 'daily_mahjong', dayKey, 1);
       }

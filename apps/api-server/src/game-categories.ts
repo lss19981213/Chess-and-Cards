@@ -35,6 +35,7 @@ export const DEFAULT_GAME_CATEGORY_MAP: Record<string, string> = {
   'sc-mahjong': 'mahjong',
   'gd-mahjong': 'mahjong',
   'guobiao-mahjong': 'mahjong',
+  'hz-mahjong': 'mahjong',
   xiangqi: 'chess',
   gomoku: 'chess',
   chess: 'chess',

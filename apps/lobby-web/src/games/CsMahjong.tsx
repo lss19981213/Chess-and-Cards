@@ -62,6 +62,8 @@ interface CsMahjongSnapshot {
   bonusLabel?: string;
   baseWin?: number;
   includeHonors?: boolean;
+  wildCard?: { suit: AdvisorSuit; val: number } | null;
+  zimoOnly?: boolean;
   allowChow?: boolean;
   hasDingque?: boolean;
   bloodBattle?: boolean;
@@ -71,6 +73,10 @@ interface CsMahjongSnapshot {
   turn: string | null;
   remainingCount: number;
   lastDiscard: { playerId: string; tile: MahjongTileData } | null;
+  claimPending?: boolean;
+  claimTile?: MahjongTileData | null;
+  claimFromNickname?: string | null;
+  claimIsRobKong?: boolean;
   lastAction?: MahjongActionEvent | null;
   myHand: MahjongTileData[];
   myDrawn: MahjongTileData | null;
@@ -147,6 +153,14 @@ const VARIANT_HIGHLIGHTS: Record<string, { badge: string; rules: string[] }> = {
       '采用 136 张全牌，严格遵循国标 8 番起胡：多番种可叠加累计（满 8 番方可宣告和牌）。',
       '常见凑番组合：清一色(24)、七对(24)、清龙(16)、三暗刻(16)、碰碰和(6)、混一色(6)、五门齐(6)、全带幺(4)、不求人(4)、断幺(2)、平和(2)、箭刻(2)、门风刻(2)、门清(2)。',
       '采用国标底分 8 + 总番数计分：自摸三家全付（底分+番数），点和由放炮者包番且三家各出底分。',
+    ],
+  },
+  'hz-mahjong': {
+    badge: '112张 · 红中万能癞子 · 四红中秒胡 · 禁吃 · 自摸/抢杠 · 扎4码',
+    rules: [
+      '112 张牌（万/条/筒 108 张 + 4 张红中）：红中是万能百搭牌（赖），可替代任意牌组成顺子、刻子、将牌或七小对！',
+      '四红中秒胡：手牌凑齐全部 4 张红中可直接宣布胡牌（4 番）；若胡牌时手中不含红中，享【无红中硬胡】+2 番翻倍！',
+      '不可吃牌，仅可碰、明/暗/补杠；普通出牌不可点炮，须自摸或抢杠胡；胡牌后翻 4 张码牌，1/5/9/红中全算中码，每中 1 码总收益翻倍！',
     ],
   },
 };
@@ -389,6 +403,7 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
       includeHonors: Boolean(data.includeHonors),
       is258Strict: Boolean(data.is258Strict),
       dingqueSuit: data.myDingque ?? null,
+      wildCard: data.wildCard ?? null,
     });
   }, [data, players, mePlayer, isMyTurn]);
 
@@ -539,7 +554,7 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
                 key={mt.id}
                 tile={`${mt.suit}${mt.val}`}
                 isBack={Boolean(m.concealed && pos !== 'bottom' && idx > 0 && idx < 3)}
-                size={pos === 'bottom' ? 'sm' : 'xs'}
+                size={pos === 'bottom' ? 'md' : 'sm'}
                 className="mj3d-meld-tile"
               />
             ))}
@@ -560,7 +575,7 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
             <div key={dt.id} className={`mj3d-river-slot${isLatest ? ' is-latest' : ''}`}>
               <MahjongTile
                 tile={`${dt.suit}${dt.val}`}
-                size="xs"
+                size="sm"
                 isLastDiscard={isLatest}
                 className="mj3d-river-tile"
               />
@@ -719,8 +734,14 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
             <div className="mj3d-compass-core">
               <span className="mj3d-compass-label">余牌</span>
               <strong className="mj3d-compass-num">{data.remainingCount}</strong>
-              <span className={`mj3d-compass-turn${isMyTurn ? ' is-mine' : ''}`}>
-                {data.phase === 'dingque' ? '定缺中' : isMyTurn ? '请出牌' : '对局中'}
+              <span className={`mj3d-compass-turn${isMyTurn || data.claimPending ? ' is-mine' : ''}`}>
+                {data.phase === 'dingque'
+                  ? '定缺中'
+                  : data.claimPending
+                    ? '可响应!'
+                    : isMyTurn
+                      ? '请出牌'
+                      : '对局中'}
               </span>
             </div>
           </div>
@@ -735,9 +756,18 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
 
       {/* 底部自家手牌区：吃碰杠胡动作 + 智能军师胜率建议 + 手牌上方功能按钮 + 3D立体手牌 */}
       <div className="mj3d-bottom-dock">
-        {/* 吃/碰/杠/胡 华丽动作按钮（浮于工具栏上方） */}
+        {/* 吃/碰/杠/胡 华丽动作按钮（浮于工具栏上方；响应他人出牌时附带大号目标牌预览） */}
         {hasCallButtons && (
           <div className="mj3d-action-float">
+            {data.claimPending && data.claimTile && (
+              <div className="mj3d-claim-preview">
+                <MahjongTile tile={`${data.claimTile.suit}${data.claimTile.val}`} size="sm" />
+                <div className="mj3d-claim-preview__meta">
+                  <strong>{data.claimIsRobKong ? '可抢杠胡！' : `${data.claimFromNickname || '对手'}打出`}</strong>
+                  <span>{tileLabel(data.claimTile.suit, data.claimTile.val)}</span>
+                </div>
+              </div>
+            )}
             {data.canHu && (
               <button
                 type="button"
@@ -748,7 +778,7 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
                 }}
               >
                 <span>胡</span>
-                <small>{isMyTurn ? '自摸' : '赢牌'}</small>
+                <small>{data.claimIsRobKong ? '抢杠胡' : isMyTurn ? '自摸' : '赢牌'}</small>
               </button>
             )}
             {canKong && (
@@ -957,6 +987,7 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
               const tKey = `${tile.suit}_${tile.val}`;
               const isRec = recommendedTileKey === tKey;
               const isDq = Boolean(data.myDingque && tile.suit === data.myDingque);
+              const isWild = Boolean(data.wildCard && tile.suit === data.wildCard.suit && tile.val === data.wildCard.val);
               return (
                 <MahjongTile
                   key={tile.id}
@@ -966,6 +997,7 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
                   isNew={isNew}
                   recommended={isRec}
                   isDingque={isDq}
+                  isWild={isWild}
                   onClick={() => handleTileClick(tile)}
                   onDoubleClick={() => fireDiscard(tile)}
                   className="mj3d-hand-tile"
@@ -1095,17 +1127,27 @@ export function CsMahjong({ snapshot, myId, status, balance, playerMedia, onActi
             {data.birds.length > 0 && (
               <div className="mj3d-settle-birds">
                 <span className="mj3d-settle-birds__label">
-                  {bonusLabel === '马' ? '买马开牌（1/5/9/东风/红中中马）' : `抓${bonusLabel}开牌（1/5/9中${bonusLabel}）`}：
+                  {bonusLabel === '马'
+                    ? '买马开牌（1/5/9/东风/红中中马）'
+                    : bonusLabel === '码'
+                      ? '扎码开牌（1/5/9/红中全中码）'
+                      : `抓${bonusLabel}开牌（1/5/9中${bonusLabel}）`}
+                  ：
                 </span>
                 <div className="mj3d-settle-birds__tiles">
                   {data.birds.map((b) => {
                     const hit =
                       ((b.suit === 'wan' || b.suit === 'bamboo' || b.suit === 'dot') &&
                         (b.val === 1 || b.val === 5 || b.val === 9)) ||
-                      (bonusLabel === '马' && ((b.suit === 'wind' && b.val === 1) || (b.suit === 'dragon' && b.val === 1)));
+                      (bonusLabel === '马' && ((b.suit === 'wind' && b.val === 1) || (b.suit === 'dragon' && b.val === 1))) ||
+                      (bonusLabel === '码' && b.suit === 'dragon' && b.val === 1);
                     return (
                       <div key={b.id} className={`mj3d-bird-item${hit ? ' is-hit' : ''}`}>
-                        <MahjongTile tile={`${b.suit}${b.val}`} size="sm" />
+                        <MahjongTile
+                          tile={`${b.suit}${b.val}`}
+                          size="md"
+                          isWild={Boolean(data.wildCard && b.suit === data.wildCard.suit && b.val === data.wildCard.val)}
+                        />
                         {hit && <em className="mj3d-bird-tag">中{bonusLabel}</em>}
                       </div>
                     );

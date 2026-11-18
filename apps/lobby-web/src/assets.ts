@@ -22,6 +22,7 @@ export const GAME_ART: Record<string, string> = {
   'sc-mahjong': asset('game-scmahjong.jpg'),
   'gd-mahjong': asset('game-gdmahjong.jpg'),
   'guobiao-mahjong': asset('game-guobiaomahjong.jpg'),
+  'hz-mahjong': asset('game-hzmahjong.jpg'),
   slots: asset('game-slots.jpg'),
 };
 
