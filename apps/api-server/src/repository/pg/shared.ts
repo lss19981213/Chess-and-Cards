@@ -12,6 +12,8 @@ export interface UserRow {
   banned?: boolean;
   email?: string | null;
   invited_by?: string | null;
+  oauth_provider?: string | null;
+  oauth_sub?: string | null;
 }
 
 export function mapUser(row: UserRow): UserRecord {
@@ -21,6 +23,8 @@ export function mapUser(row: UserRow): UserRecord {
     username: row.username,
     email: row.email ?? null,
     invitedBy: row.invited_by ?? null,
+    oauthProvider: row.oauth_provider ?? null,
+    oauthSub: row.oauth_sub ?? null,
     createdAt: new Date(row.created_at).getTime(),
     banned: Boolean(row.banned),
   };

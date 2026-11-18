@@ -6,6 +6,8 @@ export interface UserRecord {
   username: string | null;
   email?: string | null;
   invitedBy?: string | null;
+  oauthProvider?: string | null;
+  oauthSub?: string | null;
   createdAt: number;
   banned?: boolean;
 }

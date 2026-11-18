@@ -16,7 +16,7 @@ export async function registerUser(
     const res = await client.query<UserRow>(
       `insert into users (id, nickname, username, password_hash, email, oauth_provider, oauth_sub)
        values ($1, $2, $3, $4, $5, $6, $7)
-       returning id, nickname, username, email, invited_by, created_at`,
+       returning id, nickname, username, email, invited_by, oauth_provider, oauth_sub, created_at`,
       [
         randomUUID(),
         input.nickname,
@@ -56,7 +56,7 @@ export async function findUserByOAuth(
   sub: string,
 ): Promise<UserRecord | null> {
   const res = await pool.query<UserRow>(
-    `select id, nickname, username, email, invited_by, created_at, coalesce(banned, false) as banned
+    `select id, nickname, username, email, invited_by, oauth_provider, oauth_sub, created_at, coalesce(banned, false) as banned
        from users
       where oauth_provider = $1 and oauth_sub = $2
       limit 1`,
@@ -80,7 +80,7 @@ export async function bindUserOAuth(
 
 export async function findUserByUsername(pool: pg.Pool, username: string): Promise<AuthUser | null> {
   const res = await pool.query<UserRow>(
-    `select id, nickname, username, email, invited_by, password_hash, created_at, coalesce(banned, false) as banned
+    `select id, nickname, username, email, invited_by, oauth_provider, oauth_sub, password_hash, created_at, coalesce(banned, false) as banned
        from users
       where lower(username) = lower($1)
       limit 1`,
@@ -93,7 +93,7 @@ export async function findUserByUsername(pool: pg.Pool, username: string): Promi
 
 export async function findUserByEmail(pool: pg.Pool, email: string): Promise<AuthUser | null> {
   const res = await pool.query<UserRow>(
-    `select id, nickname, username, email, invited_by, password_hash, created_at, coalesce(banned, false) as banned
+    `select id, nickname, username, email, invited_by, oauth_provider, oauth_sub, password_hash, created_at, coalesce(banned, false) as banned
        from users
       where lower(email) = lower($1)
       limit 1`,
@@ -129,7 +129,7 @@ export async function setUserInvitedBy(pool: pg.Pool, userId: string, invitedBy:
 
 export async function getUserById(pool: pg.Pool, id: string): Promise<UserRecord | null> {
   const res = await pool.query<UserRow>(
-    'select id, nickname, username, email, invited_by, created_at, coalesce(banned, false) as banned from users where id = $1',
+    'select id, nickname, username, email, invited_by, oauth_provider, oauth_sub, created_at, coalesce(banned, false) as banned from users where id = $1',
     [id],
   );
   const row = res.rows[0];

@@ -231,6 +231,8 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         username: user.username,
         email: user.email ?? null,
         invitedBy: user.invitedBy ?? null,
+        oauthProvider: user.oauthProvider ?? null,
+        oauthSub: user.oauthSub ?? null,
         createdAt: user.createdAt,
         balance,
         avatar: profile?.avatar ?? null,
@@ -410,6 +412,8 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     codeVerifier: string;
     redirectUri: string;
     returnTo: string;
+    mode: 'login' | 'bind';
+    bindUserId?: string;
     expireAt: number;
   }
   const oauthStates = new Map<string, OAuthStateEntry>();
@@ -475,6 +479,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
       codeVerifier,
       redirectUri,
       returnTo: lobbyUrl,
+      mode: 'login',
       expireAt: Date.now() + 10 * 60_000,
     });
 
@@ -491,27 +496,81 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     return reply.redirect(`${fc.baseUrl}/oauth/authorize?${authorizeParams.toString()}`);
   });
 
+  // 已登录账号在个人中心发起「绑定奇幻维度平台」授权跳转地址（不把 JWT 暴露到 URL）
+  app.post('/api/auth/oauth/fantasyclaw/bind-url', async (req) => {
+    const claims = authHeader(req);
+    const fc = config.oauth.fantasyclaw;
+    if (!fc.clientId || !fc.clientSecret) {
+      throw httpError('奇幻维度 OAuth 尚未配置 Client ID / Client Secret，请联系管理员', 400);
+    }
+
+    const currentUser = await repo.getUser(claims.sub);
+    if (!currentUser) throw httpError('用户不存在', 404);
+    if (currentUser.banned) throw httpError('该账号已被管理员封禁', 403);
+    if (currentUser.oauthProvider === 'fantasyclaw' && currentUser.oauthSub) {
+      throw httpError('当前账号已绑定奇幻维度平台，无需重复绑定', 409);
+    }
+
+    pruneOAuthStates();
+    const state = randomBytes(24).toString('hex');
+    const codeVerifier = randomBytes(32).toString('base64url');
+    const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+    const redirectUri = resolveFantasyClawRedirectUri(req);
+    const lobbyUrl = fc.lobbyUrl || '/lobby/';
+
+    oauthStates.set(state, {
+      codeVerifier,
+      redirectUri,
+      returnTo: lobbyUrl,
+      mode: 'bind',
+      bindUserId: currentUser.id,
+      expireAt: Date.now() + 10 * 60_000,
+    });
+
+    const authorizeParams = new URLSearchParams({
+      response_type: 'code',
+      client_id: fc.clientId,
+      redirect_uri: redirectUri,
+      scope: fc.scope || 'profile email',
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+    });
+
+    return {
+      ok: true,
+      url: `${fc.baseUrl}/oauth/authorize?${authorizeParams.toString()}`,
+    };
+  });
+
   app.get('/api/auth/oauth/fantasyclaw/callback', async (req, reply) => {
     const fc = config.oauth.fantasyclaw;
     const fallbackLobby = fc.lobbyUrl || '/lobby/';
     const query = req.query as Record<string, string | undefined>;
-
-    if (query.error) {
-      const desc = query.error_description || query.error;
-      return reply.redirect(
-        buildLobbyRedirect(fallbackLobby, { oauth_error: `授权已取消或失败：${desc}` }),
-      );
-    }
 
     const code = (query.code ?? '').trim();
     const state = (query.state ?? '').trim();
     const saved = state ? oauthStates.get(state) : undefined;
     if (state) oauthStates.delete(state);
 
-    if (!code || !saved || Date.now() > saved.expireAt) {
-      return reply.redirect(
-        buildLobbyRedirect(fallbackLobby, { oauth_error: '授权状态无效或已过期，请重新点击奇幻维度登录' }),
+    const isBindMode = saved?.mode === 'bind' && Boolean(saved.bindUserId);
+    const failRedirect = (msg: string) =>
+      reply.redirect(
+        buildLobbyRedirect(
+          saved?.returnTo || fallbackLobby,
+          isBindMode
+            ? { oauth_bind_error: msg, goto: 'profile' }
+            : { oauth_error: msg },
+        ),
       );
+
+    if (query.error) {
+      const desc = query.error_description || query.error;
+      return failRedirect(`授权已取消或失败：${desc}`);
+    }
+
+    if (!code || !saved || Date.now() > saved.expireAt) {
+      return failRedirect('授权状态无效或已过期，请重新发起奇幻维度授权');
     }
 
     try {
@@ -566,7 +625,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
             tokenRaw.Message ??
             `令牌交换失败 (${tokenRes.status})`,
         );
-        return reply.redirect(buildLobbyRedirect(saved.returnTo, { oauth_error: msg }));
+        return failRedirect(msg);
       }
 
       // 2. 获取用户信息（优先 /api/oauth/userinfo，兜底 /api/oauth/me）
@@ -589,18 +648,14 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
 
       const info = (await fetchUserInfo('/api/oauth/userinfo')) ?? (await fetchUserInfo('/api/oauth/me'));
       if (!info) {
-        return reply.redirect(
-          buildLobbyRedirect(saved.returnTo, { oauth_error: '无法获取奇幻维度用户信息，请重试' }),
-        );
+        return failRedirect('无法获取奇幻维度用户信息，请重试');
       }
 
       const sub = String(
         info.sub ?? info.Sub ?? info.id ?? info.Id ?? info.userId ?? info.UserId ?? info.uid ?? '',
       ).trim();
       if (!sub) {
-        return reply.redirect(
-          buildLobbyRedirect(saved.returnTo, { oauth_error: '奇幻维度返回的用户标识为空' }),
-        );
+        return failRedirect('奇幻维度返回的用户标识为空');
       }
 
       const rawEmailField = info.email ?? info.Email;
@@ -618,6 +673,49 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
           info.UserName ??
           `奇幻玩家_${sub.slice(0, 4)}`,
       ).trim();
+
+      // 2.5 绑定模式：将当前已登录账号与该奇幻维度账号绑定
+      if (isBindMode && saved.bindUserId) {
+        const currentUser = await repo.getUser(saved.bindUserId);
+        if (!currentUser || currentUser.banned) {
+          return failRedirect('当前账号不存在或已被封禁，无法绑定奇幻维度平台');
+        }
+        if (currentUser.oauthProvider === 'fantasyclaw' && currentUser.oauthSub) {
+          if (currentUser.oauthSub === sub) {
+            return reply.redirect(
+              buildLobbyRedirect(saved.returnTo, {
+                oauth_bind_ok: '当前账号已绑定该奇幻维度账号',
+                goto: 'profile',
+              }),
+            );
+          }
+          return failRedirect('当前账号已绑定其他奇幻维度账号');
+        }
+
+        const occupied = await repo.findByOAuth('fantasyclaw', sub);
+        if (occupied && occupied.id !== currentUser.id) {
+          return failRedirect(
+            `该奇幻维度账号已绑定其他玩家「${occupied.nickname}」，每个奇幻维度账号仅支持绑定一个游戏账号`,
+          );
+        }
+
+        await repo.bindOAuth(currentUser.id, 'fantasyclaw', sub);
+
+        // 若玩家尚未填写安全邮箱且奇幻维度返回了未被占用的有效邮箱，顺便同步补齐
+        if (!currentUser.email && validEmail) {
+          const emailTaken = await repo.findByEmail(validEmail);
+          if (!emailTaken) {
+            await repo.updateEmail(currentUser.id, validEmail).catch(() => undefined);
+          }
+        }
+
+        return reply.redirect(
+          buildLobbyRedirect(saved.returnTo, {
+            oauth_bind_ok: `已成功绑定奇幻维度账号（${rawName}），下次可直接一键登录！`,
+            goto: 'profile',
+          }),
+        );
+      }
 
       // 3. 查找已绑定账号 -> 或按同邮箱自动绑定（严格遵守一个邮箱一个账号） -> 或自动建号
       let user = await repo.findByOAuth('fantasyclaw', sub);
@@ -686,7 +784,7 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
       return reply.redirect(buildLobbyRedirect(saved.returnTo, { oauth_token: jwt }));
     } catch (err) {
       const msg = err instanceof Error ? err.message : '第三方登录异常';
-      return reply.redirect(buildLobbyRedirect(saved.returnTo, { oauth_error: msg }));
+      return failRedirect(msg);
     }
   });
 }

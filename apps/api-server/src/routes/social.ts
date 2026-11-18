@@ -53,8 +53,9 @@ export function registerSocialRoutes(app: FastifyInstance, repo: Repository): ()
 
   app.get('/api/profile', async (req) => {
     const claims = authHeader(req);
-    const [profile, balance, friends, rank] = await Promise.all([
+    const [profile, userRecord, balance, friends, rank] = await Promise.all([
       repo.getProfile(claims.sub),
+      repo.getUser(claims.sub),
       repo.getBalance(claims.sub, 'coin'),
       repo.listFriends(claims.sub),
       repo.leaderboardRank(claims.sub),
@@ -62,7 +63,16 @@ export function registerSocialRoutes(app: FastifyInstance, repo: Repository): ()
     if (!profile) throw httpError('用户不存在', 404);
     const tasks = await buildTasks(repo, claims.sub, balance);
     const achieved = tasks.filter((task) => task.claimed).length;
-    return { profile, balance, friendsCount: friends.length, rank, achievements: achieved };
+    return {
+      profile,
+      balance,
+      friendsCount: friends.length,
+      rank,
+      achievements: achieved,
+      email: userRecord?.email ?? null,
+      oauthProvider: userRecord?.oauthProvider ?? null,
+      oauthSub: userRecord?.oauthSub ?? null,
+    };
   });
 
   app.patch('/api/profile', async (req) => {

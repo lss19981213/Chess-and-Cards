@@ -123,6 +123,9 @@ export default function App() {
         const joinGameId = params.get('game');
         const oauthToken = params.get('oauth_token');
         const oauthError = params.get('oauth_error');
+        const oauthBindOk = params.get('oauth_bind_ok');
+        const oauthBindError = params.get('oauth_bind_error');
+        const gotoView = params.get('goto');
 
         if (joinRoomId && joinGameId) {
           const invited = gamesRes.games.find((game) => game.gameId === joinGameId);
@@ -131,7 +134,7 @@ export default function App() {
             setSelectedGame(invited);
           }
         }
-        if (joinRoomId || joinGameId || oauthToken || oauthError) {
+        if (joinRoomId || joinGameId || oauthToken || oauthError || oauthBindOk || oauthBindError || gotoView) {
           window.history.replaceState({}, '', window.location.pathname);
         }
 
@@ -151,16 +154,25 @@ export default function App() {
             setUser(me.user);
             userIdRef.current = me.user.id;
             connectWs(token);
+            if (gotoView === 'profile' || oauthBindOk || oauthBindError) {
+              setView('profile');
+            }
             if (oauthToken) {
               window.setTimeout(
                 () => showToast(`🌌 奇幻维度账号登录成功，欢迎 ${me.user.nickname}！`),
                 120,
               );
+            } else if (oauthBindOk) {
+              window.setTimeout(() => showToast(`🌌 ${oauthBindOk}`), 120);
+            } else if (oauthBindError) {
+              window.setTimeout(() => showToast(`⚠️ ${oauthBindError}`), 120);
             }
           } catch {
             setToken(null);
             token = null;
           }
+        } else if (oauthBindError) {
+          window.setTimeout(() => showToast(`⚠️ ${oauthBindError}`), 150);
         }
         // 未登录时不自动创建游客新号，保持未登录态并在大厅清晰指引玩家登录或创建账号
       } catch (error) {

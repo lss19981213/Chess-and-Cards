@@ -10453,6 +10453,94 @@ button.secondary:hover:not(:disabled) {
   color: #64748b;
 }
 
+/* 奇幻维度平台绑定行 */
+.profile-oauth-bind-row {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.2), rgba(30, 41, 59, 0.55));
+  border: 1px solid rgba(168, 85, 247, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.profile-oauth-bind-row.is-bound {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(15, 23, 42, 0.55));
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.profile-oauth-bind-info {
+  flex: 1;
+  min-width: 220px;
+}
+
+.profile-oauth-bind-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #f8fafc;
+}
+
+.oauth-fc-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.oauth-status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.oauth-status-pill.is-bound {
+  background: rgba(16, 185, 129, 0.22);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+}
+
+.oauth-status-pill.is-unbound {
+  background: rgba(245, 197, 66, 0.16);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 197, 66, 0.38);
+}
+
+.profile-oauth-bind-desc {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.btn-bind-fantasyclaw {
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 180, 254, 0.55);
+  background: linear-gradient(135deg, #7c3aed 0%, #6366f1 55%, #ec4899 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.35);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+.btn-bind-fantasyclaw:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.52);
+}
+
+.btn-bind-fantasyclaw:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 /* 邀请好友卡片 */
 .profile-invite-card__head {
   display: flex;

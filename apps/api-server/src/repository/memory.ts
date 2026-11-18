@@ -138,6 +138,8 @@ export class MemoryRepository implements Repository {
       nickname: input.nickname,
       username: input.username,
       email: normalizedEmail,
+      oauthProvider: input.oauthProvider ?? null,
+      oauthSub: input.oauthSub ?? null,
       createdAt: Date.now(),
       banned: false,
     };
@@ -158,7 +160,10 @@ export class MemoryRepository implements Repository {
   }
 
   async bindOAuth(userId: string, provider: string, sub: string): Promise<void> {
-    if (!this.users.has(userId)) return;
+    const user = this.users.get(userId);
+    if (!user) return;
+    user.oauthProvider = provider;
+    user.oauthSub = sub;
     this.oauthIndex.set(`${provider}:${sub}`, userId);
   }
 

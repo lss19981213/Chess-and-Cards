@@ -96,6 +96,9 @@ export function ProfileView({
   const [nickname, setNickname] = useState(user.nickname);
   const [bio, setBio] = useState('');
   const [email, setEmail] = useState(user.email ?? '');
+  const [oauthProvider, setOauthProvider] = useState<string | null>(user.oauthProvider ?? null);
+  const [oauthSub, setOauthSub] = useState<string | null>(user.oauthSub ?? null);
+  const [bindingFc, setBindingFc] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(user.avatar ?? null);
   const [equippedFrame, setEquippedFrame] = useState<string>(user.equippedFrame ?? 'frame_default');
   const [frameModalOpen, setFrameModalOpen] = useState(false);
@@ -144,6 +147,15 @@ export function ProfileView({
       setRank(data.rank);
       setFriendsCount(data.friendsCount);
       setAchievements(data.achievements);
+      if (data.email !== undefined) setEmail(data.email ?? '');
+      if (data.oauthProvider !== undefined) setOauthProvider(data.oauthProvider ?? null);
+      if (data.oauthSub !== undefined) setOauthSub(data.oauthSub ?? null);
+      if (data.oauthProvider !== undefined || data.oauthSub !== undefined) {
+        onUserUpdate?.({
+          oauthProvider: data.oauthProvider ?? null,
+          oauthSub: data.oauthSub ?? null,
+        });
+      }
     } catch {
       /* 未登录或接口异常时保留壳层传入的基础信息 */
     }
@@ -283,6 +295,23 @@ export function ProfileView({
     navigator.clipboard?.writeText(shareText);
     audio.play('coin');
     notify(`邀请码【${inviteCode}】已复制！每邀请1位好友注册入场可领 1,000 筹码（上不封顶）`);
+  };
+
+  const isBoundFantasyClaw = oauthProvider === 'fantasyclaw' && Boolean(oauthSub);
+
+  const handleBindFantasyClaw = async () => {
+    if (bindingFc || isBoundFantasyClaw) return;
+    setBindingFc(true);
+    try {
+      audio.play('click');
+      const res = await api.bindFantasyClawUrl();
+      if (!res.url) throw new Error('未能获取奇幻维度授权地址');
+      window.location.href = res.url;
+    } catch (err) {
+      audio.play('alert');
+      notify(err instanceof Error ? err.message : '发起奇幻维度绑定失败，请稍后重试', 'err');
+      setBindingFc(false);
+    }
   };
 
   return (
@@ -580,10 +609,40 @@ export function ProfileView({
               </form>
             ) : (
               <div className="profile-security-row">
-                <span>绑定邮箱：<b>{user.email || '未绑定（请在上方编辑资料绑定邮箱以便找回密码）'}</b></span>
+                <span>绑定邮箱：<b>{email || user.email || '未绑定（请在上方编辑资料绑定邮箱以便找回密码）'}</b></span>
                 <span className="profile-pwd-hint">定期更换密码有助于保护虚拟筹码安全</span>
               </div>
             )}
+
+            {/* 奇幻维度平台账号绑定区 */}
+            <div className={`profile-oauth-bind-row ${isBoundFantasyClaw ? 'is-bound' : ''}`}>
+              <div className="profile-oauth-bind-info">
+                <div className="profile-oauth-bind-title">
+                  <span className="oauth-fc-icon">🌌</span>
+                  <strong>奇幻维度平台账号</strong>
+                  {isBoundFantasyClaw ? (
+                    <span className="oauth-status-pill is-bound">已绑定</span>
+                  ) : (
+                    <span className="oauth-status-pill is-unbound">未绑定</span>
+                  )}
+                </div>
+                <p className="profile-oauth-bind-desc">
+                  {isBoundFantasyClaw
+                    ? `已成功关联奇幻维度身份（ID: ${oauthSub!.length > 10 ? `${oauthSub!.slice(0, 6)}…${oauthSub!.slice(-4)}` : oauthSub}），下次可直接使用奇幻维度一键登录。`
+                    : '绑定后可使用奇幻维度平台账号一键安全登录，当前筹码、等级与战绩将完整保留。'}
+                </p>
+              </div>
+              {!isBoundFantasyClaw && (
+                <button
+                  type="button"
+                  className="btn-bind-fantasyclaw"
+                  disabled={bindingFc}
+                  onClick={() => void handleBindFantasyClaw()}
+                >
+                  {bindingFc ? '跳转授权中…' : '🌌 立即绑定奇幻维度'}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 专属邀请好友奖励（无上限） */}

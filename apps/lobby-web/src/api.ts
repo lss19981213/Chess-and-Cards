@@ -7,6 +7,8 @@ export interface User {
   balance: number;
   email?: string | null;
   invitedBy?: string | null;
+  oauthProvider?: string | null;
+  oauthSub?: string | null;
   createdAt?: number;
   avatar?: string | null;
   equippedFrame?: string;
@@ -154,6 +156,12 @@ export const api = {
     request<{
       fantasyclaw: { enabled: boolean; name: string; baseUrl: string; callbackUrl: string };
     }>('/api/auth/oauth/providers'),
+
+  bindFantasyClawUrl: () =>
+    request<{ ok: boolean; url: string }>('/api/auth/oauth/fantasyclaw/bind-url', {
+      method: 'POST',
+      body: '{}',
+    }),
 
   changePassword: (oldPassword: string, newPassword: string) =>
     request<{ ok: boolean; message: string }>('/api/auth/change-password', {
@@ -323,6 +331,9 @@ export const api = {
       friendsCount: number;
       rank: number | null;
       achievements: number;
+      email?: string | null;
+      oauthProvider?: string | null;
+      oauthSub?: string | null;
     }>('/api/profile'),
 
   updateProfile: (patch: { nickname?: string; bio?: string; avatar?: string | null }) =>
