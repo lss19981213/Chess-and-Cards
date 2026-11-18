@@ -510,13 +510,13 @@ export default function App() {
       setRoom(null);
     }
 
-    // 百人常驻玩法：直接极速入座
-    if (game.persistent || ['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack', 'slots'].includes(game.gameId)) {
+    // 老虎机无多台选座，直接极速进入
+    if (game.gameId === 'slots') {
       handleQuickPlay(game);
       return;
     }
 
-    // 房间制游戏：进入全屏选台界面
+    // 所有桌台类游戏（含百人竞技 5 款常驻台与房间制游戏）：进入全屏选台界面
     setView('game_rooms');
   };
 

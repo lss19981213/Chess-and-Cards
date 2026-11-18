@@ -97,6 +97,20 @@ export function recentTrendFor(plugin: GamePlugin, ctx: RoomContext, persistent:
         tone: (row.big === true ? 'red' : 'blue') as TrendMark['tone'],
       };
     }
+    if (gameId === 'niuniu') {
+      const niu = Number(row.niu ?? 0);
+      if (niu >= 10) return { round, text: '牛牛', tone: 'red' as const };
+      if (niu >= 7) return { round, text: `${niu}牛`, tone: 'red' as const };
+      if (niu >= 1) return { round, text: `${niu}牛`, tone: 'blue' as const };
+      return { round, text: '无牛', tone: 'neutral' as const };
+    }
+    if (gameId === 'blackjack') {
+      const pts = Number(row.dealerPoints ?? 0);
+      if (pts > 21) return { round, text: '爆', tone: 'green' as const };
+      if (pts === 21) return { round, text: '21点', tone: 'red' as const };
+      if (pts > 0) return { round, text: `${pts}点`, tone: 'blue' as const };
+      return { round, text: '和', tone: 'neutral' as const };
+    }
 
     const winners = Array.isArray(row.winningDoors) ? (row.winningDoors as string[]) : [];
     const label: Record<string, string> = { heaven: '天', earth: '地', human: '人' };
@@ -145,7 +159,7 @@ export function buildRoomSummary(input: {
     persistent: input.persistent,
     ...(isBotHosted ? { botHosted: true } : {}),
     ...(input.spectatorCount ? { spectators: input.spectatorCount } : {}),
-    joinable: input.joinable || input.persistent || isBotHosted,
+    joinable: input.joinable || (input.persistent && list.length < input.capacity) || isBotHosted,
     recent: input.recent,
   };
 }

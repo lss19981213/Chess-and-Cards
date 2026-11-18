@@ -37,12 +37,14 @@ const STATUS_TEXT: Record<string, string> = {
   settled: '开奖结算中',
 };
 
+const PERSISTENT_GAME_IDS = new Set(['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack']);
+
 export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isLive = game.persistent === true;
+  const isLive = game.persistent === true || PERSISTENT_GAME_IDS.has(game.gameId);
 
   const load = useCallback(async () => {
     try {
@@ -150,11 +152,15 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
           <div className="rooms-table-grid">
             {rooms.map((room) => {
               const marks = (room.recent ?? []).slice(-4);
+              const canEnter =
+                room.joinable ||
+                Boolean(room.botHosted) ||
+                (room.persistent && room.players < room.maxPlayers);
               return (
                 <div
                   key={room.roomId}
-                  className={`room-table-card ${room.status === 'playing' ? 'is-playing' : 'is-waiting'} ${room.botHosted ? 'is-bot-hosted' : ''} ${!room.joinable && !room.botHosted ? 'is-full' : ''}`}
-                  onClick={() => (room.joinable || room.botHosted) && handleSelectRoom(room.roomId)}
+                  className={`room-table-card ${room.status === 'playing' ? 'is-playing' : 'is-waiting'} ${room.botHosted ? 'is-bot-hosted' : ''} ${!canEnter ? 'is-full' : ''}`}
+                  onClick={() => canEnter && handleSelectRoom(room.roomId)}
                   role="button"
                   tabIndex={0}
                 >
@@ -192,7 +198,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
                             className={`trend-dot tone--${m.tone}`}
                             title={`第${m.round}局：${m.text}`}
                           >
-                            {m.text.slice(0, 1)}
+                            {/^\d{2}/.test(m.text) ? m.text.slice(0, 2) : m.text.slice(0, 1)}
                           </span>
                         ))}
                       </div>
@@ -211,14 +217,14 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
                     </div>
                     <button
                       type="button"
-                      className={`btn-table-join ${room.joinable || room.botHosted ? 'is-ready' : 'is-disabled'}`}
-                      disabled={!room.joinable && !room.botHosted}
+                      className={`btn-table-join ${canEnter ? 'is-ready' : 'is-disabled'}`}
+                      disabled={!canEnter}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (room.joinable || room.botHosted) handleSelectRoom(room.roomId);
+                        if (canEnter) handleSelectRoom(room.roomId);
                       }}
                     >
-                      {room.botHosted ? '👁️ 观战入座' : room.joinable ? '立即入座' : '已满员'}
+                      {room.botHosted ? '👁️ 观战入座' : canEnter ? '立即入座' : '已满员'}
                     </button>
                   </div>
                 </div>
