@@ -32,5 +32,9 @@ jobs:
       - name: 构建前端
         run: pnpm build
 
-      - name: 游戏规则冒烟（13 款全部过一遍）
+      - name: 游戏规则冒烟（全量）
         run: pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts
+
+      # 按路径变更可在本地用 GAME_ID=dice 跑单游戏冒烟；CI 保留全量兜底
+      - name: 单游戏冒烟示例（dice）
+        run: GAME_ID=dice pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts

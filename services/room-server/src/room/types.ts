@@ -41,8 +41,11 @@ export interface RoomDeps {
   releaseBets: ReleaseClient;
   /** 空房间回收 */
   empty(roomId: string): void;
-  /** 是否处于平台维护排水期（禁止开启新牌局/新下注，允许当前局正常打完） */
-  isDraining?: () => boolean;
+  /**
+   * 是否处于排水期（全局平台维护，或该 gameId 单游戏 draining/disabled/updating）。
+   * @param gameId 房间所属玩法 ID，不可空
+   */
+  isDraining?: (gameId: string) => boolean;
 }
 
 export function sendEnvelope(socket: WebSocket | null, t: string, d: unknown): void {

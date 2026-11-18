@@ -15,12 +15,23 @@ BRANCH="${BRANCH:-main}"
 COMPOSE_FILE="docker-compose.1panel.yml"
 MAX_DRAIN_WAIT_SEC="${MAX_DRAIN_WAIT_SEC:-600}"
 COMPENSATION_COINS="${COMPENSATION_COINS:-1000}"
+# 发布范围：full=全站排水更新；web=仅前端（不停房间）；api=仅 API；room=仅房间服（仍排水）
+SCOPE="${SCOPE:-full}"
 
 echo "=========================================="
 echo "  Chess & Cards 1Panel 一键部署/优雅更新"
 echo "  目录: ${APP_DIR}"
 echo "  分支: ${BRANCH}"
+echo "  范围: ${SCOPE}"
 echo "=========================================="
+
+case "${SCOPE}" in
+  full|web|api|room) ;;
+  *)
+    echo "[错误] SCOPE 仅支持 full|web|api|room，当前=${SCOPE}" >&2
+    exit 1
+    ;;
+esac
 
 # 检测 docker compose 命令
 if docker compose version >/dev/null 2>&1; then
@@ -153,25 +164,34 @@ API_BASE="http://127.0.0.1:${WEB_PORT}"
 mkdir -p data/postgres data/outbox
 
 # 3. 预构建新镜像（构建期间线上旧服务完全正常运行，零影响）
-echo "==> 预构建新版本镜像 (${NEW_VERSION})..."
+echo "==> 预构建新版本镜像 (${NEW_VERSION}, SCOPE=${SCOPE})..."
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
-${DC} -f "${COMPOSE_FILE}" build
+case "${SCOPE}" in
+  web) ${DC} -f "${COMPOSE_FILE}" build web ;;
+  api|room) ${DC} -f "${COMPOSE_FILE}" build api-server room-server ;;
+  *) ${DC} -f "${COMPOSE_FILE}" build ;;
+esac
 
-# 4. 检测是否已有运行中的线上服务，若有则执行「禁开新局 -> 等待本局结束 -> 切友好更新页」优雅排水
+# 4. 全站排水仅在 full / room / api 时启用；SCOPE=web 不打扰在局玩家
+NEED_DRAIN=0
+case "${SCOPE}" in
+  full|room|api) NEED_DRAIN=1 ;;
+esac
+
 IS_UPGRADE=0
-if [ -n "${ADMIN_TOKEN_VAL}" ] && curl -fsS --max-time 3 "${API_BASE}/health" >/dev/null 2>&1; then
+if [ "${NEED_DRAIN}" -eq 1 ] && [ -n "${ADMIN_TOKEN_VAL}" ] && curl -fsS --max-time 3 "${API_BASE}/health" >/dev/null 2>&1; then
   IS_UPGRADE=1
   echo "==> 检测到线上服务运行中，开启维护排水模式（暂停开启新游戏，等待在局玩家打完本局）..."
   curl -fsS --max-time 5 -X POST "${API_BASE}/api/admin/maintenance/drain" \
-    -H "x-admin-token: ${ADMIN_TOKEN_VAL}" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN_VAL}" \
     -H "content-type: application/json" \
     -d "{\"compensationCoins\":${COMPENSATION_COINS}}" >/dev/null 2>&1 || true
 
   WAITED=0
   while [ "${WAITED}" -lt "${MAX_DRAIN_WAIT_SEC}" ]; do
     STATUS_JSON="$(curl -fsS --max-time 4 "${API_BASE}/api/admin/maintenance/status" \
-      -H "x-admin-token: ${ADMIN_TOKEN_VAL}" 2>/dev/null || echo '{"activeHumanGames":0}')"
+      -H "Authorization: Bearer ${ADMIN_TOKEN_VAL}" 2>/dev/null || echo '{"activeHumanGames":0}')"
     ACTIVE_GAMES="$(printf '%s' "${STATUS_JSON}" | sed -n 's/.*"activeHumanGames"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n1)"
     ACTIVE_GAMES="${ACTIVE_GAMES:-0}"
     if [ "${ACTIVE_GAMES}" -eq 0 ]; then
@@ -185,33 +205,57 @@ if [ -n "${ADMIN_TOKEN_VAL}" ] && curl -fsS --max-time 3 "${API_BASE}/health" >/
 
   echo "==> 切换为「平台紧急更新中」友好等待页（期间零 502 报错）..."
   curl -fsS --max-time 5 -X POST "${API_BASE}/api/admin/maintenance/updating" \
-    -H "x-admin-token: ${ADMIN_TOKEN_VAL}" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN_VAL}" \
     -H "content-type: application/json" \
     -d "{\"compensationCoins\":${COMPENSATION_COINS}}" >/dev/null 2>&1 || true
   sleep 2
 fi
 
-# 5. 先滚动重启后端容器（此时旧 Nginx web 保持在线提供维护页），后端就绪后再切换 web
-echo "==> 平滑启动服务容器..."
+# 5. 按 SCOPE 滚动重启
+echo "==> 平滑启动服务容器 (SCOPE=${SCOPE})..."
 ${DC} -f "${COMPOSE_FILE}" up -d postgres
-${DC} -f "${COMPOSE_FILE}" up -d --no-deps api-server room-server
+case "${SCOPE}" in
+  web)
+    ${DC} -f "${COMPOSE_FILE}" up -d --no-deps --remove-orphans web
+    ;;
+  api)
+    ${DC} -f "${COMPOSE_FILE}" up -d --no-deps api-server
+    ;;
+  room)
+    ${DC} -f "${COMPOSE_FILE}" up -d --no-deps room-server
+    ;;
+  *)
+    ${DC} -f "${COMPOSE_FILE}" up -d --no-deps api-server room-server
+    ;;
+esac
 
-echo "==> 等待后端核心服务健康就绪..."
-for i in $(seq 1 25); do
-  if docker exec cc-api-server wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 \
-    && docker exec cc-room-server wget -qO- http://127.0.0.1:9000/health >/dev/null 2>&1; then
-    echo "✅ api-server 与 room-server 已健康就绪！"
-    break
-  fi
-  if [ "$i" -eq 25 ]; then
-    echo "❌ 后端健康检查超时，最近日志如下：" >&2
-    ${DC} -f "${COMPOSE_FILE}" logs --tail=50 api-server room-server >&2
-    exit 1
-  fi
-  sleep 2
-done
+if [ "${SCOPE}" != "web" ]; then
+  echo "==> 等待后端核心服务健康就绪..."
+  for i in $(seq 1 25); do
+    API_OK=1
+    ROOM_OK=1
+    if [ "${SCOPE}" = "api" ] || [ "${SCOPE}" = "full" ]; then
+      docker exec cc-api-server wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || API_OK=0
+    fi
+    if [ "${SCOPE}" = "room" ] || [ "${SCOPE}" = "full" ]; then
+      docker exec cc-room-server wget -qO- http://127.0.0.1:9000/health >/dev/null 2>&1 || ROOM_OK=0
+    fi
+    if [ "${API_OK}" -eq 1 ] && [ "${ROOM_OK}" -eq 1 ]; then
+      echo "✅ 目标后端服务已健康就绪！"
+      break
+    fi
+    if [ "$i" -eq 25 ]; then
+      echo "❌ 后端健康检查超时，最近日志如下：" >&2
+      ${DC} -f "${COMPOSE_FILE}" logs --tail=50 api-server room-server >&2
+      exit 1
+    fi
+    sleep 2
+  done
+fi
 
-${DC} -f "${COMPOSE_FILE}" up -d --no-deps --remove-orphans web
+if [ "${SCOPE}" = "full" ]; then
+  ${DC} -f "${COMPOSE_FILE}" up -d --no-deps --remove-orphans web
+fi
 
 # 6. 最终入口健康检查
 echo "==> 正在进行最终入口健康检查..."
@@ -230,11 +274,11 @@ for i in $(seq 1 15); do
   sleep 2
 done
 
-# 7. 更新完成：自动解除维护状态，并向全服玩家发放 1,000 欢乐豆停服更新补偿邮件（按版本号幂等防重）
+# 7. 仅全站/后端排水更新发放补偿；SCOPE=web 不补偿
 if [ "${IS_UPGRADE}" -eq 1 ] && [ -n "${ADMIN_TOKEN_VAL}" ]; then
   echo "==> 自动发放全服更新补偿 (${COMPENSATION_COINS} 欢乐豆/人) 并恢复平台服务..."
   COMP_RES="$(curl -fsS --max-time 8 -X POST "${API_BASE}/api/admin/maintenance/complete" \
-    -H "x-admin-token: ${ADMIN_TOKEN_VAL}" \
+    -H "Authorization: Bearer ${ADMIN_TOKEN_VAL}" \
     -H "content-type: application/json" \
     -d "{\"version\":\"${NEW_VERSION}\",\"compensationCoins\":${COMPENSATION_COINS}}" 2>/dev/null || true)"
   echo "    补偿结果: ${COMP_RES}"

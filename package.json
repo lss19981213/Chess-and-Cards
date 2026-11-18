@@ -17,6 +17,7 @@
     "format": "prettier --write \"apps/**/*.{ts,tsx,css}\" \"packages/**/*.ts\" \"services/**/*.ts\"",
     "format:check": "prettier --check \"apps/**/*.{ts,tsx,css}\" \"packages/**/*.ts\" \"services/**/*.ts\"",
     "e2e": "tsx scripts/e2e-smoke.ts",
+    "smoke:games": "pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts",
     "gm": "node tools/gm-cli.mjs",
     "clean": "pnpm -r exec rimraf dist node_modules/.cache"
   },

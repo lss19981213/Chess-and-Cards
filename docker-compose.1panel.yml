@@ -89,6 +89,8 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - ./data/outbox:/data/outbox
+      # 单游戏热更新：宿主机 git 树中的插件源码挂载进容器，reload 时按 file URL 重新 import
+      - ./services/games:/app/services/games
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health >/dev/null 2>&1 || exit 1"]
       interval: 10s

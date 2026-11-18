@@ -1229,4 +1229,53 @@ namespace CcGmClient.Models
         [JsonPropertyName("playerBalance")]
         public long PlayerBalance { get; set; }
     }
+
+    /// <summary>
+    /// 单游戏运营态（房间服透出，供热更/下架面板展示）。
+    /// </summary>
+    public class GameOpsItem
+    {
+        [JsonPropertyName("gameId")]
+        public string GameId { get; set; } = "";
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("version")]
+        public string Version { get; set; } = "";
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = "enabled";
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = "";
+
+        [JsonPropertyName("activeHumanGames")]
+        public int ActiveHumanGames { get; set; }
+
+        [JsonPropertyName("packageName")]
+        public string? PackageName { get; set; }
+
+        [JsonPropertyName("lastReloadAt")]
+        public long? LastReloadAt { get; set; }
+
+        [JsonIgnore]
+        public string StatusLabel => Status switch
+        {
+            "enabled" => "正常",
+            "draining" => "排水中",
+            "updating" => "热更新中",
+            "disabled" => "已下架",
+            _ => Status
+        };
+    }
+
+    public class GameOpsListResponse
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("games")]
+        public List<GameOpsItem> Games { get; set; } = new();
+    }
 }

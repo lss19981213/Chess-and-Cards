@@ -201,6 +201,8 @@ export class GameRoom {
   /** 开启新一局：常驻玩法由插件按时间轴主动调用 */
   beginRound(): void {
     if (this.closed) return;
+    // 单游戏/全站排水期间暂停新一局，已在局由结算后自然停下
+    if (this.deps.isDraining?.(this.plugin.meta.gameId)) return;
     this.round += 1;
     this.seq += 1;
     // 种子必须不可预测：房间号与局数客户端都可见，用它们派生种子等于公开整副牌。
@@ -298,8 +300,8 @@ export class GameRoom {
   /** 观战玩家点击「入座」加入对局：若等待中立即入座（满员则替换一名机器人），若对局中则预约下局自动入座 */
   sitDown(playerId: string): { status: 'seated' | 'queued'; message: string } {
     if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
-    if (this.deps.isDraining?.()) {
-      throw new AppError(ErrorCode.IllegalAction, '平台即将升级更新，暂停入座开新局，请耐心等待！');
+    if (this.deps.isDraining?.(this.plugin.meta.gameId)) {
+      throw new AppError(ErrorCode.GameUnavailable, '该游戏维护中，暂停入座开新局，请稍候或前往其它玩法！');
     }
     if (this.seats.has(playerId)) {
       return { status: 'seated', message: '您已在牌桌上入座' };
@@ -623,8 +625,11 @@ export class GameRoom {
   setReady(playerId: string, ready: boolean): void {
     const seat = this.seats.get(playerId);
     if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
-    if (ready && !seat.isBot && this.deps.isDraining?.()) {
-      throw new AppError(ErrorCode.IllegalAction, '平台即将进行紧急更新，当前暂停开启新对局，更新完成后自动补偿 1,000 欢乐豆！');
+    if (ready && !seat.isBot && this.deps.isDraining?.(this.plugin.meta.gameId)) {
+      throw new AppError(
+        ErrorCode.GameUnavailable,
+        '该游戏维护中，当前暂停开启新对局，请稍候或前往其它玩法！',
+      );
     }
 
     if (this.status === 'settled') {
@@ -646,10 +651,14 @@ export class GameRoom {
   async handleIntent(playerId: string, cmd: string, payload: Record<string, unknown>): Promise<void> {
     if (!this.seats.has(playerId)) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
     if (this.status !== 'playing') throw new AppError(ErrorCode.IllegalAction, '当前不在对局中');
-    if (this.deps.isDraining?.() && this.persistent && (cmd === 'bet' || cmd === 'spin')) {
+    if (
+      this.deps.isDraining?.(this.plugin.meta.gameId) &&
+      this.persistent &&
+      (cmd === 'bet' || cmd === 'spin')
+    ) {
       throw new AppError(
-        ErrorCode.IllegalAction,
-        '平台即将紧急更新，当前暂停新下注，正在等待本局结算完成后升级（更新完自动补偿 1,000 欢乐豆）！',
+        ErrorCode.GameUnavailable,
+        '该游戏维护中，当前暂停新下注，请等待本局结算或前往其它玩法！',
       );
     }
     if (!this.plugin.commands.includes(cmd)) {
@@ -733,7 +742,7 @@ export class GameRoom {
 
   private tryStart(): void {
     if (this.status !== 'waiting' || this.closed) return;
-    if (this.deps.isDraining?.() && this.humanCount > 0) return;
+    if (this.deps.isDraining?.(this.plugin.meta.gameId) && this.humanCount > 0) return;
     if (this.seats.size < this.plugin.meta.minPlayers) return;
     if (![...this.seats.values()].every((s) => s.ready)) return;
     this.startRound();

@@ -22,7 +22,8 @@ const log = createLogger('room-server');
 import { RoomManager } from './registry';
 import { createSettlementReporter } from './settlement';
 import { createReleaseClient, createWalletClient } from './wallet';
-import { registerBuiltinGames } from './plugins';
+import { registerBuiltinGames, reloadGamePackage } from './plugins';
+import type { GameOpsStatus } from '@cc/protocol';
 
 const AUTH_TIMEOUT_MS = 15_000;
 const HEARTBEAT_MS = 30_000;
@@ -153,6 +154,8 @@ async function handleHttp(
 
   if (url.pathname === '/health') {
     const maint = manager.getMaintenanceStatus();
+    const gameOps = manager.listGameOps();
+    const unavailable = gameOps.filter((g) => g.status !== 'enabled');
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(
       JSON.stringify({
@@ -161,6 +164,15 @@ async function handleHttp(
         games: manager.listGames().length,
         maintenanceMode: maint.mode,
         activeHumanGames: maint.activeHumanGames,
+        /** 按游戏运营态观测：非 enabled 数量与明细 */
+        gameOps: {
+          unavailableCount: unavailable.length,
+          unavailable: unavailable.map((g) => ({
+            gameId: g.gameId,
+            status: g.status,
+            activeHumanGames: g.activeHumanGames,
+          })),
+        },
       }),
     );
     return;
@@ -203,6 +215,124 @@ async function handleHttp(
   if (url.pathname === '/games') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ games: manager.listGames() }));
+    return;
+  }
+
+  // ---- 单游戏运营 / 热更（仅内部密钥）----
+  const gameOpsMatch = url.pathname.match(
+    /^\/internal\/games\/([^/]+)\/(drain|disable|enable|reload|status)$/,
+  );
+  if (gameOpsMatch && (req.method === 'POST' || req.method === 'GET')) {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    const gameKey = decodeURIComponent(gameOpsMatch[1]!);
+    const action = gameOpsMatch[2]!;
+    try {
+      if (action === 'status' && req.method === 'GET') {
+        // 支持按包名查：若不是已注册 gameId，尝试包内第一个
+        let statusGameId = gameKey;
+        if (!manager.hasGame(gameKey)) {
+          const opsList = manager.listGameOps();
+          const hit = opsList.find(
+            (g) => g.packageName === gameKey || g.packageName === `@cc/game-${gameKey}`,
+          );
+          if (hit) statusGameId = hit.gameId;
+        }
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, ...manager.getGameOpsStatus(statusGameId) }));
+        return;
+      }
+      if (req.method !== 'POST') {
+        res.writeHead(405, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'method not allowed' }));
+        return;
+      }
+      const body = await readJsonBody(req).catch(() => ({} as Record<string, unknown>));
+      const message = typeof body.message === 'string' ? body.message : undefined;
+
+      if (action === 'reload') {
+        // 同包全部 gameId 先标 updating，再热加载
+        const result = await reloadGamePackage(manager, gameKey);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            pkgName: result.pkgName,
+            gameIds: result.gameIds,
+            games: result.gameIds.map((id) => manager.getGameOpsStatus(id)),
+          }),
+        );
+        return;
+      }
+
+      const statusMap: Record<string, GameOpsStatus> = {
+        drain: 'draining',
+        disable: 'disabled',
+        enable: 'enabled',
+      };
+      const nextStatus = statusMap[action];
+      if (!nextStatus) {
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: `未知操作: ${action}` }));
+        return;
+      }
+
+      // 按包连带：drain/disable/enable 作用于同包全部变体
+      const pkg = manager.getGamePackage(gameKey);
+      const targets =
+        pkg && body.packageScope !== false
+          ? manager.listGameIdsByPackage(pkg)
+          : manager.hasGame(gameKey)
+            ? [gameKey]
+            : [];
+      if (targets.length === 0) {
+        // gameKey 可能是包名
+        const byPkg = manager.listGameOps().filter(
+          (g) => g.packageName === gameKey || g.packageName === `@cc/game-${gameKey}`,
+        );
+        if (byPkg.length === 0) {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: `游戏不存在: ${gameKey}` }));
+          return;
+        }
+        for (const g of byPkg) manager.setGameOps(g.gameId, nextStatus, message);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            games: byPkg.map((g) => manager.getGameOpsStatus(g.gameId)),
+          }),
+        );
+        return;
+      }
+
+      for (const id of targets) manager.setGameOps(id, nextStatus, message);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          ok: true,
+          games: targets.map((id) => manager.getGameOpsStatus(id)),
+        }),
+      );
+    } catch (error) {
+      log.error('单游戏运维操作失败', { gameKey, action, error: (error as Error).message });
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: (error as Error).message }));
+    }
+    return;
+  }
+
+  if (url.pathname === '/internal/games' && req.method === 'GET') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, games: manager.listGameOps() }));
     return;
   }
 
@@ -561,8 +691,14 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
           throw new AppError(ErrorCode.RoomNotFound, '房间不存在或已解散');
         }
         const alreadySeated = target.view().players.some((p) => p.playerId === session.playerId);
-        if (manager.isDraining() && !alreadySeated) {
-          throw new AppError(ErrorCode.IllegalAction, '平台即将紧急更新，当前暂停加入新牌局，请耐心等待！');
+        if (!alreadySeated) {
+          if (manager.isDraining()) {
+            throw new AppError(
+              ErrorCode.IllegalAction,
+              '平台即将紧急更新，当前暂停加入新牌局，请耐心等待！',
+            );
+          }
+          manager.assertGameAcceptsJoin(target.gameId);
         }
         if (target.isBotHosted) {
           // 机器人自建经典扑克房：玩家进入默认观战模式，点击入座按钮才能加入牌局

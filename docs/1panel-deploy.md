@@ -72,6 +72,36 @@ curl -fsSL https://raw.githubusercontent.com/lss19981213/Chess-and-Cards/main/in
 
 ---
 
+### 方式 C：单游戏热更新（其它玩法不停服）
+
+仅修改 `services/games/<包>/` 时，**不要**走全站排水，改用：
+
+```bash
+bash /opt/1panel/apps/chess-and-cards/infra/1panel-game-update.sh dice
+# 或包名：bash .../1panel-game-update.sh @cc/game-cs-mahjong
+```
+
+脚本会：拉代码 → 变更范围门禁（触及 protocol/sdk/api 会拒绝）→ 仅对该游戏 drain → 热 reload → enable。  
+**不会**出现全站维护页，**不会**发放全服补偿。详细设计见 [优化方案书-单游戏热更新.md](./优化方案书-单游戏热更新.md)。
+
+也可在 GM 客户端「单游戏热更运维」页一键排水 / 下架 / 热重载 / 启用。
+
+### 按范围发布（SCOPE）
+
+全量脚本支持环境变量 `SCOPE`：
+
+| SCOPE | 行为 |
+| --- | --- |
+| `full`（默认） | 全站排水 + 构建全部镜像 + 补偿 |
+| `web` | 只重建/重启前端，**不排水**，在局玩家不断线 |
+| `api` / `room` | 只滚动对应后端（会排水） |
+
+```bash
+SCOPE=web bash /opt/1panel/apps/chess-and-cards/infra/1panel-update.sh
+```
+
+---
+
 ## 三、常用运维命令速查
 
 ```bash

@@ -3,6 +3,7 @@ import type { GameMeta } from '@cc/protocol';
 import { api } from '../api';
 import { audio } from '../audio';
 import { GAME_ART } from '../assets';
+import { gameStatusBadge, gameUnavailableToast, isGameJoinable } from '../gameAvailability';
 
 interface TrendMark {
   round: number;
@@ -64,17 +65,32 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
     return () => window.clearInterval(timer);
   }, [load]);
 
+  const joinable = isGameJoinable(game);
+  const maintBadge = gameStatusBadge(game);
+
   const handleQuickJoin = () => {
+    if (!joinable) {
+      audio.play('alert');
+      return;
+    }
     audio.play('click');
     onJoin(null, false);
   };
 
   const handleCreate = () => {
+    if (!joinable) {
+      audio.play('alert');
+      return;
+    }
     audio.play('click');
     onJoin(null, true);
   };
 
   const handleSelectRoom = (roomId: string) => {
+    if (!joinable) {
+      audio.play('alert');
+      return;
+    }
     audio.play('click');
     onJoin(roomId, false);
   };
@@ -91,16 +107,24 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
           <span className="rooms-title-icon">{game.icon}</span>
           <h2>{game.name}</h2>
           <span className="rooms-title-sub">
-            {isLive
-              ? '平台坐庄 · 极速轮播'
-              : game.minPlayers === game.maxPlayers
-                ? `${game.minPlayers}人经典桌`
-                : `${game.minPlayers}-${game.maxPlayers}人经典桌`}
+            {!joinable
+              ? maintBadge || gameUnavailableToast(game)
+              : isLive
+                ? '平台坐庄 · 极速轮播'
+                : game.minPlayers === game.maxPlayers
+                  ? `${game.minPlayers}人经典桌`
+                  : `${game.minPlayers}-${game.maxPlayers}人经典桌`}
           </span>
         </div>
         <div className="rooms-top-actions">
-          <button type="button" className="luxury-btn luxury-btn--gold-sm" onClick={handleQuickJoin}>
-            ⚡ 极速入座
+          <button
+            type="button"
+            className="luxury-btn luxury-btn--gold-sm"
+            onClick={handleQuickJoin}
+            disabled={!joinable}
+            title={joinable ? undefined : gameUnavailableToast(game)}
+          >
+            {joinable ? '⚡ 极速入座' : '🛠️ 维护中'}
           </button>
         </div>
       </header>
@@ -128,8 +152,14 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
               </div>
             </div>
             {!isLive && (
-              <button type="button" className="btn-create-room" onClick={handleCreate}>
-                + 创建专属房间
+              <button
+                type="button"
+                className="btn-create-room"
+                onClick={handleCreate}
+                disabled={!joinable}
+                title={joinable ? undefined : gameUnavailableToast(game)}
+              >
+                {joinable ? '+ 创建专属房间' : '维护中不可建房'}
               </button>
             )}
           </div>

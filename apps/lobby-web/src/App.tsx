@@ -10,6 +10,7 @@ import {
 } from '@cc/protocol';
 import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
+import { gameUnavailableToast, isGameJoinable } from './gameAvailability';
 import { GameSocket } from './ws';
 import { AuthView } from './components/AuthView';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -418,6 +419,14 @@ export default function App() {
         setSettlement(null);
         setView('lobby');
       }
+      // 单游戏维护：退回大厅，避免停在选台页空点
+      if (payload.code === ErrorCode.GameUnavailable) {
+        s.setRoomRef(null);
+        setRoom(null);
+        setSnapshot(null);
+        setSettlement(null);
+        setView('lobby');
+      }
     });
 
     s.connect();
@@ -465,6 +474,11 @@ export default function App() {
       showToast('🛠️ 平台即将紧急更新，当前暂停开启新游戏，更新完成后自动补偿 1,000 欢乐豆！');
       return;
     }
+    if (!isGameJoinable(game)) {
+      audio.play('alert');
+      showToast(gameUnavailableToast(game));
+      return;
+    }
     setSelectedGame(game);
     setJoinError(null);
     autoStartRef.current = !game.persistent;
@@ -493,6 +507,11 @@ export default function App() {
     if (maintenance.mode !== 'normal') {
       audio.play('alert');
       showToast('🛠️ 平台即将紧急更新，当前暂停开启新游戏，更新完成后自动补偿 1,000 欢乐豆！');
+      return;
+    }
+    if (!isGameJoinable(game)) {
+      audio.play('alert');
+      showToast(gameUnavailableToast(game));
       return;
     }
     setSelectedGame(game);
@@ -527,6 +546,12 @@ export default function App() {
       return;
     }
     if (!selectedGame) return;
+    if (!isGameJoinable(selectedGame)) {
+      audio.play('alert');
+      showToast(gameUnavailableToast(selectedGame));
+      setView('lobby');
+      return;
+    }
     if (!user || !socketRef.current) {
       pendingJoinRef.current = selectedGame;
       requireLogin('register', '请先登录或创建账号后再入座对局！');

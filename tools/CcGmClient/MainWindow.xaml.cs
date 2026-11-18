@@ -202,6 +202,7 @@ namespace CcGmClient
             ViewDashboard.Visibility = tag == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
             ViewPlayers.Visibility = tag == "players" ? Visibility.Visible : Visibility.Collapsed;
             ViewRooms.Visibility = tag == "rooms" ? Visibility.Visible : Visibility.Collapsed;
+            ViewGameOps.Visibility = tag == "gameops" ? Visibility.Visible : Visibility.Collapsed;
             ViewSlots.Visibility = tag == "slots" ? Visibility.Visible : Visibility.Collapsed;
             ViewCategories.Visibility = tag == "categories" ? Visibility.Visible : Visibility.Collapsed;
             ViewTasks.Visibility = tag == "tasks" ? Visibility.Visible : Visibility.Collapsed;
@@ -211,11 +212,17 @@ namespace CcGmClient
             ViewSecurity.Visibility = tag == "security" ? Visibility.Visible : Visibility.Collapsed;
             ViewDevOps.Visibility = tag == "devops" ? Visibility.Visible : Visibility.Collapsed;
 
+            if (tag == "gameops")
+            {
+                _ = RefreshGameOpsAsync();
+            }
+
             TxtCurrentViewTitle.Text = tag switch
             {
                 "dashboard" => "📊 大盘总览与经济流动",
                 "players" => "👥 玩家管控与流水审计",
                 "rooms" => "🎲 房间实时透视与博弈管控",
+                "gameops" => "🕹️ 单游戏热更与上下架运维",
                 "slots" => "🎰 老虎机经营数据与概率调控",
                 "categories" => "🗂️ 大厅游戏分类与归属动态配置",
                 "tasks" => "🎯 每日任务与成长任务动态管理",
@@ -1605,6 +1612,77 @@ namespace CcGmClient
             {
                 MessageBox.Show($"销毁房间失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// 刷新单游戏运营态列表。
+        /// </summary>
+        private async Task RefreshGameOpsAsync()
+        {
+            if (!_isConnected || _api == null) return;
+            try
+            {
+                var list = await _api.GetGameOpsListAsync();
+                GridGameOps.ItemsSource = list;
+                SetStatus($"已加载 {list.Count} 款游戏运营态");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"加载游戏运营态失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnRefreshGameOps_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshGameOpsAsync();
+        }
+
+        /// <summary>
+        /// 执行单游戏运维动作（排水/下架/热重载/启用），危险操作需确认。
+        /// </summary>
+        private async Task RunGameOpsActionAsync(string? gameId, string action, string confirmText)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || _api == null) return;
+            var confirm = MessageBox.Show(
+                $"{confirmText}\n\n目标: {gameId}\n同包多玩法（如麻将变体）会连带处理。\n不会触发全站维护页或全服补偿。",
+                "单游戏运维确认",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+            try
+            {
+                await _api.GameOpsActionAsync(gameId, action);
+                SetStatus($"已对 {gameId} 执行 {action}");
+                await RefreshGameOpsAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{action} 失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnGameOpsDrain_Click(object sender, RoutedEventArgs e)
+        {
+            var id = (sender as FrameworkElement)?.Tag as string;
+            await RunGameOpsActionAsync(id, "drain", "确认对该游戏进入排水？将禁止新进房，已在局可打完。");
+        }
+
+        private async void BtnGameOpsDisable_Click(object sender, RoutedEventArgs e)
+        {
+            var id = (sender as FrameworkElement)?.Tag as string;
+            await RunGameOpsActionAsync(id, "disable", "确认下架该游戏？大厅将显示维护中且不可进入。");
+        }
+
+        private async void BtnGameOpsReload_Click(object sender, RoutedEventArgs e)
+        {
+            var id = (sender as FrameworkElement)?.Tag as string;
+            await RunGameOpsActionAsync(id, "reload", "确认热重载该游戏插件？请确保已排水且活跃真人桌为 0。");
+        }
+
+        private async void BtnGameOpsEnable_Click(object sender, RoutedEventArgs e)
+        {
+            var id = (sender as FrameworkElement)?.Tag as string;
+            await RunGameOpsActionAsync(id, "enable", "确认重新启用该游戏？");
         }
 
         private void BtnOpenBatchRoomModal_Click(object sender, RoutedEventArgs e)

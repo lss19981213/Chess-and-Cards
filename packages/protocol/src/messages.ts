@@ -47,6 +47,8 @@ export const ErrorCode = {
   RoomFull: 'ROOM_FULL',
   AlreadyInRoom: 'ALREADY_IN_ROOM',
   IllegalAction: 'ILLEGAL_ACTION',
+  /** 单游戏维护/下架/热更中，禁止新进房或新开局 */
+  GameUnavailable: 'GAME_UNAVAILABLE',
   RateLimited: 'RATE_LIMITED',
   Internal: 'INTERNAL',
 } as const;

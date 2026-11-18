@@ -1,6 +1,9 @@
 /**
- * 游戏插件规则冒烟测试：直接驱动全部 13 个游戏插件 + 动态注册验证。
- * 运行：pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts
+ * 游戏插件规则冒烟测试：直接驱动内置游戏插件 + 动态注册验证。
+ * 运行：
+ *   pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts
+ *   GAME_ID=dice pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts
+ *   pnpm --filter @cc/room-server exec tsx scripts/game-smoke.ts texas
  */
 import type { GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import { BaccaratPlugin } from '@cc/game-baccarat';
@@ -242,7 +245,7 @@ async function testBotMatch(
   }
 }
 
-async function testDynamicRegistry(): Promise<void> {
+async function testDynamicRegistry(filter?: string): Promise<void> {
   console.log('\n[动态插件注册]');
   const manager = new RoomManager(
     config,
@@ -252,49 +255,100 @@ async function testDynamicRegistry(): Promise<void> {
   );
   const loaded = await registerBuiltinGames(manager);
   const games = manager.listGames().map((g) => g.gameId);
-  assert(loaded.length === 13 && games.length === 13, `动态加载全部 ${games.length} 款游戏插件`);
+  assert(loaded.length >= 15 && games.length >= 15, `动态加载游戏插件（${games.length} 款）`);
   assert(manager.list().length >= 15, `常驻平台台自动初始化（${manager.list().length} 桌）`);
+  if (filter) {
+    assert(
+      manager.hasGame(filter) || games.some((id) => id.includes(filter)),
+      `过滤器 ${filter} 对应游戏已注册`,
+    );
+    // 单游戏运营态：禁用后不可 join 语义由 status 表达
+    const target = manager.hasGame(filter) ? filter : games.find((id) => id.includes(filter))!;
+    manager.setGameOps(target, 'disabled', '冒烟：临时下架');
+    const meta = manager.listGames().find((g) => g.gameId === target);
+    assert(meta?.status === 'disabled', `${target} status=disabled`);
+    manager.setGameOps(target, 'enabled');
+  }
   manager.shutdown();
 }
 
+/** 是否应跑该用例（无过滤器时全跑） */
+function matchFilter(filter: string | undefined, ...keys: string[]): boolean {
+  if (!filter) return true;
+  const f = filter.toLowerCase();
+  return keys.some((k) => k.toLowerCase().includes(f) || f.includes(k.toLowerCase()));
+}
+
 async function main(): Promise<void> {
-  await testDynamicRegistry();
-  await testBettingGame('推筒子', new TuizhuanziPlugin(), 'heaven');
-  await testBettingGame('百家乐', new BaccaratPlugin(), 'player');
-  await testBettingGame('百人骰宝', new DicePlugin(), 'big');
-  await testBettingGame('百人牛牛', new NiuniuPlugin(), 'niu-1');
-  await testBettingGame('21 点', new BlackjackPlugin(), 'win');
+  const filter = (process.env.GAME_ID || process.argv[2] || '').trim() || undefined;
+  if (filter) console.log(`\n[过滤器] GAME_ID=${filter}`);
 
-  testPaodekuai();
-  testDoudizhu();
-  await testTexas();
+  await testDynamicRegistry(filter);
 
-  // 五子棋手动五连
-  console.log('\n[五子棋]');
-  const gPlugin = new GomokuPlugin();
-  const { ctx: gCtx, settled: gSettled } = makeCtx(makePlayers(2));
-  gPlugin.onRoundStart(gCtx);
-  for (let i = 0; i < 5; i += 1) {
-    gPlugin.onIntent(gCtx, 'p1', { cmd: 'place', payload: { x: i, y: 0 } });
-    if (i < 4) gPlugin.onIntent(gCtx, 'p2', { cmd: 'place', payload: { x: i, y: 1 } });
+  if (matchFilter(filter, 'tuizhuanzi', '推筒子')) {
+    await testBettingGame('推筒子', new TuizhuanziPlugin(), 'heaven');
   }
-  assert(gSettled.length === 1 && gSettled[0]?.winners[0] === 'p1', '先连成五子者胜');
+  if (matchFilter(filter, 'baccarat', '百家乐')) {
+    await testBettingGame('百家乐', new BaccaratPlugin(), 'player');
+  }
+  if (matchFilter(filter, 'dice', '骰宝')) {
+    await testBettingGame('百人骰宝', new DicePlugin(), 'big');
+  }
+  if (matchFilter(filter, 'niuniu', '斗牛', '牛牛')) {
+    await testBettingGame('百人牛牛', new NiuniuPlugin(), 'niu-1');
+  }
+  if (matchFilter(filter, 'blackjack', '21')) {
+    await testBettingGame('21 点', new BlackjackPlugin(), 'win');
+  }
 
-  await testBotMatch('五子棋', new GomokuPlugin(), 2, 40, false);
-  await testBotMatch('国际象棋', new ChessPlugin(), 2, 30, false);
-  await testBotMatch('中国象棋', new XiangqiPlugin(), 2, 30, false);
-  await testBotMatch('斗地主', new DoudizhuPlugin(), 3, 500, true);
-  await testBotMatch('跑得快', new PaodekuaiPlugin(), 3, 500, true);
-  await testBotMatch('扎金花', new GoldenFlowerPlugin(), 3, 120, true);
-  await testBotMatch('五张梭哈', new StudPlugin(), 3, 120, true);
-  await testBotMatch('德州扑克', new TexasPlugin(), 3, 120, true);
+  if (matchFilter(filter, 'paodekuai', '跑得快')) testPaodekuai();
+  if (matchFilter(filter, 'doudizhu', '斗地主')) testDoudizhu();
+  if (matchFilter(filter, 'texas', '德州')) await testTexas();
+
+  if (matchFilter(filter, 'gomoku', '五子棋')) {
+    console.log('\n[五子棋]');
+    const gPlugin = new GomokuPlugin();
+    const { ctx: gCtx, settled: gSettled } = makeCtx(makePlayers(2));
+    gPlugin.onRoundStart(gCtx);
+    for (let i = 0; i < 5; i += 1) {
+      gPlugin.onIntent(gCtx, 'p1', { cmd: 'place', payload: { x: i, y: 0 } });
+      if (i < 4) gPlugin.onIntent(gCtx, 'p2', { cmd: 'place', payload: { x: i, y: 1 } });
+    }
+    assert(gSettled.length === 1 && gSettled[0]?.winners[0] === 'p1', '先连成五子者胜');
+    await testBotMatch('五子棋', new GomokuPlugin(), 2, 40, false);
+  }
+
+  if (matchFilter(filter, 'chess', '国际象棋')) {
+    await testBotMatch('国际象棋', new ChessPlugin(), 2, 30, false);
+  }
+  if (matchFilter(filter, 'xiangqi', '中国象棋')) {
+    await testBotMatch('中国象棋', new XiangqiPlugin(), 2, 30, false);
+  }
+  if (matchFilter(filter, 'doudizhu', '斗地主') && !filter) {
+    /* 全量时上面已跑规则，下面补机器人 */
+  }
+  if (matchFilter(filter, 'doudizhu', '斗地主')) {
+    await testBotMatch('斗地主', new DoudizhuPlugin(), 3, 500, true);
+  }
+  if (matchFilter(filter, 'paodekuai', '跑得快')) {
+    await testBotMatch('跑得快', new PaodekuaiPlugin(), 3, 500, true);
+  }
+  if (matchFilter(filter, 'goldenflower', '扎金花', '翻金花')) {
+    await testBotMatch('扎金花', new GoldenFlowerPlugin(), 3, 120, true);
+  }
+  if (matchFilter(filter, 'stud', '梭哈')) {
+    await testBotMatch('五张梭哈', new StudPlugin(), 3, 120, true);
+  }
+  if (matchFilter(filter, 'texas', '德州')) {
+    await testBotMatch('德州扑克', new TexasPlugin(), 3, 120, true);
+  }
 
   console.log('');
   if (failures > 0) {
     console.error(`失败 ${failures} 项`);
     process.exit(1);
   }
-  console.log('全部通过 ✓');
+  console.log(filter ? `过滤器 ${filter} 通过 ✓` : '全部通过 ✓');
 }
 
 main().catch((error) => {

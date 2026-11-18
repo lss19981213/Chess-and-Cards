@@ -902,4 +902,70 @@ function describeLedgerRow(bizType: string, bizId: string): { bizLabel: string; 
     }
     return { result };
   });
+
+  // ==================== 单游戏运营 / 热更新（代理 room-server，不触发全站维护补偿） ====================
+
+  /**
+   * 转发单游戏运维请求到房间服内部接口。
+   * @param path 相对路径，如 /internal/games 或 /internal/games/dice/drain
+   * @param method HTTP 方法
+   * @param body 可选 JSON 体
+   */
+  async function proxyGameOps(
+    path: string,
+    method: 'GET' | 'POST',
+    body?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const res = await fetch(`${config.roomServerUrl}${path}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        'x-internal-key': config.internalKey,
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(method === 'POST' && path.endsWith('/reload') ? 30_000 : 8_000),
+    });
+    const text = await res.text();
+    let data: Record<string, unknown> = {};
+    try {
+      data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    } catch {
+      data = { error: text || '房间服返回非 JSON' };
+    }
+    if (!res.ok) {
+      throw httpError(typeof data.error === 'string' ? data.error : `房间服错误 (${res.status})`, res.status);
+    }
+    return data;
+  }
+
+  /** GM：全部游戏运营态列表 */
+  app.get('/api/admin/games', async (req) => {
+    requireAdmin(req);
+    return proxyGameOps('/internal/games', 'GET');
+  });
+
+  /** GM：单游戏状态 */
+  app.get<{ Params: { gameId: string } }>('/api/admin/games/:gameId/status', async (req) => {
+    requireAdmin(req);
+    const gameId = encodeURIComponent(req.params.gameId);
+    return proxyGameOps(`/internal/games/${gameId}/status`, 'GET');
+  });
+
+  /** GM：排水 / 禁用 / 启用 / 热重载 */
+  for (const action of ['drain', 'disable', 'enable', 'reload'] as const) {
+    app.post<{ Params: { gameId: string } }>(`/api/admin/games/:gameId/${action}`, async (req) => {
+      requireAdmin(req);
+      const gameId = encodeURIComponent(req.params.gameId);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const result = await proxyGameOps(`/internal/games/${gameId}/${action}`, 'POST', body);
+      apiLog.info(`GM 单游戏运维: ${action}`, { gameId: req.params.gameId, result });
+      recordEvent(
+        'warn',
+        'game-ops',
+        `GM ${action} 游戏 ${req.params.gameId}`,
+        { gameId: req.params.gameId, action },
+      );
+      return result;
+    });
+  }
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { BotDifficulty, GameMeta, RoomSummary, Settlement } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameOpsStatus, RoomSummary, Settlement } from '@cc/protocol';
 import { AppError, ErrorCode } from '@cc/protocol';
 import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
@@ -24,6 +24,7 @@ export const BOT_HOSTED_POKER_GAMES = new Set([
 ]);
 
 const scaleLog = createLogger('scale');
+const opsLog = createLogger('game-ops');
 
 export { PLATFORM_ROOMS_INITIAL };
 
@@ -43,14 +44,43 @@ export interface RoomMaintenanceStatus {
   }>;
 }
 
+/** 单游戏运营态（与全局 MaintenanceMode 并存） */
+export interface GameOpsState {
+  status: GameOpsStatus;
+  message: string;
+  since: number | null;
+  /** 最近一次热更时间戳，可空 */
+  lastReloadAt: number | null;
+}
+
+/** 单游戏维护查询结果，供 GM / 发布脚本轮询 */
+export interface GameOpsStatusView extends GameOpsState {
+  gameId: string;
+  name: string;
+  version: string;
+  activeHumanGames: number;
+  activeRooms: RoomMaintenanceStatus['activeRooms'];
+  /** 所属插件包名（热更连带提示用） */
+  packageName?: string;
+}
+
+const DEFAULT_OPS_MESSAGE: Record<Exclude<GameOpsStatus, 'enabled'>, string> = {
+  disabled: '该游戏暂时下架维护中，请稍后再试或前往其它玩法',
+  draining: '该游戏即将维护，暂停开启新对局，正在等待进行中的对局完成',
+  updating: '该游戏正在热更新中，请稍候片刻',
+};
+
 /**
  * 房间与插件注册中心。
  * 新增游戏只需 register()，大厅通过 listGames() 自动获得入口。
+ * 支持按 gameId 排水 / 下架 / 热更，不影响其它玩法。
  */
 export class RoomManager {
   private readonly factories = new Map<string, GamePluginFactory>();
   private readonly metas = new Map<string, GameMeta>();
   private readonly rooms = new Map<string, GameRoom>();
+  private readonly gameOps = new Map<string, GameOpsState>();
+  private readonly gamePackages = new Map<string, string>();
   private readonly deps: RoomDeps;
   private maintenanceMode: MaintenanceMode = 'normal';
   private maintenanceMessage = '';
@@ -70,12 +100,42 @@ export class RoomManager {
       empty: (roomId) => {
         this.rooms.delete(roomId);
       },
-      isDraining: () => this.maintenanceMode !== 'normal',
+      isDraining: (gameId: string) => this.isRoomActionBlocked(gameId),
     };
   }
 
   isDraining(): boolean {
     return this.maintenanceMode !== 'normal';
+  }
+
+  /**
+   * 房间内「新开局 / 新下注 / 入座」是否应拦截。
+   * 全局维护或单游戏非 enabled 时返回 true。
+   */
+  isRoomActionBlocked(gameId: string): boolean {
+    if (this.maintenanceMode !== 'normal') return true;
+    const status = this.gameOps.get(gameId)?.status ?? 'enabled';
+    return status !== 'enabled';
+  }
+
+  /**
+   * 禁止新玩家加入该游戏（含选台入房）。
+   * @param gameId 玩法 ID
+   */
+  assertGameAcceptsJoin(gameId: string): void {
+    if (this.maintenanceMode !== 'normal') {
+      throw new AppError(
+        ErrorCode.IllegalAction,
+        this.maintenanceMessage || '平台即将紧急更新，当前暂停开启新游戏，请耐心等待！',
+      );
+    }
+    const ops = this.gameOps.get(gameId);
+    const status = ops?.status ?? 'enabled';
+    if (status === 'enabled') return;
+    throw new AppError(
+      ErrorCode.GameUnavailable,
+      ops?.message || DEFAULT_OPS_MESSAGE[status] || '该游戏暂时不可用',
+    );
   }
 
   setMaintenanceMode(mode: MaintenanceMode, message?: string): RoomMaintenanceStatus {
@@ -95,8 +155,109 @@ export class RoomManager {
   }
 
   getMaintenanceStatus(): RoomMaintenanceStatus {
+    return {
+      mode: this.maintenanceMode,
+      message: this.maintenanceMessage,
+      since: this.maintenanceSince,
+      ...this.collectActiveHumanRooms(),
+    };
+  }
+
+  /**
+   * 设置单游戏运营态。
+   * @param gameId 玩法 ID
+   * @param status 目标状态
+   * @param message 可选自定义文案
+   */
+  setGameOps(gameId: string, status: GameOpsStatus, message?: string): GameOpsStatusView {
+    if (!this.factories.has(gameId) && !this.metas.has(gameId)) {
+      throw new AppError(ErrorCode.BadRequest, `游戏不存在: ${gameId}`);
+    }
+    const prev = this.gameOps.get(gameId);
+    const next: GameOpsState = {
+      status,
+      message:
+        message?.trim() ||
+        (status === 'enabled' ? '' : DEFAULT_OPS_MESSAGE[status]) ||
+        prev?.message ||
+        '',
+      since: status === 'enabled' ? null : (prev?.since ?? Date.now()),
+      lastReloadAt: prev?.lastReloadAt ?? null,
+    };
+    if (status === 'enabled') {
+      next.message = message?.trim() || '';
+    }
+    this.gameOps.set(gameId, next);
+    opsLog.info('单游戏运营态变更', { gameId, status: next.status });
+    return this.getGameOpsStatus(gameId);
+  }
+
+  /** 标记热更完成时间（reload 成功后调用） */
+  markGameReloaded(gameId: string): void {
+    const prev = this.gameOps.get(gameId) ?? {
+      status: 'enabled' as const,
+      message: '',
+      since: null,
+      lastReloadAt: null,
+    };
+    this.gameOps.set(gameId, { ...prev, lastReloadAt: Date.now() });
+  }
+
+  /**
+   * 绑定 gameId 与插件包名，供热更连带与 GM 展示。
+   * @param gameId 玩法 ID
+   * @param packageName 如 @cc/game-dice
+   */
+  bindGamePackage(gameId: string, packageName: string): void {
+    this.gamePackages.set(gameId, packageName);
+  }
+
+  getGamePackage(gameId: string): string | undefined {
+    return this.gamePackages.get(gameId);
+  }
+
+  /** 列出同包下全部 gameId（麻将五变体等） */
+  listGameIdsByPackage(packageName: string): string[] {
+    return [...this.gamePackages.entries()]
+      .filter(([, pkg]) => pkg === packageName)
+      .map(([id]) => id);
+  }
+
+  getGameOpsStatus(gameId: string): GameOpsStatusView {
+    if (!this.metas.has(gameId) && !this.factories.has(gameId)) {
+      throw new AppError(ErrorCode.BadRequest, `游戏不存在: ${gameId}`);
+    }
+    const meta = this.metas.get(gameId);
+    const ops = this.gameOps.get(gameId) ?? {
+      status: 'enabled' as const,
+      message: '',
+      since: null,
+      lastReloadAt: null,
+    };
+    const { activeHumanGames, activeRooms } = this.collectActiveHumanRooms(gameId);
+    return {
+      gameId,
+      name: meta?.name ?? gameId,
+      version: meta?.version ?? '',
+      packageName: this.gamePackages.get(gameId),
+      ...ops,
+      activeHumanGames,
+      activeRooms,
+    };
+  }
+
+  /** 全部游戏运营态一览 */
+  listGameOps(): GameOpsStatusView[] {
+    return this.listGames().map((g) => this.getGameOpsStatus(g.gameId));
+  }
+
+  private collectActiveHumanRooms(gameId?: string): {
+    activeHumanGames: number;
+    activeRooms: RoomMaintenanceStatus['activeRooms'];
+  } {
     const activeRooms: RoomMaintenanceStatus['activeRooms'] = [];
     for (const room of this.rooms.values()) {
+      if (gameId && room.gameId !== gameId) continue;
       if (room.hasActiveHumanGame) {
         const view = room.view();
         activeRooms.push({
@@ -108,16 +269,10 @@ export class RoomManager {
         });
       }
     }
-    return {
-      mode: this.maintenanceMode,
-      message: this.maintenanceMessage,
-      since: this.maintenanceSince,
-      activeHumanGames: activeRooms.length,
-      activeRooms,
-    };
+    return { activeHumanGames: activeRooms.length, activeRooms };
   }
 
-  register(factory: GamePluginFactory): GameMeta {
+  register(factory: GamePluginFactory, packageName?: string): GameMeta {
     const probe = factory();
     if (probe.apiVersion !== PLUGIN_API_VERSION) {
       throw new Error(
@@ -126,11 +281,48 @@ export class RoomManager {
     }
     this.factories.set(probe.meta.gameId, factory);
     this.metas.set(probe.meta.gameId, probe.meta);
+    if (!this.gameOps.has(probe.meta.gameId)) {
+      this.gameOps.set(probe.meta.gameId, {
+        status: 'enabled',
+        message: '',
+        since: null,
+        lastReloadAt: null,
+      });
+    }
+    if (packageName) this.bindGamePackage(probe.meta.gameId, packageName);
     return probe.meta;
   }
 
+  /**
+   * 注销插件（热更前调用）。要求该游戏无活跃人类对局。
+   * @param gameId 玩法 ID
+   */
+  unregister(gameId: string): void {
+    const { activeHumanGames } = this.collectActiveHumanRooms(gameId);
+    if (activeHumanGames > 0) {
+      throw new AppError(
+        ErrorCode.IllegalAction,
+        `游戏 ${gameId} 仍有 ${activeHumanGames} 桌真人对局，无法卸载`,
+      );
+    }
+    for (const room of this.list(gameId)) {
+      room.destroy();
+    }
+    this.factories.delete(gameId);
+    this.metas.delete(gameId);
+    // 保留 gameOps / package 映射，便于 reload 后恢复文案与包名
+    opsLog.info('已卸载游戏插件', { gameId });
+  }
+
   listGames(): GameMeta[] {
-    return [...this.metas.values()];
+    return [...this.metas.values()].map((meta) => {
+      const ops = this.gameOps.get(meta.gameId);
+      return {
+        ...meta,
+        status: ops?.status ?? 'enabled',
+        statusMessage: ops?.message || undefined,
+      };
+    });
   }
 
   hasGame(gameId: string): boolean {
@@ -154,16 +346,10 @@ export class RoomManager {
     player: { playerId: string; nickname: string },
     socket: WebSocket,
   ): GameRoom {
-    if (this.maintenanceMode !== 'normal') {
-      throw new AppError(
-        ErrorCode.IllegalAction,
-        this.maintenanceMessage || '平台即将紧急更新，当前暂停开启新游戏，请耐心等待！',
-      );
-    }
+    this.assertGameAcceptsJoin(gameId);
     const factory = this.factories.get(gameId);
     if (!factory) throw new AppError(ErrorCode.BadRequest, `游戏不存在或未部署: ${gameId}`);
 
-    // 下注类玩法：在平台台里挑人最少且未满的一间
     const platforms = this.list(gameId).filter((r) => r.isPersistent);
     if (platforms.length > 0) {
       const open = platforms
@@ -175,7 +361,6 @@ export class RoomManager {
         this.scaleIfNeeded(gameId, platforms);
         return target;
       }
-      // 全部满员，临时扩一间
       const extra = this.createPlatform(gameId);
       if (extra) {
         extra.join(player, socket);
@@ -183,7 +368,6 @@ export class RoomManager {
       }
     }
 
-    // 经典扑克机器人自建房：优先进入活跃的机器人对局桌（默认观战模式，点击入座参战）
     const botHostedRooms = this.list(gameId).filter((r) => r.isBotHosted);
     if (botHostedRooms.length > 0) {
       const sorted = [...botHostedRooms].sort((a, b) => a.spectatorCount - b.spectatorCount);
@@ -223,12 +407,7 @@ export class RoomManager {
     player: { playerId: string; nickname: string },
     socket: WebSocket,
   ): GameRoom {
-    if (this.maintenanceMode !== 'normal') {
-      throw new AppError(
-        ErrorCode.IllegalAction,
-        this.maintenanceMessage || '平台即将紧急更新，当前暂停创建新房间，请耐心等待！',
-      );
-    }
+    this.assertGameAcceptsJoin(gameId);
     const factory = this.factories.get(gameId);
     if (!factory) throw new AppError(ErrorCode.BadRequest, `游戏不存在或未部署: ${gameId}`);
     const meta = this.metas.get(gameId);
@@ -243,6 +422,7 @@ export class RoomManager {
 
   /** 新建一间平台台 */
   createPlatform(gameId: string): GameRoom | null {
+    if (this.isRoomActionBlocked(gameId)) return null;
     const factory = this.factories.get(gameId);
     if (!factory) return null;
     const no = this.list(gameId).filter((r) => r.isPersistent).length + 1;
@@ -266,12 +446,14 @@ export class RoomManager {
   /** 每款平台玩法默认开 N 间，起步就有多个台子可选 */
   ensurePlatformRooms(gameId: string, count: number): void {
     if (!this.factories.has(gameId)) return;
+    if (this.isRoomActionBlocked(gameId)) return;
     const current = this.list(gameId).filter((r) => r.isPersistent).length;
     for (let i = current; i < count; i += 1) this.createPlatform(gameId);
   }
 
   /** 创建一间经典扑克机器人自建房，坐满机器人并自动开战，玩家进入默认观战 */
   createBotHostedRoom(gameId: string, tableNo?: number): GameRoom | null {
+    if (this.isRoomActionBlocked(gameId)) return null;
     const factory = this.factories.get(gameId);
     const meta = this.metas.get(gameId);
     if (!factory || !meta) return null;
@@ -283,7 +465,6 @@ export class RoomManager {
     room.setPlatformNo(no);
     this.rooms.set(room.id, room);
 
-    // 根据玩法人数安排机器人：3人固定局坐3个，2-6人局随机坐 2~5 个机器人热闹对战
     const botCount =
       meta.minPlayers === meta.maxPlayers
         ? meta.maxPlayers
@@ -296,7 +477,6 @@ export class RoomManager {
     const pool = [...BOT_NAMES].sort(() => Math.random() - 0.5);
     for (let i = 0; i < botCount; i += 1) {
       const name = pool[i % pool.length] ?? `牌手${i + 1}`;
-      // 前 N-1 名机器人延迟开局，待所有初始机器人落座后再统一开局，避免加第 3 名机器人时因已开局抛错
       room.addBot(`bot:${randomUUID()}`, `🤖 ${name}`, diff, { deferStart: i < botCount - 1 });
     }
     return room;
@@ -305,9 +485,10 @@ export class RoomManager {
   /** 为经典扑克游戏随机创建 3-7 间机器人自建房 */
   ensureBotHostedRooms(gameId: string): number {
     if (!this.factories.has(gameId)) return 0;
+    if (this.isRoomActionBlocked(gameId)) return 0;
     const existing = this.list(gameId).filter((r) => r.isBotHosted).length;
     if (existing > 0) return existing;
-    const targetCount = 3 + Math.floor(Math.random() * 5); // 3 ~ 7 间
+    const targetCount = 3 + Math.floor(Math.random() * 5);
     for (let i = 0; i < targetCount; i += 1) {
       this.createBotHostedRoom(gameId, i + 1);
     }
@@ -317,6 +498,7 @@ export class RoomManager {
 
   /** 三间都快满时自动加开一间，避免玩家挤不进来 */
   private scaleIfNeeded(gameId: string, platforms: GameRoom[]): void {
+    if (this.isRoomActionBlocked(gameId)) return;
     if (platforms.length >= PLATFORM_ROOMS_MAX) return;
     const threshold = PLATFORM_CAPACITY * PLATFORM_SCALE_RATIO;
     if (!platforms.every((room) => room.playerCount >= threshold)) return;

@@ -542,5 +542,28 @@ namespace CcGmClient.Services
             await SendAsync<object>(HttpMethod.Delete, path);
             return true;
         }
+
+        /// <summary>
+        /// 拉取全部游戏运营态（含活跃真人对局数）。
+        /// </summary>
+        public async Task<List<GameOpsItem>> GetGameOpsListAsync()
+        {
+            var res = await SendAsync<GameOpsListResponse>(HttpMethod.Get, "/api/admin/games");
+            return res.Games ?? new List<GameOpsItem>();
+        }
+
+        /// <summary>
+        /// 单游戏运维：drain / disable / enable / reload。
+        /// </summary>
+        /// <param name="gameId">玩法 ID 或包名</param>
+        /// <param name="action">drain|disable|enable|reload</param>
+        /// <param name="message">可选维护文案</param>
+        public async Task<bool> GameOpsActionAsync(string gameId, string action, string? message = null)
+        {
+            var path = $"/api/admin/games/{Uri.EscapeDataString(gameId)}/{action}";
+            object body = string.IsNullOrWhiteSpace(message) ? new { } : new { message };
+            await SendAsync<object>(HttpMethod.Post, path, body);
+            return true;
+        }
     }
 }

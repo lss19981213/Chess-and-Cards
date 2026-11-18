@@ -12,6 +12,7 @@ import { api, fantasyClawOAuthStartUrl, type GameCategoryDef, type User } from '
 import { audio } from '../audio';
 import { speakDealerQuote } from '../speech';
 import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART, HERO_BG } from '../assets';
+import { gameStatusBadge, isGameJoinable, gameUnavailableToast } from '../gameAvailability';
 import { AvatarFrameModal } from './AvatarFrameModal';
 import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
@@ -389,9 +390,10 @@ export function Lobby({
 
   const handleRandomPlay = () => {
     audio.play('click');
-    if (filteredGames.length > 0) {
-      const idx = Math.floor(Math.random() * filteredGames.length);
-      const picked = filteredGames[idx];
+    const joinable = filteredGames.filter((g) => isGameJoinable(g));
+    if (joinable.length > 0) {
+      const idx = Math.floor(Math.random() * joinable.length);
+      const picked = joinable[idx];
       if (picked) onQuickPlay(picked);
     }
   };
@@ -755,21 +757,34 @@ export function Lobby({
                 const artUrl = GAME_ART[game.gameId];
                 const heatText = LIVE_HEAT_MAP[game.gameId] ?? (isLive ? '🎰 万人同台' : '🔥 火热开局');
                 const stakesText = STAKES_MAP[game.gameId] ?? '💰 底分 10 豆 · 准入 100 豆';
+                const joinable = isGameJoinable(game);
+                const maintBadge = gameStatusBadge(game);
 
                 return (
                   <div
                     key={game.gameId}
-                    className="commercial-game-card"
+                    className={`commercial-game-card ${joinable ? '' : 'is-game-maint'}`.trim()}
                     onMouseEnter={() => setHoveredGame(game)}
                     onMouseLeave={() => setHoveredGame(null)}
                   >
                     {/* 3D 质感海报画卷 */}
                     <div
                       className="commercial-game-card__poster"
-                      onClick={() => onQuickPlay(game)}
+                      onClick={() => {
+                        if (!joinable) {
+                          audio.play('alert');
+                          return;
+                        }
+                        onQuickPlay(game);
+                      }}
                       role="button"
                       tabIndex={0}
-                      title={`点击极速开玩 ${game.name}`}
+                      title={
+                        joinable
+                          ? `点击极速开玩 ${game.name}`
+                          : gameUnavailableToast(game)
+                      }
+                      aria-disabled={!joinable}
                     >
                       {artUrl ? (
                         <img
@@ -778,6 +793,7 @@ export function Lobby({
                           draggable={false}
                           loading={index < 3 ? 'eager' : 'lazy'}
                           decoding="async"
+                          fetchPriority={index < 2 ? 'high' : 'auto'}
                           width={480}
                           height={480}
                         />
@@ -801,6 +817,12 @@ export function Lobby({
                           ? `${game.minPlayers}人局`
                           : `${game.minPlayers}-${game.maxPlayers}人局`}
                       </span>
+
+                      {maintBadge && (
+                        <span className="game-maint-badge" role="status">
+                          {maintBadge}
+                        </span>
+                      )}
                     </div>
 
                     {/* 信息与双通道按钮群 */}
@@ -808,8 +830,10 @@ export function Lobby({
                       <div className="meta-text-col">
                         <h3 className="meta-title">{game.name}</h3>
                         <div className="card-entry-info">
-                          <span className="entry-stakes-text">{stakesText}</span>
-                          <span className="entry-speed-tag">极速秒配</span>
+                          <span className="entry-stakes-text">
+                            {joinable ? stakesText : maintBadge || '维护中'}
+                          </span>
+                          <span className="entry-speed-tag">{joinable ? '极速秒配' : '暂停开放'}</span>
                         </div>
                       </div>
 
@@ -818,26 +842,28 @@ export function Lobby({
                         <button
                           type="button"
                           className="btn-quick-play-gold"
+                          disabled={!joinable}
                           onClick={(e) => {
                             e.stopPropagation();
-                            audio.play('click');
-                            onQuickPlay(game);
+                            audio.play(joinable ? 'click' : 'alert');
+                            if (joinable) onQuickPlay(game);
                           }}
                         >
                           <span className="btn-bolt"><IconBolt /></span>
-                          <span>极速开局</span>
+                          <span>{joinable ? '极速开局' : '维护中'}</span>
                         </button>
 
                         {/* 次级入口：选房入座 */}
                         <button
                           type="button"
                           className="btn-choose-room-subtle"
+                          disabled={!joinable}
                           onClick={(e) => {
                             e.stopPropagation();
-                            audio.play('click');
-                            onEnter(game);
+                            audio.play(joinable ? 'click' : 'alert');
+                            if (joinable) onEnter(game);
                           }}
-                          title="查看桌台列表或自建房间"
+                          title={joinable ? '查看桌台列表或自建房间' : gameUnavailableToast(game)}
                         >
                           选台
                         </button>

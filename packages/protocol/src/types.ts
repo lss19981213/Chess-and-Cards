@@ -2,6 +2,9 @@
  * 共享协议层：前后端唯一的类型与消息来源。
  */
 
+/** 单游戏运营态：缺省 enabled；大厅与进房拦截据此展示/拒绝 */
+export type GameOpsStatus = 'enabled' | 'disabled' | 'draining' | 'updating';
+
 /** 游戏静态元数据，由游戏插件声明，大厅据此动态渲染入口。 */
 export interface GameMeta {
   gameId: string;
@@ -19,6 +22,13 @@ export interface GameMeta {
   category?: 'board' | 'table' | 'live' | 'mahjong' | 'slots' | (string & {});
   /** 平台坐庄的常驻玩法：只能加入平台开好的台，玩家不能建房 */
   persistent?: boolean;
+  /**
+   * 运营态（由房间服注入，插件声明时可省略，缺省视为 enabled）。
+   * disabled/updating：大厅不可进；draining：禁新进、已在局可打完。
+   */
+  status?: GameOpsStatus;
+  /** 大厅卡片 / 选台页维护文案，可空 */
+  statusMessage?: string;
 }
 
 /** 运营公告 */
