@@ -515,8 +515,16 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
     }
 
     try {
-      // 1. 使用授权码换取 access_token（兼容 /oauth/token）
+      // 1. 使用授权码换取 access_token
+      // 奇幻维度后端基于 ASP.NET Core [FromForm] 模型绑定，属性名为 PascalCase（GrantType/ClientId/ClientSecret/...），
+      // 同时附带标准 RFC 6749 snake_case 参数以实现双向完全兼容。
       const tokenBody = new URLSearchParams({
+        GrantType: 'authorization_code',
+        ClientId: fc.clientId,
+        ClientSecret: fc.clientSecret,
+        Code: code,
+        RedirectUri: saved.redirectUri,
+        CodeVerifier: saved.codeVerifier,
         grant_type: 'authorization_code',
         client_id: fc.clientId,
         client_secret: fc.clientSecret,
@@ -536,15 +544,27 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
       });
 
       const tokenRaw = (await tokenRes.json().catch(() => ({}))) as Record<string, unknown>;
+      const rawData = tokenRaw.data ?? tokenRaw.Data;
       const tokenPayload =
-        tokenRaw.data && typeof tokenRaw.data === 'object'
-          ? (tokenRaw.data as Record<string, unknown>)
+        rawData && typeof rawData === 'object'
+          ? (rawData as Record<string, unknown>)
           : tokenRaw;
-      const accessToken = String(tokenPayload.access_token ?? tokenPayload.accessToken ?? '');
+      const accessToken = String(
+        tokenPayload.access_token ??
+          tokenPayload.accessToken ??
+          tokenPayload.AccessToken ??
+          '',
+      );
 
       if (!tokenRes.ok || !accessToken) {
         const msg = String(
-          tokenRaw.error_description ?? tokenRaw.error ?? tokenRaw.message ?? `令牌交换失败 (${tokenRes.status})`,
+          tokenRaw.error_description ??
+            tokenRaw.ErrorDescription ??
+            tokenRaw.error ??
+            tokenRaw.Error ??
+            tokenRaw.message ??
+            tokenRaw.Message ??
+            `令牌交换失败 (${tokenRes.status})`,
         );
         return reply.redirect(buildLobbyRedirect(saved.returnTo, { oauth_error: msg }));
       }
@@ -561,8 +581,9 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         if (!res.ok) return null;
         const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
         if (!json) return null;
-        return json.data && typeof json.data === 'object'
-          ? (json.data as Record<string, unknown>)
+        const inner = json.data ?? json.Data;
+        return inner && typeof inner === 'object'
+          ? (inner as Record<string, unknown>)
           : json;
       };
 
@@ -573,17 +594,29 @@ export function registerAuthRoutes(app: FastifyInstance, repo: Repository): void
         );
       }
 
-      const sub = String(info.sub ?? info.id ?? info.userId ?? info.uid ?? '').trim();
+      const sub = String(
+        info.sub ?? info.Sub ?? info.id ?? info.Id ?? info.userId ?? info.UserId ?? info.uid ?? '',
+      ).trim();
       if (!sub) {
         return reply.redirect(
           buildLobbyRedirect(saved.returnTo, { oauth_error: '奇幻维度返回的用户标识为空' }),
         );
       }
 
-      const rawEmail = typeof info.email === 'string' ? info.email.trim().toLowerCase() : '';
+      const rawEmailField = info.email ?? info.Email;
+      const rawEmail = typeof rawEmailField === 'string' ? rawEmailField.trim().toLowerCase() : '';
       const validEmail = EMAIL_PATTERN.test(rawEmail) ? rawEmail : null;
       const rawName = String(
-        info.nickname ?? info.name ?? info.displayName ?? info.username ?? info.userName ?? `奇幻玩家_${sub.slice(0, 4)}`,
+        info.nickname ??
+          info.Nickname ??
+          info.name ??
+          info.Name ??
+          info.displayName ??
+          info.DisplayName ??
+          info.username ??
+          info.userName ??
+          info.UserName ??
+          `奇幻玩家_${sub.slice(0, 4)}`,
       ).trim();
 
       // 3. 查找已绑定账号 -> 或按同邮箱自动绑定（严格遵守一个邮箱一个账号） -> 或自动建号

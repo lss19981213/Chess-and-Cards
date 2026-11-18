@@ -15,9 +15,9 @@ export function registerAdminAndInternalRoutes(
   repo: Repository,
   apiLog: Logger,
 ): void {
-  // GM 接口：每 IP 每分钟 120 次；口令错误单独限 5 次 / 5 分钟
-  const adminLimiter = new AttemptLimiter(120, 60_000);
-  const adminFailLimiter = new AttemptLimiter(5, 5 * 60_000);
+  // GM 接口：每 IP 每分钟 180 次；口令错误单独限 20 次 / 5 分钟（避免切服或并发大盘请求瞬间误锁）
+  const adminLimiter = new AttemptLimiter(180, 60_000);
+  const adminFailLimiter = new AttemptLimiter(20, 5 * 60_000);
 
   function adminTokenOf(req: FastifyRequest): string {
     const header = req.headers.authorization;
@@ -26,7 +26,7 @@ export function registerAdminAndInternalRoutes(
 
   /**
    * GM 鉴权：口令只从 Authorization 头读取，恒定时间比较，
-   * 并按 IP 限制总请求量与错误次数。
+   * 并按 IP 限制总请求量与错误次数；校验通过后清空该 IP 的错误计数。
    */
   function requireAdmin(req: FastifyRequest): void {
     const ip = clientIp(req);
@@ -42,6 +42,7 @@ export function registerAdminAndInternalRoutes(
       adminFailLimiter.fail(ip);
       throw httpError('后台口令不正确', 403);
     }
+    adminFailLimiter.reset(ip);
   }
 
   // ---- 运营后台（口令鉴权）----

@@ -19,6 +19,7 @@ namespace CcGmClient
         private GmConfig _config = new();
         private readonly DispatcherTimer _timer = new();
         private string _activeView = "dashboard";
+        private bool _isConnected = false;
         private PlayerItem? _selectedPlayer;
         private RoomItem? _selectedRoom;
 
@@ -42,8 +43,8 @@ namespace CcGmClient
                 "http://localhost:8080",
                 "http://127.0.0.1:3000"
             };
-            CmbServerUrl.Text = !string.IsNullOrEmpty(_config.ServerUrl) ? _config.ServerUrl : "http://82.157.54.179";
-            TxtAdminToken.Password = !string.IsNullOrEmpty(_config.AdminToken) ? _config.AdminToken : "2f6f6fe8e5cced301026985a44a26192fcf1b6f1cf2ef218";
+            CmbServerUrl.Text = !string.IsNullOrEmpty(_config.ServerUrl) ? _config.ServerUrl : "http://chess.fantasyclaw.top";
+            TxtAdminToken.Password = !string.IsNullOrEmpty(_config.AdminToken) ? _config.AdminToken : "";
 
             TxtSshHost.Text = _config.Host;
             TxtSshPort.Text = _config.Port;
@@ -53,7 +54,8 @@ namespace CcGmClient
             _timer.Interval = TimeSpan.FromSeconds(10);
             _timer.Tick += async (_, _) =>
             {
-                if (ChkAutoRefresh.IsChecked == true)
+                // 未连接或鉴权失败时暂停自动轮询，防止反复请求触发服务端口令防爆破限流
+                if (_isConnected && ChkAutoRefresh.IsChecked == true)
                 {
                     await RefreshCurrentViewAsync(silent: true);
                 }
@@ -66,7 +68,7 @@ namespace CcGmClient
         // ==================== 快捷切换服务器 ====================
         private async void BtnSwitchCloud_Click(object sender, RoutedEventArgs e)
         {
-            CmbServerUrl.Text = "http://82.157.54.179";
+            CmbServerUrl.Text = "http://chess.fantasyclaw.top";
             await ConnectServerAsync();
         }
 
@@ -81,11 +83,12 @@ namespace CcGmClient
             var text = CmbServerUrl.Text?.Trim();
             if (!string.IsNullOrEmpty(text) && !text.Contains("ComboBoxItem")) return text;
             if (CmbServerUrl.SelectedItem is string s && !string.IsNullOrEmpty(s)) return s;
-            return !string.IsNullOrEmpty(_config.ServerUrl) ? _config.ServerUrl : "http://82.157.54.179";
+            return !string.IsNullOrEmpty(_config.ServerUrl) ? _config.ServerUrl : "http://chess.fantasyclaw.top";
         }
 
         private void SetConnectedState(bool isConnected, long latencyMs = 0, string? err = null)
         {
+            _isConnected = isConnected;
             if (isConnected)
             {
                 DotConn.Fill = (SolidColorBrush)FindResource("BrushGreen");
@@ -101,7 +104,7 @@ namespace CcGmClient
                 BadgeConnStatus.BorderBrush = (SolidColorBrush)FindResource("BrushRed");
                 if (!string.IsNullOrEmpty(err))
                 {
-                    SetStatus($"未连接: {err}");
+                    SetStatus($"未连接（自动轮询已暂停）: {err}");
                 }
             }
         }
@@ -126,8 +129,10 @@ namespace CcGmClient
         {
             try
             {
-                var serverUrl = GetServerUrl();
-                var site = !string.IsNullOrEmpty(_config.Site) ? _config.Site : $"{serverUrl.TrimEnd('/')}/lobby";
+                var serverUrl = GetServerUrl().TrimEnd('/');
+                var site = serverUrl.EndsWith("/lobby", StringComparison.OrdinalIgnoreCase)
+                    ? $"{serverUrl}/"
+                    : $"{serverUrl}/lobby/";
                 Process.Start(new ProcessStartInfo(site) { UseShellExecute = true });
             }
             catch (Exception ex)
@@ -209,11 +214,23 @@ namespace CcGmClient
                 _ => "GM 运营中台"
             };
 
-            await RefreshCurrentViewAsync();
+            if (_isConnected)
+            {
+                await RefreshCurrentViewAsync();
+            }
+            else if (tag != "devops")
+            {
+                SetStatus("未连接到服务器，请核对地址与 GM 口令后点击「⚡ 连接服务」");
+            }
         }
 
         private async void BtnRefreshCurrent_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isConnected)
+            {
+                await ConnectServerAsync();
+                return;
+            }
             await RefreshCurrentViewAsync();
         }
 
@@ -461,6 +478,11 @@ namespace CcGmClient
 
         private async void BtnRefreshSlots_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isConnected)
+            {
+                await ConnectServerAsync();
+                return;
+            }
             await RefreshCurrentViewAsync();
         }
 
