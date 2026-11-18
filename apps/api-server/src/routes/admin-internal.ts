@@ -11,7 +11,16 @@ import {
 } from '../game-categories';
 import { sanitizeSlotsConfig, type SlotsConfig } from '../slots-engine';
 import { AttemptLimiter, hashPassword } from '../security';
-import { periodKeyFor } from '../tasks';
+import {
+  TASKS,
+  TASK_METRICS_META,
+  loadTasksConfig,
+  periodKeyFor,
+  sanitizeSingleTask,
+  sanitizeTasksConfig,
+  toEnrichedTask,
+  type TaskConfigInput,
+} from '../tasks';
 
 type Logger = ReturnType<typeof createLogger>;
 
@@ -173,6 +182,125 @@ export function registerAdminAndInternalRoutes(
       `GM 更新游戏分类配置（共 ${next.categories.length} 个分类）`,
     );
     return { ok: true, ...next };
+  });
+
+  // ==================== GM 每日任务 & 成长任务动态管理 ====================
+  app.get('/api/admin/tasks', async (req) => {
+    requireAdmin(req);
+    const list = await loadTasksConfig((k) => repo.getSetting(k));
+    return {
+      tasks: list.map((t, idx) => toEnrichedTask(t, idx)),
+      metrics: TASK_METRICS_META,
+    };
+  });
+
+  // 新增或修改单个任务（按 key 匹配：存在则更新，不存在则新增，立即生效）
+  app.post('/api/admin/tasks', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as TaskConfigInput & { originalKey?: unknown };
+    const sanitized = sanitizeSingleTask(body);
+    if (!sanitized) {
+      throw httpError('任务参数不合法：请检查任务标识(英文/数字/下划线)、名称、目标进度与奖励数额', 400);
+    }
+
+    const current = await loadTasksConfig((k) => repo.getSetting(k));
+    const originalKey = typeof body.originalKey === 'string' ? body.originalKey.trim().toLowerCase() : '';
+    const matchKey = originalKey || sanitized.key;
+    const existingIdx = current.findIndex((t) => t.key === matchKey);
+
+    // 若改名后的新 key 与其他已有任务冲突则拒绝
+    if (originalKey && originalKey !== sanitized.key && current.some((t) => t.key === sanitized.key)) {
+      throw httpError(`任务标识 "${sanitized.key}" 已存在，请更换其他唯一标识`, 409);
+    }
+
+    const next = [...current];
+    let action: 'created' | 'updated';
+    if (existingIdx >= 0) {
+      next[existingIdx] = sanitized;
+      action = 'updated';
+    } else {
+      // 每日任务插到每日任务末尾，成长任务插到列表末尾
+      if (sanitized.group === 'daily') {
+        const firstGrowthIdx = next.findIndex((t) => t.group === 'growth');
+        if (firstGrowthIdx >= 0) next.splice(firstGrowthIdx, 0, sanitized);
+        else next.push(sanitized);
+      } else {
+        next.push(sanitized);
+      }
+      action = 'created';
+    }
+
+    await repo.setSetting('tasks_config', { tasks: next });
+    const groupLabel = sanitized.group === 'daily' ? '每日任务' : '成长任务';
+    apiLog.info(`GM ${action === 'created' ? '新增' : '修改'}${groupLabel}`, {
+      key: sanitized.key,
+      name: sanitized.name,
+      target: sanitized.target,
+      reward: sanitized.reward,
+    });
+    recordEvent(
+      'info',
+      'task',
+      `GM ${action === 'created' ? '新增' : '修改'}${groupLabel}「${sanitized.name}」(${sanitized.key})，目标 ${sanitized.target}，奖励 ${sanitized.reward.toLocaleString()} 豆`,
+    );
+
+    return {
+      ok: true,
+      action,
+      task: toEnrichedTask(sanitized, next.findIndex((t) => t.key === sanitized.key)),
+      tasks: next.map((t, idx) => toEnrichedTask(t, idx)),
+    };
+  });
+
+  // 批量保存任务列表与排序
+  app.put('/api/admin/tasks', async (req) => {
+    requireAdmin(req);
+    const body = (req.body ?? {}) as { tasks?: unknown };
+    if (!Array.isArray(body.tasks)) {
+      throw httpError('缺少 tasks 数组参数', 400);
+    }
+    const next = sanitizeTasksConfig(body.tasks);
+    await repo.setSetting('tasks_config', { tasks: next });
+    apiLog.info('GM 批量更新任务配置', { count: next.length });
+    recordEvent('info', 'task', `GM 批量更新任务配置（共 ${next.length} 条任务）`);
+    return {
+      ok: true,
+      tasks: next.map((t, idx) => toEnrichedTask(t, idx)),
+    };
+  });
+
+  // 删除指定任务
+  app.delete('/api/admin/tasks/:key', async (req) => {
+    requireAdmin(req);
+    const key = String((req.params as { key?: string }).key ?? '').trim().toLowerCase();
+    if (!key) throw httpError('缺少任务标识 key', 400);
+
+    const current = await loadTasksConfig((k) => repo.getSetting(k));
+    const target = current.find((t) => t.key === key);
+    if (!target) throw httpError('任务不存在', 404);
+
+    const next = current.filter((t) => t.key !== key);
+    await repo.setSetting('tasks_config', { tasks: next });
+    apiLog.warn('GM 删除任务', { key, name: target.name });
+    recordEvent('warn', 'task', `GM 删除任务「${target.name}」(${key})`);
+    return {
+      ok: true,
+      deletedKey: key,
+      tasks: next.map((t, idx) => toEnrichedTask(t, idx)),
+    };
+  });
+
+  // 一键恢复系统默认任务列表
+  app.post('/api/admin/tasks/reset', async (req) => {
+    requireAdmin(req);
+    const defaults = sanitizeTasksConfig(TASKS);
+    await repo.setSetting('tasks_config', { tasks: defaults });
+    apiLog.warn('GM 恢复默认任务列表', { count: defaults.length });
+    recordEvent('warn', 'task', `GM 将每日/成长任务恢复为系统默认配置（共 ${defaults.length} 条）`);
+    return {
+      ok: true,
+      tasks: defaults.map((t, idx) => toEnrichedTask(t, idx)),
+    };
   });
 
 const LEDGER_BIZ_META: Record<string, { label: string; category: string }> = {

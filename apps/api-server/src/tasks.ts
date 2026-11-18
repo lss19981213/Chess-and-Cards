@@ -355,8 +355,189 @@ export const TASKS: readonly TaskDef[] = [
   },
 ];
 
-export function findTask(key: string): TaskDef | undefined {
-  return TASKS.find((task) => task.key === key);
+export interface TaskMetricMeta {
+  metric: string;
+  label: string;
+  group: TaskGroup;
+  kind: TaskKind;
+  progressSource?: TaskDef['progressSource'];
+  supportsMaxBalance?: boolean;
+}
+
+export const TASK_METRICS_META: readonly TaskMetricMeta[] = [
+  // 每日任务可选进度统计维度
+  { metric: 'daily_play', label: '当日完成任意对局局数', group: 'daily', kind: 'play', progressSource: { key: 'daily_play' } },
+  { metric: 'daily_win', label: '当日赢下对局局数', group: 'daily', kind: 'win', progressSource: { key: 'daily_win' } },
+  { metric: 'daily_bigwin', label: '当日单局净赢500+次数', group: 'daily', kind: 'win', progressSource: { key: 'daily_bigwin' } },
+  { metric: 'gameKinds', label: '当日体验不同游戏款数', group: 'daily', kind: 'variety', progressSource: { kind: 'gameKinds' } },
+  { metric: 'daily_mahjong', label: '当日雀神麻将对局局数', group: 'daily', kind: 'mahjong', progressSource: { key: 'daily_mahjong' } },
+  { metric: 'daily_turnover', label: '当日累计有效流水筹码', group: 'daily', kind: 'turnover', progressSource: { key: 'daily_turnover' } },
+  { metric: 'daily_tip', label: '当日打赏荷官次数', group: 'daily', kind: 'tip', progressSource: { key: 'daily_tip' } },
+  { metric: 'daily_worship', label: '当日排行榜膜拜次数', group: 'daily', kind: 'worship', progressSource: { key: 'daily_worship' } },
+  { metric: 'daily_login', label: '每日登录签到', group: 'daily', kind: 'login', progressSource: { key: 'daily_login' } },
+  { metric: 'daily_invite', label: '当日邀请新玩家注册(按人头)', group: 'daily', kind: 'invite', progressSource: { key: 'daily_invite' } },
+  { metric: 'relief', label: '破产救济金(余额低于阈值可领)', group: 'daily', kind: 'relief', supportsMaxBalance: true },
+
+  // 成长任务可选进度统计维度
+  { metric: 'total_play', label: '历史累计完成对局局数', group: 'growth', kind: 'play', progressSource: { key: 'total_play' } },
+  { metric: 'total_win', label: '历史累计赢下对局局数', group: 'growth', kind: 'win', progressSource: { key: 'total_win' } },
+  { metric: 'total_checkin', label: '历史累计签到天数', group: 'growth', kind: 'login', progressSource: { key: 'total_checkin' } },
+  { metric: 'total_tip', label: '历史累计打赏荷官次数', group: 'growth', kind: 'tip', progressSource: { key: 'total_tip' } },
+  { metric: 'level', label: '玩家当前账号等级', group: 'growth', kind: 'level', progressSource: { kind: 'level' } },
+  { metric: 'totalGameKinds', label: '历史累计体验不同游戏款数', group: 'growth', kind: 'variety', progressSource: { kind: 'totalGameKinds' } },
+  { metric: 'ownedFrames', label: '历史累计拥有头像框数量', group: 'growth', kind: 'frame', progressSource: { kind: 'ownedFrames' } },
+];
+
+export interface TaskConfigInput {
+  key?: unknown;
+  name?: unknown;
+  description?: unknown;
+  target?: unknown;
+  reward?: unknown;
+  group?: unknown;
+  period?: unknown;
+  kind?: unknown;
+  metric?: unknown;
+  maxBalance?: unknown;
+  progressSource?: TaskDef['progressSource'];
+}
+
+export interface EnrichedTaskDef extends TaskDef {
+  metric: string;
+  metricLabel: string;
+  sortOrder: number;
+}
+
+export function inferTaskMetric(task: TaskDef): string {
+  if (task.kind === 'relief') return 'relief';
+  if (task.progressSource?.kind) return task.progressSource.kind;
+  if (task.progressSource?.key) return task.progressSource.key;
+  if (TASK_METRICS_META.some((m) => m.metric === task.key)) return task.key;
+  return task.group === 'growth' ? 'total_play' : 'daily_play';
+}
+
+export function toEnrichedTask(task: TaskDef, index: number): EnrichedTaskDef {
+  const metric = inferTaskMetric(task);
+  const meta = TASK_METRICS_META.find((m) => m.metric === metric);
+  return {
+    ...task,
+    metric,
+    metricLabel: meta?.label ?? metric,
+    sortOrder: index + 1,
+  };
+}
+
+export function sanitizeSingleTask(raw: TaskConfigInput): TaskDef | null {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const key = String(raw.key ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '')
+    .slice(0, 40);
+  const name = String(raw.name ?? '').trim().slice(0, 24);
+  const description = String(raw.description ?? '').trim().slice(0, 120);
+  const group: TaskGroup = raw.group === 'growth' || raw.period === 'once' ? 'growth' : 'daily';
+  const period: TaskPeriod = group === 'growth' ? 'once' : 'daily';
+
+  const targetNum = Math.floor(Number(raw.target ?? 0));
+  const rewardNum = Math.floor(Number(raw.reward ?? 0));
+
+  if (!key || !name) return null;
+  if (!Number.isFinite(targetNum) || targetNum < 1 || targetNum > 100_000_000) return null;
+  if (!Number.isFinite(rewardNum) || rewardNum < 1 || rewardNum > 50_000_000) return null;
+
+  const rawMetric = typeof raw.metric === 'string' && raw.metric.trim() ? raw.metric.trim() : '';
+  let metricMeta = TASK_METRICS_META.find((m) => m.metric === rawMetric);
+
+  // 如果未显式传 metric，则从 progressSource / key / kind 推导
+  if (!metricMeta) {
+    if (raw.kind === 'relief' || key === 'relief') {
+      metricMeta = TASK_METRICS_META.find((m) => m.metric === 'relief');
+    } else if (raw.progressSource?.kind) {
+      metricMeta = TASK_METRICS_META.find((m) => m.metric === raw.progressSource?.kind);
+    } else if (raw.progressSource?.key) {
+      metricMeta = TASK_METRICS_META.find((m) => m.metric === raw.progressSource?.key);
+    } else {
+      metricMeta = TASK_METRICS_META.find((m) => m.metric === key);
+    }
+  }
+
+  // 兜底匹配同组第一个维度
+  if (!metricMeta) {
+    metricMeta = TASK_METRICS_META.find((m) => m.group === group) ?? TASK_METRICS_META[0]!;
+  }
+
+  const maxBalanceNum =
+    raw.maxBalance !== undefined && raw.maxBalance !== null && raw.maxBalance !== ''
+      ? Math.floor(Number(raw.maxBalance))
+      : undefined;
+
+  const task: TaskDef = {
+    key,
+    name,
+    description: description || `${name}（目标 ${targetNum}）`,
+    target: targetNum,
+    reward: rewardNum,
+    period,
+    kind: metricMeta.kind,
+    group,
+  };
+
+  if (metricMeta.kind === 'relief') {
+    task.maxBalance =
+      maxBalanceNum !== undefined && Number.isFinite(maxBalanceNum) && maxBalanceNum > 0
+        ? Math.min(maxBalanceNum, 10_000_000)
+        : 100;
+  } else if (metricMeta.progressSource) {
+    // 若任务 key 与自身进度源一致（如 daily_play / daily_win），不冗余写或保持明确均可，统一写明更清晰
+    task.progressSource = { ...metricMeta.progressSource };
+  }
+
+  return task;
+}
+
+export interface TasksConfigPayload {
+  tasks: TaskDef[];
+}
+
+export function sanitizeTasksConfig(raw?: unknown): TaskDef[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === 'object' && Array.isArray((raw as { tasks?: unknown }).tasks)
+      ? (raw as { tasks: unknown[] }).tasks
+      : null;
+
+  if (!list) {
+    return TASKS.map((t) => ({
+      ...t,
+      ...(t.progressSource ? { progressSource: { ...t.progressSource } } : {}),
+    }));
+  }
+
+  const seen = new Set<string>();
+  const cleaned: TaskDef[] = [];
+  for (const item of list) {
+    const task = sanitizeSingleTask(item as TaskConfigInput);
+    if (!task || seen.has(task.key)) continue;
+    seen.add(task.key);
+    cleaned.push(task);
+  }
+  return cleaned;
+}
+
+export async function loadTasksConfig(
+  getSetting: <T>(key: string) => Promise<T | null>,
+): Promise<TaskDef[]> {
+  const saved = await getSetting<TasksConfigPayload | TaskDef[]>('tasks_config');
+  if (saved === null || saved === undefined) {
+    return sanitizeTasksConfig(null);
+  }
+  return sanitizeTasksConfig(saved);
+}
+
+export function findTask(key: string, list: readonly TaskDef[] = TASKS): TaskDef | undefined {
+  return list.find((task) => task.key === key);
 }
 
 /** 每日任务按东八区自然日划分 */

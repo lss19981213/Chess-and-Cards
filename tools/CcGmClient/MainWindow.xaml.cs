@@ -201,6 +201,7 @@ namespace CcGmClient
             ViewRooms.Visibility = tag == "rooms" ? Visibility.Visible : Visibility.Collapsed;
             ViewSlots.Visibility = tag == "slots" ? Visibility.Visible : Visibility.Collapsed;
             ViewCategories.Visibility = tag == "categories" ? Visibility.Visible : Visibility.Collapsed;
+            ViewTasks.Visibility = tag == "tasks" ? Visibility.Visible : Visibility.Collapsed;
             ViewMailbox.Visibility = tag == "mailbox" ? Visibility.Visible : Visibility.Collapsed;
             ViewBroadcast.Visibility = tag == "broadcast" ? Visibility.Visible : Visibility.Collapsed;
             ViewSecurity.Visibility = tag == "security" ? Visibility.Visible : Visibility.Collapsed;
@@ -213,6 +214,7 @@ namespace CcGmClient
                 "rooms" => "🎲 房间实时透视与博弈管控",
                 "slots" => "🎰 老虎机经营数据与概率调控",
                 "categories" => "🗂️ 大厅游戏分类与归属动态配置",
+                "tasks" => "🎯 每日任务与成长任务动态管理",
                 "mailbox" => "📬 全服邮箱发放与筹码直赠",
                 "broadcast" => "📢 即时跑马灯与系统公告",
                 "security" => "🛡️ 安全风控机制与解限",
@@ -266,6 +268,9 @@ namespace CcGmClient
                         break;
                     case "categories":
                         await RefreshCategoriesAsync();
+                        break;
+                    case "tasks":
+                        await RefreshTasksAsync();
                         break;
                     case "mailbox":
                         await RefreshMailsAsync();
@@ -742,6 +747,383 @@ namespace CcGmClient
             finally
             {
                 BtnSaveCategories.IsEnabled = true;
+            }
+        }
+
+        // ==================== 1.7 每日任务与成长任务动态管理 (Tasks) ====================
+        private List<TaskConfigItem> _allTasks = new();
+        private List<TaskMetricOption> _taskMetrics = new();
+        private string? _editingTaskOriginalKey;
+        private bool _isBindingTaskForm;
+
+        private async Task RefreshTasksAsync()
+        {
+            var resp = await _api.GetTasksConfigAsync();
+            _allTasks = resp.Tasks ?? new List<TaskConfigItem>();
+            if (resp.Metrics != null && resp.Metrics.Count > 0)
+            {
+                _taskMetrics = resp.Metrics;
+            }
+            EnsureDefaultTaskMetrics();
+            RenderTasksGrid(_editingTaskOriginalKey);
+
+            // 首次进入若右侧下拉还未填充，按当前分组填充维度列表
+            if (CmbTaskMetric.ItemsSource == null)
+            {
+                var currentGroup = GetSelectedTaskFormGroup();
+                PopulateTaskMetricsForGroup(currentGroup, null);
+            }
+        }
+
+        private void EnsureDefaultTaskMetrics()
+        {
+            if (_taskMetrics.Count > 0) return;
+            _taskMetrics = new List<TaskMetricOption>
+            {
+                new() { Metric = "daily_play", Label = "当日完成任意对局局数", Group = "daily", Kind = "play" },
+                new() { Metric = "daily_win", Label = "当日赢下对局局数", Group = "daily", Kind = "win" },
+                new() { Metric = "daily_bigwin", Label = "当日单局净赢500+次数", Group = "daily", Kind = "win" },
+                new() { Metric = "gameKinds", Label = "当日体验不同游戏款数", Group = "daily", Kind = "variety" },
+                new() { Metric = "daily_mahjong", Label = "当日雀神麻将对局局数", Group = "daily", Kind = "mahjong" },
+                new() { Metric = "daily_turnover", Label = "当日累计有效流水筹码", Group = "daily", Kind = "turnover" },
+                new() { Metric = "daily_tip", Label = "当日打赏荷官次数", Group = "daily", Kind = "tip" },
+                new() { Metric = "daily_worship", Label = "当日排行榜膜拜次数", Group = "daily", Kind = "worship" },
+                new() { Metric = "daily_login", Label = "每日登录签到", Group = "daily", Kind = "login" },
+                new() { Metric = "daily_invite", Label = "当日邀请新玩家注册(按人头)", Group = "daily", Kind = "invite" },
+                new() { Metric = "relief", Label = "破产救济金(余额低于阈值可领)", Group = "daily", Kind = "relief", SupportsMaxBalance = true },
+                new() { Metric = "total_play", Label = "历史累计完成对局局数", Group = "growth", Kind = "play" },
+                new() { Metric = "total_win", Label = "历史累计赢下对局局数", Group = "growth", Kind = "win" },
+                new() { Metric = "total_checkin", Label = "历史累计签到天数", Group = "growth", Kind = "login" },
+                new() { Metric = "total_tip", Label = "历史累计打赏荷官次数", Group = "growth", Kind = "tip" },
+                new() { Metric = "level", Label = "玩家当前账号等级", Group = "growth", Kind = "level" },
+                new() { Metric = "totalGameKinds", Label = "历史累计体验不同游戏款数", Group = "growth", Kind = "variety" },
+                new() { Metric = "ownedFrames", Label = "历史累计拥有头像框数量", Group = "growth", Kind = "frame" },
+            };
+        }
+
+        private string GetSelectedTaskFormGroup()
+        {
+            return (CmbTaskGroup?.SelectedItem as ComboBoxItem)?.Tag as string ?? "daily";
+        }
+
+        private void PopulateTaskMetricsForGroup(string group, string? preferredMetric)
+        {
+            EnsureDefaultTaskMetrics();
+            var filtered = _taskMetrics.Where(m => string.Equals(m.Group, group, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (filtered.Count == 0) filtered = _taskMetrics.ToList();
+
+            CmbTaskMetric.ItemsSource = filtered;
+            if (!string.IsNullOrWhiteSpace(preferredMetric) && filtered.Any(m => m.Metric == preferredMetric))
+            {
+                CmbTaskMetric.SelectedValue = preferredMetric;
+            }
+            else if (filtered.Count > 0)
+            {
+                CmbTaskMetric.SelectedIndex = 0;
+            }
+            UpdateReliefPanelVisibility();
+        }
+
+        private void UpdateReliefPanelVisibility()
+        {
+            if (PanelTaskMaxBalance == null) return;
+            var opt = CmbTaskMetric.SelectedItem as TaskMetricOption;
+            PanelTaskMaxBalance.Visibility = opt != null && (opt.SupportsMaxBalance || opt.Metric == "relief")
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void RenderTasksGrid(string? selectKey = null)
+        {
+            var filter = (CmbTasksFilterGroup?.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
+            var filtered = filter == "all"
+                ? _allTasks.ToList()
+                : _allTasks.Where(t => string.Equals(t.Group, filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var dailyCount = _allTasks.Count(t => t.Group == "daily");
+            var growthCount = _allTasks.Count(t => t.Group == "growth");
+            TxtTasksSummaryCount.Text = $"共 {_allTasks.Count} 条（每日 {dailyCount} / 成长 {growthCount}）";
+
+            DgTasks.ItemsSource = null;
+            DgTasks.ItemsSource = filtered;
+
+            if (!string.IsNullOrWhiteSpace(selectKey))
+            {
+                var found = filtered.FirstOrDefault(t => t.Key == selectKey);
+                if (found != null)
+                {
+                    DgTasks.SelectedItem = found;
+                }
+            }
+        }
+
+        private void CmbTasksFilterGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || DgTasks == null) return;
+            RenderTasksGrid(_editingTaskOriginalKey);
+        }
+
+        private void DgTasks_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DgTasks.SelectedItem is not TaskConfigItem task) return;
+
+            _isBindingTaskForm = true;
+            try
+            {
+                _editingTaskOriginalKey = task.Key;
+                TxtTaskEditorMode.Text = $"✏️ 编辑任务：{task.Name}";
+                BtnDeleteTask.IsEnabled = true;
+
+                CmbTaskGroup.SelectedIndex = task.Group == "growth" ? 1 : 0;
+                PopulateTaskMetricsForGroup(task.Group, task.Metric);
+
+                TxtTaskKey.Text = task.Key;
+                TxtTaskName.Text = task.Name;
+                TxtTaskDesc.Text = task.Description;
+                TxtTaskTarget.Text = task.Target.ToString();
+                TxtTaskReward.Text = task.Reward.ToString();
+                TxtTaskMaxBalance.Text = (task.MaxBalance ?? 100).ToString();
+                UpdateReliefPanelVisibility();
+            }
+            finally
+            {
+                _isBindingTaskForm = false;
+            }
+        }
+
+        private void CmbTaskGroup_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || _isBindingTaskForm || CmbTaskMetric == null) return;
+            var group = GetSelectedTaskFormGroup();
+            PopulateTaskMetricsForGroup(group, null);
+        }
+
+        private void CmbTaskMetric_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || PanelTaskMaxBalance == null) return;
+            UpdateReliefPanelVisibility();
+        }
+
+        private void BtnNewTask_Click(object sender, RoutedEventArgs e)
+        {
+            _isBindingTaskForm = true;
+            try
+            {
+                DgTasks.SelectedItem = null;
+                _editingTaskOriginalKey = null;
+                TxtTaskEditorMode.Text = "➕ 新建任务";
+                BtnDeleteTask.IsEnabled = false;
+
+                var filter = (CmbTasksFilterGroup?.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
+                var defaultGroup = filter == "growth" ? "growth" : "daily";
+                CmbTaskGroup.SelectedIndex = defaultGroup == "growth" ? 1 : 0;
+                PopulateTaskMetricsForGroup(defaultGroup, null);
+
+                TxtTaskKey.Text = GenerateTaskKey(defaultGroup);
+                TxtTaskName.Text = "";
+                TxtTaskDesc.Text = "";
+                TxtTaskTarget.Text = defaultGroup == "growth" ? "10" : "3";
+                TxtTaskReward.Text = defaultGroup == "growth" ? "5000" : "500";
+                TxtTaskMaxBalance.Text = "100";
+                UpdateReliefPanelVisibility();
+                TxtTaskName.Focus();
+            }
+            finally
+            {
+                _isBindingTaskForm = false;
+            }
+        }
+
+        private static string GenerateTaskKey(string group)
+        {
+            var prefix = group == "growth" ? "once_custom_" : "daily_custom_";
+            return $"{prefix}{DateTime.Now:HHmmss}";
+        }
+
+        private void BtnAutoGenTaskKey_Click(object sender, RoutedEventArgs e)
+        {
+            var group = GetSelectedTaskFormGroup();
+            TxtTaskKey.Text = GenerateTaskKey(group);
+        }
+
+        private async void BtnRefreshTasks_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isConnected)
+            {
+                await ConnectServerAsync();
+                return;
+            }
+            await RefreshCurrentViewAsync();
+        }
+
+        private async void BtnSaveTask_Click(object sender, RoutedEventArgs e)
+        {
+            var group = GetSelectedTaskFormGroup();
+            var key = TxtTaskKey.Text.Trim().ToLowerInvariant();
+            var name = TxtTaskName.Text.Trim();
+            var desc = TxtTaskDesc.Text.Trim();
+            var metric = (CmbTaskMetric.SelectedItem as TaskMetricOption)?.Metric
+                ?? (group == "growth" ? "total_play" : "daily_play");
+
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                key = GenerateTaskKey(group);
+                TxtTaskKey.Text = key;
+            }
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                MessageBox.Show("请填写任务名称", "校验提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!long.TryParse(TxtTaskTarget.Text.Trim(), out var target) || target < 1 || target > 100_000_000)
+            {
+                MessageBox.Show("完成目标数值需为正整数（1 ~ 100,000,000）", "校验提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!long.TryParse(TxtTaskReward.Text.Trim(), out var reward) || reward < 1 || reward > MaxGrantAmount)
+            {
+                MessageBox.Show($"奖励欢乐豆需为正整数（1 ~ {MaxGrantAmount:N0}）", "校验提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            long? maxBalance = null;
+            if (metric == "relief")
+            {
+                if (!long.TryParse(TxtTaskMaxBalance.Text.Trim(), out var mb) || mb < 1)
+                {
+                    MessageBox.Show("救济金余额上限需为正整数", "校验提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                maxBalance = mb;
+            }
+
+            if (string.IsNullOrWhiteSpace(desc))
+            {
+                var metricLabel = (CmbTaskMetric.SelectedItem as TaskMetricOption)?.Label ?? name;
+                desc = $"{metricLabel}达到 {target:N0} 即可领取 {reward:N0} 欢乐豆奖励";
+                TxtTaskDesc.Text = desc;
+            }
+
+            try
+            {
+                BtnSaveTask.IsEnabled = false;
+                var resp = await _api.UpsertTaskAsync(key, _editingTaskOriginalKey, name, desc, group, metric, target, reward, maxBalance);
+                _allTasks = resp.Tasks ?? _allTasks;
+                _editingTaskOriginalKey = key;
+                RenderTasksGrid(key);
+
+                var actionText = resp.Action == "created" ? "新增" : "修改";
+                var groupLabel = group == "growth" ? "成长任务" : "每日任务";
+                SetStatus($"已{actionText}{groupLabel}「{name}」({key})，玩家大厅已即时生效！");
+                MessageBox.Show($"已成功{actionText}{groupLabel}「{name}」，玩家大厅任务列表已同步生效！", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"保存任务失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnSaveTask.IsEnabled = true;
+            }
+        }
+
+        private async void BtnDeleteTask_Click(object sender, RoutedEventArgs e)
+        {
+            var key = _editingTaskOriginalKey ?? (DgTasks.SelectedItem as TaskConfigItem)?.Key;
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                MessageBox.Show("请先在左侧选择要删除的任务", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var target = _allTasks.FirstOrDefault(t => t.Key == key);
+            var label = target != null ? $"「{target.Name}」({key})" : key;
+
+            var confirm = MessageBox.Show(
+                $"确认要删除任务 {label} 吗？\n删除后玩家大厅将不再展示此任务。",
+                "确认删除任务",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                BtnDeleteTask.IsEnabled = false;
+                var resp = await _api.DeleteTaskAsync(key);
+                _allTasks = resp.Tasks ?? _allTasks;
+                _editingTaskOriginalKey = null;
+                RenderTasksGrid(null);
+                BtnNewTask_Click(sender, e);
+                SetStatus($"已删除任务 {label}，玩家大厅已同步更新");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"删除任务失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                BtnDeleteTask.IsEnabled = true;
+            }
+        }
+
+        private async void BtnTaskMoveUp_Click(object sender, RoutedEventArgs e)
+        {
+            await MoveSelectedTaskAsync(-1);
+        }
+
+        private async void BtnTaskMoveDown_Click(object sender, RoutedEventArgs e)
+        {
+            await MoveSelectedTaskAsync(1);
+        }
+
+        private async Task MoveSelectedTaskAsync(int delta)
+        {
+            if (DgTasks.SelectedItem is not TaskConfigItem selected)
+            {
+                MessageBox.Show("请先选中一条任务再调整顺序", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var idx = _allTasks.FindIndex(t => t.Key == selected.Key);
+            if (idx < 0) return;
+
+            var targetIdx = idx + delta;
+            while (targetIdx >= 0 && targetIdx < _allTasks.Count && _allTasks[targetIdx].Group != selected.Group)
+            {
+                targetIdx += delta;
+            }
+            if (targetIdx < 0 || targetIdx >= _allTasks.Count) return;
+
+            (_allTasks[idx], _allTasks[targetIdx]) = (_allTasks[targetIdx], _allTasks[idx]);
+            try
+            {
+                var resp = await _api.SaveAllTasksAsync(_allTasks);
+                _allTasks = resp.Tasks ?? _allTasks;
+                RenderTasksGrid(selected.Key);
+                SetStatus($"已调整任务「{selected.Name}」展示顺序并同步到大厅");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"调整排序失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnResetTasks_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "确认要将所有每日任务和成长任务恢复为系统默认配置吗？\n当前自定义的增删改将被覆盖。",
+                "恢复默认任务确认",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                var resp = await _api.ResetDefaultTasksAsync();
+                _allTasks = resp.Tasks ?? new List<TaskConfigItem>();
+                _editingTaskOriginalKey = null;
+                RenderTasksGrid(null);
+                SetStatus($"已恢复系统默认任务列表（共 {_allTasks.Count} 条）");
+                MessageBox.Show("已恢复为系统默认每日任务与成长任务！", "恢复成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"恢复默认任务失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

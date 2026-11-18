@@ -115,6 +115,7 @@
                             <RadioButton x:Name="NavRooms" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎲  房间实时透视" Checked="Nav_Checked" Tag="rooms" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavSlots" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎰  老虎机经营" Checked="Nav_Checked" Tag="slots" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavCategories" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🗂️  游戏分类管理" Checked="Nav_Checked" Tag="categories" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavTasks" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎯  任务配置管理" Checked="Nav_Checked" Tag="tasks" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavMailbox" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📬  全服邮箱发放" Checked="Nav_Checked" Tag="mailbox" Margin="0,0,0,6"/>
 
                             <Border Height="1" Background="{StaticResource BrushBorder}" Margin="8,12,8,12"/>
@@ -1103,6 +1104,178 @@
                                         </StackPanel>
                                     </Border>
                                 </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ==================== 4.7 每日任务与成长任务动态管理 (Tasks) ==================== -->
+                    <Grid x:Name="ViewTasks" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 顶部说明与操作栏 -->
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12" Padding="16,12">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="🎯 每日任务与成长任务动态配置中心" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                                    <TextBlock Text="支持随时增加、修改、删除与调整任务顺序，点击保存后玩家大厅任务中心即时同步生效，无需重启服务器。" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource BtnSecondary}" Content="🔄 刷新列表" Click="BtnRefreshTasks_Click" Height="30" Padding="12,0" Margin="0,0,8,0"/>
+                                    <Button Style="{StaticResource BtnDanger}" Content="♻️ 恢复默认任务" Click="BtnResetTasks_Click" Height="30" Padding="12,0" ToolTip="将所有每日任务和成长任务恢复为系统默认初始列表"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- 主体左右分栏：左侧任务列表 + 右侧新增/修改表单 -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="62*"/>
+                                <ColumnDefinition Width="38*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 左侧：任务列表与分组筛选 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="分组筛选:" Foreground="{StaticResource BrushTextMuted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <ComboBox x:Name="CmbTasksFilterGroup" Width="135" Height="28" VerticalContentAlignment="Center" SelectionChanged="CmbTasksFilterGroup_SelectionChanged">
+                                                <ComboBoxItem Content="全部任务" Tag="all" IsSelected="True"/>
+                                                <ComboBoxItem Content="☀️ 每日任务" Tag="daily"/>
+                                                <ComboBoxItem Content="🌟 成长任务" Tag="growth"/>
+                                            </ComboBox>
+                                            <TextBlock x:Name="TxtTasksSummaryCount" Text="共 0 条" Foreground="{StaticResource BrushTextDim}" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource BtnSecondary}" Content="⬆️ 上移" Click="BtnTaskMoveUp_Click" Height="28" Padding="8,0" Margin="0,0,4,0"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="⬇️ 下移" Click="BtnTaskMoveDown_Click" Height="28" Padding="8,0" Margin="0,0,8,0"/>
+                                            <Button Style="{StaticResource BtnGold}" Content="➕ 新建任务" Click="BtnNewTask_Click" Height="28" Padding="10,0"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <DataGrid x:Name="DgTasks" Grid.Row="1" SelectionChanged="DgTasks_SelectionChanged" Margin="0,0,0,8">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="分组" Binding="{Binding GroupDisplay}" Width="92">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="Text" Value="☀️ 每日任务">
+                                                                <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                            </Trigger>
+                                                            <Trigger Property="Text" Value="🌟 成长任务">
+                                                                <Setter Property="Foreground" Value="#60A5FA"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="任务名称" Binding="{Binding Name}" Width="110">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="进度统计维度" Binding="{Binding DisplayMetric}" Width="*"/>
+                                            <DataGridTextColumn Header="目标" Binding="{Binding FormattedTarget}" Width="70"/>
+                                            <DataGridTextColumn Header="奖励筹码" Binding="{Binding FormattedReward}" Width="98">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="标识 Key" Binding="{Binding Key}" Width="118"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <TextBlock Grid.Row="2" Text="💡 提示：点击左侧任意行可在右侧直接修改或删除；「每日任务」每日 0 点自动重置，「成长任务」全周期累计领取一次。" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- 右侧：新增 / 编辑任务表单 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,12">
+                                            <TextBlock x:Name="TxtTaskEditorMode" Text="➕ 新建任务" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushGold}" VerticalAlignment="Center"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="清空新建" Click="BtnNewTask_Click" HorizontalAlignment="Right" Height="26" Padding="10,0" FontSize="11"/>
+                                        </Grid>
+
+                                        <!-- 任务分组 -->
+                                        <TextBlock Text="任务分组:" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                        <ComboBox x:Name="CmbTaskGroup" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,10" SelectionChanged="CmbTaskGroup_SelectionChanged">
+                                            <ComboBoxItem Content="☀️ 每日任务 (每日重置)" Tag="daily" IsSelected="True"/>
+                                            <ComboBoxItem Content="🌟 成长任务 (长期累计一次)" Tag="growth"/>
+                                        </ComboBox>
+
+                                        <!-- 任务标识 Key -->
+                                        <TextBlock Text="唯一标识 Key (英文/数字/下划线):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtTaskKey" Height="30" VerticalContentAlignment="Center" ToolTip="如 daily_play_50 或 once_win_200"/>
+                                            <Button Grid.Column="1" Style="{StaticResource BtnSecondary}" Content="🎲 自动生成" Click="BtnAutoGenTaskKey_Click" Height="30" Margin="6,0,0,0" Padding="8,0" FontSize="11"/>
+                                        </Grid>
+
+                                        <!-- 任务名称 -->
+                                        <TextBlock Text="任务名称 (最多24字):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                        <TextBox x:Name="TxtTaskName" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,10"/>
+
+                                        <!-- 进度统计维度 -->
+                                        <TextBlock Text="进度统计维度 (决定如何自动追踪玩家进度):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                        <ComboBox x:Name="CmbTaskMetric" Height="30" VerticalContentAlignment="Center" DisplayMemberPath="DisplayText" SelectedValuePath="Metric" Margin="0,0,0,10" SelectionChanged="CmbTaskMetric_SelectionChanged"/>
+
+                                        <!-- 目标进度 与 奖励筹码 -->
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                <TextBlock Text="完成目标数值:" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                                <TextBox x:Name="TxtTaskTarget" Text="5" Height="30" VerticalContentAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                <TextBlock Text="奖励欢乐豆 (上限5000万):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                                <TextBox x:Name="TxtTaskReward" Text="1000" Height="30" VerticalContentAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- 仅救济金维度显示：余额阈值 -->
+                                        <StackPanel x:Name="PanelTaskMaxBalance" Visibility="Collapsed" Margin="0,0,0,10">
+                                            <TextBlock Text="救济金触发余额上限 (筹码低于此值才可领取):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushGold}" Margin="0,0,0,4"/>
+                                            <TextBox x:Name="TxtTaskMaxBalance" Text="100" Height="30" VerticalContentAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <!-- 任务说明 -->
+                                        <TextBlock Text="任务描述文案 (展示在玩家大厅任务卡上):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                        <TextBox x:Name="TxtTaskDesc" Height="68" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top" Padding="8,6" Margin="0,0,0,16"/>
+
+                                        <!-- 操作按钮 -->
+                                        <Button x:Name="BtnSaveTask" Style="{StaticResource BtnGold}" Content="💾 保存任务并立即同步到大厅" Click="BtnSaveTask_Click" Height="36" FontSize="13" Margin="0,0,0,10"/>
+
+                                        <Button x:Name="BtnDeleteTask" Style="{StaticResource BtnDanger}" Content="🗑️ 删除当前选中的任务" Click="BtnDeleteTask_Click" Height="32" IsEnabled="False"/>
+                                    </StackPanel>
+                                </ScrollViewer>
                             </Border>
                         </Grid>
                     </Grid>

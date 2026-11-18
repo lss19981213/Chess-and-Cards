@@ -952,4 +952,92 @@ namespace CcGmClient.Models
         public string CategoryKey { get; set; } = "";
         public string CategoryLabel { get; set; } = "";
     }
+
+    // ---------- 每日任务与成长任务动态配置模型 ----------
+    public class TaskConfigItem
+    {
+        [JsonPropertyName("key")]
+        public string Key { get; set; } = "";
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = "";
+
+        [JsonPropertyName("group")]
+        public string Group { get; set; } = "daily";
+
+        [JsonPropertyName("period")]
+        public string Period { get; set; } = "daily";
+
+        [JsonPropertyName("kind")]
+        public string Kind { get; set; } = "play";
+
+        [JsonPropertyName("metric")]
+        public string Metric { get; set; } = "daily_play";
+
+        [JsonPropertyName("metricLabel")]
+        public string? MetricLabel { get; set; }
+
+        [JsonPropertyName("target")]
+        public long Target { get; set; } = 1;
+
+        [JsonPropertyName("reward")]
+        public long Reward { get; set; } = 100;
+
+        [JsonPropertyName("maxBalance")]
+        public long? MaxBalance { get; set; }
+
+        [JsonPropertyName("sortOrder")]
+        public int SortOrder { get; set; }
+
+        [JsonIgnore]
+        public string GroupDisplay => Group == "growth" ? "🌟 成长任务" : "☀️ 每日任务";
+
+        [JsonIgnore]
+        public string DisplayMetric => !string.IsNullOrWhiteSpace(MetricLabel) ? MetricLabel : Metric;
+
+        [JsonIgnore]
+        public string FormattedTarget => $"{Target:N0}";
+
+        [JsonIgnore]
+        public string FormattedReward => $"+{Reward:N0} 豆";
+    }
+
+    public class TaskMetricOption
+    {
+        [JsonPropertyName("metric")]
+        public string Metric { get; set; } = "";
+
+        [JsonPropertyName("label")]
+        public string Label { get; set; } = "";
+
+        [JsonPropertyName("group")]
+        public string Group { get; set; } = "daily";
+
+        [JsonPropertyName("kind")]
+        public string Kind { get; set; } = "play";
+
+        [JsonPropertyName("supportsMaxBalance")]
+        public bool SupportsMaxBalance { get; set; }
+
+        [JsonIgnore]
+        public string DisplayText => $"{Label} ({Metric})";
+    }
+
+    public class AdminTasksResponse
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("action")]
+        public string? Action { get; set; }
+
+        [JsonPropertyName("tasks")]
+        public List<TaskConfigItem> Tasks { get; set; } = new();
+
+        [JsonPropertyName("metrics")]
+        public List<TaskMetricOption>? Metrics { get; set; }
+    }
 }

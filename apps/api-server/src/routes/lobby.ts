@@ -18,7 +18,7 @@ import {
   type SlotsConfig,
 } from '../slots-engine';
 import { synthesizeTaiwanSweetSpeech } from '../tts-taiwan';
-import { TASKS, findTask, periodKeyFor, titleFor, type TaskView } from '../tasks';
+import { loadTasksConfig, periodKeyFor, titleFor, type TaskView } from '../tasks';
 
 export async function buildTasks(
   repo: Repository,
@@ -27,7 +27,8 @@ export async function buildTasks(
 ): Promise<TaskView[]> {
   const dailyKey = periodKeyFor('daily');
   const onceKey = periodKeyFor('once');
-  const [rows, profile] = await Promise.all([
+  const [taskDefs, rows, profile] = await Promise.all([
+    loadTasksConfig((k) => repo.getSetting(k)),
     repo.getTaskRows(userId, [dailyKey, onceKey]),
     repo.getProfile(userId),
   ]);
@@ -46,11 +47,12 @@ export async function buildTasks(
   const currentLevel = profile?.level ?? 1;
   const ownedFrameCount = profile?.ownedFrames?.length ?? 1;
 
-  return TASKS.map((task) => {
+  return taskDefs.map((task) => {
     const pk = periodKeyFor(task.period);
     const ownRow = rows.find((r) => r.taskKey === task.key && r.periodKey === pk);
 
-    if (task.key === 'daily_invite') {
+    if (task.key === 'daily_invite' || task.kind === 'invite') {
+      const unitReward = Math.max(1, task.reward);
       const inviteRow = rows.find((r) => r.taskKey === 'daily_invite' && r.periodKey === pk);
       const claimedRow = rows.find((r) => r.taskKey === 'daily_invite_claimed' && r.periodKey === pk);
       const totalInvites = inviteRow?.progress ?? 0;
@@ -60,9 +62,9 @@ export async function buildTasks(
       return {
         key: task.key,
         name: task.name,
-        description: `每邀请1位新玩家注册入场奖励 1,000 筹码（无上限），今日已邀请 ${totalInvites} 人${unclaimed > 0 ? `，待领取 ${unclaimed} 份（${(unclaimed * 1000).toLocaleString()} 筹码）` : ''}！`,
+        description: `每邀请1位新玩家注册入场奖励 ${unitReward.toLocaleString()} 筹码（无上限），今日已邀请 ${totalInvites} 人${unclaimed > 0 ? `，待领取 ${unclaimed} 份（${(unclaimed * unitReward).toLocaleString()} 筹码）` : ''}！`,
         target: Math.max(1, totalInvites),
-        reward: unclaimed > 0 ? unclaimed * 1000 : 1000,
+        reward: unclaimed > 0 ? unclaimed * unitReward : unitReward,
         period: task.period,
         group: task.group,
         progress: totalInvites,
@@ -165,13 +167,15 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     const claims = authHeader(req);
     const body = (req.body ?? {}) as Record<string, unknown>;
     const key = typeof body.key === 'string' ? body.key : '';
-    const task = findTask(key);
+    const taskDefs = await loadTasksConfig((k) => repo.getSetting(k));
+    const task = taskDefs.find((t) => t.key === key);
     if (!task) throw httpError('任务不存在', 404);
 
     const pk = periodKeyFor(task.period);
 
     // 邀请新玩家：按未领取的邀请人头全额发放，无上限！
-    if (key === 'daily_invite') {
+    if (key === 'daily_invite' || task.kind === 'invite') {
+      const unitReward = Math.max(1, task.reward);
       const rows = await repo.getTaskRows(claims.sub, [pk]);
       const inviteRow = rows.find((r) => r.taskKey === 'daily_invite' && r.periodKey === pk);
       const claimedRow = rows.find((r) => r.taskKey === 'daily_invite_claimed' && r.periodKey === pk);
@@ -180,7 +184,7 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
       const unclaimed = Math.max(0, totalInvites - claimedCount);
       if (unclaimed <= 0) throw httpError('暂无可领取的邀请奖励，快去邀请好友吧！', 400);
 
-      const rewardAmount = unclaimed * 1000;
+      const rewardAmount = unclaimed * unitReward;
       const bizId = `invite:${claims.sub}:${pk}:${Date.now()}`;
       const newBalance = await repo.credit(claims.sub, rewardAmount, 'task', bizId);
       await repo.bumpTask(claims.sub, 'daily_invite_claimed', pk, unclaimed);

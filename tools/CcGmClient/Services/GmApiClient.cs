@@ -180,6 +180,68 @@ namespace CcGmClient.Services
             return await SendAsync<GameCategoriesResponse>(HttpMethod.Put, "/api/admin/game-categories", body);
         }
 
+        // ---------- 每日任务与成长任务动态管理 ----------
+        public async Task<AdminTasksResponse> GetTasksConfigAsync()
+        {
+            return await SendAsync<AdminTasksResponse>(HttpMethod.Get, "/api/admin/tasks");
+        }
+
+        public async Task<AdminTasksResponse> UpsertTaskAsync(
+            string key,
+            string? originalKey,
+            string name,
+            string description,
+            string group,
+            string metric,
+            long target,
+            long reward,
+            long? maxBalance = null)
+        {
+            var body = new
+            {
+                key,
+                originalKey = string.IsNullOrWhiteSpace(originalKey) ? null : originalKey,
+                name,
+                description,
+                group,
+                metric,
+                target,
+                reward,
+                maxBalance
+            };
+            return await SendAsync<AdminTasksResponse>(HttpMethod.Post, "/api/admin/tasks", body);
+        }
+
+        public async Task<AdminTasksResponse> SaveAllTasksAsync(List<TaskConfigItem> tasks)
+        {
+            var payload = new
+            {
+                tasks = tasks.ConvertAll(t => new
+                {
+                    key = t.Key,
+                    name = t.Name,
+                    description = t.Description,
+                    group = t.Group,
+                    metric = t.Metric,
+                    target = t.Target,
+                    reward = t.Reward,
+                    maxBalance = t.MaxBalance
+                })
+            };
+            return await SendAsync<AdminTasksResponse>(HttpMethod.Put, "/api/admin/tasks", payload);
+        }
+
+        public async Task<AdminTasksResponse> DeleteTaskAsync(string key)
+        {
+            var path = $"/api/admin/tasks/{Uri.EscapeDataString(key)}";
+            return await SendAsync<AdminTasksResponse>(HttpMethod.Delete, path);
+        }
+
+        public async Task<AdminTasksResponse> ResetDefaultTasksAsync()
+        {
+            return await SendAsync<AdminTasksResponse>(HttpMethod.Post, "/api/admin/tasks/reset", new { });
+        }
+
         // ---------- 2. 玩家管控 ----------
         public async Task<List<PlayerItem>> GetPlayersAsync(string q = "")
         {
