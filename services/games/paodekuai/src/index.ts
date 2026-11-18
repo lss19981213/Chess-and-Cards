@@ -269,7 +269,33 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
         count: (this.state.hands.get(p.playerId) ?? []).length,
       })),
     });
+
+    // 跑得快首出规则：必须包含先手黑桃/红桃 3
+    if (this.state.firstTrick && this.state.leadCardId) {
+      const leadId = this.state.leadCardId;
+      const hasLeadInAction =
+        action?.cmd === 'play' && action.cards.some((c) => c.id === leadId);
+      if (!hasLeadInAction) {
+        const leadCard = hand.find((c) => c.id === leadId);
+        if (leadCard) {
+          const sameRankOthers = hand.filter((c) => c.rank === leadCard.rank && c.id !== leadId);
+          const pick = sameRankOthers.length >= 1 ? [leadCard, sameRankOthers[0]!] : [leadCard];
+          return { cmd: 'play', payload: { cards: pick.map((c) => c.id) } };
+        }
+      }
+    }
+
     if (!action) return null;
+
+    // 跑得快规则：能管必管，手中有能压制上家的牌型时不可过牌
+    if (action.cmd === 'pass' && this.state.lastCombo && this.state.lastPlayerId !== playerId) {
+      const beating = findAllBeatingMoves(hand, this.state.lastCombo, PAODEKUAI_RULES);
+      if (beating.length > 0) {
+        return { cmd: 'play', payload: { cards: beating[0]!.combo.cards.map((c) => c.id) } };
+      }
+      return { cmd: 'pass', payload: {} };
+    }
+
     if (action.cmd === 'pass') return { cmd: 'pass', payload: {} };
     return { cmd: 'play', payload: { cards: action.cards.map((c) => c.id) } };
   }

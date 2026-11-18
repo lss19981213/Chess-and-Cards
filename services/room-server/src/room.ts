@@ -447,7 +447,12 @@ export class GameRoom {
   }
 
   /** 添加机器人陪玩：入座即准备，按指定难度由本地博弈算法代其行动 */
-  addBot(playerId: string, nickname: string, difficulty: BotDifficulty = 'medium'): void {
+  addBot(
+    playerId: string,
+    nickname: string,
+    difficulty: BotDifficulty = 'medium',
+    options?: { deferStart?: boolean },
+  ): void {
     if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
     if (this.seats.has(playerId)) return;
     const capacityLimit = this.persistent ? this.capacity : this.maxPlayers;
@@ -481,7 +486,9 @@ export class GameRoom {
 
     this.broadcastView();
     this.dirty = true;
-    this.tryStart();
+    if (!options?.deferStart) {
+      this.tryStart();
+    }
   }
 
   currentActor(): string | null {

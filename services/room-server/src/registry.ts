@@ -222,7 +222,8 @@ export class RoomManager {
     for (let i = 0; i < botCount; i += 1) {
       const name = pool[i % pool.length] ?? `牌手${i + 1}`;
       const diff = diffs[Math.floor(Math.random() * diffs.length)] ?? 'medium';
-      room.addBot(`bot:${randomUUID()}`, `🤖 ${name}`, diff);
+      // 前 N-1 名机器人延迟开局，待所有初始机器人落座后再统一开局，避免加第 3 名机器人时因已开局抛错
+      room.addBot(`bot:${randomUUID()}`, `🤖 ${name}`, diff, { deferStart: i < botCount - 1 });
     }
     return room;
   }
