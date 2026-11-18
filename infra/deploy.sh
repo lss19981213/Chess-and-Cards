@@ -78,6 +78,48 @@ pnpm install --frozen-lockfile
 echo "==> 构建前端"
 pnpm --filter @cc/lobby-web build
 
+echo "==> 先刷新 nginx 配置以启用友好维护页（避免重启期间露出 502）"
+sudo mkdir -p /etc/nginx/snippets
+sudo cp infra/nginx-lobby.conf "$SNIPPET"
+sudo nginx -t && sudo systemctl reload nginx || true
+
+API_LOCAL="http://127.0.0.1:${PORT:-8080}"
+MAX_DRAIN_WAIT_SEC="${MAX_DRAIN_WAIT_SEC:-600}"
+COMPENSATION_COINS="${COMPENSATION_COINS:-1000}"
+NEW_VERSION="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
+IS_UPGRADE=0
+
+if [ -n "${INTERNAL_KEY:-}" ] && curl -fsS --max-time 3 "${API_LOCAL}/health" >/dev/null 2>&1; then
+  IS_UPGRADE=1
+  echo "==> 开启维护排水期（禁止开新局，等待进行中的玩家对局完成）..."
+  curl -fsS --max-time 5 -X POST "${API_LOCAL}/internal/maintenance/drain" \
+    -H "x-internal-key: ${INTERNAL_KEY}" \
+    -H "content-type: application/json" \
+    -d "{\"compensationCoins\":${COMPENSATION_COINS}}" >/dev/null 2>&1 || true
+
+  WAITED=0
+  while [ "${WAITED}" -lt "${MAX_DRAIN_WAIT_SEC}" ]; do
+    STATUS_JSON="$(curl -fsS --max-time 4 "${API_LOCAL}/internal/maintenance/status" \
+      -H "x-internal-key: ${INTERNAL_KEY}" 2>/dev/null || echo '{"activeHumanGames":0}')"
+    ACTIVE_GAMES="$(printf '%s' "${STATUS_JSON}" | sed -n 's/.*"activeHumanGames"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n1)"
+    ACTIVE_GAMES="${ACTIVE_GAMES:-0}"
+    if [ "${ACTIVE_GAMES}" -eq 0 ]; then
+      echo "✅ 所有进行中的对局已全部完成！"
+      break
+    fi
+    echo "⏳ 等待进行中的 ${ACTIVE_GAMES} 桌对局结束（已等待 ${WAITED}s / 上限 ${MAX_DRAIN_WAIT_SEC}s）..."
+    sleep 3
+    WAITED=$((WAITED + 3))
+  done
+
+  echo "==> 切换为「平台正在紧急更新中」等待页..."
+  curl -fsS --max-time 5 -X POST "${API_LOCAL}/internal/maintenance/updating" \
+    -H "x-internal-key: ${INTERNAL_KEY}" \
+    -H "content-type: application/json" \
+    -d "{\"compensationCoins\":${COMPENSATION_COINS}}" >/dev/null 2>&1 || true
+  sleep 2
+fi
+
 echo "==> 注册 systemd 服务"
 sudo cp infra/cc-api.service /etc/systemd/system/cc-api.service
 sudo cp infra/cc-room.service /etc/systemd/system/cc-room.service
@@ -100,6 +142,15 @@ wait_health() {
 
 wait_health "http://127.0.0.1:${PORT:-8080}/health" "cc-api" "cc-api" || exit 1
 wait_health "http://127.0.0.1:${ROOM_PORT:-9000}/health" "cc-room" "cc-room" || exit 1
+
+if [ "${IS_UPGRADE}" -eq 1 ] && [ -n "${INTERNAL_KEY:-}" ]; then
+  echo "==> 自动发放全服更新补偿 (${COMPENSATION_COINS} 欢乐豆/人) 并恢复服务..."
+  curl -fsS --max-time 8 -X POST "${API_LOCAL}/internal/maintenance/complete" \
+    -H "x-internal-key: ${INTERNAL_KEY}" \
+    -H "content-type: application/json" \
+    -d "{\"version\":\"${NEW_VERSION}\",\"compensationCoins\":${COMPENSATION_COINS}}" || true
+  echo ""
+fi
 
 echo "==> 配置 nginx 片段"
 sudo mkdir -p /etc/nginx/snippets

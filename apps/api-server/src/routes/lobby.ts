@@ -18,6 +18,7 @@ import {
   type SlotsConfig,
 } from '../slots-engine';
 import { synthesizeTaiwanSweetSpeech } from '../tts-taiwan';
+import { getMaintenanceMode } from './maintenance';
 import { loadTasksConfig, periodKeyFor, titleFor, type TaskView } from '../tasks';
 
 export async function buildTasks(
@@ -399,6 +400,9 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
 
   // 服务端权威老虎机摇奖结算：真实扣款与派彩、写入流水账本、累计经验值与 GM 经营统计（无免费旋转）
   app.post('/api/slots/spin', async (req) => {
+    if (getMaintenanceMode() !== 'normal') {
+      throw httpError('平台即将紧急更新，当前暂停开启新一局游戏，更新完成后自动补偿 1,000 欢乐豆！', 503);
+    }
     const claims = authHeader(req);
     const body = (req.body ?? {}) as Record<string, unknown>;
     const betPerLine = Math.floor(Number(body.betPerLine ?? 0));

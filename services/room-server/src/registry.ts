@@ -27,6 +27,22 @@ const scaleLog = createLogger('scale');
 
 export { PLATFORM_ROOMS_INITIAL };
 
+export type MaintenanceMode = 'normal' | 'draining' | 'updating';
+
+export interface RoomMaintenanceStatus {
+  mode: MaintenanceMode;
+  message: string;
+  since: number | null;
+  activeHumanGames: number;
+  activeRooms: Array<{
+    roomId: string;
+    gameId: string;
+    round: number;
+    humans: number;
+    persistent: boolean;
+  }>;
+}
+
 /**
  * 房间与插件注册中心。
  * 新增游戏只需 register()，大厅通过 listGames() 自动获得入口。
@@ -36,6 +52,9 @@ export class RoomManager {
   private readonly metas = new Map<string, GameMeta>();
   private readonly rooms = new Map<string, GameRoom>();
   private readonly deps: RoomDeps;
+  private maintenanceMode: MaintenanceMode = 'normal';
+  private maintenanceMessage = '';
+  private maintenanceSince: number | null = null;
 
   constructor(
     config: RoomServerConfig,
@@ -51,6 +70,50 @@ export class RoomManager {
       empty: (roomId) => {
         this.rooms.delete(roomId);
       },
+      isDraining: () => this.maintenanceMode !== 'normal',
+    };
+  }
+
+  isDraining(): boolean {
+    return this.maintenanceMode !== 'normal';
+  }
+
+  setMaintenanceMode(mode: MaintenanceMode, message?: string): RoomMaintenanceStatus {
+    this.maintenanceMode = mode;
+    if (mode === 'normal') {
+      this.maintenanceMessage = '';
+      this.maintenanceSince = null;
+    } else {
+      this.maintenanceMessage =
+        message?.trim() ||
+        (mode === 'updating'
+          ? '平台正在紧急更新中，请耐心等待（更新完成后自动补偿 1,000 欢乐豆）'
+          : '平台即将紧急更新，当前暂停开启新游戏，正在等待进行中的对局完成！');
+      if (this.maintenanceSince === null) this.maintenanceSince = Date.now();
+    }
+    return this.getMaintenanceStatus();
+  }
+
+  getMaintenanceStatus(): RoomMaintenanceStatus {
+    const activeRooms: RoomMaintenanceStatus['activeRooms'] = [];
+    for (const room of this.rooms.values()) {
+      if (room.hasActiveHumanGame) {
+        const view = room.view();
+        activeRooms.push({
+          roomId: room.id,
+          gameId: room.gameId,
+          round: view.round,
+          humans: room.humanCount,
+          persistent: room.isPersistent,
+        });
+      }
+    }
+    return {
+      mode: this.maintenanceMode,
+      message: this.maintenanceMessage,
+      since: this.maintenanceSince,
+      activeHumanGames: activeRooms.length,
+      activeRooms,
     };
   }
 
@@ -91,6 +154,12 @@ export class RoomManager {
     player: { playerId: string; nickname: string },
     socket: WebSocket,
   ): GameRoom {
+    if (this.maintenanceMode !== 'normal') {
+      throw new AppError(
+        ErrorCode.IllegalAction,
+        this.maintenanceMessage || '平台即将紧急更新，当前暂停开启新游戏，请耐心等待！',
+      );
+    }
     const factory = this.factories.get(gameId);
     if (!factory) throw new AppError(ErrorCode.BadRequest, `游戏不存在或未部署: ${gameId}`);
 
@@ -154,6 +223,12 @@ export class RoomManager {
     player: { playerId: string; nickname: string },
     socket: WebSocket,
   ): GameRoom {
+    if (this.maintenanceMode !== 'normal') {
+      throw new AppError(
+        ErrorCode.IllegalAction,
+        this.maintenanceMessage || '平台即将紧急更新，当前暂停创建新房间，请耐心等待！',
+      );
+    }
     const factory = this.factories.get(gameId);
     if (!factory) throw new AppError(ErrorCode.BadRequest, `游戏不存在或未部署: ${gameId}`);
     const meta = this.metas.get(gameId);

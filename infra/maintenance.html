@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>平台正在紧急更新中 · 请耐心等待</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle at 50% 25%, #0e3828 0%, #071913 55%, #040b09 100%);
+        color: #f8fafc;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .card {
+        position: relative;
+        width: min(92vw, 520px);
+        padding: 40px 32px 34px;
+        border-radius: 24px;
+        background: linear-gradient(160deg, rgba(12, 34, 26, 0.94), rgba(6, 16, 13, 0.96));
+        border: 1.5px solid rgba(245, 208, 118, 0.42);
+        box-shadow: 0 28px 64px rgba(0, 0, 0, 0.72), 0 0 40px rgba(245, 208, 118, 0.12);
+        text-align: center;
+      }
+      .emblem {
+        width: 78px;
+        height: 78px;
+        margin: 0 auto 18px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #fde68a, #d97706 68%, #78350f);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        box-shadow: 0 0 28px rgba(250, 204, 21, 0.45);
+        animation: pulseGlow 2.4s ease-in-out infinite;
+      }
+      @keyframes pulseGlow {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 24px rgba(250, 204, 21, 0.4); }
+        50% { transform: scale(1.06); box-shadow: 0 0 38px rgba(250, 204, 21, 0.72); }
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 900;
+        letter-spacing: 1px;
+        background: linear-gradient(90deg, #fef08a, #f59e0b, #fef08a);
+        -webkit-background-clip: text;
+        color: transparent;
+        margin-bottom: 10px;
+      }
+      .sub {
+        font-size: 14px;
+        line-height: 1.7;
+        color: #cbd5e1;
+        margin-bottom: 20px;
+      }
+      .reward-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 13px 16px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.08));
+        border: 1px solid rgba(251, 191, 36, 0.5);
+        margin-bottom: 22px;
+        font-size: 14px;
+        color: #fef3c7;
+        font-weight: 700;
+      }
+      .reward-box strong {
+        color: #fde047;
+        font-size: 17px;
+      }
+      .progress-wrap {
+        width: 100%;
+        height: 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        margin-bottom: 14px;
+      }
+      .progress-bar {
+        width: 45%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #f59e0b, #fde047, #10b981);
+        animation: slideBar 1.6s ease-in-out infinite;
+      }
+      @keyframes slideBar {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(250%); }
+      }
+      .status-line {
+        font-size: 12.5px;
+        color: #94a3b8;
+        margin-bottom: 20px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 26px;
+        border-radius: 999px;
+        border: 1px solid rgba(251, 191, 36, 0.65);
+        background: linear-gradient(135deg, #f59e0b, #b45309);
+        color: #fffbeb;
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: filter 0.15s ease, transform 0.15s ease;
+      }
+      .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="emblem">🛠️</div>
+      <h1>平台正在紧急更新中</h1>
+      <p class="sub">
+        我们正在为您部署全新玩法与体验升级，服务将在片刻后自动恢复。<br />
+        请耐心等待，页面检测到恢复后将自动为您进入大厅。
+      </p>
+      <div class="reward-box">
+        <span>🎁</span>
+        <span>更新完成后将自动补偿每位玩家 <strong>1,000 欢乐豆</strong>（信箱领取）</span>
+      </div>
+      <div class="progress-wrap"><div class="progress-bar"></div></div>
+      <p class="status-line" id="statusText">正在自动检测平台恢复状态…</p>
+      <button class="btn" type="button" onclick="checkNow()">立即刷新检测</button>
+    </main>
+    <script>
+      var tries = 0;
+      function checkNow() {
+        var el = document.getElementById('statusText');
+        tries += 1;
+        el.textContent = '正在检测平台状态（第 ' + tries + ' 次）…';
+        fetch('/lobby/api/system/status?t=' + Date.now(), { cache: 'no-store' })
+          .then(function (r) {
+            if (!r.ok) throw new Error('status ' + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            if (data && data.mode === 'updating') {
+              el.textContent = '平台更新收尾中，即将恢复，请稍候…';
+              return;
+            }
+            el.textContent = '✨ 平台更新已完成！正在进入大厅…';
+            setTimeout(function () {
+              window.location.replace('/lobby/');
+            }, 600);
+          })
+          .catch(function () {
+            el.textContent = '服务重启升级中，请耐心等待（每 3 秒自动重连）…';
+          });
+      }
+      setInterval(checkNow, 3000);
+      setTimeout(checkNow, 1200);
+    </script>
+  </body>
+</html>

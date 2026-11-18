@@ -152,8 +152,51 @@ async function handleHttp(
   }
 
   if (url.pathname === '/health') {
+    const maint = manager.getMaintenanceStatus();
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, rooms: manager.list().length, games: manager.listGames().length }));
+    res.end(
+      JSON.stringify({
+        ok: true,
+        rooms: manager.list().length,
+        games: manager.listGames().length,
+        maintenanceMode: maint.mode,
+        activeHumanGames: maint.activeHumanGames,
+      }),
+    );
+    return;
+  }
+
+  // ---- 维护排水控制接口（仅内部密钥访问） ----
+  if (url.pathname === '/internal/maintenance/status' && req.method === 'GET') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, ...manager.getMaintenanceStatus() }));
+    return;
+  }
+
+  if (url.pathname === '/internal/maintenance/mode' && req.method === 'POST') {
+    if (!isInternal(req)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'forbidden' }));
+      return;
+    }
+    try {
+      const body = await readJsonBody(req);
+      const rawMode = String(body.mode ?? 'normal');
+      const mode = rawMode === 'draining' || rawMode === 'updating' ? rawMode : 'normal';
+      const message = typeof body.message === 'string' ? body.message : undefined;
+      const status = manager.setMaintenanceMode(mode, message);
+      log.info('切换房间服务维护模式', { mode: status.mode, activeHumanGames: status.activeHumanGames });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, ...status }));
+    } catch (error) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: (error as Error).message }));
+    }
     return;
   }
 
@@ -516,6 +559,10 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
         const target = manager.get(roomId);
         if (!target || target.isClosed) {
           throw new AppError(ErrorCode.RoomNotFound, '房间不存在或已解散');
+        }
+        const alreadySeated = target.view().players.some((p) => p.playerId === session.playerId);
+        if (manager.isDraining() && !alreadySeated) {
+          throw new AppError(ErrorCode.IllegalAction, '平台即将紧急更新，当前暂停加入新牌局，请耐心等待！');
         }
         if (target.isBotHosted) {
           // 机器人自建经典扑克房：玩家进入默认观战模式，点击入座按钮才能加入牌局

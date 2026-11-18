@@ -18,6 +18,7 @@ import { GameRooms } from './components/GameRooms';
 import { LeaderboardView } from './components/LeaderboardView';
 import { Lobby } from './components/Lobby';
 import { MailView } from './components/MailView';
+import { MaintenanceOverlay, type SystemMaintenanceState } from './components/MaintenanceOverlay';
 import { NoticesView } from './components/NoticesView';
 import { ProfileView } from './components/ProfileView';
 import { Room } from './components/Room';
@@ -92,6 +93,13 @@ export default function App() {
   const [selectedGame, setSelectedGame] = useState<GameMeta | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [maintenance, setMaintenance] = useState<SystemMaintenanceState>({
+    mode: 'normal',
+    message: '',
+    compensationCoins: 1000,
+    activeHumanGames: 0,
+  });
+  const wasUpdatingRef = useRef<boolean>(false);
 
   // 全屏视图状态流转 (彻底消除弹窗)
   const [view, setView] = useState<AppView>('lobby');
@@ -116,6 +124,78 @@ export default function App() {
     audio.setInGame(view === 'room' && Boolean(room));
     return () => audio.setInGame(false);
   }, [view, room]);
+
+  // 平台优雅更新 / 停服维护状态轮询与 502 自动接管（绝不向玩家显示 502）
+  const pollSystemStatus = useCallback(async () => {
+    try {
+      const st = await api.systemStatus();
+      if (st.mode === 'updating') {
+        wasUpdatingRef.current = true;
+      } else if (st.mode === 'normal' && wasUpdatingRef.current) {
+        wasUpdatingRef.current = false;
+        try {
+          sessionStorage.setItem('cc.updated_notice', String(st.compensationCoins || 1000));
+        } catch {
+          /* ignore */
+        }
+        window.location.reload();
+        return;
+      }
+      setMaintenance({
+        mode: st.mode,
+        message: st.message ?? '',
+        compensationCoins: st.compensationCoins || 1000,
+        activeHumanGames: st.activeHumanGames ?? 0,
+      });
+    } catch {
+      wasUpdatingRef.current = true;
+      setMaintenance((prev) => ({
+        mode: 'updating',
+        message: prev.message || '平台正在紧急更新中，请耐心等待（更新完成后自动补偿 1,000 欢乐豆）',
+        compensationCoins: prev.compensationCoins || 1000,
+        activeHumanGames: 0,
+      }));
+    }
+  }, []);
+
+  useEffect(() => {
+    // 刚从更新页自动刷新回来时，温馨提示领取 1,000 欢乐豆补偿
+    try {
+      const updatedCoins = sessionStorage.getItem('cc.updated_notice');
+      if (updatedCoins) {
+        sessionStorage.removeItem('cc.updated_notice');
+        window.setTimeout(() => {
+          setToast(`🎉 平台升级完成！${Number(updatedCoins).toLocaleString()} 欢乐豆更新补偿已发至信箱，请前往领取！`);
+        }, 500);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const onMaintenanceEvent = (ev: Event) => {
+      const detail = (ev as CustomEvent<Partial<SystemMaintenanceState>>).detail ?? {};
+      const nextMode = detail.mode === 'draining' ? 'draining' : 'updating';
+      if (nextMode === 'updating') wasUpdatingRef.current = true;
+      setMaintenance((prev) => ({
+        mode: nextMode,
+        message: detail.message || prev.message || '平台正在紧急更新中，请耐心等待（更新完成后自动补偿 1,000 欢乐豆）',
+        compensationCoins: detail.compensationCoins || prev.compensationCoins || 1000,
+        activeHumanGames: prev.activeHumanGames,
+      }));
+    };
+
+    window.addEventListener('cc:maintenance', onMaintenanceEvent);
+    void pollSystemStatus();
+    const intervalMs = maintenance.mode === 'normal' ? 7000 : 3000;
+    const timer = window.setInterval(() => {
+      void pollSystemStatus();
+    }, intervalMs);
+
+    return () => {
+      window.removeEventListener('cc:maintenance', onMaintenanceEvent);
+      window.clearInterval(timer);
+    };
+  }, [maintenance.mode, pollSystemStatus]);
 
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
@@ -380,6 +460,11 @@ export default function App() {
   };
 
   const handleQuickPlay = (game: GameMeta): void => {
+    if (maintenance.mode !== 'normal') {
+      audio.play('alert');
+      showToast('🛠️ 平台即将紧急更新，当前暂停开启新游戏，更新完成后自动补偿 1,000 欢乐豆！');
+      return;
+    }
     setSelectedGame(game);
     setJoinError(null);
     autoStartRef.current = !game.persistent;
@@ -405,6 +490,11 @@ export default function App() {
   };
 
   const handleEnter = (game: GameMeta): void => {
+    if (maintenance.mode !== 'normal') {
+      audio.play('alert');
+      showToast('🛠️ 平台即将紧急更新，当前暂停开启新游戏，更新完成后自动补偿 1,000 欢乐豆！');
+      return;
+    }
     setSelectedGame(game);
     setJoinError(null);
 
@@ -431,6 +521,11 @@ export default function App() {
   };
 
   const handleJoinRoom = (roomId: string | null, create = false): void => {
+    if (maintenance.mode !== 'normal') {
+      audio.play('alert');
+      showToast('🛠️ 平台即将紧急更新，当前暂停加入新牌局，更新完成后自动补偿 1,000 欢乐豆！');
+      return;
+    }
     if (!selectedGame) return;
     if (!user || !socketRef.current) {
       pendingJoinRef.current = selectedGame;
@@ -498,25 +593,16 @@ export default function App() {
 
   if (bootError && games.length === 0) {
     return (
-      <div className="boot" role="alert">
-        <p>{bootError}</p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          style={{
-            marginTop: 16,
-            padding: '10px 24px',
-            borderRadius: 10,
-            border: '1px solid rgba(240,180,41,0.6)',
-            background: 'rgba(240,180,41,0.14)',
-            color: '#f0b429',
-            fontSize: 15,
-            cursor: 'pointer',
-          }}
-        >
-          重新加载
-        </button>
-      </div>
+      <MaintenanceOverlay
+        state={{
+          mode: 'updating',
+          message: '平台正在紧急更新中，请耐心等待，更新完成后将自动刷新进入大厅。',
+          compensationCoins: maintenance.compensationCoins || 1000,
+          activeHumanGames: 0,
+        }}
+        inRoom={false}
+        onRetryNow={() => void pollSystemStatus()}
+      />
     );
   }
 
@@ -657,6 +743,11 @@ export default function App() {
   return (
     <div className="landscape-app-root">
       <PortraitPrompt />
+      <MaintenanceOverlay
+        state={maintenance}
+        inRoom={view === 'room' && Boolean(room)}
+        onRetryNow={() => void pollSystemStatus()}
+      />
       {/* 真正自适应所有横屏移动端视口，100% 弹性充满，绝无黑边与留白 */}
       <div className="landscape-stage-container">
         <ErrorBoundary onReset={() => setView('lobby')}>{renderCurrentView()}</ErrorBoundary>

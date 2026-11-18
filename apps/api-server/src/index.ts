@@ -12,6 +12,7 @@ import { registerAuthRoutes } from './routes/auth';
 import { registerLobbyRoutes } from './routes/lobby';
 import { registerSocialRoutes } from './routes/social';
 import { registerAdminAndInternalRoutes } from './routes/admin-internal';
+import { registerMaintenanceRoutes } from './routes/maintenance';
 
 /** 需要进入后台事件流的路径（轮询类接口不记，避免刷屏） */
 const EVENT_PATHS = new Set(['/api/guest', '/api/register', '/api/login', '/api/tasks/claim']);
@@ -103,6 +104,7 @@ export function createApiApp(repo: Repository): {
   registerLobbyRoutes(app, repo);
   const pruneInvites = registerSocialRoutes(app, repo);
   registerAdminAndInternalRoutes(app, repo, apiLog);
+  registerMaintenanceRoutes(app, repo, apiLog);
 
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: 'not found' }));
 

@@ -65,6 +65,8 @@ export class GameRoom {
   private pendingReady = new Map<string, boolean>();
   /** 已开启「连续对局」的玩家：之后每局结算都自动准备 */
   private autoReady = new Set<string>();
+  /** 本局已下注/扣款的真人玩家集合（用于维护排水期精确判断常驻牌桌是否有进行中的真人注单） */
+  private activeHumanBets = new Set<string>();
 
   constructor(
     id: string,
@@ -115,11 +117,15 @@ export class GameRoom {
       charge: async (playerId: string, amount: number) => {
         const ref = `${this.id}:${this.round}:${playerId}:${++this.betSeq}`;
         const balance = await this.deps.adjustWallet({ playerId, amount, action: 'debit', bizId: ref });
+        if (!playerId.startsWith('bot:') && !playerId.startsWith('ambient:')) {
+          this.activeHumanBets.add(playerId);
+        }
         this.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
         return ref;
       },
       refund: async (playerId: string, ref: string) => {
         const balance = await this.deps.adjustWallet({ playerId, amount: 0, action: 'refund', bizId: ref });
+        this.activeHumanBets.delete(playerId);
         this.ctx.sendTo(playerId, ServerMsg.Wallet, { balance });
       },
       beginRound: () => this.beginRound(),
@@ -147,6 +153,28 @@ export class GameRoom {
 
   get spectatorCount(): number {
     return this.spectators.size;
+  }
+
+  /** 是否存在正在进行中的真人对局（维护更新前需等待全部真人本局结算完） */
+  get hasActiveHumanGame(): boolean {
+    if (this.closed) return false;
+    if (this.persistent) {
+      return this.activeHumanBets.size > 0;
+    }
+    if (this.status !== 'playing') return false;
+    for (const seat of this.seats.values()) {
+      if (!seat.isBot) return true;
+    }
+    return false;
+  }
+
+  /** 当前房间真人数量 */
+  get humanCount(): number {
+    let count = 0;
+    for (const seat of this.seats.values()) {
+      if (!seat.isBot) count += 1;
+    }
+    return count;
   }
 
   get pluginMeta(): GameMeta {
@@ -268,6 +296,9 @@ export class GameRoom {
   /** 观战玩家点击「入座」加入对局：若等待中立即入座（满员则替换一名机器人），若对局中则预约下局自动入座 */
   sitDown(playerId: string): { status: 'seated' | 'queued'; message: string } {
     if (this.closed) throw new AppError(ErrorCode.RoomNotFound, '房间已关闭');
+    if (this.deps.isDraining?.()) {
+      throw new AppError(ErrorCode.IllegalAction, '平台即将升级更新，暂停入座开新局，请耐心等待！');
+    }
     if (this.seats.has(playerId)) {
       return { status: 'seated', message: '您已在牌桌上入座' };
     }
@@ -590,6 +621,9 @@ export class GameRoom {
   setReady(playerId: string, ready: boolean): void {
     const seat = this.seats.get(playerId);
     if (!seat) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+    if (ready && !seat.isBot && this.deps.isDraining?.()) {
+      throw new AppError(ErrorCode.IllegalAction, '平台即将进行紧急更新，当前暂停开启新对局，更新完成后自动补偿 1,000 欢乐豆！');
+    }
 
     if (this.status === 'settled') {
       this.pendingReady.set(playerId, ready);
@@ -610,6 +644,12 @@ export class GameRoom {
   async handleIntent(playerId: string, cmd: string, payload: Record<string, unknown>): Promise<void> {
     if (!this.seats.has(playerId)) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
     if (this.status !== 'playing') throw new AppError(ErrorCode.IllegalAction, '当前不在对局中');
+    if (this.deps.isDraining?.() && this.persistent && (cmd === 'bet' || cmd === 'spin')) {
+      throw new AppError(
+        ErrorCode.IllegalAction,
+        '平台即将紧急更新，当前暂停新下注，正在等待本局结算完成后升级（更新完自动补偿 1,000 欢乐豆）！',
+      );
+    }
     if (!this.plugin.commands.includes(cmd)) {
       throw new AppError(ErrorCode.IllegalAction, `未知指令: ${cmd}`);
     }
@@ -687,6 +727,7 @@ export class GameRoom {
 
   private tryStart(): void {
     if (this.status !== 'waiting' || this.closed) return;
+    if (this.deps.isDraining?.() && this.humanCount > 0) return;
     if (this.seats.size < this.plugin.meta.minPlayers) return;
     if (![...this.seats.values()].every((s) => s.ready)) return;
     this.startRound();
@@ -697,6 +738,7 @@ export class GameRoom {
     this.seed = randomBytes(16).toString('hex');
     this.status = 'playing';
     this.settledThisRound = false;
+    this.activeHumanBets.clear();
     this.plugin.onRoundStart?.(this.ctx);
     this.dirty = true;
     this.broadcastView();
@@ -708,6 +750,7 @@ export class GameRoom {
       throw new AppError(ErrorCode.IllegalAction, '本局已结算，不能重复结算');
     }
     this.settledThisRound = true;
+    this.activeHumanBets.clear();
     this.status = this.persistent ? 'playing' : 'settled';
 
     const settlement = buildSettlementEnvelope({

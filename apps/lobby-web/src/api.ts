@@ -112,7 +112,24 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   if (token) headers.set('authorization', `Bearer ${token}`);
 
-  const res = await fetch(`${BASE_PATH}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_PATH}${path}`, { ...init, headers });
+  } catch {
+    if (typeof window !== 'undefined' && !path.startsWith('/api/system/status')) {
+      window.dispatchEvent(
+        new CustomEvent('cc:maintenance', {
+          detail: {
+            mode: 'updating',
+            message: '平台正在紧急更新中，请耐心等待，更新完成后将自动补偿每位玩家 1,000 欢乐豆！',
+            compensationCoins: 1000,
+          },
+        }),
+      );
+    }
+    throw new Error('平台正在紧急更新中，请耐心等待…');
+  }
+
   const text = await res.text();
   let body: Record<string, unknown> = {};
   if (text) {
@@ -123,6 +140,23 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
   }
   if (!res.ok) {
+    // 502 / 503 / 504 或后端显式维护标记：通知全局切换到友好更新中页面，绝不露出 502
+    if (res.status === 502 || res.status === 503 || res.status === 504 || body.maintenance === true) {
+      if (typeof window !== 'undefined' && !path.startsWith('/api/system/status')) {
+        window.dispatchEvent(
+          new CustomEvent('cc:maintenance', {
+            detail: {
+              mode: body.mode === 'draining' ? 'draining' : 'updating',
+              message:
+                typeof body.error === 'string'
+                  ? body.error
+                  : '平台正在紧急更新中，请耐心等待（更新完成后自动补偿 1,000 欢乐豆）',
+              compensationCoins: Number(body.compensationCoins ?? 1000) || 1000,
+            },
+          }),
+        );
+      }
+    }
     // 令牌过期或失效时立刻清掉，避免每次启动都拿废 token 请求一遍
     if (res.status === 401) setToken(null);
     throw new Error(typeof body.error === 'string' ? body.error : `请求失败 (${res.status})`);
@@ -130,7 +164,33 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+export interface SystemStatusResponse {
+  ok?: boolean;
+  mode: 'normal' | 'draining' | 'updating';
+  message: string;
+  compensationCoins: number;
+  activeHumanGames: number;
+  startedAt?: number | null;
+  lastCompletedVersion?: string | null;
+  lastCompletedAt?: number | null;
+}
+
 export const api = {
+  systemStatus: async (): Promise<SystemStatusResponse> => {
+    const res = await fetch(`${BASE_PATH}/api/system/status?t=${Date.now()}`, { cache: 'no-store' });
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      return {
+        mode: 'updating',
+        message: '平台正在紧急更新中，请耐心等待（更新完成后自动补偿 1,000 欢乐豆）',
+        compensationCoins: 1000,
+        activeHumanGames: 0,
+      };
+    }
+    if (!res.ok) {
+      throw new Error(`status ${res.status}`);
+    }
+    return (await res.json()) as SystemStatusResponse;
+  },
   captcha: () => request<Captcha>('/api/captcha'),
   guest: () => request<{ token: string; user: User }>('/api/guest', { method: 'POST', body: '{}' }),
 
