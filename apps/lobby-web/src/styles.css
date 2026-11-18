@@ -15437,21 +15437,16 @@ button.secondary:hover:not(:disabled) {
   }
 }
 
-/* ==================== 首页顶栏「问题反馈」按钮 ==================== */
-.top-feature-pill--feedback {
+/* ==================== 首页顶栏「问题反馈」纯图标按钮 ==================== */
+.media-icon-btn--feedback {
   position: relative;
-  margin-left: 4px;
-  padding: 5px 10px !important;
-  background: linear-gradient(135deg, rgba(245, 197, 66, 0.16), rgba(56, 189, 248, 0.14)) !important;
-  border: 1px solid rgba(243, 207, 122, 0.48) !important;
   color: #fde68a !important;
-  white-space: nowrap;
+  border-color: rgba(243, 207, 122, 0.45) !important;
 }
 
-.top-feature-pill--feedback:hover {
-  background: linear-gradient(135deg, rgba(245, 197, 66, 0.3), rgba(56, 189, 248, 0.24)) !important;
+.media-icon-btn--feedback:hover {
   border-color: #fde047 !important;
-  box-shadow: 0 0 14px rgba(245, 197, 66, 0.35);
+  box-shadow: 0 0 10px rgba(245, 197, 66, 0.35);
 }
 
 .feedback-btn-badge {

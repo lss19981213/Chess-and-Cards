@@ -630,16 +630,20 @@ export function Lobby({
             </button>
             <button
               type="button"
-              className="top-feature-pill top-feature-pill--feedback"
-              title={user ? '提交问题反馈 / 查看工单进度' : '登录后即可提交问题工单'}
+              className="media-icon-btn media-icon-btn--feedback"
+              title={user ? '问题反馈 / 查看工单进度' : '问题反馈（请先登录）'}
+              aria-label="问题反馈"
               onClick={() => {
                 audio.play('click');
                 if (user) setShowFeedbackModal(true);
                 else onLogin();
               }}
             >
-              <span>🛠️</span>
-              <span>问题反馈</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M12 8v3" />
+                <path d="M12 14h.01" />
+              </svg>
               {ticketUnreadCount > 0 && (
                 <span className="feedback-btn-badge">{ticketUnreadCount > 9 ? '9+' : ticketUnreadCount}</span>
               )}
