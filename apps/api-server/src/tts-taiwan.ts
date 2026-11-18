@@ -1,14 +1,17 @@
 /**
- * 荷官台湾甜美女声合成服务（适配国内与海外服务器，确保 100% 稳定返回合法 MP3）：
- * 1. 若 .env 配置了官方 AZURE_SPEECH_KEY，优先调用 Azure Speech `zh-TW-HsiaoChenNeural` / `zh-TW-HsiaoYuNeural`。
- * 2. 尝试台湾国语 `zh-TW` 女声流（1.2s 快速超时 + 10 分钟熔断缓存，国内机房不会卡顿）。
- * 3. 国内主力保障：百度翻译甜美女声（`fanyi.baidu.com/gettts`，国内直连 200-500ms 稳定返回真实 MP3），
- *    前端搭配 Web Audio 甜美声线微调，呈现温柔软糯的台湾少女音感。
- * 4. 校验真实 MP3 帧头，绝不把错误 HTML/JSON 当作音频返回。
+ * 荷官甜美真人级神经语音合成服务（适配国内与海外服务器，确保流畅自然、甜美无机械感）：
+ * 1. 若 .env 配置了官方 AZURE_SPEECH_KEY，优先调用 Azure Speech 神经女声。
+ * 2. 主力零配置神经引擎：微软 Edge Neural TTS v2（`zh-TW-HsiaoChenNeural` 台湾晓臻 / `zh-CN-XiaoyiNeural` 甜美晓伊 /
+ *    `zh-CN-XiaoxiaoNeural` 温柔晓晓 / `zh-HK-HiuGaaiNeural` 港风粤语晓佳 / `zh-TW-HsiaoYuNeural` 优雅晓雨），
+ *    国内与海外均可直连，音色流畅自然、呼吸气口逼真，彻底告别机械感。
+ * 3. 若神经语音短暂不可达，自动降级至 Google zh-TW / 百度 / 有道兜底，永不静音。
  */
+
+import { synthesizeEdgeNeuralTts } from './edge-neural-tts';
 
 export interface TaiwanVoiceStylePreset {
   voice: string;
+  accent: 'zh-TW' | 'zh-CN' | 'zh-HK';
   pitch: string;
   rate: string;
   baiduSpeed: number;
@@ -16,28 +19,45 @@ export interface TaiwanVoiceStylePreset {
 
 export function resolveTaiwanVoicePreset(styleId?: string): TaiwanVoiceStylePreset {
   switch (styleId) {
+    case 'classic':
+      return { voice: 'zh-TW-HsiaoChenNeural', accent: 'zh-TW', pitch: '+3Hz', rate: '+2%', baiduSpeed: 5 };
     case 'sweet':
-    case 'loli':
+      return { voice: 'zh-CN-XiaoyiNeural', accent: 'zh-CN', pitch: '+4Hz', rate: '+4%', baiduSpeed: 5 };
     case 'catgirl':
-      return { voice: 'zh-TW-HsiaoChenNeural', pitch: '+10%', rate: '+2%', baiduSpeed: 4 };
+    case 'loli':
+      return { voice: 'zh-CN-XiaoyiNeural', accent: 'zh-CN', pitch: '+6Hz', rate: '+2%', baiduSpeed: 5 };
     case 'tsundere':
+      return { voice: 'zh-CN-XiaoyiNeural', accent: 'zh-CN', pitch: '+2Hz', rate: '+6%', baiduSpeed: 5 };
+    case 'gyaru':
     case 'energetic':
-    case 'cyber':
-      return { voice: 'zh-TW-HsiaoChenNeural', pitch: '+8%', rate: '+5%', baiduSpeed: 5 };
-    case 'royal_sister':
-    case 'queen':
-    case 'seductive':
-    case 'vampire':
-      return { voice: 'zh-TW-HsiaoYuNeural', pitch: '+2%', rate: '-4%', baiduSpeed: 3 };
+      return { voice: 'zh-TW-HsiaoChenNeural', accent: 'zh-TW', pitch: '+4Hz', rate: '+6%', baiduSpeed: 5 };
+    case 'maid':
     case 'gentle_wife':
     case 'healing':
-    case 'maid':
-      return { voice: 'zh-TW-HsiaoChenNeural', pitch: '+6%', rate: '-3%', baiduSpeed: 4 };
+      return { voice: 'zh-TW-HsiaoChenNeural', accent: 'zh-TW', pitch: '+2Hz', rate: '+0%', baiduSpeed: 4 };
+    case 'royal_sister':
+    case 'seductive':
+      return { voice: 'zh-CN-XiaoxiaoNeural', accent: 'zh-CN', pitch: '-3Hz', rate: '-3%', baiduSpeed: 4 };
+    case 'queen':
+    case 'vampire':
+      return { voice: 'zh-TW-HsiaoYuNeural', accent: 'zh-TW', pitch: '-4Hz', rate: '-4%', baiduSpeed: 4 };
+    case 'whisper':
+      return { voice: 'zh-CN-XiaoxiaoNeural', accent: 'zh-CN', pitch: '-5Hz', rate: '-8%', baiduSpeed: 3 };
+    case 'yandere':
+      return { voice: 'zh-TW-HsiaoChenNeural', accent: 'zh-TW', pitch: '-1Hz', rate: '-6%', baiduSpeed: 4 };
+    case 'chuunibyou':
+      return { voice: 'zh-CN-XiaoyiNeural', accent: 'zh-CN', pitch: '+1Hz', rate: '+5%', baiduSpeed: 5 };
     case 'classical':
     case 'mystic':
-      return { voice: 'zh-TW-HsiaoYuNeural', pitch: '+4%', rate: '-3%', baiduSpeed: 4 };
+      return { voice: 'zh-CN-XiaoxiaoNeural', accent: 'zh-CN', pitch: '+0Hz', rate: '-5%', baiduSpeed: 4 };
+    case 'cyber':
+      return { voice: 'zh-TW-HsiaoYuNeural', accent: 'zh-TW', pitch: '+1Hz', rate: '+4%', baiduSpeed: 5 };
+    case 'cantonese':
+      return { voice: 'zh-HK-HiuGaaiNeural', accent: 'zh-HK', pitch: '-1Hz', rate: '+2%', baiduSpeed: 5 };
+    case 'sichuan':
+      return { voice: 'zh-CN-XiaoyiNeural', accent: 'zh-CN', pitch: '+3Hz', rate: '+5%', baiduSpeed: 5 };
     default:
-      return { voice: 'zh-TW-HsiaoChenNeural', pitch: '+7%', rate: '-1%', baiduSpeed: 4 };
+      return { voice: 'zh-TW-HsiaoChenNeural', accent: 'zh-TW', pitch: '+3Hz', rate: '+2%', baiduSpeed: 5 };
   }
 }
 
@@ -60,6 +80,8 @@ function isValidMp3(buf: Buffer): boolean {
 
 /** 国内机房访问 Google 被阻断时的 10 分钟快速熔断时间戳，避免每次请求白等超时 */
 let googleBlockedUntil = 0;
+let edgeConsecutiveFailures = 0;
+let edgeCooldownUntil = 0;
 
 async function synthesizeAzureTaiwanTts(
   text: string,
@@ -70,7 +92,7 @@ async function synthesizeAzureTaiwanTts(
   if (!key) return null;
 
   const ssml =
-    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-TW">` +
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${preset.accent}">` +
     `<voice name="${preset.voice}">` +
     `<prosody pitch="${preset.pitch}" rate="${preset.rate}">${escapeXml(text)}</prosody>` +
     `</voice></speak>`;
@@ -139,29 +161,57 @@ async function synthesizeBaiduSweetTts(text: string, speed: number): Promise<Buf
   }
 }
 
+export interface SynthesizedSpeech {
+  audio: Buffer;
+  accent: 'zh-TW' | 'zh-CN' | 'zh-HK';
+  engine: 'neural' | 'legacy';
+}
+
 export async function synthesizeTaiwanSweetSpeech(
   text: string,
   styleId?: string,
-): Promise<{ audio: Buffer; accent: 'zh-TW' | 'zh-CN' }> {
+): Promise<SynthesizedSpeech> {
   const preset = resolveTaiwanVoicePreset(styleId);
 
-  // 1. 若配置了官方 Azure Speech 密钥，使用台湾甜美神经女声 HsiaoChenNeural / HsiaoYuNeural
+  // 1. 若配置了官方 Azure Speech 密钥，使用高保真神经女声
   try {
     const azureBuf = await synthesizeAzureTaiwanTts(text, preset);
-    if (azureBuf) return { audio: azureBuf, accent: 'zh-TW' };
+    if (azureBuf) return { audio: azureBuf, accent: preset.accent, engine: 'neural' };
   } catch {
     /* 降级到下一条线路 */
   }
 
-  // 2. 台湾国语女声 (zh-TW)，1.4s 快速探测 + 不可达时 10 分钟熔断
+  // 2. 主力高保真真人级神经语音：微软 Edge Neural TTS v2（甜美流畅、零机械感）
+  if (Date.now() >= edgeCooldownUntil) {
+    try {
+      const edgeBuf = await synthesizeEdgeNeuralTts(text, preset.voice, preset.pitch, preset.rate, 5500);
+      if (edgeBuf && isValidMp3(edgeBuf)) {
+        edgeConsecutiveFailures = 0;
+        return { audio: edgeBuf, accent: preset.accent, engine: 'neural' };
+      }
+      edgeConsecutiveFailures += 1;
+      if (edgeConsecutiveFailures >= 3) {
+        edgeCooldownUntil = Date.now() + 3 * 60_000;
+        edgeConsecutiveFailures = 0;
+      }
+    } catch {
+      edgeConsecutiveFailures += 1;
+      if (edgeConsecutiveFailures >= 3) {
+        edgeCooldownUntil = Date.now() + 3 * 60_000;
+        edgeConsecutiveFailures = 0;
+      }
+    }
+  }
+
+  // 3. 台湾国语女声 (zh-TW)，1.4s 快速探测 + 不可达时 10 分钟熔断
   const googleBuf = await synthesizeGoogleTaiwanTts(text);
-  if (googleBuf) return { audio: googleBuf, accent: 'zh-TW' };
+  if (googleBuf) return { audio: googleBuf, accent: 'zh-TW', engine: 'legacy' };
 
-  // 3. 国内机房稳定直连主力：百度甜美女声 MP3
+  // 4. 国内兜底：百度女声 MP3
   const baiduBuf = await synthesizeBaiduSweetTts(text, preset.baiduSpeed);
-  if (baiduBuf) return { audio: baiduBuf, accent: 'zh-CN' };
+  if (baiduBuf) return { audio: baiduBuf, accent: 'zh-CN', engine: 'legacy' };
 
-  // 4. 最终兜底：有道语音流
+  // 5. 最终兜底：有道语音流
   const fallbackUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=zh`;
   const res = await fetch(fallbackUrl, {
     headers: {
@@ -174,5 +224,5 @@ export async function synthesizeTaiwanSweetSpeech(
   if (!res.ok) throw new Error(`TTS upstream ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   if (!isValidMp3(buf)) throw new Error('TTS invalid audio payload');
-  return { audio: buf, accent: 'zh-CN' };
+  return { audio: buf, accent: 'zh-CN', engine: 'legacy' };
 }

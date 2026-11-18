@@ -1,24 +1,46 @@
 /**
- * 荷官艾莉丝专属「台湾甜美女声」语音引擎：
- * 1. 优先匹配浏览器内置的台湾甜美神经女声（Microsoft HsiaoChen 晓臻 / HsiaoYu 晓雨 / macOS Meijia 美佳 / Google 國語臺灣 / Yating / HanHan）
- * 2. 若浏览器缺少台湾声线，使用同步解锁的 Web Audio API 播放服务端 `/api/tts` 音频流：
- *    - 彻底绕开 Chrome 异步回调自动播放拦截（点击后即使网络耗时 500ms 也 100% 正常出声）
- *    - 通过精细音高甜度调教（`detune` 柔和微提音色），让国内兜底女声同样呈现温柔软糯、清甜可爱的台湾少女声线
- * 3. 若服务端接口不可达，自动无缝回退到浏览器本地 `speechSynthesis`，确保任何环境永不静音
+ * 荷官艾莉丝专属「真人级甜美神经女声」语音引擎：
+ * 1. 优先零延迟播放预置的微软 Neural 神经女声语音包（`public/assets/voices/` + 内存 AudioBuffer 缓存）：
+ *    - 涵盖全部 14 套性格声线（台湾甜心晓臻、甜美偶像晓伊、温柔御姐晓晓、港风粤语晓佳、赌场女王晓雨等）、
+ *      全部打赏答谢与麻将报牌语音，原生自然流畅、呼吸气口逼真，彻底告别机械机器人感与变调失真
+ *    - 经过轻度棚录级人声润色链路（温暖低中频 + 丝滑高频空气感 + 柔顺动态压缩），甜美细腻不刺耳
+ * 2. 动态台词实时调用服务端 `/api/tts`（已升级为微软 Edge Neural TTS v2 真人级神经语音 + 服务端缓存）
+ * 3. 仅在完全断网或服务端不可达时，才安全降级到浏览器本地 `speechSynthesis`，绝不让机械本地音覆盖神经女声
  */
 
-import { DEALER_VOICES } from '@cc/protocol';
 import { BASE_PATH } from './api';
 import { audio } from './audio';
+import { normalizeDealerVoiceText, resolveStaticDealerVoiceUrl } from './voice-manifest';
 
 let cachedVoices: SpeechSynthesisVoice[] = [];
 let activeUtterance: SpeechSynthesisUtterance | null = null;
 let fallbackAudio: HTMLAudioElement | null = null;
 let webAudioCtx: AudioContext | null = null;
+let voiceBusInput: AudioNode | null = null;
 let activeBufferSource: AudioBufferSourceNode | null = null;
 let speakSeq = 0;
-let pendingTimer: number | null = null;
-let watchdogTimer: number | null = null;
+
+/** 已解码音频 LRU 缓存，重复点击/报牌实现真正的 0ms 瞬时响应 */
+const MAX_BUFFER_CACHE = 64;
+const decodedAudioCache = new Map<string, AudioBuffer>();
+
+function getCachedBuffer(key: string): AudioBuffer | null {
+  const hit = decodedAudioCache.get(key);
+  if (!hit) return null;
+  // 刷新 LRU 顺序
+  decodedAudioCache.delete(key);
+  decodedAudioCache.set(key, hit);
+  return hit;
+}
+
+function setCachedBuffer(key: string, buf: AudioBuffer): void {
+  if (decodedAudioCache.has(key)) decodedAudioCache.delete(key);
+  if (decodedAudioCache.size >= MAX_BUFFER_CACHE) {
+    const oldest = decodedAudioCache.keys().next().value;
+    if (oldest !== undefined) decodedAudioCache.delete(oldest);
+  }
+  decodedAudioCache.set(key, buf);
+}
 
 function ensureSpeechAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -27,13 +49,62 @@ function ensureSpeechAudioContext(): AudioContext | null {
       window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return null;
-    if (!webAudioCtx) webAudioCtx = new Ctor();
+    if (!webAudioCtx) {
+      webAudioCtx = new Ctor();
+      voiceBusInput = null;
+    }
     if (webAudioCtx.state === 'suspended') {
       void webAudioCtx.resume();
     }
     return webAudioCtx;
   } catch {
     return null;
+  }
+}
+
+/**
+ * 构建轻度棚录级人声润色母线（绝不做破坏共振峰的变调，仅柔化频响与响度）：
+ * High-pass 85Hz -> Warmth +1.2dB @250Hz -> Air/Sweetness +1.8dB @4.2kHz -> Soft Compressor -> Master Gain
+ */
+function getVoiceBus(ctx: AudioContext): AudioNode {
+  if (voiceBusInput && voiceBusInput.context === ctx) return voiceBusInput;
+  try {
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 85;
+    hp.Q.value = 0.7;
+
+    const warmth = ctx.createBiquadFilter();
+    warmth.type = 'peaking';
+    warmth.frequency.value = 250;
+    warmth.Q.value = 1.0;
+    warmth.gain.value = 1.2;
+
+    const air = ctx.createBiquadFilter();
+    air.type = 'highshelf';
+    air.frequency.value = 4200;
+    air.gain.value = 1.8;
+
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -16;
+    comp.knee.value = 18;
+    comp.ratio.value = 3;
+    comp.attack.value = 0.006;
+    comp.release.value = 0.14;
+
+    const master = ctx.createGain();
+    master.gain.value = 1.08;
+
+    hp.connect(warmth);
+    warmth.connect(air);
+    air.connect(comp);
+    comp.connect(master);
+    master.connect(ctx.destination);
+
+    voiceBusInput = hp;
+    return hp;
+  } catch {
+    return ctx.destination;
   }
 }
 
@@ -63,72 +134,30 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   }
 }
 
-/** 严格优先挑选「台湾甜美女声」（晓臻 HsiaoChen / 晓雨 HsiaoYu / 美佳 Meijia / Google 國語臺灣 / 雅婷 Yating） */
-function pickTaiwanSweetVoice(): { voice: SpeechSynthesisVoice; isTaiwan: boolean } | null {
+function pickBestFallbackBrowserVoice(): SpeechSynthesisVoice | null {
   const voices = loadVoices();
   if (voices.length === 0) return null;
-
   const isMale = (v: SpeechSynthesisVoice) =>
     /yunjhe|yunxi|yunyang|yunze|kangkang|danny|zhiwei|male|男/i.test(v.name);
-
-  const taiwanPatterns = [
+  const patterns = [
     /hsiaochen/i,
+    /xiaoyi/i,
+    /xiaoxiao/i,
     /hsiaoyu/i,
     /mei-?jia|美佳/i,
-    /google\s*(國語|国语).*?(臺灣|台湾|taiwan)/i,
-    /yating|雅婷/i,
-    /hanhan|涵涵/i,
+    /ting-?ting/i,
     /zh[-_]tw/i,
+    /zh[-_]cn/i,
   ];
-
-  for (const pattern of taiwanPatterns) {
-    const hit = voices.find((v) => !isMale(v) && (pattern.test(v.name) || pattern.test(v.lang)));
-    if (hit) return { voice: hit, isTaiwan: true };
+  for (const p of patterns) {
+    const hit = voices.find((v) => !isMale(v) && (p.test(v.name) || p.test(v.lang)));
+    if (hit) return hit;
   }
-
-  const sweetNeuralZh = [/xiaoyi/i, /xiaoxiao/i, /ting-?ting/i, /yaoyao/i, /huihui/i, /zh[-_]cn/i];
-  for (const pattern of sweetNeuralZh) {
-    const hit = voices.find((v) => !isMale(v) && (pattern.test(v.name) || pattern.test(v.lang)));
-    if (hit) return { voice: hit, isTaiwan: false };
-  }
-
   return null;
-}
-
-function sanitizeSpeechText(raw: string): string {
-  return raw
-    .replace(/\([^)]*∇[^)]*\)/g, '')
-    .replace(/[“”"'`~～♡♥✨💖🎉🎁🎲🃏♠️♣️♥️♦️🎰👑🔥⚡💪🥰💕🤖👁️🪑🀄🌶️🐎]/g, '')
-    .replace(/…+/g, '，')
-    .replace(/\.{2,}/g, '，')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function getTaiwanSweetVoiceConfig(voiceStyleId?: string): { pitch: number; rate: number } {
-  const meta = DEALER_VOICES.find((v) => v.id === voiceStyleId);
-  const basePitch = meta?.voiceConfig?.pitch ?? 1.22;
-  const baseRate = meta?.voiceConfig?.rate ?? 0.96;
-  return {
-    pitch: Math.min(1.55, Math.max(1.04, basePitch)),
-    rate: Math.min(1.18, Math.max(0.86, baseRate)),
-  };
-}
-
-function clearTimers(): void {
-  if (pendingTimer !== null) {
-    window.clearTimeout(pendingTimer);
-    pendingTimer = null;
-  }
-  if (watchdogTimer !== null) {
-    window.clearTimeout(watchdogTimer);
-    watchdogTimer = null;
-  }
 }
 
 export function stopDealerSpeech(): void {
   speakSeq += 1;
-  clearTimers();
   if (activeBufferSource) {
     try {
       activeBufferSource.stop();
@@ -157,202 +186,167 @@ export function stopDealerSpeech(): void {
   activeUtterance = null;
 }
 
-/**
- * 通过已解锁的 Web Audio API 播放服务端 `/api/tts` MP3：
- * 1. 彻底免疫异步网络返回后 `<audio>.play()` 被浏览器自动播放策略拦截
- * 2. 结合 `detune` 柔和提甜音色，听感清甜软糯
- */
-async function playServerTaiwanTts(
-  cleanText: string,
-  voiceStyleId: string,
-  pitch: number,
-  rate: number,
+function playDecodedBuffer(
+  ctx: AudioContext,
+  audioBuf: AudioBuffer,
+  seq: number,
+  isLegacyEngine: boolean,
+): void {
+  if (seq !== speakSeq) return;
+  const src = ctx.createBufferSource();
+  src.buffer = audioBuf;
+  // 神经语音保持 100% 原生音高与语速（零变调失真）；仅兜底旧引擎微调 +45 cents
+  if (isLegacyEngine) {
+    src.detune.value = 45;
+    src.playbackRate.value = 1.01;
+  } else {
+    src.detune.value = 0;
+    src.playbackRate.value = 1.0;
+  }
+
+  const bus = getVoiceBus(ctx);
+  src.connect(bus);
+  activeBufferSource = src;
+  src.onended = () => {
+    if (activeBufferSource === src) activeBufferSource = null;
+  };
+  src.start(0);
+}
+
+async function fetchAndPlayMp3(
+  url: string,
+  cacheKey: string,
   seq: number,
   ctx: AudioContext | null,
-  onFail?: () => void,
-): Promise<void> {
-  if (seq !== speakSeq || !cleanText) return;
-  const url = `${BASE_PATH}/api/tts?text=${encodeURIComponent(cleanText.slice(0, 100))}&style=${encodeURIComponent(voiceStyleId)}`;
+  assumeNeural: boolean,
+): Promise<boolean> {
+  if (seq !== speakSeq) return false;
+
+  // 1. 内存缓存命中：0ms 立即播放
+  if (ctx) {
+    const cached = getCachedBuffer(cacheKey);
+    if (cached) {
+      if (ctx.state === 'suspended') {
+        try {
+          await ctx.resume();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (seq !== speakSeq) return true;
+      playDecodedBuffer(ctx, cached, seq, false);
+      return true;
+    }
+  }
 
   try {
     const res = await fetch(url);
-    if (!res.ok || seq !== speakSeq) {
-      throw new Error(`TTS HTTP ${res.status}`);
-    }
-    const accent = res.headers.get('x-tts-accent') ?? 'zh-CN';
-    const arrayBuf = await res.arrayBuffer();
-    if (seq !== speakSeq || arrayBuf.byteLength < 256) {
-      throw new Error('TTS empty audio');
-    }
+    if (!res.ok || seq !== speakSeq) return false;
 
-    // 优先使用 Web Audio API 播放（已在点击手势内同步 resume，100% 不受自动播放超时限制）
+    const engineHeader = res.headers.get('x-tts-engine');
+    const isLegacy = !assumeNeural && engineHeader === 'legacy';
+    const arrayBuf = await res.arrayBuffer();
+    if (seq !== speakSeq || arrayBuf.byteLength < 256) return false;
+
     if (ctx) {
       try {
         if (ctx.state === 'suspended') await ctx.resume();
         const audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
-        if (seq !== speakSeq) return;
-        const src = ctx.createBufferSource();
-        src.buffer = audioBuf;
-        // 台湾原声微提甜度，国内女声柔和抬高 +145 cents 呈现清甜可爱的台湾少女声线
-        const extraSweetCents = accent === 'zh-TW' ? 40 : 145;
-        const styleCents = Math.round((pitch - 1.18) * 180);
-        src.detune.value = Math.max(-100, Math.min(260, extraSweetCents + styleCents));
-        src.playbackRate.value = Math.min(1.12, Math.max(0.92, rate));
-
-        const gain = ctx.createGain();
-        gain.gain.value = 1.05;
-        src.connect(gain);
-        gain.connect(ctx.destination);
-        activeBufferSource = src;
-        src.onended = () => {
-          if (activeBufferSource === src) activeBufferSource = null;
-        };
-        src.start(0);
-        return;
+        if (seq !== speakSeq) return true;
+        if (!isLegacy) setCachedBuffer(cacheKey, audioBuf);
+        playDecodedBuffer(ctx, audioBuf, seq, isLegacy);
+        return true;
       } catch {
-        /* decodeAudioData 失败时降级到 Blob Audio 元素 */
+        /* decodeAudioData 异常时降级到 HTMLAudioElement */
       }
     }
 
-    // 降级：Blob URL + HTMLAudioElement
     const blobUrl = URL.createObjectURL(new Blob([arrayBuf], { type: 'audio/mpeg' }));
     const el = new Audio(blobUrl);
     el.volume = 0.96;
-    el.playbackRate = accent === 'zh-TW' ? 1.02 : 1.07;
-    const elAny = el as HTMLAudioElement & { preservesPitch?: boolean; webkitPreservesPitch?: boolean };
-    if (typeof elAny.preservesPitch === 'boolean') elAny.preservesPitch = false;
-    if (typeof elAny.webkitPreservesPitch === 'boolean') elAny.webkitPreservesPitch = false;
-    el.onended = () => URL.revokeObjectURL(blobUrl);
+    el.playbackRate = 1.0;
+    el.onended = () => {
+      URL.revokeObjectURL(blobUrl);
+      if (fallbackAudio === el) fallbackAudio = null;
+    };
     el.onerror = () => {
       URL.revokeObjectURL(blobUrl);
-      if (seq === speakSeq) onFail?.();
+      if (fallbackAudio === el) fallbackAudio = null;
     };
     fallbackAudio = el;
     await el.play();
+    return true;
   } catch {
-    if (seq === speakSeq) onFail?.();
+    return false;
   }
 }
 
-function speakWithBrowserSynthesis(
-  cleanText: string,
-  picked: { voice: SpeechSynthesisVoice; isTaiwan: boolean } | null,
-  pitch: number,
-  rate: number,
-  voiceStyleId: string,
-  seq: number,
-  ctx: AudioContext | null,
-  allowServerFallback: boolean,
-): void {
+function speakOfflineFallback(cleanText: string, seq: number): void {
   if (seq !== speakSeq) return;
+  if (typeof window === 'undefined' || !('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    return;
+  }
   try {
     const synth = window.speechSynthesis;
     if (synth.paused) synth.resume();
-
     const utter = new SpeechSynthesisUtterance(cleanText);
-    utter.lang = picked?.isTaiwan ? picked.voice.lang : 'zh-TW';
-    if (picked?.voice) utter.voice = picked.voice;
-    const finalPitch = picked?.isTaiwan ? pitch : Math.min(1.5, pitch + 0.12);
-    utter.pitch = Math.min(2.0, Math.max(0.85, finalPitch));
-    utter.rate = Math.min(1.3, Math.max(0.84, rate));
-    utter.volume = 1.0;
-
-    let started = false;
-    let fellBack = false;
-    const triggerFallback = () => {
-      if (!allowServerFallback || fellBack || seq !== speakSeq) return;
-      fellBack = true;
-      clearTimers();
-      try {
-        synth.cancel();
-      } catch {
-        /* ignore */
-      }
-      void playServerTaiwanTts(cleanText, voiceStyleId, pitch, rate, seq, ctx);
-    };
-
-    utter.onstart = () => {
-      started = true;
-      if (watchdogTimer !== null) {
-        window.clearTimeout(watchdogTimer);
-        watchdogTimer = null;
-      }
-    };
-
+    const voice = pickBestFallbackBrowserVoice();
+    if (voice) {
+      utter.voice = voice;
+      utter.lang = voice.lang;
+    } else {
+      utter.lang = 'zh-TW';
+    }
+    // 柔和微调，避免尖锐机器人感
+    utter.pitch = 1.06;
+    utter.rate = 0.98;
+    utter.volume = 0.95;
     utter.onend = () => {
       if (activeUtterance === utter) activeUtterance = null;
-      clearTimers();
     };
-
-    utter.onerror = (ev) => {
+    utter.onerror = () => {
       if (activeUtterance === utter) activeUtterance = null;
-      if (ev.error === 'canceled' || ev.error === 'interrupted') return;
-      triggerFallback();
     };
-
     activeUtterance = utter;
     (window as unknown as { __ccActiveUtterance?: SpeechSynthesisUtterance }).__ccActiveUtterance = utter;
-
     synth.speak(utter);
-    if (synth.paused) synth.resume();
-
-    if (allowServerFallback) {
-      watchdogTimer = window.setTimeout(() => {
-        watchdogTimer = null;
-        if (!started && seq === speakSeq) {
-          triggerFallback();
-        }
-      }, 900);
-    }
   } catch {
-    if (allowServerFallback) {
-      void playServerTaiwanTts(cleanText, voiceStyleId, pitch, rate, seq, ctx);
-    }
+    /* ignore */
   }
 }
 
 /**
- * 播报荷官台湾甜美语音台词：
- * - 在点击手势内立即同步解锁 AudioContext，确保永不被浏览器拦截静音
- * - 浏览器自带台湾甜美女声（Edge 晓臻 / 晓雨 / macOS 美佳 / Google 臺灣國語）→ 直接原生甜美播报
- * - 否则通过 Web Audio API 播放服务端 `/api/tts` 甜美音频流（带台湾甜度声线调教），失败时自动回退本地 TTS
+ * 播报荷官真人级甜美神经语音：
+ * - 优先零延迟播放预置微软 Neural 神经女声静态语音包
+ * - 未命中预置包时无缝请求服务端 `/api/tts` 实时微软 Neural 神经合成
+ * - 仅完全断网/服务端异常时兜底浏览器本地朗读
  */
 export function speakDealerQuote(rawText: string, voiceStyleId = 'classic'): void {
   if (typeof window === 'undefined') return;
   audio.unlock();
-  // 在用户点击手势内同步创建/恢复 AudioContext，避免异步 fetch 后播放被拦截
   const ctx = ensureSpeechAudioContext();
 
-  const cleanText = sanitizeSpeechText(rawText);
+  const cleanText = normalizeDealerVoiceText(rawText);
   if (!cleanText) return;
-
-  const wasSpeaking =
-    'speechSynthesis' in window &&
-    (window.speechSynthesis.speaking || window.speechSynthesis.pending);
 
   stopDealerSpeech();
   const seq = ++speakSeq;
-  const { pitch, rate } = getTaiwanSweetVoiceConfig(voiceStyleId);
 
-  const hasSpeechApi = 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
-  const picked = hasSpeechApi ? pickTaiwanSweetVoice() : null;
-
-  // 1. 浏览器原生已有真正台湾甜美女声 → 立即播报（未在播报时零延迟同步触发）
-  if (hasSpeechApi && picked?.isTaiwan) {
-    if (wasSpeaking) {
-      pendingTimer = window.setTimeout(() => {
-        pendingTimer = null;
-        speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, ctx, true);
-      }, 65);
-    } else {
-      speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, ctx, true);
+  void (async () => {
+    // 1. 优先命中预置真人级神经语音包（零延迟、原声自然甜美、绝无机械感）
+    const staticRelUrl = resolveStaticDealerVoiceUrl(voiceStyleId, cleanText);
+    if (staticRelUrl) {
+      const staticUrl = `${BASE_PATH}${staticRelUrl}`;
+      const ok = await fetchAndPlayMp3(staticUrl, `static:${staticRelUrl}`, seq, ctx, true);
+      if (ok || seq !== speakSeq) return;
     }
-    return;
-  }
 
-  // 2. 优先通过已同步解锁的 Web Audio API 播放服务端甜美音频流（失败无缝回退本地 TTS）
-  void playServerTaiwanTts(cleanText, voiceStyleId, pitch, rate, seq, ctx, () => {
-    if (!hasSpeechApi || seq !== speakSeq) return;
-    speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, ctx, false);
-  });
+    // 2. 动态台词走服务端微软 Edge Neural TTS v2
+    const apiUrl = `${BASE_PATH}/api/tts?text=${encodeURIComponent(cleanText.slice(0, 100))}&style=${encodeURIComponent(voiceStyleId)}`;
+    const ok = await fetchAndPlayMp3(apiUrl, `api:${voiceStyleId}:${cleanText}`, seq, ctx, false);
+    if (ok || seq !== speakSeq) return;
+
+    // 3. 最终离线兜底
+    speakOfflineFallback(cleanText, seq);
+  })();
 }

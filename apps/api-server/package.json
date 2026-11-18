@@ -12,9 +12,11 @@
     "@cc/auth": "workspace:*",
     "@cc/protocol": "workspace:*",
     "fastify": "^5.2.0",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "ws": "^8.22.1"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.10"
+    "@types/pg": "^8.11.10",
+    "@types/ws": "^8.18.2"
   }
 }

@@ -452,15 +452,20 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     }
   });
 
-  // 荷官台湾甜美女声语音合成代理（优先台湾 zh-TW 甜美声线，带 LRU 缓存与国内兜底）
-  const ttsCache = new Map<string, { audio: Buffer; accent: 'zh-TW' | 'zh-CN' }>();
+  // 荷官高保真神经女声语音合成代理（优先微软 Neural 真人级声线，带 LRU 缓存与自动兜底）
+  const ttsCache = new Map<string, { audio: Buffer; accent: 'zh-TW' | 'zh-CN' | 'zh-HK'; engine: 'neural' | 'legacy' }>();
   app.get('/api/tts', async (req, reply) => {
     const query = req.query as { text?: string; style?: string };
     const rawText = String(query.text ?? '').trim();
     const style = String(query.style ?? 'classic').trim().slice(0, 24);
     const cleaned = rawText
+      .replace(/All-in/gi, '全押')
+      .replace(/[…]+|\.{2,}/g, '，')
+      .replace(/[~～]+/g, '，')
       .replace(/[^\u4e00-\u9fa5a-zA-Z0-9，。！？、：；,.!?\s]/g, '')
+      .replace(/，+/g, '，')
       .replace(/\s+/g, ' ')
+      .replace(/^，+|，+$/g, '')
       .trim()
       .slice(0, 100);
     if (!cleaned) {
@@ -472,18 +477,20 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     if (cached) {
       reply.header('cache-control', 'public, max-age=86400');
       reply.header('x-tts-accent', cached.accent);
+      reply.header('x-tts-engine', cached.engine);
       return reply.type('audio/mpeg').send(cached.audio);
     }
 
     try {
       const result = await synthesizeTaiwanSweetSpeech(cleaned, style);
-      if (ttsCache.size >= 200) {
+      if (ttsCache.size >= 500) {
         const firstKey = ttsCache.keys().next().value;
         if (firstKey !== undefined) ttsCache.delete(firstKey);
       }
       ttsCache.set(cacheKey, result);
       reply.header('cache-control', 'public, max-age=86400');
       reply.header('x-tts-accent', result.accent);
+      reply.header('x-tts-engine', result.engine);
       return reply.type('audio/mpeg').send(result.audio);
     } catch {
       return reply.status(503).send({ error: '语音合成暂不可用' });
