@@ -124,26 +124,9 @@ export function GameRooms({ game, botDifficulty, onChangeBotDifficulty, onBack, 
               </div>
             </div>
             {!isLive && (
-              <>
-                <div className="gamerooms-diff-box">
-                  <span className="gamerooms-diff-box__label">陪玩机器人难度</span>
-                  <div className="bot-diff-switch">
-                    {(['low', 'medium', 'high'] as const).map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        className={`bot-diff-btn is-${d} ${botDifficulty === d ? 'is-active' : ''}`}
-                        onClick={() => onChangeBotDifficulty(d)}
-                      >
-                        {d === 'low' ? '初级(低)' : d === 'medium' ? '中级(中)' : '高级(高)'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button type="button" className="btn-create-room" onClick={handleCreate}>
-                  + 创建专属房间
-                </button>
-              </>
+              <button type="button" className="btn-create-room" onClick={handleCreate}>
+                + 创建专属房间
+              </button>
             )}
           </div>
         </aside>
