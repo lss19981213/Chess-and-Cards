@@ -18,6 +18,7 @@ import { Chip } from './Chip';
 import { DealerTipWidget } from './DealerTipWidget';
 import { DealerWardrobeModal } from './DealerWardrobeModal';
 import {
+  IconFriends,
   IconGift,
   IconMail,
   IconMusic,
@@ -146,7 +147,7 @@ export function Lobby({
   onLogin,
   onRegister,
   onTasks,
-  onFriends: _onFriends,
+  onFriends,
   onLeaderboard,
   onProfile,
   onNotices,
@@ -168,6 +169,29 @@ export function Lobby({
   const [showSlotsModal, setShowSlotsModal] = useState(false);
   const [showAvatarFrameModal, setShowAvatarFrameModal] = useState(false);
   const [showDealerWardrobe, setShowDealerWardrobe] = useState(false);
+  const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
+
+  useEffect(() => {
+    if (!user) {
+      setPendingFriendRequests(0);
+      return;
+    }
+    let alive = true;
+    const loadFriendBadges = () => {
+      void api
+        .friends()
+        .then((data) => {
+          if (alive) setPendingFriendRequests(data.incoming?.length ?? 0);
+        })
+        .catch(() => undefined);
+    };
+    loadFriendBadges();
+    const timer = window.setInterval(loadFriendBadges, 30_000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [user?.id]);
 
   // 卡片画卷平滑滚动控制
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -449,7 +473,15 @@ export function Lobby({
             </button>
           )}
 
-          {/* 🎰 独立老虎机模块入口（紧随信箱后方） */}
+          {onFriends && (
+            <button type="button" className="top-feature-pill" onClick={onFriends} title="好友与牌局邀请">
+              <IconFriends size={15} />
+              <span>好友</span>
+              {pendingFriendRequests > 0 && <span className="feature-dot feature-dot--pulse" />}
+            </button>
+          )}
+
+          {/* 🎰 独立老虎机模块入口 */}
           <button
             type="button"
             className="top-feature-pill top-feature-pill--slots"

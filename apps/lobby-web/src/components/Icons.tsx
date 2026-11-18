@@ -266,3 +266,24 @@ export function IconMail({ size = 18, className = '' }: { size?: number; classNa
     </svg>
   );
 }
+
+export function IconFriends({ size = 18, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={`ico-svg ${className}`}>
+      <circle cx="9" cy="7.5" r="3.5" stroke="#f7d483" strokeWidth="1.8" fill="rgba(247,212,131,0.18)" />
+      <path
+        d="M2.5 19c0-3.1 2.9-5.5 6.5-5.5s6.5 2.4 6.5 5.5"
+        stroke="#f7d483"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="16.5" cy="8.5" r="2.6" stroke="#f7d483" strokeWidth="1.6" />
+      <path
+        d="M16.5 13.8c2.4.2 4.5 1.8 4.8 4.4"
+        stroke="#f7d483"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
