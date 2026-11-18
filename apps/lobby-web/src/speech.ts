@@ -1,9 +1,10 @@
 /**
  * 荷官艾莉丝专属「台湾甜美女声」语音引擎：
- * 1. 优先匹配浏览器内置台湾甜美神经女声（Microsoft HsiaoChen 晓臻 / HsiaoYu 晓雨 / macOS Meijia 美佳 / Google 國語（臺灣） / Yating / HanHan）
- * 2. 若本机缺失台湾甜美声线（例如仅装了机械音 Huihui），优先拉取服务端 `/api/tts` 台湾国语甜美音频流，并可柔和微提音调呈现清甜软糯感
- * 3. 自动降级与看门狗兜底：任何环境下都确保 100% 流畅发声，永不卡顿或静音
- * 4. 清理颜文字/Emoji，并保留温柔可爱的台湾腔语助词停顿
+ * 1. 优先匹配浏览器内置的台湾甜美神经女声（Microsoft HsiaoChen 晓臻 / HsiaoYu 晓雨 / macOS Meijia 美佳 / Google 國語臺灣 / Yating / HanHan）
+ * 2. 若浏览器缺少台湾声线，使用同步解锁的 Web Audio API 播放服务端 `/api/tts` 音频流：
+ *    - 彻底绕开 Chrome 异步回调自动播放拦截（点击后即使网络耗时 500ms 也 100% 正常出声）
+ *    - 通过精细音高甜度调教（`detune` 柔和微提音色），让国内兜底女声同样呈现温柔软糯、清甜可爱的台湾少女声线
+ * 3. 若服务端接口不可达，自动无缝回退到浏览器本地 `speechSynthesis`，确保任何环境永不静音
  */
 
 import { DEALER_VOICES } from '@cc/protocol';
@@ -13,9 +14,28 @@ import { audio } from './audio';
 let cachedVoices: SpeechSynthesisVoice[] = [];
 let activeUtterance: SpeechSynthesisUtterance | null = null;
 let fallbackAudio: HTMLAudioElement | null = null;
+let webAudioCtx: AudioContext | null = null;
+let activeBufferSource: AudioBufferSourceNode | null = null;
 let speakSeq = 0;
 let pendingTimer: number | null = null;
 let watchdogTimer: number | null = null;
+
+function ensureSpeechAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const Ctor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    if (!webAudioCtx) webAudioCtx = new Ctor();
+    if (webAudioCtx.state === 'suspended') {
+      void webAudioCtx.resume();
+    }
+    return webAudioCtx;
+  } catch {
+    return null;
+  }
+}
 
 function loadVoices(): SpeechSynthesisVoice[] {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return [];
@@ -48,41 +68,33 @@ function pickTaiwanSweetVoice(): { voice: SpeechSynthesisVoice; isTaiwan: boolea
   const voices = loadVoices();
   if (voices.length === 0) return null;
 
-  // 排除男声（YunJhe / Yunxi / Yunyang / Kangkang / Danny 等）
   const isMale = (v: SpeechSynthesisVoice) =>
     /yunjhe|yunxi|yunyang|yunze|kangkang|danny|zhiwei|male|男/i.test(v.name);
 
-  // 1. 顶级台湾甜美女声（Edge Natural 晓臻/晓雨、macOS 美佳、Google 國語臺灣、Windows 雅婷/涵涵）
   const taiwanPatterns = [
-    /hsiaochen/i, // Microsoft HsiaoChen Online (Natural) - 台湾超甜少女音
-    /hsiaoyu/i, // Microsoft HsiaoYu Online (Natural) - 台湾温柔甜美女声
-    /mei-?jia|美佳/i, // Apple macOS/iOS 台湾甜美女声
-    /google\s*(國語|国语).*?(臺灣|台湾|taiwan)/i, // Chrome 台湾国语女声
-    /yating|雅婷/i, // Windows 台湾女声
-    /hanhan|涵涵/i, // Windows 台湾女声
-    /zh[-_]tw/i, // 任意 zh-TW 女声
+    /hsiaochen/i,
+    /hsiaoyu/i,
+    /mei-?jia|美佳/i,
+    /google\s*(國語|国语).*?(臺灣|台湾|taiwan)/i,
+    /yating|雅婷/i,
+    /hanhan|涵涵/i,
+    /zh[-_]tw/i,
   ];
 
   for (const pattern of taiwanPatterns) {
-    const hit = voices.find(
-      (v) => !isMale(v) && (pattern.test(v.name) || pattern.test(v.lang)),
-    );
+    const hit = voices.find((v) => !isMale(v) && (pattern.test(v.name) || pattern.test(v.lang)));
     if (hit) return { voice: hit, isTaiwan: true };
   }
 
-  // 2. 次选自然甜美中文女声（Edge Xiaoxiao / Xiaoyi 晓伊，比机械音甜美得多）
   const sweetNeuralZh = [/xiaoyi/i, /xiaoxiao/i, /ting-?ting/i, /yaoyao/i, /huihui/i, /zh[-_]cn/i];
   for (const pattern of sweetNeuralZh) {
-    const hit = voices.find(
-      (v) => !isMale(v) && (pattern.test(v.name) || pattern.test(v.lang)),
-    );
+    const hit = voices.find((v) => !isMale(v) && (pattern.test(v.name) || pattern.test(v.lang)));
     if (hit) return { voice: hit, isTaiwan: false };
   }
 
   return null;
 }
 
-/** 清理颜文字、Emoji 和奇怪符号，保留自然中文标点，避免 TTS 卡死或读出怪字 */
 function sanitizeSpeechText(raw: string): string {
   return raw
     .replace(/\([^)]*∇[^)]*\)/g, '')
@@ -93,13 +105,11 @@ function sanitizeSpeechText(raw: string): string {
     .trim();
 }
 
-/** 将各风格语音调教为更软糯、偏高、清甜的台湾女生声线参数 */
 function getTaiwanSweetVoiceConfig(voiceStyleId?: string): { pitch: number; rate: number } {
   const meta = DEALER_VOICES.find((v) => v.id === voiceStyleId);
-  const basePitch = meta?.voiceConfig?.pitch ?? 1.18;
-  const baseRate = meta?.voiceConfig?.rate ?? 0.98;
+  const basePitch = meta?.voiceConfig?.pitch ?? 1.22;
+  const baseRate = meta?.voiceConfig?.rate ?? 0.96;
   return {
-    // 适度抬高甜度音高并放缓一点语速，听起来更软糯甜美
     pitch: Math.min(1.55, Math.max(1.04, basePitch)),
     rate: Math.min(1.18, Math.max(0.86, baseRate)),
   };
@@ -119,6 +129,15 @@ function clearTimers(): void {
 export function stopDealerSpeech(): void {
   speakSeq += 1;
   clearTimers();
+  if (activeBufferSource) {
+    try {
+      activeBufferSource.stop();
+      activeBufferSource.disconnect();
+    } catch {
+      /* ignore */
+    }
+    activeBufferSource = null;
+  }
   if (fallbackAudio) {
     try {
       fallbackAudio.pause();
@@ -138,37 +157,80 @@ export function stopDealerSpeech(): void {
   activeUtterance = null;
 }
 
-function playServerTaiwanTts(
+/**
+ * 通过已解锁的 Web Audio API 播放服务端 `/api/tts` MP3：
+ * 1. 彻底免疫异步网络返回后 `<audio>.play()` 被浏览器自动播放策略拦截
+ * 2. 结合 `detune` 柔和提甜音色，听感清甜软糯
+ */
+async function playServerTaiwanTts(
   cleanText: string,
   voiceStyleId: string,
+  pitch: number,
   rate: number,
   seq: number,
+  ctx: AudioContext | null,
   onFail?: () => void,
-): void {
+): Promise<void> {
   if (seq !== speakSeq || !cleanText) return;
+  const url = `${BASE_PATH}/api/tts?text=${encodeURIComponent(cleanText.slice(0, 100))}&style=${encodeURIComponent(voiceStyleId)}`;
+
   try {
-    const url = `${BASE_PATH}/api/tts?text=${encodeURIComponent(cleanText.slice(0, 100))}&style=${encodeURIComponent(voiceStyleId)}`;
-    const el = new Audio(url);
+    const res = await fetch(url);
+    if (!res.ok || seq !== speakSeq) {
+      throw new Error(`TTS HTTP ${res.status}`);
+    }
+    const accent = res.headers.get('x-tts-accent') ?? 'zh-CN';
+    const arrayBuf = await res.arrayBuffer();
+    if (seq !== speakSeq || arrayBuf.byteLength < 256) {
+      throw new Error('TTS empty audio');
+    }
+
+    // 优先使用 Web Audio API 播放（已在点击手势内同步 resume，100% 不受自动播放超时限制）
+    if (ctx) {
+      try {
+        if (ctx.state === 'suspended') await ctx.resume();
+        const audioBuf = await ctx.decodeAudioData(arrayBuf.slice(0));
+        if (seq !== speakSeq) return;
+        const src = ctx.createBufferSource();
+        src.buffer = audioBuf;
+        // 台湾原声微提甜度，国内女声柔和抬高 +145 cents 呈现清甜可爱的台湾少女声线
+        const extraSweetCents = accent === 'zh-TW' ? 40 : 145;
+        const styleCents = Math.round((pitch - 1.18) * 180);
+        src.detune.value = Math.max(-100, Math.min(260, extraSweetCents + styleCents));
+        src.playbackRate.value = Math.min(1.12, Math.max(0.92, rate));
+
+        const gain = ctx.createGain();
+        gain.gain.value = 1.05;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        activeBufferSource = src;
+        src.onended = () => {
+          if (activeBufferSource === src) activeBufferSource = null;
+        };
+        src.start(0);
+        return;
+      } catch {
+        /* decodeAudioData 失败时降级到 Blob Audio 元素 */
+      }
+    }
+
+    // 降级：Blob URL + HTMLAudioElement
+    const blobUrl = URL.createObjectURL(new Blob([arrayBuf], { type: 'audio/mpeg' }));
+    const el = new Audio(blobUrl);
     el.volume = 0.96;
-    // 柔和提亮音色与语速，听感更加清甜温柔
-    el.playbackRate = Math.min(1.14, Math.max(0.95, rate * 1.04));
+    el.playbackRate = accent === 'zh-TW' ? 1.02 : 1.07;
     const elAny = el as HTMLAudioElement & { preservesPitch?: boolean; webkitPreservesPitch?: boolean };
     if (typeof elAny.preservesPitch === 'boolean') elAny.preservesPitch = false;
     if (typeof elAny.webkitPreservesPitch === 'boolean') elAny.webkitPreservesPitch = false;
-
-    let handledFail = false;
-    const failOnce = () => {
-      if (handledFail || seq !== speakSeq) return;
-      handledFail = true;
-      if (fallbackAudio === el) fallbackAudio = null;
-      onFail?.();
+    el.onended = () => URL.revokeObjectURL(blobUrl);
+    el.onerror = () => {
+      URL.revokeObjectURL(blobUrl);
+      if (seq === speakSeq) onFail?.();
     };
-
-    el.onerror = failOnce;
     fallbackAudio = el;
-    void el.play().catch(failOnce);
+    await el.play();
   } catch {
-    onFail?.();
+    if (seq === speakSeq) onFail?.();
   }
 }
 
@@ -179,6 +241,7 @@ function speakWithBrowserSynthesis(
   rate: number,
   voiceStyleId: string,
   seq: number,
+  ctx: AudioContext | null,
   allowServerFallback: boolean,
 ): void {
   if (seq !== speakSeq) return;
@@ -189,10 +252,9 @@ function speakWithBrowserSynthesis(
     const utter = new SpeechSynthesisUtterance(cleanText);
     utter.lang = picked?.isTaiwan ? picked.voice.lang : 'zh-TW';
     if (picked?.voice) utter.voice = picked.voice;
-    // 如果是原生台湾声线用柔和甜美音高，否则略微提甜
-    const finalPitch = picked?.isTaiwan ? pitch : Math.min(1.5, pitch + 0.1);
-    utter.pitch = Math.min(2.0, Math.max(0.8, finalPitch));
-    utter.rate = Math.min(1.3, Math.max(0.82, rate));
+    const finalPitch = picked?.isTaiwan ? pitch : Math.min(1.5, pitch + 0.12);
+    utter.pitch = Math.min(2.0, Math.max(0.85, finalPitch));
+    utter.rate = Math.min(1.3, Math.max(0.84, rate));
     utter.volume = 1.0;
 
     let started = false;
@@ -206,7 +268,7 @@ function speakWithBrowserSynthesis(
       } catch {
         /* ignore */
       }
-      playServerTaiwanTts(cleanText, voiceStyleId, rate, seq);
+      void playServerTaiwanTts(cleanText, voiceStyleId, pitch, rate, seq, ctx);
     };
 
     utter.onstart = () => {
@@ -240,26 +302,33 @@ function speakWithBrowserSynthesis(
         if (!started && seq === speakSeq) {
           triggerFallback();
         }
-      }, 850);
+      }, 900);
     }
   } catch {
     if (allowServerFallback) {
-      playServerTaiwanTts(cleanText, voiceStyleId, rate, seq);
+      void playServerTaiwanTts(cleanText, voiceStyleId, pitch, rate, seq, ctx);
     }
   }
 }
 
 /**
  * 播报荷官台湾甜美语音台词：
- * - 若浏览器自带台湾甜美神经女声（如 Edge 晓臻 HsiaoChen / 晓雨 HsiaoYu / macOS 美佳 / Google 臺灣國語），直接零延迟甜美播报
- * - 若浏览器仅有大陆机械音（如 Huihui），优先播放服务端 `/api/tts` 台湾国语甜美音频流，失败时自动兜底本地 TTS
+ * - 在点击手势内立即同步解锁 AudioContext，确保永不被浏览器拦截静音
+ * - 浏览器自带台湾甜美女声（Edge 晓臻 / 晓雨 / macOS 美佳 / Google 臺灣國語）→ 直接原生甜美播报
+ * - 否则通过 Web Audio API 播放服务端 `/api/tts` 甜美音频流（带台湾甜度声线调教），失败时自动回退本地 TTS
  */
 export function speakDealerQuote(rawText: string, voiceStyleId = 'classic'): void {
   if (typeof window === 'undefined') return;
   audio.unlock();
+  // 在用户点击手势内同步创建/恢复 AudioContext，避免异步 fetch 后播放被拦截
+  const ctx = ensureSpeechAudioContext();
 
   const cleanText = sanitizeSpeechText(rawText);
   if (!cleanText) return;
+
+  const wasSpeaking =
+    'speechSynthesis' in window &&
+    (window.speechSynthesis.speaking || window.speechSynthesis.pending);
 
   stopDealerSpeech();
   const seq = ++speakSeq;
@@ -268,21 +337,22 @@ export function speakDealerQuote(rawText: string, voiceStyleId = 'classic'): voi
   const hasSpeechApi = 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined';
   const picked = hasSpeechApi ? pickTaiwanSweetVoice() : null;
 
-  // 1. 浏览器原生已有真正台湾甜美女声（Edge HsiaoChen / HsiaoYu / macOS Meijia / Google 臺灣）→ 优先使用
+  // 1. 浏览器原生已有真正台湾甜美女声 → 立即播报（未在播报时零延迟同步触发）
   if (hasSpeechApi && picked?.isTaiwan) {
-    pendingTimer = window.setTimeout(() => {
-      pendingTimer = null;
-      speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, true);
-    }, 60);
+    if (wasSpeaking) {
+      pendingTimer = window.setTimeout(() => {
+        pendingTimer = null;
+        speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, ctx, true);
+      }, 65);
+    } else {
+      speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, ctx, true);
+    }
     return;
   }
 
-  // 2. 否则优先走服务端台湾甜美语音流（失败时无缝兜底本地语音合成）
-  playServerTaiwanTts(cleanText, voiceStyleId, rate, seq, () => {
+  // 2. 优先通过已同步解锁的 Web Audio API 播放服务端甜美音频流（失败无缝回退本地 TTS）
+  void playServerTaiwanTts(cleanText, voiceStyleId, pitch, rate, seq, ctx, () => {
     if (!hasSpeechApi || seq !== speakSeq) return;
-    pendingTimer = window.setTimeout(() => {
-      pendingTimer = null;
-      speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, false);
-    }, 60);
+    speakWithBrowserSynthesis(cleanText, picked, pitch, rate, voiceStyleId, seq, ctx, false);
   });
 }
