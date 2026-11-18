@@ -17,6 +17,7 @@ import {
   sanitizeSlotsConfig,
   type SlotsConfig,
 } from '../slots-engine';
+import { synthesizeTaiwanSweetSpeech } from '../tts-taiwan';
 import { TASKS, findTask, periodKeyFor, titleFor, type TaskView } from '../tasks';
 
 export async function buildTasks(
@@ -387,10 +388,12 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     }
   });
 
-  // 轻量级荷官中文语音合成兜底代理（当客户端浏览器缺失本地 TTS 语音包时提供稳定有声回退）
-  const ttsCache = new Map<string, Buffer>();
+  // 荷官台湾甜美女声语音合成代理（优先台湾 zh-TW 甜美声线，带 LRU 缓存与国内兜底）
+  const ttsCache = new Map<string, { audio: Buffer; accent: 'zh-TW' | 'zh-CN' }>();
   app.get('/api/tts', async (req, reply) => {
-    const rawText = String((req.query as { text?: string }).text ?? '').trim();
+    const query = req.query as { text?: string; style?: string };
+    const rawText = String(query.text ?? '').trim();
+    const style = String(query.style ?? 'classic').trim().slice(0, 24);
     const cleaned = rawText
       .replace(/[^\u4e00-\u9fa5a-zA-Z0-9，。！？、：；,.!?\s]/g, '')
       .replace(/\s+/g, ' ')
@@ -400,31 +403,24 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
       return reply.status(400).send({ error: '缺少朗读文本' });
     }
 
-    const cached = ttsCache.get(cleaned);
+    const cacheKey = `${style}:${cleaned}`;
+    const cached = ttsCache.get(cacheKey);
     if (cached) {
       reply.header('cache-control', 'public, max-age=86400');
-      return reply.type('audio/mpeg').send(cached);
+      reply.header('x-tts-accent', cached.accent);
+      return reply.type('audio/mpeg').send(cached.audio);
     }
 
     try {
-      const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(cleaned)}&le=zh`;
-      const res = await fetch(url, {
-        headers: {
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-        signal: AbortSignal.timeout(4500),
-      });
-      if (!res.ok) throw new Error(`TTS upstream ${res.status}`);
-      const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.length < 256) throw new Error('TTS empty payload');
-
-      if (ttsCache.size >= 120) {
+      const result = await synthesizeTaiwanSweetSpeech(cleaned, style);
+      if (ttsCache.size >= 200) {
         const firstKey = ttsCache.keys().next().value;
         if (firstKey !== undefined) ttsCache.delete(firstKey);
       }
-      ttsCache.set(cleaned, buf);
+      ttsCache.set(cacheKey, result);
       reply.header('cache-control', 'public, max-age=86400');
-      return reply.type('audio/mpeg').send(buf);
+      reply.header('x-tts-accent', result.accent);
+      return reply.type('audio/mpeg').send(result.audio);
     } catch {
       return reply.status(503).send({ error: '语音合成暂不可用' });
     }
