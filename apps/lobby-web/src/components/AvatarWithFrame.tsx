@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { resolveAvatarUrl } from '../api';
 
 interface Props {
@@ -19,6 +19,12 @@ export function AvatarWithFrame({
   showCrown = false,
 }: Props) {
   const avatarUrl = useMemo(() => resolveAvatarUrl(avatar), [avatar]);
+  const [imgBroken, setImgBroken] = useState(false);
+
+  useEffect(() => {
+    setImgBroken(false);
+  }, [avatarUrl]);
+
   const initial = nickname.slice(0, 1) || '友';
   const frameClass = frameId ? `frame-${frameId.replace(/^frame_/, '')}` : 'frame-default';
 
@@ -30,8 +36,13 @@ export function AvatarWithFrame({
       {showCrown && <span className="frame-crown-top">👑</span>}
       <div className="avatar-frame-border" />
       <div className="avatar-frame-inner">
-        {avatarUrl ? (
-          <img src={avatarUrl} alt={nickname} className="avatar-frame-img" />
+        {avatarUrl && !imgBroken ? (
+          <img
+            src={avatarUrl}
+            alt={nickname}
+            className="avatar-frame-img"
+            onError={() => setImgBroken(true)}
+          />
         ) : (
           <span className="avatar-frame-initial">{initial}</span>
         )}

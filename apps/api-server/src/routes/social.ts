@@ -96,6 +96,24 @@ export function registerSocialRoutes(app: FastifyInstance, repo: Repository): ()
     }
   });
 
+  // 专用头像上传接口（POST 方法兼容性最好，避免部分代理/WAF 拦截 PATCH，前端选完即自动保存）
+  app.post('/api/profile/avatar', async (req) => {
+    const claims = authHeader(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const raw = body.avatar === null ? null : typeof body.avatar === 'string' ? body.avatar : undefined;
+    if (raw === undefined) throw httpError('缺少头像数据', 400);
+
+    if (raw !== null) {
+      assertValidAvatar(raw);
+    }
+    try {
+      const profile = await repo.updateProfile(claims.sub, { avatar: raw });
+      return { ok: true, profile };
+    } catch (error) {
+      throw httpError((error as Error).message, 400);
+    }
+  });
+
   app.get('/api/users/search', async (req) => {
     const claims = authHeader(req);
     const query = req.query as { q?: string };

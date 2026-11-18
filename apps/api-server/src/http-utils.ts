@@ -3,8 +3,8 @@ import type { FastifyRequest } from 'fastify';
 import { verifyToken, type TokenPayload } from '@cc/auth';
 import { config } from './config';
 
-// 头像以独立 URL 异步加载，单张上限 64KB，兼顾清晰度与数据库开销
-export const AVATAR_MAX_BYTES = 64 * 1024;
+// 头像以独立 URL 异步加载，单张上限 256KB，兼顾清晰度与数据库开销
+export const AVATAR_MAX_BYTES = 256 * 1024;
 
 export interface DecodedAvatar {
   bytes: Buffer;

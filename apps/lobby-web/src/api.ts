@@ -291,6 +291,12 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
+  uploadAvatar: (avatar: string | null) =>
+    request<{ ok: boolean; profile: PlayerProfile }>('/api/profile/avatar', {
+      method: 'POST',
+      body: JSON.stringify({ avatar }),
+    }),
+
   searchUsers: (keyword: string) =>
     request<{ users: PlayerProfile[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}`),
 

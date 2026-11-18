@@ -140,14 +140,14 @@ export async function updateProfile(
   ) {
     await pool.query(
       `insert into user_profiles (user_id, bio, avatar, equipped_frame, dealer_skin, dealer_voice, dealer_affection, updated_at)
-       values ($1, coalesce($2, ''), $3, coalesce($4, 'frame_default'), coalesce($5, 'classic'), coalesce($6, 'classic'), coalesce($8, 0), now())
+       values ($1, coalesce($2::text, ''), $3::text, coalesce($4::text, 'frame_default'), coalesce($5::text, 'classic'), coalesce($6::text, 'classic'), coalesce($8::integer, 0), now())
        on conflict (user_id) do update
-          set bio = coalesce($2, user_profiles.bio),
-              avatar = case when $7 then $3 else user_profiles.avatar end,
-              equipped_frame = coalesce($4, user_profiles.equipped_frame),
-              dealer_skin = coalesce($5, user_profiles.dealer_skin),
-              dealer_voice = coalesce($6, user_profiles.dealer_voice),
-              dealer_affection = coalesce($8, user_profiles.dealer_affection),
+          set bio = coalesce($2::text, user_profiles.bio),
+              avatar = case when $7::boolean then $3::text else user_profiles.avatar end,
+              equipped_frame = coalesce($4::text, user_profiles.equipped_frame),
+              dealer_skin = coalesce($5::text, user_profiles.dealer_skin),
+              dealer_voice = coalesce($6::text, user_profiles.dealer_voice),
+              dealer_affection = coalesce($8::integer, user_profiles.dealer_affection),
               updated_at = now()`,
       [
         userId,

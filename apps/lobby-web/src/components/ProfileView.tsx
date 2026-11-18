@@ -24,10 +24,10 @@ interface Props {
   onUserUpdate?: (patch: Partial<User>) => void;
 }
 
-/** 把用户选择的图片裁成方形并压缩，避免几十 MB 原图进数据库 */
+/** 把用户选择的图片裁成方形并自适应压缩，保证清晰且永不超体积上限 */
 async function fileToAvatar(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) throw new Error('请选择图片文件');
-  if (file.size > 8 * 1024 * 1024) throw new Error('图片过大，请选择 8MB 以内的图片');
+  if (file.type && !file.type.startsWith('image/')) throw new Error('请选择图片文件');
+  if (file.size > 12 * 1024 * 1024) throw new Error('图片过大，请选择 12MB 以内的图片');
 
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -39,29 +39,47 @@ async function fileToAvatar(file: File): Promise<string> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('图片格式不支持'));
+    img.onerror = () => reject(new Error('图片格式不支持，请换一张 JPG / PNG / WebP'));
     img.src = dataUrl;
   });
 
-  const size = 192;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('当前浏览器不支持图片处理');
-  const side = Math.min(image.width, image.height);
-  ctx.drawImage(
-    image,
-    (image.width - side) / 2,
-    (image.height - side) / 2,
-    side,
-    side,
-    0,
-    0,
-    size,
-    size,
-  );
-  return canvas.toDataURL('image/jpeg', 0.86);
+  const drawAt = (size: number, quality: number): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('当前浏览器不支持图片处理');
+    // 填充深色底色，防止透明 PNG 转 JPEG 后出现纯黑锯齿
+    ctx.fillStyle = '#182032';
+    ctx.fillRect(0, 0, size, size);
+    const side = Math.min(image.width, image.height);
+    ctx.drawImage(
+      image,
+      (image.width - side) / 2,
+      (image.height - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      size,
+      size,
+    );
+    return canvas.toDataURL('image/jpeg', quality);
+  };
+
+  // 自适应质量压缩，确保 base64 体积稳定控制在 180KB 内
+  const maxBase64Chars = 240_000;
+  for (const [size, quality] of [
+    [192, 0.85],
+    [192, 0.72],
+    [192, 0.58],
+    [160, 0.65],
+    [128, 0.55],
+  ] as const) {
+    const out = drawAt(size, quality);
+    if (out.length <= maxBase64Chars) return out;
+  }
+  return drawAt(128, 0.45);
 }
 
 export function ProfileView({
@@ -76,7 +94,9 @@ export function ProfileView({
   const [nickname, setNickname] = useState(user.nickname);
   const [bio, setBio] = useState('');
   const [email, setEmail] = useState(user.email ?? '');
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<string | null>(user.avatar ?? null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarBroken, setAvatarBroken] = useState(false);
   const [balance, setBalance] = useState(user.balance);
   const [level, setLevel] = useState(user.level ?? 1);
   const [xp, setXp] = useState(user.xp ?? '0');
@@ -110,6 +130,7 @@ export function ProfileView({
       setNickname(data.profile.nickname);
       setBio(data.profile.bio);
       setAvatar(data.profile.avatar);
+      setAvatarBroken(false);
       setBalance(data.balance);
       setLevel(data.profile.level ?? 1);
       setXp(data.profile.xp ?? '0');
@@ -173,15 +194,29 @@ export function ProfileView({
   }, [load]);
 
   const pickAvatar = async (file: File | undefined): Promise<void> => {
-    if (!file) return;
+    if (!file || avatarUploading) return;
+    const prevAvatar = avatar;
+    setAvatarUploading(true);
     try {
       audio.play('click');
       const compressed = await fileToAvatar(file);
+      // 先本地预览，同时直接调用专用上传接口即时落库，无需再点保存
       setAvatar(compressed);
-      setEditing(true);
-      notify('头像已就绪，记得点保存');
+      setAvatarBroken(false);
+      const res = await api.uploadAvatar(compressed);
+      const savedUrl = res.profile.avatar ?? compressed;
+      setAvatar(savedUrl);
+      setAvatarBroken(false);
+      onProfileChange?.({ avatar: savedUrl });
+      onUserUpdate?.({ avatar: savedUrl });
+      audio.play('coin');
+      notify('✅ 头像已成功更换并保存！');
     } catch (error) {
-      notify(error instanceof Error ? error.message : '图片处理失败', 'err');
+      setAvatar(prevAvatar);
+      audio.play('alert');
+      notify(error instanceof Error ? error.message : '头像上传失败，请重试', 'err');
+    } finally {
+      setAvatarUploading(false);
     }
   };
 
@@ -189,14 +224,15 @@ export function ProfileView({
     audio.play('click');
     setSaving(true);
     try {
-      const res = await api.updateProfile({ nickname: nickname.trim(), bio, avatar });
+      const res = await api.updateProfile({ nickname: nickname.trim(), bio });
       if (email.trim() && email.trim() !== (user.email ?? '')) {
         await api.updateEmail(email.trim());
+        onUserUpdate?.({ email: email.trim() });
       }
       audio.play('coin');
       setNickname(res.profile.nickname);
       setBio(res.profile.bio);
-      setAvatar(res.profile.avatar);
+      if (res.profile.avatar !== undefined) setAvatar(res.profile.avatar);
       setEditing(false);
       onProfileChange?.({ nickname: res.profile.nickname, avatar: res.profile.avatar });
       notify('个人资料与绑定邮箱已保存');
@@ -271,30 +307,44 @@ export function ProfileView({
           <button
             type="button"
             className="profile-large-avatar is-editable"
-            onClick={() => fileRef.current?.click()}
-            title="点击更换头像"
+            onClick={() => !avatarUploading && fileRef.current?.click()}
+            disabled={avatarUploading}
+            title="点击立即更换头像"
             aria-label="更换头像"
           >
             {(() => {
               const avatarSrc = resolveAvatarUrl(avatar);
-              return avatarSrc ? (
-                <img src={avatarSrc} alt="我的头像" draggable={false} />
+              return avatarSrc && !avatarBroken ? (
+                <img
+                  src={avatarSrc}
+                  alt="我的头像"
+                  draggable={false}
+                  onError={() => setAvatarBroken(true)}
+                />
               ) : (
                 <span>{nickname.slice(0, 1)}</span>
               );
             })()}
-            <em className="avatar-edit-badge">更换</em>
+            <em className="avatar-edit-badge">{avatarUploading ? '上传中' : '更换'}</em>
           </button>
           <input
             ref={fileRef}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
-            hidden
+            accept="image/*"
+            className="profile-file-input-hidden"
             onChange={(event) => {
               void pickAvatar(event.target.files?.[0]);
               event.target.value = '';
             }}
           />
+          <button
+            type="button"
+            className="btn-change-avatar-pill"
+            disabled={avatarUploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {avatarUploading ? '⏳ 正在上传头像…' : '📷 更换头像'}
+          </button>
 
           <h3>{nickname}</h3>
           <span className="profile-uid-pill">UID: {user.id.slice(0, 8)}</span>
