@@ -218,7 +218,7 @@ pnpm e2e
    ```bash
    curl -fsSL https://raw.githubusercontent.com/lss19981213/Chess-and-Cards/main/infra/1panel-update.sh | bash
    ```
-   *(国内服务器直连 GitHub 慢时可在链接前加 `https://gh-proxy.com/`)*
+   *(国内服务器直连 GitHub 慢时可在链接前加 `https://ghfast.top/`)*
    脚本会自动克隆代码、生成高强度随机 `.env` 密钥（含 GM 口令 `ADMIN_TOKEN`）、拉起 PostgreSQL 16 与前后端容器并完成健康检查。
 
 2. **在 1Panel「网站 -> 创建网站 -> 反向代理」**：

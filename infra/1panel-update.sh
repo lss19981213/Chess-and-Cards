@@ -32,19 +32,53 @@ else
   exit 1
 fi
 
-# 1. 拉取或克隆代码（直连 GitHub 失败时自动回退国内镜像代理）
+# 1. 拉取或克隆代码（多节点自动容错：直连 GitHub + 多个可用国内镜像，成功后自动修正 origin）
 clone_or_pull() {
+  local candidates=(
+    "${REPO_URL}"
+    "https://ghfast.top/${REPO_URL}"
+    "https://ghproxy.net/${REPO_URL}"
+    "https://hk.gh-proxy.com/${REPO_URL}"
+    "https://gh-proxy.com/${REPO_URL}"
+  )
+
   if [ ! -d "${APP_DIR}/.git" ]; then
     mkdir -p "$(dirname "${APP_DIR}")"
     echo "==> 首次拉取仓库代码..."
-    git clone -b "${BRANCH}" --depth 1 "${REPO_URL}" "${APP_DIR}" \
-      || git clone -b "${BRANCH}" --depth 1 "https://gh-proxy.com/${REPO_URL}" "${APP_DIR}"
+    for url in "${candidates[@]}"; do
+      echo "    尝试节点: ${url}"
+      if git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 clone -b "${BRANCH}" --depth 1 "${url}" "${APP_DIR}"; then
+        return 0
+      fi
+      rm -rf "${APP_DIR}"
+    done
+    echo "[错误] 所有 Git 节点均拉取失败，请检查服务器外网连通性。" >&2
+    return 1
   else
     cd "${APP_DIR}"
     echo "==> 拉取最新代码 (${BRANCH})..."
-    git fetch origin "${BRANCH}" --depth 1 \
-      || git fetch "https://gh-proxy.com/${REPO_URL}" "${BRANCH}" --depth 1
-    git reset --hard FETCH_HEAD
+    local current_origin
+    current_origin="$(git remote get-url origin 2>/dev/null || true)"
+    local fetch_list=()
+    if [ -n "${current_origin}" ] && [[ "${current_origin}" != *"gh-proxy.com"* ]]; then
+      fetch_list+=("${current_origin}")
+    fi
+    for url in "${candidates[@]}"; do
+      if [ "${url}" != "${current_origin}" ]; then
+        fetch_list+=("${url}")
+      fi
+    done
+
+    for url in "${fetch_list[@]}"; do
+      echo "    尝试节点: ${url}"
+      if git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 fetch "${url}" "${BRANCH}" --depth 1; then
+        git remote set-url origin "${url}" 2>/dev/null || true
+        git reset --hard FETCH_HEAD
+        return 0
+      fi
+    done
+    echo "[错误] 所有 Git 节点均拉取失败，请检查服务器外网连通性。" >&2
+    return 1
   fi
 }
 
