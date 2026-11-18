@@ -52,6 +52,8 @@ interface AudioPrefs {
   sfx: boolean;
 }
 
+declare const __BGM_HASH__: Record<string, string> | undefined;
+
 /** 可切换的优美高级背景音乐风格 */
 const TRACKS: ReadonlyArray<{ id: string; name: string; file: string }> = [
   { id: 'lounge', name: '名流爵士', file: 'assets/music/menu-theme.mp3' },
@@ -629,7 +631,8 @@ class AudioEngine {
     const track = TRACKS[this.trackIndex];
     if (track && typeof Audio !== 'undefined') {
       try {
-        const url = `${import.meta.env.BASE_URL}${track.file}`;
+        const ver = (typeof __BGM_HASH__ !== 'undefined' && __BGM_HASH__[track.id]) || '1';
+        const url = `${import.meta.env.BASE_URL}${track.file}?v=${encodeURIComponent(ver)}`;
         const el = new Audio(url);
         el.loop = true;
         el.volume = 0.35;
