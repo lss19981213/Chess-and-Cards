@@ -788,12 +788,23 @@ namespace CcGmClient
             }
         }
 
+        private async void DgPlayers_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (DgPlayers.SelectedItem is PlayerItem item)
+            {
+                SelectPlayer(item);
+                await OpenPlayerLedgerAsync(item);
+            }
+        }
+
         private void SelectPlayer(PlayerItem player)
         {
             _selectedPlayer = player;
             TxtSelectedPlayerName.Text = $"{player.Nickname} ({player.Username})";
+            TxtSelectedPlayerLevel.Text = player.FormattedLevel;
             TxtSelectedPlayerUid.Text = $"UID: {player.UserId}";
-            TxtSelectedPlayerBalance.Text = player.FormattedBalance;
+            TxtSelectedPlayerBalance.Text = $"{player.FormattedBalance} 豆";
+            TxtSelectedPlayerTurnover.Text = $"{player.FormattedTurnover} 豆";
 
             BtnBanPlayer.IsEnabled = !player.Banned;
             BtnUnbanPlayer.IsEnabled = player.Banned;
@@ -808,11 +819,13 @@ namespace CcGmClient
             }
         }
 
+        private const long MaxGrantAmount = 50_000_000;
+
         private async void BtnExecuteGrant_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedPlayer == null)
             {
-                MessageBox.Show("请先在左侧选择要调整筹码的玩家", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("请先在左侧选择要操作的玩家", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -822,13 +835,22 @@ namespace CcGmClient
                 return;
             }
 
-            var reason = TxtGrantReason.Text.Trim();
-            if (string.IsNullOrEmpty(reason)) reason = "GM 调账";
+            if (Math.Abs(amount) > MaxGrantAmount)
+            {
+                MessageBox.Show($"单次补发或扣减上限为 {MaxGrantAmount:N0} (5,000万) 欢乐豆", "超出上限", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
-            var opDesc = amount > 0 ? $"发放 +{amount:N0}" : $"扣除 {Math.Abs(amount):N0}";
+            var reason = TxtGrantReason.Text.Trim();
+            if (string.IsNullOrEmpty(reason)) reason = amount > 0 ? "GM 客服筹码补发" : "GM 后台扣减";
+
+            string confirmText = amount > 0
+                ? $"确认通过【玩家邮箱】向「{_selectedPlayer.Nickname}」(UID: {_selectedPlayer.UserId}) 补发 +{amount:N0} 欢乐豆吗？\n\n📬 补发筹码将投递至玩家大厅邮箱，需玩家进入邮箱点击领取后才会到账！\n备注: {reason}"
+                : $"确认直接扣除玩家「{_selectedPlayer.Nickname}」(UID: {_selectedPlayer.UserId}) {Math.Abs(amount):N0} 欢乐豆吗？\n\n⚠️ 负数扣减将立即实时从账户余额扣除。\n备注: {reason}";
+
             var confirm = MessageBox.Show(
-                $"确定要对玩家「{_selectedPlayer.Nickname}」(UID: {_selectedPlayer.UserId}) {opDesc} 欢乐豆吗？\n\n原因: {reason}",
-                "调账确认",
+                confirmText,
+                amount > 0 ? "邮箱补发筹码确认" : "直接扣减筹码确认",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -837,15 +859,28 @@ namespace CcGmClient
             try
             {
                 var idempotencyKey = Guid.NewGuid().ToString("N");
-                var newBalance = await _api.GrantCoinsAsync(_selectedPlayer.UserId, amount, reason, idempotencyKey);
-                _selectedPlayer.Balance = newBalance;
-                TxtSelectedPlayerBalance.Text = $"{newBalance:N0}";
-                SetStatus($"成功对 {_selectedPlayer.Nickname} 调账: {opDesc}，当前余额: {newBalance:N0}");
-                await RefreshPlayersAsync(TxtPlayerSearch.Text.Trim());
+                var result = await _api.GrantCoinsAsync(_selectedPlayer.UserId, amount, reason, idempotencyKey);
+
+                if (string.Equals(result.Delivery, "mail", StringComparison.OrdinalIgnoreCase))
+                {
+                    var tip = !string.IsNullOrWhiteSpace(result.Message)
+                        ? result.Message
+                        : $"已通过邮箱向「{_selectedPlayer.Nickname}」补发 +{amount:N0} 欢乐豆，请通知玩家前往大厅「邮箱」领取！";
+                    MessageBox.Show($"{tip}\n\n邮件编号: {result.MailId ?? "-"}", "邮箱补发成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    SetStatus($"已通过邮箱向 {_selectedPlayer.Nickname} 补发 +{amount:N0} 欢乐豆（待玩家邮箱领取，邮件ID: {result.MailId}）");
+                    await RefreshPlayersAsync(TxtPlayerSearch.Text.Trim());
+                }
+                else
+                {
+                    _selectedPlayer.Balance = result.Balance;
+                    TxtSelectedPlayerBalance.Text = $"{result.Balance:N0} 豆";
+                    SetStatus($"已扣除 {_selectedPlayer.Nickname} {Math.Abs(amount):N0} 欢乐豆，当前余额: {result.Balance:N0}");
+                    await RefreshPlayersAsync(TxtPlayerSearch.Text.Trim());
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"调整筹码失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"操作失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -926,22 +961,93 @@ namespace CcGmClient
             }
         }
 
+        private PlayerItem? _ledgerPlayer;
+        private bool _isLoadingLedger;
+
         private async void BtnViewLedger_Click(object sender, RoutedEventArgs e)
         {
-            if (_selectedPlayer == null) return;
+            if (_selectedPlayer == null)
+            {
+                MessageBox.Show("请先在左侧选择要查看账单的玩家", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            await OpenPlayerLedgerAsync(_selectedPlayer);
+        }
+
+        private async Task OpenPlayerLedgerAsync(PlayerItem player)
+        {
+            _ledgerPlayer = player;
+            _isLoadingLedger = true;
             try
             {
-                TxtLedgerTitle.Text = $"📜 {_selectedPlayer.Nickname} 的资金流水账本";
-                TxtLedgerSubtitle.Text = $"UID: {_selectedPlayer.UserId} | 当前余额: {_selectedPlayer.FormattedBalance} 豆";
-                ModalLedger.Visibility = Visibility.Visible;
+                CmbLedgerCategory.SelectedIndex = 0;
+                CmbLedgerLimit.SelectedIndex = 1; // 默认 200 笔
+            }
+            finally
+            {
+                _isLoadingLedger = false;
+            }
 
-                var ledger = await _api.GetPlayerLedgerAsync(_selectedPlayer.UserId, 100);
+            TxtLedgerTitle.Text = $"📜 {player.Nickname} ({player.Username}) 的真实流水账单与欢乐豆明细";
+            TxtLedgerSubtitle.Text = $"UID: {player.UserId} · 实时读取全量数据库真实资金流水与牌局/老虎机/邮箱/任务明细";
+            ModalLedger.Visibility = Visibility.Visible;
+            await LoadCurrentPlayerLedgerAsync();
+        }
+
+        private async Task LoadCurrentPlayerLedgerAsync()
+        {
+            if (_ledgerPlayer == null) return;
+            try
+            {
+                var category = (CmbLedgerCategory.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
+                var limitStr = (CmbLedgerLimit.SelectedItem as ComboBoxItem)?.Tag as string ?? "200";
+                var limit = int.TryParse(limitStr, out var parsed) ? parsed : 200;
+
+                TxtLedgerCount.Text = "正在拉取真实流水账单...";
+                var resp = await _api.GetPlayerLedgerFullAsync(_ledgerPlayer.UserId, limit, category);
+                var ledger = resp.Ledger ?? new List<LedgerItem>();
                 DgUserLedger.ItemsSource = ledger;
+
+                var sum = resp.Summary;
+                if (sum != null)
+                {
+                    TxtLedgerBalance.Text = $"{sum.CurrentBalance:N0} 豆";
+                    TxtLedgerLevel.Text = $"等级: Lv.{Math.Max(1, sum.Level)}";
+                    TxtLedgerTotalTurnover.Text = $"{sum.TotalTurnover:N0} 豆";
+                    TxtLedgerGameTurnover.Text = $"当前页牌局/老虎机流水: {sum.GameTurnover:N0}";
+                    TxtLedgerTotalIn.Text = $"+{sum.TotalIn:N0}";
+                    TxtLedgerTotalOut.Text = $"-{sum.TotalOut:N0}";
+                    TxtLedgerNetChange.Text = $"净变动: {(sum.NetChange >= 0 ? "+" : "")}{sum.NetChange:N0}";
+                    TxtLedgerMailClaimed.Text = $"邮箱领取: +{sum.MailClaimed:N0}";
+                    TxtLedgerGmAdjusted.Text = $"GM直调: {(sum.GmAdjusted >= 0 ? "+" : "")}{sum.GmAdjusted:N0}";
+                    TxtLedgerCount.Text = category == "all"
+                        ? $"展示最新 {sum.TotalCount} 笔真实明细"
+                        : $"筛选命中 {sum.FilteredCount} / {sum.TotalCount} 笔明细";
+                }
+                else
+                {
+                    TxtLedgerBalance.Text = $"{_ledgerPlayer.FormattedBalance} 豆";
+                    TxtLedgerLevel.Text = $"等级: {_ledgerPlayer.FormattedLevel}";
+                    TxtLedgerTotalTurnover.Text = $"{_ledgerPlayer.FormattedTurnover} 豆";
+                    TxtLedgerCount.Text = $"共 {ledger.Count} 笔明细";
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"拉取流水失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                TxtLedgerCount.Text = "拉取失败";
+                MessageBox.Show($"拉取玩家流水账单失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private async void CmbLedgerFilter_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || _isLoadingLedger || ModalLedger == null || ModalLedger.Visibility != Visibility.Visible) return;
+            await LoadCurrentPlayerLedgerAsync();
+        }
+
+        private async void BtnRefreshLedger_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadCurrentPlayerLedgerAsync();
         }
 
         private void BtnCloseLedgerModal_Click(object sender, RoutedEventArgs e)
@@ -1207,6 +1313,11 @@ namespace CcGmClient
             if (!long.TryParse(TxtMailRewardCoins.Text.Trim(), out var rewardCoins) || rewardCoins < 0)
             {
                 MessageBox.Show("附带筹码数额需为非负整数", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (rewardCoins > MaxGrantAmount)
+            {
+                MessageBox.Show($"单封邮件附赠筹码上限为 {MaxGrantAmount:N0} (5,000万) 欢乐豆", "超出上限", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 

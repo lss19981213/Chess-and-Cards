@@ -27,7 +27,7 @@ export async function listUserLedger(pool: pg.Pool, userId: string, limit: numbe
       where user_id = $1
       order by created_at desc
       limit $2`,
-    [userId, Math.min(Math.max(1, limit), 200)],
+    [userId, Math.min(Math.max(1, limit), 500)],
   );
 
   return res.rows.map((row) => ({

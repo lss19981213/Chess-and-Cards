@@ -875,7 +875,7 @@ export class MemoryRepository implements Repository {
   async listUserLedger(userId: string, limit: number): Promise<LedgerRow[]> {
     return this.ledgerHistory
       .filter((r) => r.userId === userId)
-      .slice(0, Math.min(Math.max(1, limit), 200));
+      .slice(0, Math.min(Math.max(1, limit), 500));
   }
 
   async getEconomyOverview(): Promise<EconomyOverview> {

@@ -175,17 +175,63 @@ export function registerAdminAndInternalRoutes(
     return { ok: true, ...next };
   });
 
+const LEDGER_BIZ_META: Record<string, { label: string; category: string }> = {
+  game_bet: { label: '游戏下注', category: 'game' },
+  game_bet_refund: { label: '撤注退还', category: 'game' },
+  game_bet_return: { label: '本金返还', category: 'game' },
+  game_settle: { label: '游戏结算', category: 'game' },
+  slots_bet: { label: '老虎机押注', category: 'slots' },
+  slots_win: { label: '老虎机派彩', category: 'slots' },
+  slots_spin: { label: '老虎机结算', category: 'slots' },
+  mail_reward: { label: '邮箱领取', category: 'mail' },
+  task: { label: '任务奖励', category: 'task' },
+  level_reward: { label: '等级升级奖', category: 'task' },
+  leaderboard: { label: '排行榜奖励', category: 'task' },
+  worship: { label: '膜拜奖励', category: 'social' },
+  dealer_tip: { label: '打赏荷官', category: 'social' },
+  avatar_frame: { label: '购买头像框', category: 'social' },
+  gm_grant: { label: 'GM 调账', category: 'gm' },
+  init: { label: '注册赠豆', category: 'gm' },
+  relief: { label: '救济金', category: 'task' },
+};
+
+function describeLedgerRow(bizType: string, bizId: string): { bizLabel: string; category: string; note: string } {
+  const meta = LEDGER_BIZ_META[bizType] ?? { label: bizType || '其他', category: 'other' };
+  const cleanId = bizId ? bizId.slice(0, 48) : '';
+  let note = cleanId ? `${meta.label} · 单号 ${cleanId}` : meta.label;
+  if (bizType === 'mail_reward') note = `邮箱附件领取 (${cleanId})`;
+  else if (bizType === 'gm_grant') note = `GM 后台调账 (${cleanId})`;
+  else if (bizType === 'game_settle') note = `牌局结算入账 (${cleanId})`;
+  else if (bizType === 'game_bet') note = `牌局实时下注 (${cleanId})`;
+  else if (bizType === 'game_bet_return') note = `牌局下注本金返还 (${cleanId})`;
+  else if (bizType === 'slots_spin' || bizType === 'slots_bet' || bizType === 'slots_win') {
+    note = `777 老虎机真实流水 (${cleanId})`;
+  } else if (bizType === 'dealer_tip') note = `打赏荷官艾莉丝 (${cleanId})`;
+  else if (bizType === 'avatar_frame') note = `商城解锁动态头像框 (${cleanId})`;
+  else if (bizType === 'task') note = `悬赏福利任务领奖 (${cleanId})`;
+  else if (bizType === 'level_reward') note = `账号升级筹码奖励 (${cleanId})`;
+  return { bizLabel: meta.label, category: meta.category, note };
+}
+
   app.get('/api/admin/players', async (req) => {
     requireAdmin(req);
     const query = req.query as { q?: string };
 
     const keyword = String(query.q ?? '').trim();
-    const users = await repo.searchUsers(keyword, '', 30);
+    const users = await repo.searchUsers(keyword, '', 50);
     const players = await Promise.all(
-      users.map(async (user) => ({
-        ...user,
-        balance: await repo.getBalance(user.userId, 'coin'),
-      })),
+      users.map(async (user) => {
+        const [balance, prof] = await Promise.all([
+          repo.getBalance(user.userId, 'coin'),
+          repo.getProfile(user.userId),
+        ]);
+        return {
+          ...user,
+          balance,
+          level: prof?.level ?? 1,
+          totalTurnover: prof?.totalTurnover ?? '0',
+        };
+      }),
     );
     return { players };
   });
@@ -193,10 +239,61 @@ export function registerAdminAndInternalRoutes(
   app.get('/api/admin/players/:userId/ledger', async (req) => {
     requireAdmin(req);
     const userId = String((req.params as { userId?: string }).userId ?? '');
-    const query = req.query as { limit?: string };
-    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
-    const ledger = await repo.listUserLedger(userId, limit);
-    return { ledger };
+    const query = req.query as { limit?: string; category?: string };
+    const limit = Math.min(Math.max(Number(query.limit ?? 200) || 200, 1), 500);
+    const category = typeof query.category === 'string' ? query.category.trim().toLowerCase() : 'all';
+
+    const [rawLedger, currentBalance, profile] = await Promise.all([
+      repo.listUserLedger(userId, limit),
+      repo.getBalance(userId, 'coin'),
+      repo.getProfile(userId),
+    ]);
+
+    let totalIn = 0;
+    let totalOut = 0;
+    let gameTurnover = 0;
+    let mailClaimed = 0;
+    let gmAdjusted = 0;
+
+    const enriched = rawLedger.map((row) => {
+      const desc = describeLedgerRow(row.bizType, row.bizId);
+      if (row.delta > 0) totalIn += row.delta;
+      else if (row.delta < 0) totalOut += Math.abs(row.delta);
+      if (desc.category === 'game' || desc.category === 'slots') {
+        gameTurnover += Math.abs(row.delta);
+      }
+      if (row.bizType === 'mail_reward' && row.delta > 0) mailClaimed += row.delta;
+      if (row.bizType === 'gm_grant') gmAdjusted += row.delta;
+      return {
+        ...row,
+        bizLabel: desc.bizLabel,
+        category: desc.category,
+        note: desc.note,
+      };
+    });
+
+    const filtered =
+      category && category !== 'all'
+        ? enriched.filter((row) => row.category === category)
+        : enriched;
+
+    return {
+      ledger: filtered,
+      summary: {
+        nickname: profile?.nickname ?? '',
+        level: profile?.level ?? 1,
+        currentBalance,
+        totalTurnover: profile?.totalTurnover ?? '0',
+        totalCount: enriched.length,
+        filteredCount: filtered.length,
+        totalIn,
+        totalOut,
+        netChange: totalIn - totalOut,
+        gameTurnover,
+        mailClaimed,
+        gmAdjusted,
+      },
+    };
   });
 
   app.post('/api/admin/players/:userId/status', async (req) => {
@@ -296,13 +393,15 @@ export function registerAdminAndInternalRoutes(
     return { ok: true, count: created.length, accounts: created };
   });
 
-  // GM 发放 / 扣除筹码，走账本幂等入账
+  // GM 补发 / 扣除筹码：正数补发统一通过玩家邮箱发送（需玩家进邮箱领取），负数直接扣减；单次上限 5000 万
   app.post('/api/admin/grant', async (req) => {
     requireAdmin(req);
     const body = (req.body ?? {}) as Record<string, unknown>;
     const userId = typeof body.userId === 'string' ? body.userId : '';
     const amount = Math.floor(Number(body.amount ?? 0));
-    const reason = typeof body.reason === 'string' ? body.reason.slice(0, 40) : 'GM 调整';
+    const reason = typeof body.reason === 'string' && body.reason.trim()
+      ? body.reason.trim().slice(0, 80)
+      : 'GM 管理员补发补偿';
     const idempotencyKey =
       typeof body.idempotencyKey === 'string' && body.idempotencyKey
         ? body.idempotencyKey.slice(0, 80)
@@ -310,12 +409,42 @@ export function registerAdminAndInternalRoutes(
 
     if (!userId) throw httpError('缺少玩家 ID', 400);
     if (!Number.isFinite(amount) || amount === 0) throw httpError('金额需为非零整数', 400);
-    if (Math.abs(amount) > 1_000_000) throw httpError('单次调整不能超过 100 万', 400);
+    if (Math.abs(amount) > 50_000_000) throw httpError('单次补发或扣减上限为 5,000 万欢乐豆', 400);
     if (!idempotencyKey) throw httpError('缺少幂等键 idempotencyKey', 400);
 
     const target = await repo.getProfile(userId);
     if (!target) throw httpError('玩家不存在', 404);
 
+    // 正数补发：改为发往玩家邮箱，需玩家进入邮箱手动领取
+    if (amount > 0) {
+      const mail = await repo.sendMail({
+        targetType: 'user',
+        targetUserId: userId,
+        sender: 'GM 客服中心',
+        title: `🎁 筹码补发通知 (+${amount.toLocaleString()})`,
+        content: `亲爱的 ${target.nickname}：管理员已为您补发 ${amount.toLocaleString()} 欢乐豆（备注：${reason}）。请点击下方按钮领取附件，领取后立即计入您的账户余额与流水账单！`,
+        rewardCoins: amount,
+      });
+      const currentBalance = await repo.getBalance(userId, 'coin');
+      apiLog.info(`GM 邮箱补发筹码 userId=${userId} amount=${amount} mailId=${mail.id} reason=${reason}`);
+      recordEvent(
+        'info',
+        'mail',
+        `GM 通过邮箱向 ${target.nickname} 补发 +${amount.toLocaleString()} 欢乐豆（待玩家邮箱领取）`,
+        { userId, amount, mailId: mail.id },
+      );
+      return {
+        ok: true,
+        delivery: 'mail',
+        mailId: mail.id,
+        nickname: target.nickname,
+        balance: currentBalance,
+        amount,
+        message: `已通过邮箱向「${target.nickname}」补发 +${amount.toLocaleString()} 欢乐豆，需玩家前往大厅「邮箱」领取！`,
+      };
+    }
+
+    // 负数扣减：直接实时扣减账户余额
     let balance: number;
     try {
       balance = await repo.credit(userId, amount, 'gm_grant', `gm:${idempotencyKey}`);
@@ -323,8 +452,21 @@ export function registerAdminAndInternalRoutes(
       if (error instanceof InsufficientFundsError) throw httpError('扣减后余额不能为负', 400);
       throw error;
     }
-    apiLog.info(`GM 调整筹码 userId=${userId} amount=${amount} reason=${reason} balance=${balance}`);
-    return { ok: true, nickname: target.nickname, balance };
+    apiLog.info(`GM 扣减筹码 userId=${userId} amount=${amount} reason=${reason} balance=${balance}`);
+    recordEvent(
+      'warn',
+      'player',
+      `GM 扣减 ${target.nickname} ${amount.toLocaleString()} 欢乐豆（余额: ${balance.toLocaleString()}）`,
+      { userId, amount, balance },
+    );
+    return {
+      ok: true,
+      delivery: 'direct',
+      nickname: target.nickname,
+      balance,
+      amount,
+      message: `已扣除「${target.nickname}」${Math.abs(amount).toLocaleString()} 欢乐豆，当前余额 ${balance.toLocaleString()}`,
+    };
   });
 
   app.post('/api/admin/announcements', async (req) => {
@@ -531,7 +673,7 @@ export function registerAdminAndInternalRoutes(
 
     if (!title || title.length > 40) throw httpError('邮件标题需在 1-40 字之间', 400);
     if (!content || content.length > 500) throw httpError('邮件内容需在 1-500 字之间', 400);
-    if (rewardCoins > 10_000_000) throw httpError('单封邮件附带筹码不能超过 1000 万', 400);
+    if (rewardCoins > 50_000_000) throw httpError('单封邮件附带筹码不能超过 5,000 万', 400);
 
     const mail = await repo.sendMail({
       targetType,

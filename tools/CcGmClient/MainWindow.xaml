@@ -345,12 +345,21 @@
 
                             <!-- 玩家列表 -->
                             <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
-                                <DataGrid x:Name="DgPlayers" SelectionChanged="DgPlayers_SelectionChanged">
+                                <DataGrid x:Name="DgPlayers" SelectionChanged="DgPlayers_SelectionChanged" MouseDoubleClick="DgPlayers_MouseDoubleClick" ToolTip="双击任意玩家行可直接打开真实流水账单与欢乐豆明细">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="UID" Binding="{Binding UserId}" Width="100"/>
-                                        <DataGridTextColumn Header="账号" Binding="{Binding Username}" Width="110"/>
+                                        <DataGridTextColumn Header="UID" Binding="{Binding UserId}" Width="90"/>
+                                        <DataGridTextColumn Header="账号" Binding="{Binding Username}" Width="100"/>
                                         <DataGridTextColumn Header="玩家昵称" Binding="{Binding Nickname}" Width="*"/>
-                                        <DataGridTextColumn Header="欢乐豆余额" Binding="{Binding FormattedBalance}" Width="120">
+                                        <DataGridTextColumn Header="等级" Binding="{Binding FormattedLevel}" Width="58">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#60A5FA"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="欢乐豆余额" Binding="{Binding FormattedBalance}" Width="115">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
@@ -359,7 +368,16 @@
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="80">
+                                        <DataGridTextColumn Header="累计真实流水" Binding="{Binding FormattedTurnover}" Width="115">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushGreen}"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="68">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="FontWeight" Value="SemiBold"/>
@@ -375,7 +393,7 @@
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Header="注册时间" Binding="{Binding DisplayDate}" Width="130"/>
+                                        <DataGridTextColumn Header="注册时间" Binding="{Binding DisplayDate}" Width="120"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Border>
@@ -389,39 +407,54 @@
                                         <!-- 当前选中玩家信息简报 -->
                                         <Border Background="#121A26" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
                                             <StackPanel>
-                                                <TextBlock x:Name="TxtSelectedPlayerName" Text="请选择左侧玩家" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
-                                                <TextBlock x:Name="TxtSelectedPlayerUid" Text="UID: -" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
-                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                                    <TextBlock Text="当前余额: " Foreground="{StaticResource BrushTextMuted}"/>
-                                                    <TextBlock x:Name="TxtSelectedPlayerBalance" Text="0" Foreground="{StaticResource BrushGold}" FontWeight="Bold" FontSize="14"/>
-                                                    <TextBlock Text=" 豆" Foreground="{StaticResource BrushTextMuted}"/>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtSelectedPlayerName" Text="请选择左侧玩家" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                                    <TextBlock x:Name="TxtSelectedPlayerLevel" Text="" FontSize="12" FontWeight="Bold" Foreground="#60A5FA" Margin="8,2,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
+                                                <TextBlock x:Name="TxtSelectedPlayerUid" Text="UID: -" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="当前欢乐豆余额" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                                        <TextBlock x:Name="TxtSelectedPlayerBalance" Text="0" Foreground="{StaticResource BrushGold}" FontWeight="Bold" FontSize="15" Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="累计真实有效流水" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                                        <TextBlock x:Name="TxtSelectedPlayerTurnover" Text="0" Foreground="{StaticResource BrushGreen}" FontWeight="Bold" FontSize="15" Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- 操作1: 筹码直充/扣除 -->
-                                        <TextBlock Text="💰 筹码调整 (正数为加，负数为扣)" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,4,0,6"/>
+                                        <!-- 操作1: 邮箱补发筹码 / 直接扣减 -->
+                                        <TextBlock Text="📬 邮箱补发 / 扣减筹码 (单次上限 5,000 万)" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushGold}" Margin="0,2,0,2"/>
+                                        <TextBlock Text="正数发往玩家邮箱（需玩家进邮箱领取），负数直接扣减" FontSize="11" Foreground="{StaticResource BrushTextDim}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBox x:Name="TxtGrantAmount" Text="10000" VerticalContentAlignment="Center" Height="30"/>
-                                            <Button Grid.Column="1" Style="{StaticResource BtnGold}" Content="立即调账" Click="BtnExecuteGrant_Click" Height="30" Margin="8,0,0,0" Padding="12,0"/>
+                                            <Button Grid.Column="1" Style="{StaticResource BtnGold}" Content="邮箱补发/扣减" Click="BtnExecuteGrant_Click" Height="30" Margin="8,0,0,0" Padding="12,0"/>
                                         </Grid>
                                         <!-- 快捷金额选择 -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                            <Button Style="{StaticResource BtnSecondary}" Content="+1万" Click="BtnQuickAmount_Click" Tag="10000" Padding="8,3" Margin="0,0,4,0"/>
-                                            <Button Style="{StaticResource BtnSecondary}" Content="+5万" Click="BtnQuickAmount_Click" Tag="50000" Padding="8,3" Margin="0,0,4,0"/>
-                                            <Button Style="{StaticResource BtnSecondary}" Content="+10万" Click="BtnQuickAmount_Click" Tag="100000" Padding="8,3" Margin="0,0,4,0"/>
-                                            <Button Style="{StaticResource BtnSecondary}" Content="-1万" Click="BtnQuickAmount_Click" Tag="-10000" Padding="8,3" Margin="0,0,4,0"/>
-                                        </StackPanel>
-                                        <TextBox x:Name="TxtGrantReason" Text="GM 管理员调账补偿" Height="28" Margin="0,0,0,14" ToolTip="调账原因/流水备注"/>
+                                        <WrapPanel Margin="0,0,0,8">
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+1万" Click="BtnQuickAmount_Click" Tag="10000" Padding="8,3" Margin="0,0,4,4"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+10万" Click="BtnQuickAmount_Click" Tag="100000" Padding="8,3" Margin="0,0,4,4"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+100万" Click="BtnQuickAmount_Click" Tag="1000000" Padding="8,3" Margin="0,0,4,4"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+1000万" Click="BtnQuickAmount_Click" Tag="10000000" Padding="8,3" Margin="0,0,4,4"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="+5000万" Click="BtnQuickAmount_Click" Tag="50000000" Padding="8,3" Margin="0,0,4,4"/>
+                                            <Button Style="{StaticResource BtnSecondary}" Content="-1万" Click="BtnQuickAmount_Click" Tag="-10000" Padding="8,3" Margin="0,0,4,4"/>
+                                        </WrapPanel>
+                                        <TextBox x:Name="TxtGrantReason" Text="GM 客服筹码补发" Height="28" Margin="0,0,0,14" ToolTip="补发原因/邮箱正文备注"/>
 
                                         <Border Height="1" Background="{StaticResource BrushBorder}" Margin="0,4,0,14"/>
 
-                                        <!-- 操作2: 查看资金明细流水 -->
-                                        <Button Style="{StaticResource BtnSecondary}" Content="📜 查阅此玩家资金流水账本" Click="BtnViewLedger_Click" Height="34" Margin="0,0,0,12"/>
+                                        <!-- 操作2: 查看真实流水账单与欢乐豆明细 -->
+                                        <Button Style="{StaticResource BtnGold}" Content="📜 查看真实流水账单 / 欢乐豆明细" Click="BtnViewLedger_Click" Height="36" Margin="0,0,0,12"/>
 
                                         <!-- 操作3: 封禁/解封状态切换 -->
                                         <Grid Margin="0,0,0,12">
@@ -642,17 +675,17 @@
                                     <TextBox x:Name="TxtMailContent" Text="亲爱的牌友，感谢您对游戏的支持与陪伴！特奉上全服专属福利，祝您旗开得胜，金玉满堂！" Height="90" TextWrapping="Wrap" AcceptsReturn="True" Margin="0,0,0,12"/>
 
                                     <!-- 附赠筹码 -->
-                                    <TextBlock Text="附赠筹码数额 (0 表示纯通知信件):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="附赠筹码数额 (0 表示纯通知信件，单封上限 5,000 万):" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4"/>
                                     <TextBox x:Name="TxtMailRewardCoins" Text="10000" Height="30" VerticalContentAlignment="Center" Margin="0,0,0,6"/>
 
                                     <!-- 快捷筹码选项 -->
                                     <WrapPanel Margin="0,0,0,14">
                                         <Button Style="{StaticResource BtnSecondary}" Content="0 (纯通知)" Click="BtnQuickMailCoins_Click" Tag="0" Padding="8,4" Margin="0,0,4,4"/>
-                                        <Button Style="{StaticResource BtnSecondary}" Content="1,000" Click="BtnQuickMailCoins_Click" Tag="1000" Padding="8,4" Margin="0,0,4,4"/>
                                         <Button Style="{StaticResource BtnSecondary}" Content="10,000" Click="BtnQuickMailCoins_Click" Tag="10000" Padding="8,4" Margin="0,0,4,4"/>
-                                        <Button Style="{StaticResource BtnSecondary}" Content="50,000" Click="BtnQuickMailCoins_Click" Tag="50000" Padding="8,4" Margin="0,0,4,4"/>
                                         <Button Style="{StaticResource BtnSecondary}" Content="100,000" Click="BtnQuickMailCoins_Click" Tag="100000" Padding="8,4" Margin="0,0,4,4"/>
                                         <Button Style="{StaticResource BtnSecondary}" Content="1,000,000" Click="BtnQuickMailCoins_Click" Tag="1000000" Padding="8,4" Margin="0,0,4,4"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="10,000,000" Click="BtnQuickMailCoins_Click" Tag="10000000" Padding="8,4" Margin="0,0,4,4"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="50,000,000" Click="BtnQuickMailCoins_Click" Tag="50000000" Padding="8,4" Margin="0,0,4,4"/>
                                     </WrapPanel>
 
                                     <!-- 发件人签名 -->
@@ -1285,28 +1318,114 @@
             </Grid>
         </Border>
 
-        <!-- ==================== 弹窗遮罩：玩家资金流水抽屉弹窗 ==================== -->
+        <!-- ==================== 弹窗遮罩：玩家真实流水账单与欢乐豆明细弹窗 ==================== -->
         <Grid x:Name="ModalLedger" Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="100" Background="#CC000000" Visibility="Collapsed">
-            <Border Width="820" Height="580" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
+            <Border Width="1060" Height="680" Style="{StaticResource CardPanel}" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#141C29">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
+                    <!-- 标题栏 -->
                     <Grid Grid.Row="0" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock x:Name="TxtLedgerTitle" Text="📜 玩家资金变动明细账本" FontSize="16" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
-                            <TextBlock x:Name="TxtLedgerSubtitle" Text="展示此玩家最新 100 笔资金变动流水" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                            <TextBlock x:Name="TxtLedgerTitle" Text="📜 玩家真实流水账单与欢乐豆明细" FontSize="17" FontWeight="Bold" Foreground="{StaticResource BrushGold}"/>
+                            <TextBlock x:Name="TxtLedgerSubtitle" Text="实时拉取数据库全量真实流水，包含牌局下注/结算、老虎机、邮箱领取、任务、打赏与GM调账" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
                         </StackPanel>
                         <Button Style="{StaticResource BtnGhost}" Content="✕" Width="30" Height="30" FontSize="14" Click="BtnCloseLedgerModal_Click" HorizontalAlignment="Right"/>
                     </Grid>
 
-                    <DataGrid x:Name="DgUserLedger" Grid.Row="1" Margin="0,0,0,12">
+                    <!-- 4列核心财务汇总卡片 -->
+                    <Grid Grid.Row="1" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="#101824" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,8,0">
+                            <StackPanel>
+                                <TextBlock Text="当前欢乐豆余额" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                <TextBlock x:Name="TxtLedgerBalance" Text="0" FontSize="18" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="TxtLedgerLevel" Text="等级: Lv.1" FontSize="11" Foreground="{StaticResource BrushTextMuted}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="1" Background="#101824" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,8,0">
+                            <StackPanel>
+                                <TextBlock Text="累计真实有效流水" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                <TextBlock x:Name="TxtLedgerTotalTurnover" Text="0" FontSize="18" FontWeight="Bold" Foreground="#60A5FA" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="TxtLedgerGameTurnover" Text="当前页牌局/老虎机流水: 0" FontSize="11" Foreground="{StaticResource BrushTextMuted}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Background="#101824" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,8,0">
+                            <StackPanel>
+                                <TextBlock Text="当前页总收入 / 总支出" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock x:Name="TxtLedgerTotalIn" Text="+0" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushGreen}"/>
+                                    <TextBlock Text=" / " FontSize="14" Foreground="{StaticResource BrushTextDim}"/>
+                                    <TextBlock x:Name="TxtLedgerTotalOut" Text="-0" FontSize="15" FontWeight="Bold" Foreground="{StaticResource BrushRed}"/>
+                                </StackPanel>
+                                <TextBlock x:Name="TxtLedgerNetChange" Text="净变动: 0" FontSize="11" Foreground="{StaticResource BrushTextMuted}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="3" Background="#101824" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                            <StackPanel>
+                                <TextBlock Text="邮箱已领 / GM直调" FontSize="11" Foreground="{StaticResource BrushTextDim}"/>
+                                <TextBlock x:Name="TxtLedgerMailClaimed" Text="邮箱领取: +0" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="TxtLedgerGmAdjusted" Text="GM直调: 0" FontSize="11" Foreground="{StaticResource BrushTextMuted}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- 筛选栏 -->
+                    <Grid Grid.Row="2" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="业务分类:" Foreground="{StaticResource BrushTextMuted}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="CmbLedgerCategory" Width="170" Height="30" VerticalContentAlignment="Center" SelectionChanged="CmbLedgerFilter_Changed">
+                                <ComboBoxItem Content="全部明细" Tag="all" IsSelected="True"/>
+                                <ComboBoxItem Content="🎮 牌局对局流水" Tag="game"/>
+                                <ComboBoxItem Content="🎰 老虎机真实流水" Tag="slots"/>
+                                <ComboBoxItem Content="📬 邮箱领取记录" Tag="mail"/>
+                                <ComboBoxItem Content="🎯 任务/等级/排行" Tag="task"/>
+                                <ComboBoxItem Content="🛠️ GM调账/初始" Tag="gm"/>
+                                <ComboBoxItem Content="💝 打赏与商城消费" Tag="social"/>
+                            </ComboBox>
+
+                            <TextBlock Text="查询条数:" Foreground="{StaticResource BrushTextMuted}" FontSize="12" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                            <ComboBox x:Name="CmbLedgerLimit" Width="120" Height="30" VerticalContentAlignment="Center" SelectionChanged="CmbLedgerFilter_Changed">
+                                <ComboBoxItem Content="最新 100 笔" Tag="100"/>
+                                <ComboBoxItem Content="最新 200 笔" Tag="200" IsSelected="True"/>
+                                <ComboBoxItem Content="最新 500 笔" Tag="500"/>
+                            </ComboBox>
+
+                            <Button Style="{StaticResource BtnSecondary}" Content="🔄 刷新账单" Click="BtnRefreshLedger_Click" Height="30" Margin="10,0,0,0" Padding="12,0"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="TxtLedgerCount" Text="共 0 笔记录" Foreground="{StaticResource BrushTextMuted}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- 流水明细表 -->
+                    <DataGrid x:Name="DgUserLedger" Grid.Row="3" Margin="0,0,0,12">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="流水ID" Binding="{Binding Id}" Width="80"/>
-                            <DataGridTextColumn Header="变动金额" Binding="{Binding FormattedDelta}" Width="120">
+                            <DataGridTextColumn Header="变动时间" Binding="{Binding DisplayDate}" Width="145"/>
+                            <DataGridTextColumn Header="业务类型" Binding="{Binding DisplayBizType}" Width="105">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#60A5FA"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="欢乐豆变动" Binding="{Binding FormattedDelta}" Width="125">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="FontWeight" Value="Bold"/>
@@ -1315,21 +1434,21 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="变动后余额" Binding="{Binding FormattedBalance}" Width="120">
+                            <DataGridTextColumn Header="变动后余额" Binding="{Binding FormattedBalance}" Width="125">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
                                         <Setter Property="VerticalAlignment" Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="业务类型" Binding="{Binding BizType}" Width="100"/>
-                            <DataGridTextColumn Header="说明 / 备注" Binding="{Binding Note}" Width="*"/>
-                            <DataGridTextColumn Header="时间" Binding="{Binding DisplayDate}" Width="130"/>
+                            <DataGridTextColumn Header="真实账单明细说明" Binding="{Binding DisplayNote}" Width="*"/>
+                            <DataGridTextColumn Header="流水ID" Binding="{Binding Id}" Width="88"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <Button Grid.Row="2" Style="{StaticResource BtnSecondary}" Content="关闭" Click="BtnCloseLedgerModal_Click" HorizontalAlignment="Right" Width="90" Height="32"/>
+                    <Button Grid.Row="4" Style="{StaticResource BtnSecondary}" Content="关闭" Click="BtnCloseLedgerModal_Click" HorizontalAlignment="Right" Width="96" Height="32"/>
                 </Grid>
             </Border>
         </Grid>

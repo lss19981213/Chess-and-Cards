@@ -188,11 +188,17 @@ namespace CcGmClient.Services
             return res.TryGetValue("players", out var list) ? list : new List<PlayerItem>();
         }
 
-        public async Task<List<LedgerItem>> GetPlayerLedgerAsync(string userId, int limit = 100)
+        public async Task<PlayerLedgerResponse> GetPlayerLedgerFullAsync(string userId, int limit = 200, string category = "all")
         {
-            var path = $"/api/admin/players/{Uri.EscapeDataString(userId)}/ledger?limit={limit}";
-            var res = await SendAsync<Dictionary<string, List<LedgerItem>>>(HttpMethod.Get, path);
-            return res.TryGetValue("ledger", out var list) ? list : new List<LedgerItem>();
+            var cat = string.IsNullOrWhiteSpace(category) ? "all" : category.Trim();
+            var path = $"/api/admin/players/{Uri.EscapeDataString(userId)}/ledger?limit={limit}&category={Uri.EscapeDataString(cat)}";
+            return await SendAsync<PlayerLedgerResponse>(HttpMethod.Get, path);
+        }
+
+        public async Task<List<LedgerItem>> GetPlayerLedgerAsync(string userId, int limit = 200)
+        {
+            var res = await GetPlayerLedgerFullAsync(userId, limit, "all");
+            return res.Ledger ?? new List<LedgerItem>();
         }
 
         public async Task<bool> SetPlayerStatusAsync(string userId, bool banned)
@@ -234,7 +240,7 @@ namespace CcGmClient.Services
             return await SendAsync<BatchCreateAccountResult>(HttpMethod.Post, "/api/admin/players/batch-create", body);
         }
 
-        public async Task<long> GrantCoinsAsync(string userId, long amount, string reason, string idempotencyKey)
+        public async Task<GrantCoinsResult> GrantCoinsAsync(string userId, long amount, string reason, string idempotencyKey)
         {
             var body = new
             {
@@ -243,28 +249,7 @@ namespace CcGmClient.Services
                 reason,
                 idempotencyKey
             };
-            using var req = CreateRequest(HttpMethod.Post, "/api/admin/grant", body);
-            using var res = await _http.SendAsync(req);
-            var content = await res.Content.ReadAsStringAsync();
-
-            if (!res.IsSuccessStatusCode)
-            {
-                string errMsg = "调整筹码失败";
-                try
-                {
-                    using var doc = JsonDocument.Parse(content);
-                    if (doc.RootElement.TryGetProperty("error", out var e)) errMsg = e.GetString() ?? errMsg;
-                }
-                catch { }
-                throw new Exception(errMsg);
-            }
-
-            using var docRes = JsonDocument.Parse(content);
-            if (docRes.RootElement.TryGetProperty("balance", out var balProp))
-            {
-                return balProp.GetInt64();
-            }
-            return 0;
+            return await SendAsync<GrantCoinsResult>(HttpMethod.Post, "/api/admin/grant", body);
         }
 
         // ---------- 3. 房间透视与管控 ----------

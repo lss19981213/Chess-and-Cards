@@ -209,6 +209,12 @@ namespace CcGmClient.Models
         [JsonPropertyName("balance")]
         public long Balance { get; set; }
 
+        [JsonPropertyName("level")]
+        public int Level { get; set; } = 1;
+
+        [JsonPropertyName("totalTurnover")]
+        public long TotalTurnover { get; set; }
+
         [JsonPropertyName("banned")]
         public bool Banned { get; set; }
 
@@ -220,6 +226,10 @@ namespace CcGmClient.Models
 
         [JsonIgnore]
         public string FormattedBalance => $"{Balance:N0}";
+        [JsonIgnore]
+        public string FormattedLevel => $"Lv.{Math.Max(1, Level)}";
+        [JsonIgnore]
+        public string FormattedTurnover => $"{TotalTurnover:N0}";
         [JsonIgnore]
         public string StatusText => Banned ? "已封禁" : "正常";
         [JsonIgnore]
@@ -303,11 +313,48 @@ namespace CcGmClient.Models
         [JsonPropertyName("bizType")]
         public string BizType { get; set; } = "";
 
+        [JsonPropertyName("bizId")]
+        public string? BizId { get; set; }
+
+        [JsonPropertyName("bizLabel")]
+        public string? BizLabel { get; set; }
+
+        [JsonPropertyName("category")]
+        public string? Category { get; set; }
+
         [JsonPropertyName("note")]
         public string? Note { get; set; }
 
         [JsonPropertyName("createdAt")]
         public JsonElement? RawCreatedAt { get; set; }
+
+        [JsonIgnore]
+        public string DisplayBizType => !string.IsNullOrWhiteSpace(BizLabel) ? BizLabel : BizType switch
+        {
+            "game_bet" => "游戏下注",
+            "game_bet_refund" => "撤注退还",
+            "game_bet_return" => "本金返还",
+            "game_settle" => "游戏结算",
+            "slots_bet" => "老虎机押注",
+            "slots_win" => "老虎机派彩",
+            "slots_spin" => "老虎机结算",
+            "mail_reward" => "邮箱领取",
+            "task" => "任务奖励",
+            "level_reward" => "等级升级奖",
+            "leaderboard" => "排行榜奖励",
+            "worship" => "膜拜奖励",
+            "dealer_tip" => "打赏荷官",
+            "avatar_frame" => "购买头像框",
+            "gm_grant" => "GM 调账",
+            "init" => "注册赠豆",
+            "relief" => "救济金",
+            _ => string.IsNullOrWhiteSpace(BizType) ? "其他" : BizType
+        };
+
+        [JsonIgnore]
+        public string DisplayNote => !string.IsNullOrWhiteSpace(Note)
+            ? Note
+            : (!string.IsNullOrWhiteSpace(BizId) ? BizId : "-");
 
         [JsonIgnore]
         public string FormattedDelta => Delta > 0 ? $"+{Delta:N0}" : $"{Delta:N0}";
@@ -326,16 +373,88 @@ namespace CcGmClient.Models
                     var elem = RawCreatedAt.Value;
                     if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
                     {
-                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("MM-dd HH:mm:ss");
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
                     }
                     if (elem.ValueKind == JsonValueKind.String && DateTime.TryParse(elem.GetString(), out var dt))
                     {
-                        return dt.ToLocalTime().ToString("MM-dd HH:mm:ss");
+                        return dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
                     }
                 }
                 return "-";
             }
         }
+    }
+
+    public class LedgerSummary
+    {
+        [JsonPropertyName("nickname")]
+        public string Nickname { get; set; } = "";
+
+        [JsonPropertyName("level")]
+        public int Level { get; set; } = 1;
+
+        [JsonPropertyName("currentBalance")]
+        public long CurrentBalance { get; set; }
+
+        [JsonPropertyName("totalTurnover")]
+        public long TotalTurnover { get; set; }
+
+        [JsonPropertyName("totalCount")]
+        public int TotalCount { get; set; }
+
+        [JsonPropertyName("filteredCount")]
+        public int FilteredCount { get; set; }
+
+        [JsonPropertyName("totalIn")]
+        public long TotalIn { get; set; }
+
+        [JsonPropertyName("totalOut")]
+        public long TotalOut { get; set; }
+
+        [JsonPropertyName("netChange")]
+        public long NetChange { get; set; }
+
+        [JsonPropertyName("gameTurnover")]
+        public long GameTurnover { get; set; }
+
+        [JsonPropertyName("mailClaimed")]
+        public long MailClaimed { get; set; }
+
+        [JsonPropertyName("gmAdjusted")]
+        public long GmAdjusted { get; set; }
+    }
+
+    public class PlayerLedgerResponse
+    {
+        [JsonPropertyName("ledger")]
+        public List<LedgerItem> Ledger { get; set; } = new();
+
+        [JsonPropertyName("summary")]
+        public LedgerSummary? Summary { get; set; }
+    }
+
+    public class GrantCoinsResult
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("delivery")]
+        public string Delivery { get; set; } = "direct";
+
+        [JsonPropertyName("mailId")]
+        public string? MailId { get; set; }
+
+        [JsonPropertyName("nickname")]
+        public string Nickname { get; set; } = "";
+
+        [JsonPropertyName("balance")]
+        public long Balance { get; set; }
+
+        [JsonPropertyName("amount")]
+        public long Amount { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = "";
     }
 
     // ---------- 房间与对战模型 ----------
