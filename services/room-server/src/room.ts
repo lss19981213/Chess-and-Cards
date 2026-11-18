@@ -67,6 +67,8 @@ export class GameRoom {
   private autoReady = new Set<string>();
   /** 本局已下注/扣款的真人玩家集合（用于维护排水期精确判断常驻牌桌是否有进行中的真人注单） */
   private activeHumanBets = new Set<string>();
+  /** 常驻房间上次推送状态快照时间（避免长静默期移动端切回后台后倒计时不同步） */
+  private lastSyncPushAt = 0;
 
   constructor(
     id: string,
@@ -720,6 +722,10 @@ export class GameRoom {
       }
       if (this.dirty) {
         this.dirty = false;
+        this.lastSyncPushAt = Date.now();
+        this.pushSnapshots();
+      } else if (this.persistent && this.humanCount > 0 && Date.now() - this.lastSyncPushAt >= 2000) {
+        this.lastSyncPushAt = Date.now();
         this.pushSnapshots();
       }
     }

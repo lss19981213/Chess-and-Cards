@@ -14883,3 +14883,365 @@ button.secondary:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.36), rgba(217, 119, 6, 0.24)) !important;
   box-shadow: 0 0 18px rgba(250, 204, 21, 0.65) !important;
 }
+
+
+/* ==================== 全新居中精美对局结算弹窗（对战/棋牌/麻将专用） ==================== */
+.settle-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: radial-gradient(circle at 50% 40%, rgba(12, 32, 24, 0.62), rgba(2, 6, 12, 0.82));
+  backdrop-filter: blur(8px);
+  animation: settleBackdropIn 0.24s ease-out forwards;
+}
+
+.settle-modal-backdrop.is-closing {
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+.settle-modal-card {
+  position: relative;
+  width: min(92vw, 440px);
+  max-height: min(88dvh, 620px);
+  overflow-y: auto;
+  border-radius: 24px;
+  padding: 26px 24px 22px;
+  background: linear-gradient(165deg, rgba(16, 32, 28, 0.97) 0%, rgba(9, 14, 24, 0.98) 100%);
+  border: 1.5px solid rgba(245, 208, 118, 0.5);
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.82),
+    0 0 36px rgba(245, 208, 118, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: settleCardPop 0.3s cubic-bezier(0.2, 0.95, 0.3, 1.05) forwards;
+}
+
+.settle-modal-card.is-win {
+  border-color: rgba(253, 224, 71, 0.78);
+  box-shadow:
+    0 28px 68px rgba(0, 0, 0, 0.84),
+    0 0 46px rgba(245, 158, 11, 0.32),
+    inset 0 1px 0 rgba(254, 240, 138, 0.28);
+}
+
+.settle-modal-card.is-lose {
+  background: linear-gradient(165deg, rgba(28, 18, 26, 0.97) 0%, rgba(10, 12, 20, 0.98) 100%);
+  border-color: rgba(248, 113, 113, 0.45);
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.84),
+    0 0 34px rgba(239, 68, 68, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.settle-modal-card.is-closing {
+  transform: scale(0.94);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.settle-modal__glow {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 68%;
+  height: 3px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, transparent, #fde047, transparent);
+}
+
+.settle-modal-card.is-lose .settle-modal__glow {
+  background: linear-gradient(90deg, transparent, #f87171, transparent);
+}
+
+.settle-modal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.settle-modal__close:hover {
+  background: rgba(239, 68, 68, 0.28);
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #fff;
+  transform: scale(1.06);
+}
+
+.settle-modal__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+}
+
+.settle-modal__crest {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  margin-bottom: 4px;
+  background: radial-gradient(circle at 35% 30%, #fef08a, #d97706 70%, #78350f);
+  box-shadow: 0 0 26px rgba(250, 204, 21, 0.45);
+}
+
+.settle-modal-card.is-lose .settle-modal__crest {
+  background: radial-gradient(circle at 35% 30%, #fca5a5, #b91c1c 70%, #450a0a);
+  box-shadow: 0 0 22px rgba(239, 68, 68, 0.35);
+}
+
+.settle-modal__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  background: linear-gradient(90deg, #fef9c3, #fbbf24, #fef08a);
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.settle-modal-card.is-lose .settle-modal__title {
+  background: linear-gradient(90deg, #fee2e2, #fca5a5, #f87171);
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.settle-modal__subtitle {
+  margin: 0;
+  font-size: 12.5px;
+  color: #94a3b8;
+}
+
+.settle-modal__meta-pill {
+  margin-top: 4px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(245, 208, 118, 0.25);
+  font-size: 11.5px;
+  color: #cbd5e1;
+}
+
+.settle-modal__meta-pill strong {
+  color: #fde047;
+}
+
+.settle-modal__payout {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.34);
+  border: 1px solid rgba(245, 208, 118, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.settle-modal__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 28px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+
+.settle-modal__delta.is-pos strong {
+  color: #fde047;
+  text-shadow: 0 0 16px rgba(250, 204, 21, 0.5);
+}
+
+.settle-modal__delta.is-neg strong {
+  color: #f87171;
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+.settle-modal__balance {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.settle-modal__balance span {
+  color: #f3cf7a;
+  font-weight: 800;
+}
+
+.settle-modal__ranks {
+  width: 100%;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 12px;
+}
+
+.settle-modal__ranks-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 0 6px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 6px;
+}
+
+.settle-modal__ranks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.settle-rank-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  font-size: 13px;
+}
+
+.settle-rank-row.is-me {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+.settle-rank-row__medal {
+  font-size: 15px;
+  text-align: center;
+  color: #94a3b8;
+  font-weight: 800;
+}
+
+.settle-rank-row__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #f1f5f9;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settle-tag {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.settle-tag.is-me {
+  background: linear-gradient(135deg, #fde047, #d97706);
+  color: #1c1002;
+}
+
+.settle-tag.is-ai {
+  background: rgba(148, 163, 184, 0.18);
+  color: #94a3b8;
+}
+
+.settle-rank-row__delta {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 900;
+  color: #cbd5e1;
+}
+
+.settle-rank-row__delta.is-pos {
+  color: #fde047;
+}
+
+.settle-rank-row__delta.is-neg {
+  color: #f87171;
+}
+
+.settle-modal__actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.settle-modal__btn {
+  height: 44px;
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settle-modal__btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.settle-modal__btn--ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #e2e8f0;
+}
+
+.settle-modal__btn--gold {
+  background: linear-gradient(180deg, #fef08a 0%, #f59e0b 52%, #b45309 100%);
+  border: 1px solid #fef9c3;
+  color: #1c1002;
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.42);
+}
+
+@keyframes settleBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes settleCardPop {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.phase-progress i {
+  transition: width 0.1s linear !important;
+}

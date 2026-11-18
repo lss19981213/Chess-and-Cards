@@ -3,6 +3,7 @@ import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
 import { cnPointText, speakDealerSequence, stopDealerSpeech } from '../speech';
+import { usePhaseCountdown } from './usePhaseCountdown';
 
 interface DiceSnapshot {
   phase: 'bet' | 'reveal' | 'idle';
@@ -119,13 +120,13 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
     };
   }, []);
 
-  // 下注阶段持续循环播放摇骰子音效
+  // 下注阶段持续循环播放真实写实摇骰盅音效
   useEffect(() => {
     if (data?.phase !== 'bet' || status !== 'playing') return;
     audio.play('dice_shake');
     const timer = window.setInterval(() => {
       audio.play('dice_shake');
-    }, 1750);
+    }, 1250);
     return () => window.clearInterval(timer);
   }, [data?.phase, data?.round, status]);
 
@@ -233,23 +234,16 @@ export function Dice({ snapshot, myId, status, balance, onBet, onClear }: Props)
   }, [data?.results, myId]);
 
   const [amount, setAmount] = useState<number>(100);
-  const [deadline, setDeadline] = useState<number>(() => Date.now() + (data?.remainMs ?? 0));
-  const [now, setNow] = useState<number>(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (data) setDeadline(Date.now() + data.remainMs);
-  }, [data?.remainMs, data?.phase, data?.round]);
+  const { leftSec: left, progressPct: progress } = usePhaseCountdown(
+    data?.remainMs,
+    data?.phaseDurationMs,
+    data?.phase,
+    data?.round,
+    30_000,
+  );
 
   if (!data) return <div className="board-placeholder">正在连接牌桌…</div>;
 
-  const left = Math.max(0, Math.ceil((deadline - now) / 1000));
-  const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
-  const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
   const phaseLabel = data?.phase === 'reveal' ? '开盅报点中' : data?.phase === 'idle' ? '准备下一局' : '摇骰下注中';
   const phaseClass =
     data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';

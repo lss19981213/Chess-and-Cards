@@ -4,6 +4,7 @@ import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
 import { cnPointText, speakDealerQuote, speakDealerSequence, stopDealerSpeech, type SpeechSequenceStep } from '../speech';
 import { MahjongTile } from '../components/MahjongTile';
+import { usePhaseCountdown } from './usePhaseCountdown';
 
 interface DoorView {
   label: string;
@@ -273,23 +274,16 @@ export function Tuizhuanzi({ snapshot, myId, status, balance, onBet, onClear }: 
   }, [data?.results, myId]);
 
   const [amount, setAmount] = useState<number>(100);
-  const [deadline, setDeadline] = useState<number>(() => Date.now() + (data?.remainMs ?? 0));
-  const [now, setNow] = useState<number>(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (data) setDeadline(Date.now() + data.remainMs);
-  }, [data?.remainMs, data?.phase, data?.round]);
+  const { leftSec: left, progressPct: progress } = usePhaseCountdown(
+    data?.remainMs,
+    data?.phaseDurationMs,
+    data?.phase,
+    data?.round,
+    30_000,
+  );
 
   if (!data) return <div className="board-placeholder">正在连接牌桌…</div>;
 
-  const left = Math.max(0, Math.ceil((deadline - now) / 1000));
-  const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
-  const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
   const phaseLabel = data?.phase === 'reveal' ? '依次开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
   const phaseClass =
     data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';

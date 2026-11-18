@@ -4,6 +4,7 @@ import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
 import { speakDealerQuote, stopDealerSpeech } from '../speech';
 import { cardArt, cardBackArt, cardLabel, isRedCard, type CardView } from './cards';
+import { usePhaseCountdown } from './usePhaseCountdown';
 
 interface NiuniuSnapshot {
   phase: string;
@@ -160,9 +161,13 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
     return [...mine, ...rest].slice(0, 12);
   }, [data?.results, myId]);
 
-  const left = Math.max(0, Math.ceil((data?.remainMs ?? 0) / 1000));
-  const duration = Math.max(1, Math.round((data?.phaseDurationMs ?? 30000) / 1000));
-  const progress = Math.min(100, Math.max(0, ((duration - left) / duration) * 100));
+  const { leftSec: left, progressPct: progress } = usePhaseCountdown(
+    data?.remainMs,
+    data?.phaseDurationMs,
+    data?.phase,
+    data?.round,
+    30_000,
+  );
 
   if (!data) return <div className="board-placeholder">等待发牌…</div>;
 

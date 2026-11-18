@@ -251,7 +251,7 @@ class AudioEngine {
         this.shakeSound(out);
         break;
       case 'dice_open':
-        this.arpeggio([659.25, 880.0, 1174.66], 0.08, 'triangle', 0.25, out);
+        this.diceOpenSound(out);
         break;
       case 'alert':
         this.tone(880, 0.08, 'sawtooth', 0.18, out);
@@ -502,14 +502,114 @@ class AudioEngine {
     window.setTimeout(() => this.bombSound(out), 550);
   }
 
+  /** 写实物理摇骰盅音效：3颗骨质/树脂骰子在空腔骰盅内剧烈来回碰撞（咔啦咔啦声），清晰响亮 */
   private shakeSound(out: AudioNode): void {
     if (!this.ctx) return;
-    for (let i = 0; i < 4; i++) {
-      window.setTimeout(() => {
-        this.noise(0.04, 0.12, out);
-        this.tone(700 + Math.random() * 300, 0.03, 'sine', 0.08, out);
-      }, i * 70);
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    /** 单次骰子碰撞骰盅内壁/彼此互撞的脆响 + 木质空腔共鸣 */
+    const scheduleHit = (offsetSec: number, intensity: number, cupThump: boolean) => {
+      const t = now + offsetSec;
+      // 1) 硬质骰子尖锐敲击瞬态（高Q带通噪声 2.8k~5.4kHz）
+      const dur = 0.022 + Math.random() * 0.012;
+      const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.0045));
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(2800 + Math.random() * 2600, t);
+      bp.Q.setValueAtTime(3.2 + Math.random() * 2.5, t);
+
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.95 * intensity, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(out);
+      src.start(t);
+
+      // 2) 骰子清脆骨质双高频谐振点击（咔哒感）
+      const clickOsc = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      clickOsc.type = 'triangle';
+      const clickFreq = 1950 + Math.random() * 1450;
+      clickOsc.frequency.setValueAtTime(clickFreq, t);
+      clickOsc.frequency.exponentialRampToValueAtTime(clickFreq * 0.62, t + 0.018);
+      clickGain.gain.setValueAtTime(0.42 * intensity, t);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+      clickOsc.connect(clickGain);
+      clickGain.connect(out);
+      clickOsc.start(t);
+      clickOsc.stop(t + 0.022);
+
+      // 3) 骰盅空腔木质/皮质低频闷响（手腕甩动撞底）
+      if (cupThump) {
+        const cup = ctx.createOscillator();
+        const cupGain = ctx.createGain();
+        cup.type = 'sine';
+        cup.frequency.setValueAtTime(520 + Math.random() * 160, t);
+        cup.frequency.exponentialRampToValueAtTime(190, t + 0.038);
+        cupGain.gain.setValueAtTime(0.5 * intensity, t);
+        cupGain.gain.exponentialRampToValueAtTime(0.001, t + 0.042);
+        cup.connect(cupGain);
+        cupGain.connect(out);
+        cup.start(t);
+        cup.stop(t + 0.045);
+      }
+    };
+
+    // 真实手腕三连来回摇盅节奏（前甩咔啦啦 → 回甩咔啦啦 → 落盅轻弹）
+    const pattern: Array<[number, number, boolean]> = [
+      // 第一甩
+      [0.0, 0.9, true],
+      [0.032, 0.78, false],
+      [0.068, 0.85, false],
+      [0.105, 0.65, false],
+      // 回甩撞顶
+      [0.21, 1.0, true],
+      [0.245, 0.86, false],
+      [0.285, 0.74, false],
+      [0.325, 0.62, false],
+      // 第二甩收尾
+      [0.44, 0.92, true],
+      [0.478, 0.8, false],
+      [0.52, 0.68, false],
+      [0.58, 0.5, false],
+      [0.65, 0.36, false],
+    ];
+    for (const [offset, vol, thump] of pattern) {
+      scheduleHit(offset + Math.random() * 0.01, vol, thump);
     }
+  }
+
+  /** 开骰盅音效：揭盖清脆木盅回响 + 亮晶晶开奖提示 */
+  private diceOpenSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    // 骰盅落桌闷响
+    const thud = ctx.createOscillator();
+    const tg = ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(220, t);
+    thud.frequency.exponentialRampToValueAtTime(68, t + 0.14);
+    tg.gain.setValueAtTime(0.65, t);
+    tg.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    thud.connect(tg);
+    tg.connect(out);
+    thud.start(t);
+    thud.stop(t + 0.17);
+
+    // 清脆揭盅和弦
+    this.arpeggio([659.25, 880.0, 1174.66], 0.075, 'triangle', 0.32, out);
   }
 
   private jackpotSound(out: AudioNode): void {

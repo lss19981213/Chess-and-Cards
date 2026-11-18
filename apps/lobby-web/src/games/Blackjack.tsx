@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
-import { cnPointText, speakDealerSequence, stopDealerSpeech, type SpeechSequenceStep } from '../speech';
+import { cnPointText, speakDealerQuote, speakDealerSequence, stopDealerSpeech, type SpeechSequenceStep } from '../speech';
 import { cardArt, cardBackArt, cardLabel, isRedCard, type CardView } from './cards';
+import { usePhaseCountdown } from './usePhaseCountdown';
 
 interface BlackjackSnapshot {
   phase: string;
@@ -36,6 +37,13 @@ interface Props {
 
 const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
+const BLACKJACK_BET_CALLS = [
+  '请下注，买定离手喔！',
+  '二十一点火爆开局，请各位老板下注喔！',
+  '买定离手啦，二十一点马上发牌！',
+  '下注倒计时，买定离手咯！',
+];
+
 export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onAction }: Props) {
   const data = snapshot as unknown as BlackjackSnapshot | undefined;
   const [amount, setAmount] = useState(100);
@@ -45,10 +53,28 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
     null,
   );
   const lastPhaseKeyRef = useRef<string>('');
+  const betCallIdxRef = useRef<number>(0);
   const prevCardCountRef = useRef<{ my: number; dealer: number }>({ my: 0, dealer: 0 });
   const cancelSeqRef = useRef<(() => void) | null>(null);
   const bannerIdRef = useRef<number>(1);
   const bannerTimerRef = useRef<number | null>(null);
+
+  // 下注阶段轮播「请下注、买定离手」荷官热场语音
+  useEffect(() => {
+    if (data?.phase !== 'bet' || status !== 'playing') return;
+    const speakNext = () => {
+      if (!audio.sfxOn) return;
+      const line = BLACKJACK_BET_CALLS[betCallIdxRef.current % BLACKJACK_BET_CALLS.length]!;
+      betCallIdxRef.current += 1;
+      speakDealerQuote(line);
+    };
+    const firstTimer = window.setTimeout(speakNext, 750);
+    const interval = window.setInterval(speakNext, 7200);
+    return () => {
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
+    };
+  }, [data?.phase, data?.round, status]);
 
   const showBanner = (kind: string, text: string, sub?: string, ms = 1650) => {
     const id = bannerIdRef.current++;
@@ -236,9 +262,13 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
     return [...mine, ...rest].slice(0, 12);
   }, [data?.results, myId]);
 
-  const left = Math.max(0, Math.ceil((data?.remainMs ?? 0) / 1000));
-  const duration = Math.max(1, Math.round((data?.phaseDurationMs ?? 25000) / 1000));
-  const progress = Math.min(100, Math.max(0, ((duration - left) / duration) * 100));
+  const { leftSec: left, progressPct: progress } = usePhaseCountdown(
+    data?.remainMs,
+    data?.phaseDurationMs,
+    data?.phase,
+    data?.round,
+    25_000,
+  );
 
   if (!data) return <div className="board-placeholder">等待发牌…</div>;
 

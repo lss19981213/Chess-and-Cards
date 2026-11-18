@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
-import { cnPointText, speakDealerSequence, stopDealerSpeech } from '../speech';
+import { cnPointText, speakDealerQuote, speakDealerSequence, stopDealerSpeech } from '../speech';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
+import { usePhaseCountdown } from './usePhaseCountdown';
 
 interface SideView {
   points: number | null;
@@ -47,6 +48,13 @@ const ZONES: Array<{ key: string; label: string; odds: string; desc: string }> =
 ];
 
 const OUTCOME_TEXT: Record<string, string> = { player: '闲家赢', banker: '庄家赢', tie: '和局' };
+
+const BACCARAT_BET_CALLS = [
+  '请下注，买定离手喔！',
+  '闲庄大战即将开牌，请各位老板下注喔！',
+  '买定离手啦，这把押闲还是押庄呢？',
+  '下注倒计时，买定离手咯！',
+];
 
 function Hand({
   side,
@@ -97,6 +105,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
     null,
   );
   const lastPhaseKeyRef = useRef<string>('');
+  const betCallIdxRef = useRef<number>(0);
   const cancelSeqRef = useRef<(() => void) | null>(null);
   const bannerIdRef = useRef<number>(1);
   const bannerTimerRef = useRef<number | null>(null);
@@ -108,6 +117,23 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
       if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
     };
   }, []);
+
+  // 下注阶段轮播「请下注、买定离手」荷官热场语音
+  useEffect(() => {
+    if (data?.phase !== 'bet' || status !== 'playing') return;
+    const speakNext = () => {
+      if (!audio.sfxOn) return;
+      const line = BACCARAT_BET_CALLS[betCallIdxRef.current % BACCARAT_BET_CALLS.length]!;
+      betCallIdxRef.current += 1;
+      speakDealerQuote(line);
+    };
+    const firstTimer = window.setTimeout(speakNext, 750);
+    const interval = window.setInterval(speakNext, 7200);
+    return () => {
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
+    };
+  }, [data?.phase, data?.round, status]);
 
   // 严格按标准百家乐流程：先开闲家牌并报点数 → 再开庄家牌并报点数 → 最后播报闲家赢/庄家赢/和局
   useEffect(() => {
@@ -216,23 +242,16 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
   }, [data?.results, myId]);
 
   const [amount, setAmount] = useState<number>(100);
-  const [deadline, setDeadline] = useState<number>(() => Date.now() + (data?.remainMs ?? 0));
-  const [now, setNow] = useState<number>(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (data) setDeadline(Date.now() + data.remainMs);
-  }, [data?.remainMs, data?.phase, data?.round]);
+  const { leftSec: left, progressPct: progress } = usePhaseCountdown(
+    data?.remainMs,
+    data?.phaseDurationMs,
+    data?.phase,
+    data?.round,
+    30_000,
+  );
 
   if (!data) return <div className="board-placeholder">正在连接牌桌…</div>;
 
-  const left = Math.max(0, Math.ceil((deadline - now) / 1000));
-  const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
-  const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
   const phaseLabel = data?.phase === 'reveal' ? '开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
   const phaseClass =
     data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
