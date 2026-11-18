@@ -208,6 +208,15 @@ export async function applySettlement(pool: pg.Pool, settlement: Settlement): Pr
         await bumpTaskTx(client, entry.playerId, 'daily_win', dayKey, 1);
       }
       await bumpTaskTx(client, entry.playerId, `game_${settlement.gameId}`, dayKey, 1);
+      await bumpTaskTx(client, entry.playerId, `game_${settlement.gameId}`, 'all', 1);
+      if (
+        settlement.gameId === 'cs-mahjong' ||
+        settlement.gameId === 'sc-mahjong' ||
+        settlement.gameId === 'gd-mahjong' ||
+        settlement.gameId === 'guobiao-mahjong'
+      ) {
+        await bumpTaskTx(client, entry.playerId, 'daily_mahjong', dayKey, 1);
+      }
       if (entry.delta >= 500) {
         await bumpTaskTx(client, entry.playerId, 'daily_bigwin', dayKey, 1);
       }
@@ -216,9 +225,10 @@ export async function applySettlement(pool: pg.Pool, settlement: Settlement): Pr
         await bumpTaskTx(client, entry.playerId, 'total_win', 'all', 1);
       }
 
-      // 有效流水转化为账号经验值（1 流水 = 1 经验），自动计算连升与剩余经验
+      // 有效流水转化为账号经验值（1 流水 = 1 经验），并推进每日流水任务
       const turnover = Math.max(-staked, Math.abs(entry.delta));
       if (turnover > 0) {
+        await bumpTaskTx(client, entry.playerId, 'daily_turnover', dayKey, Math.floor(turnover));
         await client.query(
           `insert into user_profiles (user_id) values ($1) on conflict (user_id) do nothing`,
           [entry.playerId],

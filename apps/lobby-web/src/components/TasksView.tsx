@@ -83,8 +83,8 @@ export function TasksView({ onBalanceChange, onBack }: Props) {
 
           {(
             [
-              { id: 'daily' as const, title: '每日任务', hint: '每日 0 点重置' },
-              { id: 'growth' as const, title: '成长任务', hint: '完成一次，永久有效' },
+              { id: 'daily' as const, title: '每日任务', hint: '每日 0 点重置 · 天天来领丰厚筹码' },
+              { id: 'growth' as const, title: '成长任务', hint: '长期里程碑 · 累计签到/等级/收藏永久豪礼' },
             ]
           ).map((group) => {
             const list = tasks
@@ -95,11 +95,16 @@ export function TasksView({ onBalanceChange, onBack }: Props) {
                 return rank(a) - rank(b);
               });
             if (list.length === 0) return null;
+            const readyCount = list.filter((t) => t.claimable && !t.claimed).length;
+            const doneCount = list.filter((t) => t.claimed).length;
 
             return (
               <div className="task-group" key={group.id}>
                 <div className="task-group__head">
-                  <h3>{group.title}</h3>
+                  <h3>
+                    {group.title}（{doneCount}/{list.length}
+                    {readyCount > 0 ? ` · ${readyCount}项可领` : ''}）
+                  </h3>
                   <span>{group.hint}</span>
                 </div>
                 <div className="task-cards-grid">

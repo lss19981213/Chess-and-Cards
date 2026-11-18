@@ -105,7 +105,11 @@ export async function playSlotsSpin(
     const dayKey = periodKeyFor('daily');
     await bumpTaskTx(client, input.userId, 'daily_play', dayKey, 1);
     await bumpTaskTx(client, input.userId, 'game_slots', dayKey, 1);
+    await bumpTaskTx(client, input.userId, 'game_slots', 'all', 1);
     await bumpTaskTx(client, input.userId, 'total_play', 'all', 1);
+    if (input.totalBet > 0) {
+      await bumpTaskTx(client, input.userId, 'daily_turnover', dayKey, Math.floor(input.totalBet));
+    }
     if (netDelta > 0) {
       await bumpTaskTx(client, input.userId, 'daily_win', dayKey, 1);
       await bumpTaskTx(client, input.userId, 'total_win', 'all', 1);

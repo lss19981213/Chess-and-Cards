@@ -27,13 +27,24 @@ export async function buildTasks(
 ): Promise<TaskView[]> {
   const dailyKey = periodKeyFor('daily');
   const onceKey = periodKeyFor('once');
-  const rows = await repo.getTaskRows(userId, [dailyKey, onceKey]);
+  const [rows, profile] = await Promise.all([
+    repo.getTaskRows(userId, [dailyKey, onceKey]),
+    repo.getProfile(userId),
+  ]);
 
   const playedToday = new Set(
     rows
       .filter((row) => row.periodKey === dailyKey && row.taskKey.startsWith('game_'))
       .map((row) => row.taskKey),
   ).size;
+
+  const playedAllTime = new Set(
+    rows
+      .filter((row) => (row.periodKey === onceKey || row.periodKey === dailyKey) && row.taskKey.startsWith('game_'))
+      .map((row) => row.taskKey),
+  ).size;
+  const currentLevel = profile?.level ?? 1;
+  const ownedFrameCount = profile?.ownedFrames?.length ?? 1;
 
   return TASKS.map((task) => {
     const pk = periodKeyFor(task.period);
@@ -64,6 +75,12 @@ export async function buildTasks(
     let progress: number;
     if (task.progressSource?.kind === 'gameKinds') {
       progress = playedToday;
+    } else if (task.progressSource?.kind === 'totalGameKinds') {
+      progress = playedAllTime;
+    } else if (task.progressSource?.kind === 'level') {
+      progress = currentLevel;
+    } else if (task.progressSource?.kind === 'ownedFrames') {
+      progress = ownedFrameCount;
     } else {
       const sourceKey = task.progressSource?.key ?? task.key;
       const row = rows.find((r) => r.taskKey === sourceKey && r.periodKey === pk);
@@ -182,6 +199,11 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
     const claimed = await repo.claimTask(claims.sub, key, pk);
     if (!claimed) throw httpError('该任务奖励已领取', 409);
 
+    // 每日签到领取成功后，推进长期累计签到天数（驱动 3天/7天/30天 留存成长任务）
+    if (key === 'daily_login') {
+      await repo.bumpTask(claims.sub, 'total_checkin', 'all', 1);
+    }
+
     return { reward: task.reward, balance: newBalance, tasks: await buildTasks(repo, claims.sub, newBalance) };
   });
 
@@ -210,6 +232,7 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
       throw error;
     }
     await repo.bumpTask(claims.sub, 'daily_tip', periodKeyFor('daily'), 1);
+    await repo.bumpTask(claims.sub, 'total_tip', 'all', 1);
     const affection = await repo.addDealerAffection(claims.sub, amount);
 
     return { ok: true, balance: newBalance, amount, giftName, affection };
@@ -291,6 +314,7 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
 
     try {
       const res = await repo.worshipUser(claims.sub, targetUserId, beijingDayKey());
+      await repo.bumpTask(claims.sub, 'daily_worship', periodKeyFor('daily'), 1);
       return res;
     } catch (err) {
       throw httpError(err instanceof Error ? err.message : '膜拜失败', 400);
