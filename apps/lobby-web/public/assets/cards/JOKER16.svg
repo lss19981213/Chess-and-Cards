@@ -1,39 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 196" width="140" height="196">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 224" width="160" height="224">
   <defs>
-    <linearGradient id="jokerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="cardFace" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f1f5f9"/>
+      <stop offset="60%" stop-color="#fdfbf7"/>
+      <stop offset="100%" stop-color="#f1ebe0"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#92600a"/>
+    </linearGradient>
+    <linearGradient id="jokerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#0f172a"/>
     </linearGradient>
   </defs>
+  <rect x="2" y="2" width="156" height="220" rx="14" fill="#d6cbb8"/>
+  <rect x="2" y="1" width="156" height="218" rx="14" fill="url(#cardFace)" stroke="#c7b28a" stroke-width="1.8"/>
+  <rect x="7" y="6" width="146" height="208" rx="10" fill="none" stroke="url(#goldGrad)" stroke-width="1.2" opacity="0.72"/>
 
-  <rect x="3" y="3" width="134" height="190" rx="12" fill="url(#jokerBg)" stroke="#1a202c" stroke-width="1.6"/>
-  <rect x="7" y="7" width="126" height="182" rx="8" fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="3,3"/>
-
-  <!-- Left JOKER text -->
-  <g transform="translate(14, 28)">
-    <text x="0" y="0" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">J</text>
-<text x="0" y="15" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">O</text>
-<text x="0" y="30" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">K</text>
-<text x="0" y="45" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">E</text>
-<text x="0" y="60" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">R</text>
+  <g transform="translate(22, 34)">
+    <text x="0" y="0" font-family="'Microsoft YaHei', sans-serif" font-size="18" font-weight="900" text-anchor="middle" fill="url(#jokerGrad)">小</text>
+    <text x="0" y="20" font-family="'Microsoft YaHei', sans-serif" font-size="18" font-weight="900" text-anchor="middle" fill="url(#jokerGrad)">王</text>
+    <polygon points="0,28 3,35 10,35 4.5,39.5 6.5,46 0,42 -6.5,46 -4.5,39.5 -10,35 -3,35" fill="url(#goldGrad)"/>
   </g>
 
-  <!-- Center Grand Star & Jester Mask -->
-  <g transform="translate(70, 98)">
-    <circle cx="0" cy="0" r="44" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
-    <polygon points="0,-36 9,-10 36,-10 14,6 22,32 0,16 -22,32 -14,6 -36,-10 -9,-10" fill="#64748b" opacity="0.4"/>
-    <circle cx="0" cy="2" r="22" fill="#181b24"/>
-    <text x="0" y="9" font-family="serif" font-size="20" font-weight="900" text-anchor="middle" fill="#ffffff">✦</text>
-    <text x="0" y="36" font-family="'Cinzel', serif" font-size="12" font-weight="800" text-anchor="middle" fill="#181b24">小王 JOKER</text>
+  <g transform="translate(80, 112)">
+    <rect x="-40" y="-66" width="80" height="132" rx="11" fill="#eff6ff" stroke="url(#goldGrad)" stroke-width="2.2"/>
+    <circle cx="0" cy="-4" r="32" fill="#ffffff" stroke="url(#goldGrad)" stroke-width="2"/>
+    <path d="M-24,-10 C-26,-32 -12,-36 -4,-18 C0,-38 0,-38 4,-18 C12,-36 26,-32 24,-10 Z" fill="url(#jokerGrad)" stroke="url(#goldGrad)" stroke-width="1.5"/>
+    <circle cx="-24" cy="-30" r="4" fill="url(#goldGrad)"/>
+    <circle cx="0" cy="-38" r="4.5" fill="url(#goldGrad)"/>
+    <circle cx="24" cy="-30" r="4" fill="url(#goldGrad)"/>
+    <text x="0" y="16" font-family="'Microsoft YaHei', serif" font-size="24" font-weight="900" text-anchor="middle" fill="url(#jokerGrad)">小王</text>
+    <text x="0" y="46" font-family="'Segoe UI', sans-serif" font-size="9" font-weight="900" letter-spacing="1.6" text-anchor="middle" fill="#92400e">BLACK JOKER</text>
   </g>
 
-  <!-- Right JOKER text -->
-  <g transform="translate(126, 168) rotate(180)">
-    <text x="0" y="0" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">J</text>
-<text x="0" y="15" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">O</text>
-<text x="0" y="30" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">K</text>
-<text x="0" y="45" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">E</text>
-<text x="0" y="60" font-family="serif" font-size="14" font-weight="900" text-anchor="middle" fill="#181b24">R</text>
+  <g transform="translate(138, 188) rotate(180)">
+    <text x="0" y="0" font-family="'Microsoft YaHei', sans-serif" font-size="18" font-weight="900" text-anchor="middle" fill="url(#jokerGrad)">小</text>
+    <text x="0" y="20" font-family="'Microsoft YaHei', sans-serif" font-size="18" font-weight="900" text-anchor="middle" fill="url(#jokerGrad)">王</text>
+    <polygon points="0,28 3,35 10,35 4.5,39.5 6.5,46 0,42 -6.5,46 -4.5,39.5 -10,35 -3,35" fill="url(#goldGrad)"/>
   </g>
 </svg>

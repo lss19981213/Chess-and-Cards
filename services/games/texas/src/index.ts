@@ -16,10 +16,25 @@ const SMALL_BLIND = 50;
 const BIG_BLIND = 100;
 const RAISE_UNIT = 100;
 const MAX_RAISES = 5;
-/** 自定义加注上限，防止一次把底池顶爆 */
-const MAX_RAISE_ADD = Number.MAX_SAFE_INTEGER;
+/** 单次下注/全压风控上限（与内部钱包单笔扣款上限一致） */
+const MAX_RAISE_ADD = 1_000_000;
 
 type Phase = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
+
+export interface TexasActionEvent {
+  seq: number;
+  type: 'deal' | 'fold' | 'check' | 'call' | 'raise' | 'allin' | 'street' | 'showdown';
+  playerId: string;
+  nickname: string;
+  amount?: number;
+  detail?: string;
+}
+
+interface PlayerActionTag {
+  type: 'sb' | 'bb' | 'fold' | 'check' | 'call' | 'raise' | 'allin';
+  label: string;
+  amount?: number;
+}
 
 interface ResultRow {
   playerId: string;
@@ -40,11 +55,17 @@ interface State {
   /** 当前下注轮投入，用于跟注判断 */
   roundBet: Map<string, number>;
   folded: Set<string>;
+  allIn: Set<string>;
   acted: Set<string>;
   raises: Map<string, number>;
   currentBet: number;
   turn: string | null;
   dealerIndex: number;
+  smallBlindId: string | null;
+  bigBlindId: string | null;
+  lastAction: TexasActionEvent | null;
+  actionSeq: number;
+  playerActionTags: Map<string, PlayerActionTag>;
   settled: boolean;
   results: ResultRow[];
   /** 本局已即时扣款的真人玩家，结算时必须入账以便返还本金 */
@@ -60,11 +81,17 @@ function emptyState(): State {
     totalBet: new Map(),
     roundBet: new Map(),
     folded: new Set(),
+    allIn: new Set(),
     acted: new Set(),
     raises: new Map(),
     currentBet: 0,
     turn: null,
     dealerIndex: 0,
+    smallBlindId: null,
+    bigBlindId: null,
+    lastAction: null,
+    actionSeq: 0,
+    playerActionTags: new Map(),
     settled: false,
     results: [],
     charged: new Set(),
@@ -98,9 +125,27 @@ export class TexasPlugin extends BaseGamePlugin {
     category: 'table',
   };
 
-  override readonly commands: readonly string[] = ['fold', 'check', 'call', 'raise'];
+  override readonly commands: readonly string[] = ['fold', 'check', 'call', 'raise', 'allin'];
 
   private state: State = emptyState();
+
+  private recordAction(
+    ctx: RoomContext,
+    type: TexasActionEvent['type'],
+    playerId: string,
+    extra?: { amount?: number; detail?: string },
+  ): void {
+    const nickname = ctx.players.find((p) => p.playerId === playerId)?.nickname ?? '牌手';
+    this.state.actionSeq += 1;
+    this.state.lastAction = {
+      seq: this.state.actionSeq,
+      type,
+      playerId,
+      nickname,
+      ...(extra?.amount !== undefined ? { amount: extra.amount } : {}),
+      ...(extra?.detail ? { detail: extra.detail } : {}),
+    };
+  }
 
   override onRoundStart(ctx: RoomContext): void {
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
@@ -132,10 +177,21 @@ export class TexasPlugin extends BaseGamePlugin {
     const bbPos = (sbPos + 1) % n;
     const firstPos = isHeadsUp ? dealerPos : (bbPos + 1) % n;
 
-    this.postBlind(order[sbPos], SMALL_BLIND);
-    this.postBlind(order[bbPos], BIG_BLIND);
+    const sbId = order[sbPos] ?? null;
+    const bbId = order[bbPos] ?? null;
+    this.state.smallBlindId = sbId;
+    this.state.bigBlindId = bbId;
+
+    this.postBlind(sbId ?? undefined, SMALL_BLIND);
+    this.postBlind(bbId ?? undefined, BIG_BLIND);
+    if (sbId) this.state.playerActionTags.set(sbId, { type: 'sb', label: `小盲 ${SMALL_BLIND}`, amount: SMALL_BLIND });
+    if (bbId) this.state.playerActionTags.set(bbId, { type: 'bb', label: `大盲 ${BIG_BLIND}`, amount: BIG_BLIND });
+
     this.state.currentBet = BIG_BLIND;
     this.state.turn = order[firstPos] ?? null;
+    this.recordAction(ctx, 'deal', order[dealerPos] ?? order[0]!, {
+      detail: `第 ${ctx.config.round} 手发牌 · 盲注 ${SMALL_BLIND}/${BIG_BLIND}`,
+    });
     ctx.markDirty();
   }
 
@@ -144,11 +200,9 @@ export class TexasPlugin extends BaseGamePlugin {
     if (this.state.folded.has(playerId)) throw illegalAction('你已弃牌');
     if (this.state.turn !== playerId) throw illegalAction('还没轮到你行动');
 
-    const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
+    const toCall = Math.max(0, this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0));
     const isBot = ctx.getPlayer(playerId)?.isBot === true;
 
-    // 真人跟注/加注即时从钱包扣款，余额不足会抛错且注单不落地。
-    // 开局的盲注由系统自动投入，不在此扣款，局末结算会按净盈亏一并结清。
     const pay = async (amount: number): Promise<void> => {
       if (isBot || amount <= 0) return;
       await ctx.charge(playerId, amount);
@@ -159,11 +213,15 @@ export class TexasPlugin extends BaseGamePlugin {
       case 'fold':
         this.state.folded.add(playerId);
         this.state.acted.add(playerId);
+        this.state.playerActionTags.set(playerId, { type: 'fold', label: '已弃牌' });
+        this.recordAction(ctx, 'fold', playerId);
         break;
 
       case 'check':
         if (toCall > 0) throw illegalAction(`需要跟注 ${toCall} 才能过牌`);
         this.state.acted.add(playerId);
+        this.state.playerActionTags.set(playerId, { type: 'check', label: '过牌' });
+        this.recordAction(ctx, 'check', playerId);
         break;
 
       case 'call': {
@@ -171,6 +229,8 @@ export class TexasPlugin extends BaseGamePlugin {
         await pay(toCall);
         this.commit(playerId, toCall);
         this.state.acted.add(playerId);
+        this.state.playerActionTags.set(playerId, { type: 'call', label: `跟注 ${toCall}`, amount: toCall });
+        this.recordAction(ctx, 'call', playerId, { amount: toCall });
         break;
       }
 
@@ -178,28 +238,60 @@ export class TexasPlugin extends BaseGamePlugin {
         const used = this.state.raises.get(playerId) ?? 0;
         if (used >= MAX_RAISES) throw illegalAction('本局加注次数已达上限');
 
-        // 支持自定义加注：payload.amount 为「在跟注基础上额外加多少」
         const rawAdd = intent.payload?.amount;
         let target = this.state.currentBet + RAISE_UNIT;
         if (rawAdd !== undefined && rawAdd !== null) {
-          const add = Number(rawAdd);
-          if (!Number.isInteger(add) || add < RAISE_UNIT) {
+          const add = Math.floor(Number(rawAdd));
+          if (!Number.isFinite(add) || add < RAISE_UNIT) {
             throw badRequest(`加注至少 ${RAISE_UNIT}`);
           }
-          target = this.state.currentBet + add;
+          target = this.state.currentBet + Math.min(add, MAX_RAISE_ADD);
         }
 
         const delta = target - (this.state.roundBet.get(playerId) ?? 0);
         if (delta <= 0) throw badRequest('加注金额不合法');
+        if (delta > MAX_RAISE_ADD) throw badRequest(`单次下注上限为 ${MAX_RAISE_ADD.toLocaleString()}`);
 
         await pay(delta);
         this.commit(playerId, delta);
         this.state.currentBet = target;
         this.state.raises.set(playerId, used + 1);
+        this.state.playerActionTags.set(playerId, { type: 'raise', label: `加注至 ${target}`, amount: delta });
+        this.recordAction(ctx, 'raise', playerId, { amount: delta, detail: `加注至 ${target}` });
 
-        // 加注后其他人需要重新行动
         this.state.acted.clear();
         this.state.acted.add(playerId);
+        break;
+      }
+
+      case 'allin': {
+        const rawAmt = Math.floor(Number(intent.payload?.amount ?? 0));
+        const commitAmount = Math.min(MAX_RAISE_ADD, Math.max(0, rawAmt));
+        if (commitAmount <= 0) throw badRequest('筹码不足，无法全压');
+
+        const myRound = this.state.roundBet.get(playerId) ?? 0;
+        const newTarget = myRound + commitAmount;
+
+        await pay(commitAmount);
+        this.commit(playerId, commitAmount);
+        this.state.allIn.add(playerId);
+        this.state.playerActionTags.set(playerId, {
+          type: 'allin',
+          label: `ALL-IN ${commitAmount.toLocaleString()}`,
+          amount: commitAmount,
+        });
+        this.recordAction(ctx, 'allin', playerId, {
+          amount: commitAmount,
+          detail: `全压 ${commitAmount.toLocaleString()} 筹码！`,
+        });
+
+        if (newTarget > this.state.currentBet) {
+          this.state.currentBet = newTarget;
+          this.state.acted.clear();
+          this.state.acted.add(playerId);
+        } else {
+          this.state.acted.add(playerId);
+        }
         break;
       }
 
@@ -229,8 +321,14 @@ export class TexasPlugin extends BaseGamePlugin {
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
     const myRound = viewerId ? (this.state.roundBet.get(viewerId) ?? 0) : 0;
     const myHand = viewerId ? (this.state.hands.get(viewerId) ?? []) : [];
+    const dealerId = players[this.state.dealerIndex % Math.max(players.length, 1)]?.playerId ?? null;
+    const myHandLabel =
+      myHand.length > 0
+        ? evaluateBestHand([...myHand, ...this.state.community]).label
+        : '';
 
     return {
+      round: ctx.config.round,
       phase: this.state.phase,
       phaseLabel: PHASE_LABEL[this.state.phase],
       community: this.state.community,
@@ -238,25 +336,35 @@ export class TexasPlugin extends BaseGamePlugin {
       currentBet: this.state.currentBet,
       toCall: Math.max(0, this.state.currentBet - myRound),
       turn: this.state.turn,
-      dealerId: [...ctx.players].sort((a, b) => a.seat - b.seat)[this.state.dealerIndex]?.playerId ?? null,
+      dealerId,
+      smallBlindId: this.state.smallBlindId,
+      bigBlindId: this.state.bigBlindId,
       myHand,
+      myHandLabel,
       myTotalBet: viewerId ? (this.state.totalBet.get(viewerId) ?? 0) : 0,
+      myRoundBet: myRound,
       smallBlind: SMALL_BLIND,
       bigBlind: BIG_BLIND,
       raiseUnit: RAISE_UNIT,
       maxRaiseAdd: MAX_RAISE_ADD,
+      lastAction: this.state.lastAction,
       results: this.state.results,
       players: players.map((p) => {
         const folded = this.state.folded.has(p.playerId);
-        const reveal = this.state.settled || folded;
+        const reveal = this.state.settled;
         return {
           playerId: p.playerId,
           nickname: p.nickname,
           seat: p.seat,
           folded,
+          isAllIn: this.state.allIn.has(p.playerId),
           totalBet: this.state.totalBet.get(p.playerId) ?? 0,
-          isDealer: p.playerId === ([...ctx.players].sort((a, b) => a.seat - b.seat)[this.state.dealerIndex]?.playerId ?? null),
-          cards: reveal ? (this.state.hands.get(p.playerId) ?? []) : [],
+          roundBet: this.state.roundBet.get(p.playerId) ?? 0,
+          isDealer: p.playerId === dealerId,
+          isSmallBlind: p.playerId === this.state.smallBlindId,
+          isBigBlind: p.playerId === this.state.bigBlindId,
+          actionTag: this.state.playerActionTags.get(p.playerId) ?? null,
+          cards: reveal && !folded ? (this.state.hands.get(p.playerId) ?? []) : [],
         };
       }),
     };
@@ -285,13 +393,13 @@ export class TexasPlugin extends BaseGamePlugin {
       .filter((id) => !this.state.folded.has(id));
   }
 
-  private nextAlive(ctx: RoomContext, fromId: string): string | null {
+  private nextCanAct(ctx: RoomContext, fromId: string): string | null {
     const order = [...ctx.players].sort((a, b) => a.seat - b.seat).map((p) => p.playerId);
     const start = order.indexOf(fromId);
     if (start < 0) return null;
     for (let i = 1; i <= order.length; i += 1) {
       const id = order[(start + i) % order.length];
-      if (id && !this.state.folded.has(id)) return id;
+      if (id && !this.state.folded.has(id) && !this.state.allIn.has(id)) return id;
     }
     return null;
   }
@@ -304,7 +412,9 @@ export class TexasPlugin extends BaseGamePlugin {
     }
 
     const roundDone = alive.every(
-      (id) => this.state.acted.has(id) && (this.state.roundBet.get(id) ?? 0) === this.state.currentBet,
+      (id) =>
+        this.state.allIn.has(id) ||
+        (this.state.acted.has(id) && (this.state.roundBet.get(id) ?? 0) === this.state.currentBet),
     );
 
     if (roundDone) {
@@ -312,7 +422,12 @@ export class TexasPlugin extends BaseGamePlugin {
       return;
     }
 
-    this.state.turn = this.nextAlive(ctx, playerId);
+    const next = this.nextCanAct(ctx, playerId);
+    if (!next) {
+      this.advancePhase(ctx);
+      return;
+    }
+    this.state.turn = next;
     ctx.markDirty();
   }
 
@@ -337,11 +452,31 @@ export class TexasPlugin extends BaseGamePlugin {
     for (const player of ctx.players) this.state.roundBet.set(player.playerId, 0);
     this.state.currentBet = 0;
     this.state.acted.clear();
+    // 清除上一条街的普通行动气泡，保留弃牌与 ALL-IN 状态
+    for (const [pid, tag] of this.state.playerActionTags.entries()) {
+      if (tag.type !== 'fold' && tag.type !== 'allin') {
+        this.state.playerActionTags.delete(pid);
+      }
+    }
+
+    // 若场上可继续下注的非全压玩家 <= 1 人，自动发完所有公共牌并进入摊牌！
+    const canStillBet = this.aliveIds(ctx).filter((id) => !this.state.allIn.has(id));
+    if (canStillBet.length <= 1) {
+      while (this.state.community.length < 5 && this.state.deck.length > 0) {
+        const nextCard = this.state.deck.shift();
+        if (nextCard) this.state.community.push(nextCard);
+      }
+      this.settleShowdown(ctx);
+      return;
+    }
 
     const order = [...ctx.players].sort((a, b) => a.seat - b.seat).map((p) => p.playerId);
     const dealerPos = this.state.dealerIndex % Math.max(order.length, 1);
-    const first = this.nextAlive(ctx, order[dealerPos] ?? '');
+    const first = this.nextCanAct(ctx, order[dealerPos] ?? '');
     this.state.turn = first;
+    this.recordAction(ctx, 'street', first ?? order[dealerPos] ?? '', {
+      detail: `发${PHASE_LABEL[this.state.phase]}`,
+    });
     ctx.markDirty();
   }
 
@@ -415,6 +550,10 @@ export class TexasPlugin extends BaseGamePlugin {
 
     this.state.results = results;
     this.state.turn = null;
+    this.recordAction(ctx, 'showdown', winners[0] ?? players[0]?.playerId ?? '', {
+      amount: share,
+      detail: winners.length > 0 ? '摊牌结算' : '本手结束',
+    });
 
     // 已即时扣款的真人必须入账（哪怕净盈亏为 0），否则本金退不回来；机器人不写账本
     const entries: SettlementEntry[] = results

@@ -1,38 +1,112 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 196" width="140" height="196">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 224" width="160" height="224">
   <defs>
-    <linearGradient id="cardBg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="cardFace" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="60%" stop-color="#fafbfd"/>
-      <stop offset="100%" stop-color="#edf1f7"/>
+      <stop offset="55%" stop-color="#fdfbf7"/>
+      <stop offset="100%" stop-color="#f1ebe0"/>
     </linearGradient>
+    <linearGradient id="gloss" x1="0%" y1="0%" x2="80%" y2="80%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.72"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="48%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#92600a"/>
+    </linearGradient>
+    <linearGradient id="suitGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ef233c"/>
+      <stop offset="100%" stop-color="#990f1d"/>
+    </linearGradient>
+    <radialGradient id="aceHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fecdd3" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
-  <!-- Card Surface -->
-  <rect x="3" y="3" width="134" height="190" rx="12" fill="url(#cardBg)" stroke="#1a202c" stroke-width="1.6"/>
-  <rect x="7" y="7" width="126" height="182" rx="8" fill="none" stroke="#fca5a5" stroke-width="0.8" opacity="0.6"/>
+  <!-- Thick 3D Luxury Card Base -->
+  <rect x="2" y="2" width="156" height="220" rx="14" fill="#d6cbb8"/>
+  <rect x="2" y="1" width="156" height="218" rx="14" fill="url(#cardFace)" stroke="#c7b28a" stroke-width="1.8"/>
+  <rect x="7" y="6" width="146" height="208" rx="10" fill="none" stroke="url(#goldGrad)" stroke-width="1" opacity="0.58"/>
+  <path d="M 14 2 L 146 2 Q 158 2 158 14 L 158 76 Q 75 56 2 118 L 2 14 Q 2 2 14 2 Z" fill="url(#gloss)"/>
 
-  <!-- Top Left Corner -->
-  <g transform="translate(14, 26)">
-    <text x="0" y="0" font-family="'Cinzel', 'Segoe UI', 'Helvetica Neue', serif" font-size="24" font-weight="800" text-anchor="middle" fill="#d32027">10</text>
-    <path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(0, 16) scale(0.48)" />
+  <!-- Top Left Jumbo Index -->
+  <g transform="translate(22, 37)">
+    
+    <text x="0" y="0" font-family="'Georgia', 'Times New Roman', 'Segoe UI', serif" font-size="31" font-weight="900" letter-spacing="-2.2" text-anchor="middle" fill="url(#suitGrad)">10</text>
+    <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="translate(0, 21) scale(0.56)" />
+  
   </g>
 
-  <!-- Center Art -->
-  <path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(46, 60.599999999999994) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(94, 60.599999999999994) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(70, 75.9) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(46, 91.2) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(94, 91.2) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(46, 104.8) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(94, 104.8) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(70, 120.1) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(46, 135.4) scale(0.72)" />
-<path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(94, 135.4) scale(0.72)" />
+  <!-- Centerpiece Art -->
+  
+        <g transform="translate(56, 48)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
 
-  <!-- Bottom Right Corner -->
-  <g transform="translate(126, 170) rotate(180)">
-    <text x="0" y="0" font-family="'Cinzel', 'Segoe UI', 'Helvetica Neue', serif" font-size="24" font-weight="800" text-anchor="middle" fill="#d32027">10</text>
-    <path d="M 0 -7 C -3 -15, -18 -18, -18 -6 C -18 4, -8 13, 0 20 C 8 13, 18 4, 18 -6 C 18 -18, 3 -15, 0 -7 Z" fill="#d32027" transform="translate(0, 16) scale(0.48)" />
+        <g transform="translate(104, 48)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(80, 72)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(56, 92)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(104, 92)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(56, 132) rotate(180)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(104, 132) rotate(180)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(80, 152) rotate(180)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(56, 176) rotate(180)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+        <g transform="translate(104, 176) rotate(180)">
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="rgba(0,0,0,0.12)" transform="translate(1.2, 2) scale(0.74)"/>
+          <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="scale(0.74)"/>
+        </g>
+      
+
+  <!-- Bottom Right Jumbo Index -->
+  <g transform="translate(138, 185) rotate(180)">
+    
+    <text x="0" y="0" font-family="'Georgia', 'Times New Roman', 'Segoe UI', serif" font-size="31" font-weight="900" letter-spacing="-2.2" text-anchor="middle" fill="url(#suitGrad)">10</text>
+    <path d="M 0 -8 C -4 -18, -21 -20, -21 -6 C -21 6, -9 15, 0 23 C 9 15, 21 6, 21 -6 C 21 -20, 4 -18, 0 -8 Z" fill="url(#suitGrad)" transform="translate(0, 21) scale(0.56)" />
+  
   </g>
 </svg>

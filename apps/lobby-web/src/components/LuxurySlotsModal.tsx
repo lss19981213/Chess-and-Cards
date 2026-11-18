@@ -161,6 +161,11 @@ export function LuxurySlotsModal({ user, onBalanceChange, onUserUpdate, onClose 
     });
   };
 
+  useEffect(() => {
+    audio.setInGame(true);
+    return () => audio.setInGame(false);
+  }, []);
+
   const animateWinCounter = (target: number) => {
     if (countRafRef.current !== null) window.cancelAnimationFrame(countRafRef.current);
     if (target <= 0) {

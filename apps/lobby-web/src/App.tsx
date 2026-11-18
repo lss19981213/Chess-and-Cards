@@ -111,6 +111,12 @@ export default function App() {
     equippedFrame: userRef.current?.equippedFrame ?? 'frame_default',
   });
 
+  // 进入任意游戏房间后自动停止大厅背景音乐；返回大厅时恢复
+  useEffect(() => {
+    audio.setInGame(view === 'room' && Boolean(room));
+    return () => audio.setInGame(false);
+  }, [view, room]);
+
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
       try {

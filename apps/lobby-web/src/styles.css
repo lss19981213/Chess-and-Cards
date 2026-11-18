@@ -13969,3 +13969,491 @@ button.secondary:hover:not(:disabled) {
   width: 56px;
   height: 56px;
 }
+
+/* ==========================================================================
+   奢华扑克大牌面 & 德州扑克专业赌场流程样式
+   ========================================================================== */
+
+.pcard {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.48));
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), filter 0.18s ease;
+}
+
+.pcard--lg {
+  min-width: clamp(66px, 6.8vw, 88px);
+  height: clamp(92px, 9.5vw, 124px);
+}
+
+.texas-center--pro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px !important;
+  position: relative;
+}
+
+/* 5 阶段街程指示条 */
+.texas-street-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(5, 16, 12, 0.72);
+  border: 1px solid rgba(245, 208, 118, 0.28);
+  backdrop-filter: blur(6px);
+}
+
+.texas-street-step {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(203, 213, 225, 0.55);
+  padding: 2px 9px;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.texas-street-step.is-done {
+  color: rgba(134, 239, 172, 0.82);
+}
+
+.texas-street-step.is-current {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fffbeb;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.55);
+}
+
+/* 5 张超大高清公共牌 */
+.texas-center__board--pro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.1vw, 14px) !important;
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: rgba(4, 24, 16, 0.36);
+  border: 1px solid rgba(245, 208, 118, 0.22);
+  box-shadow: inset 0 2px 18px rgba(0, 0, 0, 0.35);
+}
+
+.texas-board-card {
+  width: clamp(72px, 7.6vw, 102px) !important;
+  min-width: clamp(72px, 7.6vw, 102px) !important;
+  height: clamp(100px, 10.6vw, 142px) !important;
+  border-radius: 10px;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.62));
+  animation: texasCardDealIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.texas-board-card--slot {
+  opacity: 0.42;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+@keyframes texasCardDealIn {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 中心底池条 */
+.texas-pot-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 20px;
+  border-radius: 14px;
+  background: rgba(4, 18, 13, 0.78);
+  border: 1px solid rgba(250, 204, 21, 0.36);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+}
+
+.texas-pot-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.texas-pot-tag {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: rgba(253, 224, 71, 0.85);
+}
+
+.texas-pot-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.texas-pot-num strong {
+  font-size: 24px;
+  font-weight: 900;
+  color: #fef08a;
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+
+.texas-pot-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.texas-pot-sub b {
+  color: #f8fafc;
+}
+
+.texas-pot-tocall {
+  color: #fde047;
+  font-weight: 800;
+}
+
+/* 中央动作横幅（发牌 / 翻牌 / 加注 / ALL-IN） */
+.texas-fx-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 26px;
+  border-radius: 14px;
+  background: rgba(6, 20, 15, 0.92);
+  border: 2px solid rgba(250, 204, 21, 0.65);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.72);
+  pointer-events: none;
+  animation: texasBannerPop 0.24s cubic-bezier(0.18, 0.89, 0.32, 1.2) both;
+}
+
+.texas-fx-banner strong {
+  font-size: 20px;
+  font-weight: 900;
+  color: #fef08a;
+  letter-spacing: 1px;
+}
+
+.texas-fx-banner span {
+  font-size: 12.5px;
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.texas-fx-banner.is-allin {
+  background: linear-gradient(135deg, rgba(153, 27, 27, 0.95), rgba(180, 83, 9, 0.94));
+  border-color: #fef08a;
+  box-shadow: 0 0 36px rgba(239, 68, 68, 0.85), 0 16px 40px rgba(0, 0, 0, 0.75);
+}
+
+.texas-fx-banner.is-allin strong {
+  font-size: 26px;
+  color: #ffffff;
+  text-shadow: 0 0 16px #fde047;
+}
+
+@keyframes texasBannerPop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -44%) scale(0.84);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* 对手座位行动气泡 + 真牌面小卡 */
+.texas-seat-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.badge-blind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.badge-blind.is-sb {
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  border: 1px solid #7dd3fc;
+}
+
+.badge-blind.is-bb {
+  background: linear-gradient(135deg, #d97706, #92400e);
+  border: 1px solid #fde68a;
+}
+
+.texas-opp-cards {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.texas-opp-card {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 62px !important;
+  border-radius: 6px;
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.52));
+}
+
+.texas-action-pill {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.texas-action-pill.is-check {
+  background: rgba(16, 185, 129, 0.24);
+  border: 1px solid rgba(52, 211, 153, 0.65);
+  color: #a7f3d0;
+}
+
+.texas-action-pill.is-call {
+  background: rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(96, 165, 250, 0.65);
+  color: #dbeafe;
+}
+
+.texas-action-pill.is-raise {
+  background: rgba(245, 158, 11, 0.28);
+  border: 1px solid rgba(251, 191, 36, 0.78);
+  color: #fef08a;
+}
+
+.texas-action-pill.is-allin {
+  background: linear-gradient(135deg, #dc2626, #b45309);
+  border: 1px solid #fde047;
+  color: #ffffff;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.65);
+}
+
+.texas-action-pill.is-fold {
+  background: rgba(51, 65, 85, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #94a3b8;
+}
+
+.texas-action-pill.is-sb,
+.texas-action-pill.is-bb {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(245, 208, 118, 0.35);
+  color: #fde68a;
+}
+
+/* 底部自家双底牌 + 实时牌力 + 专业操作控制台 */
+.texas-bottom-dock {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  gap: 20px !important;
+  flex-wrap: wrap;
+  padding: 4px 16px 8px !important;
+}
+
+.texas-my-hand-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.texas-strength-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(6, 46, 31, 0.9));
+  border: 1px solid rgba(250, 204, 21, 0.55);
+  font-size: 12px;
+  color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+.texas-strength-pill strong {
+  color: #fde047;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.hand--texas-pro {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px !important;
+}
+
+.texas-hole-card {
+  width: clamp(88px, 9vw, 118px) !important;
+  min-width: clamp(88px, 9vw, 118px) !important;
+  height: clamp(123px, 12.6vw, 165px) !important;
+  border-radius: 12px;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.7));
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease;
+}
+
+.texas-hole-card:first-child {
+  transform: rotate(-2.8deg);
+}
+
+.texas-hole-card:last-child {
+  transform: rotate(2.8deg);
+}
+
+.texas-hole-card:hover {
+  transform: translateY(-12px) scale(1.06) rotate(0deg) !important;
+  filter: drop-shadow(0 18px 26px rgba(250, 204, 21, 0.58));
+  z-index: 6;
+}
+
+.texas-hole-card.is-folded {
+  opacity: 0.42;
+  filter: grayscale(0.75) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+.texas-controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(6, 18, 14, 0.82);
+  border: 1px solid rgba(245, 208, 118, 0.32);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+}
+
+.texas-controls-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.texas-preset-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.texas-preset-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 208, 118, 0.36);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fde68a;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.texas-preset-btn:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: #fde047;
+}
+
+.texas-preset-btn.is-active {
+  background: linear-gradient(135deg, #f59e0b, #b45309);
+  color: #fff;
+  border-color: #fef08a;
+}
+
+.texas-preset-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.texas-raise-slider {
+  width: 110px;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+.texas-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px !important;
+  flex-wrap: wrap;
+}
+
+.texas-btn-fold {
+  background: linear-gradient(180deg, #475569, #1e293b) !important;
+  border: 1px solid rgba(148, 163, 184, 0.5) !important;
+  color: #e2e8f0 !important;
+  min-width: 72px;
+}
+
+.texas-btn-check,
+.texas-btn-call {
+  background: linear-gradient(180deg, #10b981, #047857) !important;
+  border: 1px solid #6ee7b7 !important;
+  color: #ffffff !important;
+  min-width: 96px;
+  font-weight: 800 !important;
+}
+
+.texas-btn-raise {
+  background: linear-gradient(180deg, #f59e0b, #b45309) !important;
+  border: 1px solid #fde68a !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.texas-btn-allin {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 55%, #7f1d1d 100%) !important;
+  border: 1.5px solid #fde047 !important;
+  color: #fffbeb !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.5) !important;
+}
+
+.texas-btn-allin:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow: 0 0 22px rgba(239, 68, 68, 0.8) !important;
+}
+
+.texas-reveal-card {
+  margin-top: 4px;
+  min-width: 300px;
+  background: rgba(6, 18, 14, 0.9);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  border-radius: 12px;
+  padding: 8px 14px;
+}
+
+.texas-reveal-card .reveal-row.is-winner {
+  background: rgba(245, 158, 11, 0.16);
+  border-radius: 8px;
+  padding: 4px 8px;
+}

@@ -7264,16 +7264,16 @@ html, body, #root {
   padding: 4px 10px !important;
 }
 
-/* 26.8 德州扑克：手牌收小，避免压住底池与筹码堆 */
+/* 26.8 德州扑克：奢华大牌面高清晰展示 */
 .hand--texas .pcard,
 .hand--texas .hand__card {
-  width: 62px !important;
-  height: 86px !important;
+  width: clamp(86px, 8.6vw, 114px) !important;
+  height: clamp(120px, 12vw, 160px) !important;
 }
 
 .hand--texas {
   height: auto !important;
-  gap: 8px !important;
+  gap: 12px !important;
   align-items: flex-end;
 }
 

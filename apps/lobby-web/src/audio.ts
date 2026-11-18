@@ -37,7 +37,13 @@ export type SfxName =
   | 'mahjong_discard'
   | 'mahjong_peng'
   | 'mahjong_gang'
-  | 'mahjong_hu';
+  | 'mahjong_hu'
+  | 'poker_chip_bet'
+  | 'poker_raise'
+  | 'poker_check'
+  | 'poker_fold'
+  | 'poker_allin'
+  | 'poker_deal';
 
 const STORAGE_KEY = 'cc.audio';
 
@@ -83,6 +89,8 @@ class AudioEngine {
   private usingSynth = false;
   /** 播放代次：切歌/关音乐后，旧的 play() Promise 不再影响状态 */
   private musicToken = 0;
+  /** 是否已进入游戏牌桌（进入游戏后自动静音背景音乐，返回大厅再恢复） */
+  private inGame = false;
 
   constructor() {
     try {
@@ -147,7 +155,18 @@ class AudioEngine {
     }
 
     this.unlocked = true;
-    if (this.prefs.music) {
+    if (this.prefs.music && !this.inGame) {
+      this.startMusic();
+    }
+  }
+
+  /** 进入游戏房间后停播背景音乐；退出回到大厅后若开启了音乐则自动恢复 */
+  setInGame(active: boolean): void {
+    if (this.inGame === active) return;
+    this.inGame = active;
+    if (active) {
+      this.stopMusic();
+    } else if (this.prefs.music && this.unlocked && !document.hidden) {
       this.startMusic();
     }
   }
@@ -292,6 +311,24 @@ class AudioEngine {
         break;
       case 'mahjong_hu':
         this.mahjongHuSound(out);
+        break;
+      case 'poker_chip_bet':
+        this.pokerChipBetSound(out);
+        break;
+      case 'poker_raise':
+        this.pokerRaiseSound(out);
+        break;
+      case 'poker_check':
+        this.pokerCheckSound(out);
+        break;
+      case 'poker_fold':
+        this.pokerFoldSound(out);
+        break;
+      case 'poker_allin':
+        this.pokerAllInSound(out);
+        break;
+      case 'poker_deal':
+        this.pokerDealSound(out);
         break;
     }
   }
@@ -584,7 +621,7 @@ class AudioEngine {
   }
 
   private startMusic(): void {
-    if (!this.prefs.music) return;
+    if (!this.prefs.music || this.inGame) return;
     this.stopMusic();
     const token = ++this.musicToken;
 
@@ -990,6 +1027,212 @@ class AudioEngine {
     });
     // 伴随清脆金币流响
     window.setTimeout(() => this.coinStream(out), 420);
+  }
+
+  /** 德州扑克：单枚/小摞陶瓷筹码清脆落桌碰撞声 */
+  private pokerChipSingleClink(out: AudioNode, gainScale = 1, pitchOffset = 0): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    // 1. 陶瓷筹码双谐波清脆高频敲击
+    const f1 = 2950 + pitchOffset;
+    const f2 = 4380 + pitchOffset * 1.25;
+    [f1, f2].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = idx === 0 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.88, t + 0.048);
+      g.gain.setValueAtTime((idx === 0 ? 0.28 : 0.16) * gainScale, t);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + 0.055);
+      osc.connect(g);
+      g.connect(out);
+      osc.start(t);
+      osc.stop(t + 0.06);
+    });
+
+    // 2. 筹码触碰绒布的轻微瞬态质感
+    const len = Math.max(1, Math.floor(ctx.sampleRate * 0.022));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.005));
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(3400 + pitchOffset, t);
+    bp.Q.setValueAtTime(2.6, t);
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.32 * gainScale, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + 0.022);
+    src.connect(bp);
+    bp.connect(ng);
+    ng.connect(out);
+    src.start(t);
+  }
+
+  /** 德州扑克：放筹码 / 跟注音效（清脆两连响 + 落桌轻颤） */
+  private pokerChipBetSound(out: AudioNode): void {
+    this.pokerChipSingleClink(out, 1.0, 0);
+    window.setTimeout(() => this.pokerChipSingleClink(out, 0.78, 220), 62);
+    window.setTimeout(() => this.pokerChipSingleClink(out, 0.55, -140), 118);
+  }
+
+  /** 德州扑克：加注音效（密集筹码推进连响 + 铿锵上扬金属音） */
+  private pokerRaiseSound(out: AudioNode): void {
+    const delays = [0, 48, 92, 134, 175];
+    const pitches = [-180, 90, 260, 420, 560];
+    delays.forEach((ms, i) => {
+      window.setTimeout(() => this.pokerChipSingleClink(out, 0.92 + i * 0.06, pitches[i]!), ms);
+    });
+    window.setTimeout(() => {
+      this.tone(783.99, 0.14, 'triangle', 0.16, out);
+    }, 110);
+    window.setTimeout(() => {
+      this.tone(1046.5, 0.2, 'triangle', 0.18, out);
+    }, 185);
+  }
+
+  /** 德州扑克：过牌音效（真实赌场指节双敲牌桌「咚-咚」） */
+  private pokerCheckSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const knock = (delayMs: number, vol: number) => {
+      window.setTimeout(() => {
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(165, t);
+        osc.frequency.exponentialRampToValueAtTime(68, t + 0.075);
+        g.gain.setValueAtTime(0.45 * vol, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.085);
+        osc.connect(g);
+        g.connect(out);
+        osc.start(t);
+        osc.stop(t + 0.09);
+
+        // 木桌表面闷敲瞬态
+        const len = Math.max(1, Math.floor(ctx.sampleRate * 0.025));
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const ch = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) {
+          ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.006));
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.setValueAtTime(620, t);
+        const ng = ctx.createGain();
+        ng.gain.setValueAtTime(0.32 * vol, t);
+        ng.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+        src.connect(lp);
+        lp.connect(ng);
+        ng.connect(out);
+        src.start(t);
+      }, delayMs);
+    };
+    knock(0, 1.0);
+    knock(125, 0.85);
+  }
+
+  /** 德州扑克：弃牌音效（卡牌利落推入弃牌堆的刷滑风声） */
+  private pokerFoldSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const dur = 0.16;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const p = i / len;
+      ch[i] = (Math.random() * 2 - 1) * Math.sin(p * Math.PI) * 0.9;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(2200, t);
+    bp.frequency.exponentialRampToValueAtTime(480, t + dur);
+    bp.Q.setValueAtTime(1.5, t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.4, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(out);
+    src.start(t);
+
+    // 轻微低落尾音暗示退出本手
+    this.tone(240, 0.14, 'sine', 0.12, out);
+  }
+
+  /** 德州扑克：全压 ALL-IN 震撼音效（成堆筹码推入洪流 + 重低音冲击 + 热血铜管和弦） */
+  private pokerAllInSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+
+    // 1. 震撼低音冲击
+    const sub = ctx.createOscillator();
+    const sg = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(175, t);
+    sub.frequency.exponentialRampToValueAtTime(42, t + 0.36);
+    sg.gain.setValueAtTime(0.62, t);
+    sg.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+    sub.connect(sg);
+    sg.connect(out);
+    sub.start(t);
+    sub.stop(t + 0.4);
+
+    // 2. 8连枚密集筹码倾泻推进声
+    for (let i = 0; i < 8; i++) {
+      window.setTimeout(() => {
+        this.pokerChipSingleClink(out, 0.85 + (i % 3) * 0.12, -260 + i * 110);
+      }, i * 38);
+    }
+
+    // 3. 紧张辉煌铜管和弦（D5 + F#5 + A5 + D6）
+    window.setTimeout(() => {
+      [587.33, 739.99, 880, 1174.66].forEach((freq) => {
+        this.tone(freq, 0.42, 'sawtooth', 0.085, out);
+        this.tone(freq * 0.5, 0.42, 'triangle', 0.12, out);
+      });
+    }, 120);
+  }
+
+  /** 德州扑克：清脆发牌拂桌声 */
+  private pokerDealSound(out: AudioNode): void {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const dur = 0.065;
+    const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      ch[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.015));
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'bandpass';
+    hp.frequency.setValueAtTime(3100, t);
+    hp.Q.setValueAtTime(1.8, t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.32, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(hp);
+    hp.connect(g);
+    g.connect(out);
+    src.start(t);
   }
 
   private savePrefs(): void {
