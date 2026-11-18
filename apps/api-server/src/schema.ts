@@ -234,4 +234,22 @@ create table if not exists mail_user_status (
   deleted        boolean not null default false,
   primary key (mail_id, user_id)
 );
+
+-- 疯狂老虎机服务端权威摇奖与经营统计流水表
+create table if not exists slots_spins (
+  id            text primary key,
+  user_id       text not null references users(id) on delete cascade,
+  bet_per_line  integer not null,
+  lines         integer not null,
+  total_bet     bigint not null,
+  win_amount    bigint not null,
+  net_delta     bigint not null,
+  is_jackpot    boolean not null default false,
+  winning_lines integer not null default 0,
+  reels         jsonb not null,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists slots_spins_created_idx on slots_spins (created_at desc);
+create index if not exists slots_spins_user_idx on slots_spins (user_id, created_at desc);
 `;

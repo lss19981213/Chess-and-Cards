@@ -6,6 +6,7 @@ import { FALLBACK_GAMES } from '../game-catalog';
 import { authHeader, httpError } from '../http-utils';
 import { LEADERBOARD_SIZE, beijingDayKey, rewardForRank } from '../leaderboard';
 import { InsufficientFundsError, type Repository } from '../repository/types';
+import { SLOT_BET_OPTIONS, SLOT_PAYLINES, rollSlots } from '../slots-engine';
 import { TASKS, findTask, periodKeyFor, titleFor, type TaskView } from '../tasks';
 
 export async function buildTasks(
@@ -312,6 +313,60 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
       return await repo.claimLevelReward(claims.sub);
     } catch (err) {
       throw httpError(err instanceof Error ? err.message : '领取升级奖励失败', 400);
+    }
+  });
+
+  // 服务端权威老虎机摇奖结算：真实扣款与派彩、写入流水账本、累计经验值与 GM 经营统计（无免费旋转）
+  app.post('/api/slots/spin', async (req) => {
+    const claims = authHeader(req);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const betPerLine = Math.floor(Number(body.betPerLine ?? 0));
+    const lines = Math.floor(Number(body.lines ?? 25));
+
+    if (!SLOT_BET_OPTIONS.includes(betPerLine as (typeof SLOT_BET_OPTIONS)[number])) {
+      throw httpError('单线押注金额不合法', 400);
+    }
+    if (!Number.isInteger(lines) || lines < 1 || lines > SLOT_PAYLINES.length) {
+      throw httpError(`赔付线数需在 1-${SLOT_PAYLINES.length} 之间`, 400);
+    }
+
+    const rolled = rollSlots(betPerLine, lines);
+    const spinId = randomUUID();
+    try {
+      const outcome = await repo.playSlotsSpin({
+        spinId,
+        userId: claims.sub,
+        betPerLine: rolled.betPerLine,
+        lines: rolled.lines,
+        totalBet: rolled.totalBet,
+        winAmount: rolled.winAmount,
+        isJackpot: rolled.isJackpot,
+        winningLines: rolled.winningLines,
+        reels: rolled.reels,
+      });
+      return {
+        ok: true,
+        spinId: outcome.spinId,
+        reels: rolled.reels,
+        betPerLine: rolled.betPerLine,
+        lines: rolled.lines,
+        totalBet: outcome.totalBet,
+        winAmount: outcome.winAmount,
+        netDelta: outcome.netDelta,
+        winningLines: rolled.winningLines,
+        isJackpot: rolled.isJackpot,
+        balance: outcome.balance,
+        level: outcome.level,
+        xp: outcome.xp,
+        rewardedLevel: outcome.rewardedLevel,
+        totalTurnover: outcome.totalTurnover,
+        levelsGained: outcome.levelsGained,
+      };
+    } catch (error) {
+      if (error instanceof InsufficientFundsError) {
+        throw httpError('筹码不足，请先降低押注或前往福利中心领取救济金', 400);
+      }
+      throw error;
     }
   });
 

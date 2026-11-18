@@ -113,6 +113,7 @@
                             <RadioButton x:Name="NavDashboard" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📊  大盘总览" IsChecked="True" Checked="Nav_Checked" Tag="dashboard" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavPlayers" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="👥  玩家管控与流水" Checked="Nav_Checked" Tag="players" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavRooms" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎲  房间实时透视" Checked="Nav_Checked" Tag="rooms" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavSlots" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎰  老虎机经营" Checked="Nav_Checked" Tag="slots" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavMailbox" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📬  全服邮箱发放" Checked="Nav_Checked" Tag="mailbox" Margin="0,0,0,6"/>
 
                             <Border Height="1" Background="{StaticResource BrushBorder}" Margin="8,12,8,12"/>
@@ -705,6 +706,201 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
+                    </Grid>
+
+                    <!-- ==================== 4.5 老虎机经营分析 (Slots Analytics) ==================== -->
+                    <Grid x:Name="ViewSlots" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 第一排：今日老虎机经营 KPI -->
+                        <Grid Grid.Row="0" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="🎰 今日摇奖次数" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTodaySpins" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="KpiSlotsTodayPlayers" Text="今日活跃玩家: -- 人" FontSize="11" Foreground="{StaticResource BrushBlue}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="🪙 今日总投注流水" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTodayBet" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="1:1 计入玩家有效流水与经验" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="🎁 今日总派彩" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTodayPayout" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="KpiSlotsTodayMaxWin" Text="今日最高单笔: --" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="📈 今日平台净盈亏" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTodayProfit" Text="--" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushGreen}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="总投注 - 总派彩 (正数为盈利)" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="⚖️ 今日实际返奖率 RTP" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTodayRtp" Text="--" FontSize="22" FontWeight="Bold" Foreground="#FFE28A" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="KpiSlotsTodayJackpots" Text="今日爆出大奖: -- 次" FontSize="11" Foreground="{StaticResource BrushGold}" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- 第二排：历史累计经营 KPI -->
+                        <Grid Grid.Row="1" Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="🗂️ 历史累计摇奖" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTotalSpins" Text="--" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,4,0,0"/>
+                                    <TextBlock x:Name="KpiSlotsTotalPlayers" Text="累计参与玩家: -- 人" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="🏦 历史累计总投注" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTotalBet" Text="--" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,4,0,0"/>
+                                    <TextBlock Text="平台老虎机全周期总流水" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="💸 历史累计总派彩" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTotalPayout" Text="--" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,4,0,0"/>
+                                    <TextBlock x:Name="KpiSlotsTotalMaxWin" Text="历史单笔最高: --" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="💎 历史累计净盈亏" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTotalProfit" Text="--" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushGreen}" Margin="0,4,0,0"/>
+                                    <TextBlock Text="历史庄家累计毛利" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="4" Style="{StaticResource CardPanel}" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="📊 历史综合 RTP" FontSize="12" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="KpiSlotsTotalRtp" Text="--" FontSize="20" FontWeight="Bold" Foreground="#FFE28A" Margin="0,4,0,0"/>
+                                    <TextBlock x:Name="KpiSlotsTotalJackpots" Text="历史大奖总计: -- 次" FontSize="11" Foreground="{StaticResource BrushGold}" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- 下半部分：左为玩家流水排行 TOP 30，右为实时摇奖明细 -->
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="500"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 玩家老虎机流水排行 -->
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,12,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                        <TextBlock Text="🏆 老虎机玩家投注排行 (TOP 30)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                        <TextBlock Text="按累计投注流水降序，玩家净盈亏红色为玩家盈利、绿色为平台盈利" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <DataGrid x:Name="DgSlotsPlayers" Grid.Row="1">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="玩家昵称" Binding="{Binding Nickname}" Width="105"/>
+                                            <DataGridTextColumn Header="次数" Binding="{Binding Spins}" Width="52"/>
+                                            <DataGridTextColumn Header="累计投注" Binding="{Binding FormattedBet}" Width="88"/>
+                                            <DataGridTextColumn Header="累计派彩" Binding="{Binding FormattedWin}" Width="88"/>
+                                            <DataGridTextColumn Header="玩家净盈亏" Binding="{Binding FormattedNet}" Width="92">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{Binding NetColor}"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="大奖" Binding="{Binding Jackpots}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+
+                            <!-- 实时摇奖明细记录 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="🧾 实时摇奖明细流水 (最近 60 笔)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                            <TextBlock Text="每笔均已在服务端原子结算入库，并同步写入账本与玩家经验" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="🔄 刷新数据" Click="BtnRefreshSlots_Click" HorizontalAlignment="Right" VerticalAlignment="Center" Height="28" Padding="10,0"/>
+                                    </Grid>
+                                    <DataGrid x:Name="DgSlotsRecent" Grid.Row="1">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="时间" Binding="{Binding DisplayDate}" Width="110"/>
+                                            <DataGridTextColumn Header="玩家" Binding="{Binding Nickname}" Width="95"/>
+                                            <DataGridTextColumn Header="押注规格" Binding="{Binding SpecDisplay}" Width="96"/>
+                                            <DataGridTextColumn Header="总投注" Binding="{Binding FormattedBet}" Width="82"/>
+                                            <DataGridTextColumn Header="中奖派彩" Binding="{Binding FormattedWin}" Width="85">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="玩家净值" Binding="{Binding FormattedNet}" Width="85">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{Binding NetColor}"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="开奖结果" Binding="{Binding JackpotBadge}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </Grid>
 
                     <!-- ==================== 5. 跑马灯与公告 (Broadcast) ==================== -->

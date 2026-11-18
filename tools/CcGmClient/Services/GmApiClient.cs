@@ -145,6 +145,12 @@ namespace CcGmClient.Services
             return res.Overview;
         }
 
+        public async Task<SlotsAnalytics> GetSlotsAnalyticsAsync(int limit = 60)
+        {
+            var res = await SendAsync<SlotsAnalyticsResponse>(HttpMethod.Get, $"/api/admin/slots/analytics?limit={limit}");
+            return res.Analytics ?? new SlotsAnalytics();
+        }
+
         // ---------- 2. 玩家管控 ----------
         public async Task<List<PlayerItem>> GetPlayersAsync(string q = "")
         {

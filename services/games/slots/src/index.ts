@@ -11,8 +11,7 @@ export type SlotSymbol =
   | 'MELON'
   | 'GRAPE'
   | 'ORANGE'
-  | 'CHERRY'
-  | 'SCATTER';
+  | 'CHERRY';
 
 export interface PaylineWin {
   lineIndex: number;
@@ -31,7 +30,6 @@ export const PAYTABLE: Record<SlotSymbol, Record<number, number>> = {
   ORANGE: { 3: 5, 4: 15, 5: 60 },
   CHERRY: { 2: 2, 3: 5, 4: 10, 5: 40 },
   WILD: { 3: 50, 4: 250, 5: 1500 },
-  SCATTER: { 3: 5, 4: 20, 5: 100 },
 };
 
 export const PAYLINES: number[][] = [
@@ -56,7 +54,6 @@ const WEIGHTED_REEL: SlotSymbol[] = [
   'DIAMOND', 'DIAMOND',
   'SEVEN', 'SEVEN',
   'WILD',
-  'SCATTER',
 ];
 
 interface SpinResult {
@@ -65,7 +62,6 @@ interface SpinResult {
   totalBet: number;
   totalWin: number;
   wins: PaylineWin[];
-  scatterCount: number;
   jackpotHit: boolean;
 }
 
@@ -160,7 +156,7 @@ export class SlotsPlugin extends BaseGamePlugin {
 
       // 如果首张是 WILD，寻找第一个非 WILD 符号
       for (const s of symbolsOnLine) {
-        if (s !== 'WILD' && s !== 'SCATTER') {
+        if (s !== 'WILD') {
           matchSymbol = s;
           break;
         }
@@ -185,20 +181,7 @@ export class SlotsPlugin extends BaseGamePlugin {
       }
     }
 
-    // 检查 Scatter (全盘分散奖励)
-    let scatterCount = 0;
-    for (let r = 0; r < 5; r++) {
-      for (let row = 0; row < 3; row++) {
-        if (grid[r]![row] === 'SCATTER') scatterCount++;
-      }
-    }
-    let scatterWin = 0;
-    if (scatterCount >= 3) {
-      const mult = PAYTABLE.SCATTER[scatterCount] ?? 5;
-      scatterWin = totalBet * mult;
-    }
-
-    const totalWin = lineWinTotal + scatterWin;
+    const totalWin = lineWinTotal;
     const netDelta = totalWin - totalBet;
 
     // 累积奖池贡献
@@ -210,7 +193,6 @@ export class SlotsPlugin extends BaseGamePlugin {
       totalBet,
       totalWin,
       wins,
-      scatterCount,
       jackpotHit: totalWin > totalBet * 50,
     };
 

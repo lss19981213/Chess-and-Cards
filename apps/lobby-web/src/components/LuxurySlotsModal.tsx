@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { User } from '../api';
+import { api, type SlotsSpinResponse, type User } from '../api';
 import { audio } from '../audio';
 import { Chip } from './Chip';
 
 interface Props {
   user: User;
   onBalanceChange: (newBalance: number) => void;
+  onUserUpdate?: (patch: Partial<User>) => void;
   onClose: () => void;
 }
 
@@ -17,19 +18,19 @@ interface SymbolDef {
   payout4: number;
   payout3: number;
   isWild?: boolean;
-  isScatter?: boolean;
 }
 
+/** 与服务端 slots-engine.ts 保持完全一致（无免费旋转/Scatter 机制） */
 const SYMBOLS: SymbolDef[] = [
-  { id: '777', name: '777至尊大奖', icon: '🎰', payout5: 500, payout4: 150, payout3: 50 },
-  { id: 'wild', name: '钻石百搭', icon: '💎', payout5: 300, payout4: 100, payout3: 30, isWild: true },
-  { id: 'scatter', name: '免费夺宝星', icon: '⭐', payout5: 200, payout4: 50, payout3: 20, isScatter: true },
-  { id: 'gold', name: '金条金砖', icon: '🪙', payout5: 150, payout4: 40, payout3: 15 },
-  { id: 'bell', name: '自由之钟', icon: '🔔', payout5: 100, payout4: 30, payout3: 10 },
-  { id: 'watermelon', name: '好运西瓜', icon: '🍉', payout5: 60, payout4: 20, payout3: 8 },
-  { id: 'grape', name: '幸运葡萄', icon: '🍇', payout5: 40, payout4: 15, payout3: 5 },
-  { id: 'cherry', name: '红火樱桃', icon: '🍒', payout5: 25, payout4: 10, payout3: 3 },
-  { id: 'horseshoe', name: '幸运马蹄', icon: '🧲', payout5: 15, payout4: 6, payout3: 2 },
+  { id: '777', name: '777至尊大奖', icon: '🎰', payout5: 600, payout4: 185, payout3: 56 },
+  { id: 'wild', name: '钻石百搭', icon: '💎', payout5: 420, payout4: 125, payout3: 40, isWild: true },
+  { id: 'star', name: '黄金幸运星', icon: '⭐', payout5: 270, payout4: 80, payout3: 28 },
+  { id: 'gold', name: '金条金砖', icon: '🪙', payout5: 200, payout4: 60, payout3: 22 },
+  { id: 'bell', name: '自由之钟', icon: '🔔', payout5: 140, payout4: 45, payout3: 18 },
+  { id: 'watermelon', name: '好运西瓜', icon: '🍉', payout5: 100, payout4: 32, payout3: 14 },
+  { id: 'grape', name: '幸运葡萄', icon: '🍇', payout5: 75, payout4: 25, payout3: 11 },
+  { id: 'cherry', name: '红火樱桃', icon: '🍒', payout5: 55, payout4: 20, payout3: 9 },
+  { id: 'horseshoe', name: '幸运马蹄', icon: '🧲', payout5: 40, payout4: 15, payout3: 6 },
 ];
 
 const PAYLINES = [
@@ -62,11 +63,11 @@ const PAYLINES = [
 
 const BET_OPTIONS = [10, 50, 100, 500, 1000, 5000];
 
-export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
+export function LuxurySlotsModal({ user, onBalanceChange, onUserUpdate, onClose }: Props) {
   const [reels, setReels] = useState<string[][]>([
     ['777', 'bell', 'cherry'],
     ['wild', 'gold', 'grape'],
-    ['scatter', '777', 'bell'],
+    ['star', '777', 'bell'],
     ['gold', 'watermelon', 'cherry'],
     ['bell', 'horseshoe', '777'],
   ]);
@@ -76,15 +77,26 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
   const [betPerLine, setBetPerLine] = useState(50);
   const [activeLines, setActiveLines] = useState(25);
   const [lastWin, setLastWin] = useState(0);
+  const [lastXpGain, setLastXpGain] = useState(0);
+  const [levelUpBanner, setLevelUpBanner] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [winningLines, setWinningLines] = useState<number[]>([]);
-  const [freeSpinsLeft, setFreeSpinsLeft] = useState(0);
   const [jackpotPool, setJackpotPool] = useState(888888);
   const [celebration, setCelebration] = useState<'normal' | 'big' | 'jackpot' | null>(null);
   const [coinParticles, setCoinParticles] = useState<{ id: number; left: number; delay: number }[]>([]);
 
-  const totalBet = freeSpinsLeft > 0 ? 0 : betPerLine * activeLines;
+  const timersRef = useRef<number[]>([]);
+  const spinAudioTimerRef = useRef<number | null>(null);
+  const pendingSettlementRef = useRef<SlotsSpinResponse | null>(null);
+  const onBalanceChangeRef = useRef(onBalanceChange);
+  const onUserUpdateRef = useRef(onUserUpdate);
 
-  // 定时微涨 Jackpot
+  onBalanceChangeRef.current = onBalanceChange;
+  onUserUpdateRef.current = onUserUpdate;
+
+  const totalBet = betPerLine * activeLines;
+
+  // 定时微涨 Jackpot 展示值
   useEffect(() => {
     const timer = window.setInterval(() => {
       setJackpotPool((prev) => prev + Math.floor(Math.random() * 8) + 1);
@@ -92,59 +104,91 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
     return () => window.clearInterval(timer);
   }, []);
 
-  const getRandomSymbol = () => {
-    const r = Math.random();
-    if (r < 0.04) return '777';
-    if (r < 0.09) return 'wild';
-    if (r < 0.15) return 'scatter';
-    if (r < 0.25) return 'gold';
-    if (r < 0.38) return 'bell';
-    if (r < 0.52) return 'watermelon';
-    if (r < 0.67) return 'grape';
-    if (r < 0.83) return 'cherry';
-    return 'horseshoe';
+  // 组件卸载时清理定时器，并确保服务端已结算的数据立刻同步到主界面
+  useEffect(() => {
+    return () => {
+      for (const id of timersRef.current) window.clearTimeout(id);
+      timersRef.current = [];
+      if (spinAudioTimerRef.current !== null) {
+        window.clearInterval(spinAudioTimerRef.current);
+        spinAudioTimerRef.current = null;
+      }
+      const pending = pendingSettlementRef.current;
+      if (pending) {
+        pendingSettlementRef.current = null;
+        onBalanceChangeRef.current(pending.balance);
+        onUserUpdateRef.current?.({
+          balance: pending.balance,
+          level: pending.level,
+          xp: pending.xp,
+          rewardedLevel: pending.rewardedLevel,
+          totalTurnover: pending.totalTurnover,
+        });
+      }
+    };
+  }, []);
+
+  const syncUserFromSpin = (res: SlotsSpinResponse) => {
+    pendingSettlementRef.current = null;
+    onBalanceChangeRef.current(res.balance);
+    onUserUpdateRef.current?.({
+      balance: res.balance,
+      level: res.level,
+      xp: res.xp,
+      rewardedLevel: res.rewardedLevel,
+      totalTurnover: res.totalTurnover,
+    });
   };
 
-  const handleSpin = () => {
+  const handleSpin = async () => {
     if (spinning) return;
-    if (freeSpinsLeft === 0 && user.balance < totalBet) {
+    if (user.balance < totalBet) {
       audio.play('alert');
+      setErrorMsg('筹码不足，请先降低押注或前往福利中心领取救济金');
       return;
     }
 
-    // 扣除押注或消耗免费次数
-    if (freeSpinsLeft > 0) {
-      setFreeSpinsLeft((prev) => Math.max(0, prev - 1));
-      audio.play('shunzi');
-    } else {
-      onBalanceChange(user.balance - totalBet);
-      audio.play('chip_clack');
-    }
-
+    setErrorMsg(null);
+    setLevelUpBanner(null);
     setSpinning(true);
     setCelebration(null);
     setWinningLines([]);
     setLastWin(0);
     setCoinParticles([]);
     setReelSpinState([true, true, true, true, true]);
+    audio.play('chip_clack');
+
+    // 先由后端权威扣款、计算开奖、入账流水、累计经验
+    let res: SlotsSpinResponse;
+    try {
+      res = await api.spinSlots(betPerLine, activeLines);
+    } catch (err) {
+      setSpinning(false);
+      setReelSpinState([false, false, false, false, false]);
+      audio.play('alert');
+      setErrorMsg(err instanceof Error ? err.message : '摇奖结算失败，请重试');
+      return;
+    }
+
+    // 后端已原子结算，暂存并在动画结束后同步（若中途关闭弹窗也会在 unmount 时同步）
+    pendingSettlementRef.current = res;
+    // 动画期间先展示扣减押注后的筹码，待滚轮停稳后再弹出赢取派彩
+    onBalanceChange(Math.max(0, res.balance - res.winAmount));
 
     // 播放滚轮声
-    const spinAudioTimer = window.setInterval(() => {
+    if (spinAudioTimerRef.current !== null) {
+      window.clearInterval(spinAudioTimerRef.current);
+    }
+    spinAudioTimerRef.current = window.setInterval(() => {
       audio.play('slot_spin');
     }, 120);
 
-    // 预先生成最终 5x3 网格
-    const finalGrid: string[][] = [];
-    for (let col = 0; col < 5; col++) {
-      finalGrid.push([getRandomSymbol(), getRandomSymbol(), getRandomSymbol()]);
-    }
-
-    // 依次停止各列滚轮
+    // 依次停止各列滚轮至服务端返回的最终网格
     for (let c = 0; c < 5; c++) {
-      window.setTimeout(() => {
+      const stopTimer = window.setTimeout(() => {
         setReels((prev) => {
           const next = [...prev];
-          next[c] = finalGrid[c]!;
+          next[c] = res.reels[c] ?? prev[c]!;
           return next;
         });
         setReelSpinState((prev) => {
@@ -155,88 +199,44 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
         audio.play('slot_stop');
 
         if (c === 4) {
-          window.clearInterval(spinAudioTimer);
-          window.setTimeout(() => {
-            evaluateResult(finalGrid);
+          if (spinAudioTimerRef.current !== null) {
+            window.clearInterval(spinAudioTimerRef.current);
+            spinAudioTimerRef.current = null;
+          }
+          const revealTimer = window.setTimeout(() => {
+            revealResult(res);
           }, 200);
+          timersRef.current.push(revealTimer);
         }
-      }, 600 + c * 250);
+      }, 550 + c * 230);
+      timersRef.current.push(stopTimer);
     }
   };
 
-  const evaluateResult = (grid: string[][]) => {
+  const revealResult = (res: SlotsSpinResponse) => {
     setSpinning(false);
+    syncUserFromSpin(res);
+    setLastXpGain(res.totalBet);
 
-    let totalWin = 0;
-    const hitLines: number[] = [];
-    let scatterCount = 0;
-    let hit777Count = 0;
-
-    // 统计 Scatter
-    for (let col = 0; col < 5; col++) {
-      for (let row = 0; row < 3; row++) {
-        if (grid[col]![row] === 'scatter') scatterCount++;
-        if (grid[col]![row] === '777') hit777Count++;
-      }
+    if (res.levelsGained > 0) {
+      setLevelUpBanner(`🎉 恭喜升级至 Lv.${res.level}！快去个人中心领取升级筹码奖励！`);
     }
 
-    // 检查各条激活线
-    for (let l = 0; l < activeLines; l++) {
-      const linePattern = PAYLINES[l]!;
-      const lineSymbols = [
-        grid[0]![linePattern[0]!]!,
-        grid[1]![linePattern[1]!]!,
-        grid[2]![linePattern[2]!]!,
-        grid[3]![linePattern[3]!]!,
-        grid[4]![linePattern[4]!]!,
-      ];
+    if (res.winAmount > 0) {
+      setLastWin(res.winAmount);
+      setWinningLines(res.winningLines);
 
-      // 计算匹配
-      const firstNonWild = lineSymbols.find((s) => s !== 'wild' && s !== 'scatter') || 'wild';
-      let matchCount = 0;
-      for (const s of lineSymbols) {
-        if (s === firstNonWild || s === 'wild') matchCount++;
-        else break;
-      }
-
-      if (matchCount >= 3) {
-        const symDef = SYMBOLS.find((s) => s.id === firstNonWild);
-        if (symDef) {
-          const mult =
-            matchCount === 5 ? symDef.payout5 : matchCount === 4 ? symDef.payout4 : symDef.payout3;
-          const lineWin = mult * betPerLine * (freeSpinsLeft > 0 ? 3 : 1);
-          totalWin += lineWin;
-          hitLines.push(l);
-        }
-      }
-    }
-
-    // Scatter 额外奖励
-    if (scatterCount >= 3) {
-      const freeGained = scatterCount === 5 ? 20 : scatterCount === 4 ? 15 : 10;
-      setFreeSpinsLeft((prev) => prev + freeGained);
-      totalWin += betPerLine * activeLines * (scatterCount === 5 ? 50 : scatterCount === 4 ? 20 : 5);
-      audio.play('shunzi');
-    }
-
-    // 结算加钱与庆典
-    if (totalWin > 0) {
-      setLastWin(totalWin);
-      setWinningLines(hitLines);
-      onBalanceChange(user.balance + totalWin);
-
-      // 触发金币爆散动效
-      const particles = Array.from({ length: 30 }).map((_, i) => ({
+      const particles = Array.from({ length: res.isJackpot ? 40 : 28 }).map((_, i) => ({
         id: Date.now() + i,
         left: Math.random() * 90 + 5,
         delay: Math.random() * 0.5,
       }));
       setCoinParticles(particles);
 
-      if (hit777Count >= 5 || totalWin >= totalBet * 50) {
+      if (res.isJackpot) {
         setCelebration('jackpot');
         audio.play('slot_jackpot');
-      } else if (totalWin >= totalBet * 10) {
+      } else if (res.winAmount >= res.totalBet * 5) {
         setCelebration('big');
         audio.play('jackpot');
       } else {
@@ -244,7 +244,6 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
         audio.play('slot_win');
       }
     }
-    // 严格禁止任何自动循环旋转，必须玩家手动点击！
   };
 
   return (
@@ -277,10 +276,15 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
           </button>
         </div>
 
-        {/* 免费旋转提示横幅 */}
-        {freeSpinsLeft > 0 && (
+        {/* 异常提示 / 升级横幅 */}
+        {errorMsg && (
+          <div className="free-spins-alert-bar" style={{ background: 'linear-gradient(90deg,#7f1d1d,#b91c1c)' }}>
+            ⚠️ {errorMsg}
+          </div>
+        )}
+        {levelUpBanner && (
           <div className="free-spins-alert-bar">
-            🎉 豪华免费旋转模式中！剩余 <b>{freeSpinsLeft}</b> 次 (全线奖金 3 倍！)
+            {levelUpBanner}
           </div>
         )}
 
@@ -298,7 +302,7 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
                     const sym = SYMBOLS.find((s) => s.id === symId) || SYMBOLS[0]!;
                     const isWinCell =
                       winningLines.length > 0 &&
-                      winningLines.some((l) => PAYLINES[l]![colIdx] === rowIdx);
+                      winningLines.some((l) => PAYLINES[l]?.[colIdx] === rowIdx);
                     return (
                       <div
                         key={rowIdx}
@@ -320,18 +324,22 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
               <div className="win-popup-card">
                 <span className="win-stars">✨ 🌟 ✨</span>
                 <h2 className="win-title-text">
-                  {celebration === 'jackpot' ? '🎆 SUPER JACKPOT 🎆' : '🎉 BIG WIN 🎉'}
+                  {celebration === 'jackpot'
+                    ? '🎆 SUPER JACKPOT 🎆'
+                    : celebration === 'big'
+                      ? '🎉 BIG WIN 🎉'
+                      : '✨ NICE WIN ✨'}
                 </h2>
                 <div className="win-coins-count">
                   +<b>{lastWin.toLocaleString()}</b>
                 </div>
-                <span className="win-congrats-sub">恭喜斩获巨额财富！</span>
+                <span className="win-congrats-sub">已实时入账并计入流水经验！</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* 状态指示栏：中奖金额与线数 */}
+        {/* 状态指示栏：中奖金额、经验与实时筹码 */}
         <div className="slots-status-bar">
           <div className="status-metric">
             <span className="metric-label">激活中奖线:</span>
@@ -347,6 +355,13 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
               ) : (
                 '--'
               )}
+            </span>
+          </div>
+          <div className="status-metric">
+            <span className="metric-label">流水经验:</span>
+            <span className="metric-val" style={{ color: '#fbbf24' }}>
+              Lv.{user.level ?? 1}
+              {lastXpGain > 0 ? ` (+${lastXpGain.toLocaleString()} XP)` : ''}
             </span>
           </div>
           <div className="status-metric">
@@ -429,22 +444,15 @@ export function LuxurySlotsModal({ user, onBalanceChange, onClose }: Props) {
             🔥 最大下注
           </button>
 
-          {/* 免费旋转状态指示（严禁自动连转，必须手动点击） */}
-          {freeSpinsLeft > 0 && (
-            <div className="slots-freespin-pill animate-pulse">
-              🎁 免费旋转剩余 <b>{freeSpinsLeft}</b> 次
-            </div>
-          )}
-
-          {/* 核心拉霸摇杆/SPIN主按钮（纯手动点击摇奖） */}
+          {/* 核心拉霸摇杆/SPIN主按钮（纯手动点击，无免费摇奖，服务端权威结算） */}
           <button
             type="button"
-            className={`btn-slots-spin ${spinning ? 'is-spinning' : ''} ${freeSpinsLeft > 0 ? 'is-freespin' : ''}`}
-            disabled={spinning || (freeSpinsLeft === 0 && user.balance < totalBet)}
+            className={`btn-slots-spin ${spinning ? 'is-spinning' : ''}`}
+            disabled={spinning || user.balance < totalBet}
             onClick={handleSpin}
           >
-            <span className="spin-text">{spinning ? 'ROLLING…' : freeSpinsLeft > 0 ? '免费 SPIN' : 'SPIN'}</span>
-            <span className="spin-sub">{freeSpinsLeft > 0 ? '免扣筹码 · 手动点击' : '手动摇奖'}</span>
+            <span className="spin-text">{spinning ? 'ROLLING…' : 'SPIN'}</span>
+            <span className="spin-sub">手动摇奖 · 计入经验</span>
           </button>
         </div>
 

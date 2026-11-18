@@ -11,8 +11,7 @@ type SlotSymbol =
   | 'MELON'
   | 'GRAPE'
   | 'ORANGE'
-  | 'CHERRY'
-  | 'SCATTER';
+  | 'CHERRY';
 
 interface PaylineWin {
   lineIndex: number;
@@ -27,7 +26,6 @@ interface SpinResult {
   totalBet: number;
   totalWin: number;
   wins: PaylineWin[];
-  scatterCount: number;
   jackpotHit: boolean;
 }
 
@@ -57,7 +55,6 @@ const SYMBOL_DISPLAY: Record<SlotSymbol, { icon: string; label: string; color: s
   GRAPE: { icon: '🍇', label: '葡萄', color: '#8b5cf6' },
   ORANGE: { icon: '🍊', label: '橙子', color: '#f97316' },
   CHERRY: { icon: '🍒', label: '樱桃', color: '#ec4899' },
-  SCATTER: { icon: '🪙', label: '财神金币', color: '#fbbf24' },
 };
 
 const BET_PRESETS = [10, 50, 100, 500, 1000, 5000, 10000];

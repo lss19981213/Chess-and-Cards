@@ -99,6 +99,15 @@ export function registerAdminAndInternalRoutes(
     return { overview };
   });
 
+  // 老虎机经营数据总览（今日/累计营收、RTP、热门玩家排行、最近摇奖记录）
+  app.get('/api/admin/slots/analytics', async (req) => {
+    requireAdmin(req);
+    const query = req.query as { limit?: string };
+    const limit = Math.min(Math.max(Number(query.limit ?? 50) || 50, 1), 200);
+    const analytics = await repo.getSlotsAnalytics(limit);
+    return { analytics };
+  });
+
   app.get('/api/admin/players', async (req) => {
     requireAdmin(req);
     const query = req.query as { q?: string };

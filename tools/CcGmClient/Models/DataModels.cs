@@ -604,4 +604,161 @@ namespace CcGmClient.Models
             }
         }
     }
+
+    // ---------- 老虎机经营数据模型 ----------
+    public class SlotsAnalyticsResponse
+    {
+        [JsonPropertyName("analytics")]
+        public SlotsAnalytics? Analytics { get; set; }
+    }
+
+    public class SlotsAnalytics
+    {
+        [JsonPropertyName("today")]
+        public SlotsSummaryMetrics Today { get; set; } = new();
+
+        [JsonPropertyName("total")]
+        public SlotsSummaryMetrics Total { get; set; } = new();
+
+        [JsonPropertyName("topPlayers")]
+        public List<SlotsPlayerStatItem> TopPlayers { get; set; } = new();
+
+        [JsonPropertyName("recentSpins")]
+        public List<SlotsSpinLogItem> RecentSpins { get; set; } = new();
+    }
+
+    public class SlotsSummaryMetrics
+    {
+        [JsonPropertyName("spins")]
+        public long Spins { get; set; }
+
+        [JsonPropertyName("players")]
+        public long Players { get; set; }
+
+        [JsonPropertyName("totalBet")]
+        public long TotalBet { get; set; }
+
+        [JsonPropertyName("totalPayout")]
+        public long TotalPayout { get; set; }
+
+        [JsonPropertyName("houseProfit")]
+        public long HouseProfit { get; set; }
+
+        [JsonPropertyName("rtpPercent")]
+        public double RtpPercent { get; set; }
+
+        [JsonPropertyName("jackpots")]
+        public long Jackpots { get; set; }
+
+        [JsonPropertyName("maxSingleWin")]
+        public long MaxSingleWin { get; set; }
+    }
+
+    public class SlotsPlayerStatItem
+    {
+        [JsonPropertyName("userId")]
+        public string UserId { get; set; } = "";
+
+        [JsonPropertyName("nickname")]
+        public string Nickname { get; set; } = "";
+
+        [JsonPropertyName("spins")]
+        public long Spins { get; set; }
+
+        [JsonPropertyName("totalBet")]
+        public long TotalBet { get; set; }
+
+        [JsonPropertyName("totalWin")]
+        public long TotalWin { get; set; }
+
+        [JsonPropertyName("netProfit")]
+        public long NetProfit { get; set; }
+
+        [JsonPropertyName("maxWin")]
+        public long MaxWin { get; set; }
+
+        [JsonPropertyName("jackpots")]
+        public long Jackpots { get; set; }
+
+        [JsonIgnore]
+        public string FormattedBet => $"{TotalBet:N0}";
+        [JsonIgnore]
+        public string FormattedWin => $"{TotalWin:N0}";
+        [JsonIgnore]
+        public string FormattedNet => NetProfit > 0 ? $"+{NetProfit:N0}" : $"{NetProfit:N0}";
+        [JsonIgnore]
+        public string FormattedMaxWin => $"{MaxWin:N0}";
+        [JsonIgnore]
+        public string NetColor => NetProfit > 0 ? "#FF5E62" : (NetProfit < 0 ? "#38D39F" : "#8E9DB5");
+    }
+
+    public class SlotsSpinLogItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("userId")]
+        public string UserId { get; set; } = "";
+
+        [JsonPropertyName("nickname")]
+        public string Nickname { get; set; } = "";
+
+        [JsonPropertyName("betPerLine")]
+        public int BetPerLine { get; set; }
+
+        [JsonPropertyName("lines")]
+        public int Lines { get; set; }
+
+        [JsonPropertyName("totalBet")]
+        public long TotalBet { get; set; }
+
+        [JsonPropertyName("winAmount")]
+        public long WinAmount { get; set; }
+
+        [JsonPropertyName("netDelta")]
+        public long NetDelta { get; set; }
+
+        [JsonPropertyName("isJackpot")]
+        public bool IsJackpot { get; set; }
+
+        [JsonPropertyName("winningLines")]
+        public int WinningLines { get; set; }
+
+        [JsonPropertyName("createdAt")]
+        public JsonElement? RawCreatedAt { get; set; }
+
+        [JsonIgnore]
+        public string SpecDisplay => $"{BetPerLine:N0} × {Lines}线";
+        [JsonIgnore]
+        public string FormattedBet => $"{TotalBet:N0}";
+        [JsonIgnore]
+        public string FormattedWin => WinAmount > 0 ? $"+{WinAmount:N0}" : "0";
+        [JsonIgnore]
+        public string FormattedNet => NetDelta > 0 ? $"+{NetDelta:N0}" : $"{NetDelta:N0}";
+        [JsonIgnore]
+        public string JackpotBadge => IsJackpot ? "🎆 SUPER JACKPOT" : (WinningLines > 0 ? $"中 {WinningLines} 线" : "未中奖");
+        [JsonIgnore]
+        public string NetColor => NetDelta > 0 ? "#FF5E62" : (NetDelta < 0 ? "#38D39F" : "#8E9DB5");
+
+        [JsonIgnore]
+        public string DisplayDate
+        {
+            get
+            {
+                if (RawCreatedAt.HasValue)
+                {
+                    var elem = RawCreatedAt.Value;
+                    if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
+                    {
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("MM-dd HH:mm:ss");
+                    }
+                    if (elem.ValueKind == JsonValueKind.String && DateTime.TryParse(elem.GetString(), out var dt))
+                    {
+                        return dt.ToLocalTime().ToString("MM-dd HH:mm:ss");
+                    }
+                }
+                return "-";
+            }
+        }
+    }
 }

@@ -17,9 +17,13 @@ import type {
   RegisterResult,
   Repository,
   SettlementResult,
+  SlotsAnalytics,
+  SlotsSpinInput,
+  SlotsSpinOutcome,
   TaskProgressRow,
   UserRecord,
 } from './types';
+import { getSlotsAnalytics, playSlotsSpin } from './pg/slots';
 import {
   adjustBet,
   applySettlement,
@@ -344,5 +348,13 @@ export class PostgresRepository implements Repository {
 
   claimLevelReward(userId: string) {
     return claimLevelReward(this.pool, userId);
+  }
+
+  playSlotsSpin(input: SlotsSpinInput): Promise<SlotsSpinOutcome> {
+    return playSlotsSpin(this.pool, input);
+  }
+
+  getSlotsAnalytics(limit?: number): Promise<SlotsAnalytics> {
+    return getSlotsAnalytics(this.pool, limit);
   }
 }

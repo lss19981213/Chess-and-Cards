@@ -34,6 +34,8 @@ namespace CcGmClient
 
             CmbServerUrl.ItemsSource = new List<string>
             {
+                "http://chess.fantasyclaw.top",
+                "http://chess.fantasyclaw.top/lobby",
                 "http://82.157.54.179",
                 "http://82.157.54.179/lobby",
                 "http://127.0.0.1:8080",
@@ -188,6 +190,7 @@ namespace CcGmClient
             ViewDashboard.Visibility = tag == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
             ViewPlayers.Visibility = tag == "players" ? Visibility.Visible : Visibility.Collapsed;
             ViewRooms.Visibility = tag == "rooms" ? Visibility.Visible : Visibility.Collapsed;
+            ViewSlots.Visibility = tag == "slots" ? Visibility.Visible : Visibility.Collapsed;
             ViewMailbox.Visibility = tag == "mailbox" ? Visibility.Visible : Visibility.Collapsed;
             ViewBroadcast.Visibility = tag == "broadcast" ? Visibility.Visible : Visibility.Collapsed;
             ViewSecurity.Visibility = tag == "security" ? Visibility.Visible : Visibility.Collapsed;
@@ -198,6 +201,7 @@ namespace CcGmClient
                 "dashboard" => "📊 大盘总览与经济流动",
                 "players" => "👥 玩家管控与流水审计",
                 "rooms" => "🎲 房间实时透视与博弈管控",
+                "slots" => "🎰 老虎机经营数据与实时流水",
                 "mailbox" => "📬 全服邮箱发放与筹码直赠",
                 "broadcast" => "📢 即时跑马灯与系统公告",
                 "security" => "🛡️ 安全风控机制与解限",
@@ -233,6 +237,9 @@ namespace CcGmClient
                         break;
                     case "rooms":
                         await RefreshRoomsAsync();
+                        break;
+                    case "slots":
+                        await RefreshSlotsAnalyticsAsync();
                         break;
                     case "mailbox":
                         await RefreshMailsAsync();
@@ -419,6 +426,42 @@ namespace CcGmClient
             {
                 SetStatus($"更新审计流失败: {ex.Message}");
             }
+        }
+
+        // ==================== 1.5 老虎机经营数据 (Slots Analytics) ====================
+        private async Task RefreshSlotsAnalyticsAsync()
+        {
+            var data = await _api.GetSlotsAnalyticsAsync(60);
+            var today = data.Today;
+            var total = data.Total;
+
+            KpiSlotsTodaySpins.Text = today.Spins.ToString("N0");
+            KpiSlotsTodayPlayers.Text = $"今日活跃玩家: {today.Players:N0} 人";
+            KpiSlotsTodayBet.Text = today.TotalBet.ToString("N0");
+            KpiSlotsTodayPayout.Text = today.TotalPayout.ToString("N0");
+            KpiSlotsTodayMaxWin.Text = $"今日最高单笔: {today.MaxSingleWin:N0}";
+            KpiSlotsTodayProfit.Text = today.HouseProfit >= 0 ? $"+{today.HouseProfit:N0}" : $"{today.HouseProfit:N0}";
+            KpiSlotsTodayProfit.Foreground = (SolidColorBrush)FindResource(today.HouseProfit >= 0 ? "BrushGreen" : "BrushRed");
+            KpiSlotsTodayRtp.Text = $"{today.RtpPercent:F2}%";
+            KpiSlotsTodayJackpots.Text = $"今日爆出大奖: {today.Jackpots:N0} 次";
+
+            KpiSlotsTotalSpins.Text = total.Spins.ToString("N0");
+            KpiSlotsTotalPlayers.Text = $"累计参与玩家: {total.Players:N0} 人";
+            KpiSlotsTotalBet.Text = total.TotalBet.ToString("N0");
+            KpiSlotsTotalPayout.Text = total.TotalPayout.ToString("N0");
+            KpiSlotsTotalMaxWin.Text = $"历史单笔最高: {total.MaxSingleWin:N0}";
+            KpiSlotsTotalProfit.Text = total.HouseProfit >= 0 ? $"+{total.HouseProfit:N0}" : $"{total.HouseProfit:N0}";
+            KpiSlotsTotalProfit.Foreground = (SolidColorBrush)FindResource(total.HouseProfit >= 0 ? "BrushGreen" : "BrushRed");
+            KpiSlotsTotalRtp.Text = $"{total.RtpPercent:F2}%";
+            KpiSlotsTotalJackpots.Text = $"历史大奖总计: {total.Jackpots:N0} 次";
+
+            DgSlotsPlayers.ItemsSource = data.TopPlayers;
+            DgSlotsRecent.ItemsSource = data.RecentSpins;
+        }
+
+        private async void BtnRefreshSlots_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshCurrentViewAsync();
         }
 
         // ==================== 2. 玩家管控与流水 (Players) ====================

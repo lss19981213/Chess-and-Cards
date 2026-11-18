@@ -145,6 +145,74 @@ export interface EconomyOverview {
   todayGmGrant: number;
 }
 
+export interface SlotsSpinInput {
+  spinId: string;
+  userId: string;
+  betPerLine: number;
+  lines: number;
+  totalBet: number;
+  winAmount: number;
+  winningLines: number[];
+  isJackpot: boolean;
+  reels: string[][];
+}
+
+export interface SlotsSpinOutcome {
+  spinId: string;
+  balance: number;
+  totalBet: number;
+  winAmount: number;
+  netDelta: number;
+  level: number;
+  xp: string;
+  rewardedLevel: number;
+  totalTurnover: string;
+  levelsGained: number;
+}
+
+export interface SlotsSummaryMetrics {
+  spins: number;
+  players: number;
+  totalBet: number;
+  totalPayout: number;
+  houseProfit: number;
+  rtpPercent: number;
+  jackpots: number;
+  maxSingleWin: number;
+}
+
+export interface SlotsPlayerStat {
+  userId: string;
+  nickname: string;
+  spins: number;
+  totalBet: number;
+  totalWin: number;
+  netProfit: number;
+  maxWin: number;
+  jackpots: number;
+}
+
+export interface SlotsSpinLog {
+  id: string;
+  userId: string;
+  nickname: string;
+  betPerLine: number;
+  lines: number;
+  totalBet: number;
+  winAmount: number;
+  netDelta: number;
+  isJackpot: boolean;
+  winningLines: number;
+  createdAt: number;
+}
+
+export interface SlotsAnalytics {
+  today: SlotsSummaryMetrics;
+  total: SlotsSummaryMetrics;
+  topPlayers: SlotsPlayerStat[];
+  recentSpins: SlotsSpinLog[];
+}
+
 export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected';
 
 export interface FriendRequestView {
@@ -309,4 +377,8 @@ export interface Repository {
     level: number;
     rewardedLevel: number;
   }>;
+
+  // ---------- 老虎机服务端权威摇奖与 GM 经营分析 ----------
+  playSlotsSpin(input: SlotsSpinInput): Promise<SlotsSpinOutcome>;
+  getSlotsAnalytics(limit?: number): Promise<SlotsAnalytics>;
 }

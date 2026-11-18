@@ -283,6 +283,12 @@ export const api = {
       rewardedLevel: number;
     }>('/api/level/claim', { method: 'POST', body: '{}' }),
 
+  spinSlots: (betPerLine: number, lines: number) =>
+    request<SlotsSpinResponse>('/api/slots/spin', {
+      method: 'POST',
+      body: JSON.stringify({ betPerLine, lines }),
+    }),
+
   leaderboardRewards: () =>
     request<{ dayKey: string; entries: LeaderboardRewardRow[] }>('/api/leaderboard/rewards'),
 
@@ -417,4 +423,23 @@ export interface FriendRequestView {
   message: string | null;
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: number;
+}
+
+export interface SlotsSpinResponse {
+  ok: boolean;
+  spinId: string;
+  reels: string[][];
+  betPerLine: number;
+  lines: number;
+  totalBet: number;
+  winAmount: number;
+  netDelta: number;
+  winningLines: number[];
+  isJackpot: boolean;
+  balance: number;
+  level: number;
+  xp: string;
+  rewardedLevel: number;
+  totalTurnover: string;
+  levelsGained: number;
 }

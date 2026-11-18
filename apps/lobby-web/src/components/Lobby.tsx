@@ -781,6 +781,9 @@ export function Lobby({
           onBalanceChange={(newBal) => {
             if (onBalanceChange) onBalanceChange(newBal);
           }}
+          onUserUpdate={(patch) => {
+            if (onUserUpdate) onUserUpdate(patch);
+          }}
           onClose={() => setShowSlotsModal(false)}
         />
       )}

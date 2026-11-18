@@ -30,9 +30,16 @@ import type {
   Repository,
   SendMailInput,
   SettlementResult,
+  SlotsAnalytics,
+  SlotsPlayerStat,
+  SlotsSpinInput,
+  SlotsSpinLog,
+  SlotsSpinOutcome,
+  SlotsSummaryMetrics,
   TaskProgressRow,
   UserRecord,
 } from './types';
+import { beijingDayKey } from '../leaderboard';
 
 function avatarUrlFor(userId: string, raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -89,6 +96,19 @@ export class MemoryRepository implements Repository {
   private readonly friendRequests: FriendRequestView[] = [];
   /** 资金流水明细（GM 控制台与账本透视） */
   private readonly ledgerHistory: LedgerRow[] = [];
+  /** 老虎机摇奖经营记录 */
+  private readonly slotsSpins: Array<{
+    id: string;
+    userId: string;
+    betPerLine: number;
+    lines: number;
+    totalBet: number;
+    winAmount: number;
+    netDelta: number;
+    isJackpot: boolean;
+    winningLines: number;
+    createdAt: number;
+  }> = [];
   /** 系统与运营邮件 */
   private readonly mails = new Map<string, MailRecord>();
   /** 玩家邮件阅读与领奖状态：`${mailId}|${userId}` */
@@ -958,6 +978,204 @@ export class MemoryRepository implements Repository {
 
   async deleteAdminMail(mailId: string): Promise<boolean> {
     return this.mails.delete(mailId);
+  }
+
+  // ---------- 老虎机服务端结算与经营分析 ----------
+
+  async playSlotsSpin(input: SlotsSpinInput): Promise<SlotsSpinOutcome> {
+    const current = this.balances.get(input.userId);
+    if (current === undefined || current < input.totalBet) {
+      throw new InsufficientFundsError();
+    }
+
+    const now = Date.now();
+    const balanceAfterBet = current - input.totalBet;
+    const balanceAfter = balanceAfterBet + input.winAmount;
+    const netDelta = input.winAmount - input.totalBet;
+    this.balances.set(input.userId, balanceAfter);
+
+    this.ledgerHistory.unshift({
+      id: randomUUID(),
+      userId: input.userId,
+      currency: 'coin',
+      delta: -input.totalBet,
+      balanceAfter: balanceAfterBet,
+      bizType: 'game_bet',
+      bizId: `slots:${input.spinId}:bet`,
+      createdAt: now,
+    });
+    this.ledgerHistory.unshift({
+      id: randomUUID(),
+      userId: input.userId,
+      currency: 'coin',
+      delta: input.winAmount,
+      balanceAfter,
+      bizType: 'game_settle',
+      bizId: `slots:${input.spinId}:win`,
+      createdAt: now,
+    });
+    if (this.ledgerHistory.length > 5000) this.ledgerHistory.length = 5000;
+
+    this.slotsSpins.unshift({
+      id: input.spinId,
+      userId: input.userId,
+      betPerLine: input.betPerLine,
+      lines: input.lines,
+      totalBet: input.totalBet,
+      winAmount: input.winAmount,
+      netDelta,
+      isJackpot: input.isJackpot,
+      winningLines: input.winningLines.length,
+      createdAt: now,
+    });
+    if (this.slotsSpins.length > 20000) this.slotsSpins.length = 20000;
+
+    this.records.unshift({
+      settlementId: `slots:${input.spinId}`,
+      roomId: 'slots-lobby',
+      gameId: 'slots',
+      round: 1,
+      seed: input.spinId,
+      winners: netDelta > 0 ? [input.userId] : [],
+      entries: [
+        {
+          playerId: input.userId,
+          currency: 'coin',
+          delta: netDelta,
+          reason: input.isJackpot ? 'slots.jackpot' : input.winAmount > 0 ? 'slots.win' : 'slots.spin',
+        },
+      ],
+      finishedAt: now,
+    });
+    if (this.records.length > 1000) this.records.length = 1000;
+
+    const dayKey = periodKeyFor('daily');
+    this.bumpCell(input.userId, 'daily_play', dayKey, 1);
+    this.bumpCell(input.userId, 'game_slots', dayKey, 1);
+    this.bumpCell(input.userId, 'total_play', 'all', 1);
+    if (netDelta > 0) {
+      this.bumpCell(input.userId, 'daily_win', dayKey, 1);
+      this.bumpCell(input.userId, 'total_win', 'all', 1);
+    }
+    if (netDelta >= 500) {
+      this.bumpCell(input.userId, 'daily_bigwin', dayKey, 1);
+    }
+
+    const stat = this.daily.get(input.userId);
+    const todayStat = stat && stat.dayKey === dayKey ? stat : { dayKey, net: 0, rounds: 0 };
+    todayStat.net += netDelta;
+    todayStat.rounds += 1;
+    this.daily.set(input.userId, todayStat);
+
+    const curProfile = this.profiles.get(input.userId) ?? { bio: '', avatar: null };
+    const nextProg = applyXpGain(curProfile.level ?? 1, curProfile.xp ?? '0', input.totalBet);
+    const nextTurnover = (
+      parseBigIntSafe(curProfile.totalTurnover) + BigInt(Math.floor(input.totalBet))
+    ).toString();
+    const rewardedLevel = curProfile.rewardedLevel ?? 1;
+    this.profiles.set(input.userId, {
+      ...curProfile,
+      level: nextProg.level,
+      xp: nextProg.xp,
+      rewardedLevel,
+      totalTurnover: nextTurnover,
+    });
+
+    return {
+      spinId: input.spinId,
+      balance: balanceAfter,
+      totalBet: input.totalBet,
+      winAmount: input.winAmount,
+      netDelta,
+      level: nextProg.level,
+      xp: nextProg.xp,
+      rewardedLevel,
+      totalTurnover: nextTurnover,
+      levelsGained: nextProg.levelsGained,
+    };
+  }
+
+  async getSlotsAnalytics(limit = 50): Promise<SlotsAnalytics> {
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const todayKey = beijingDayKey();
+
+    const calcMetrics = (rows: typeof this.slotsSpins): SlotsSummaryMetrics => {
+      const players = new Set<string>();
+      let totalBet = 0;
+      let totalPayout = 0;
+      let jackpots = 0;
+      let maxSingleWin = 0;
+      for (const r of rows) {
+        players.add(r.userId);
+        totalBet += r.totalBet;
+        totalPayout += r.winAmount;
+        if (r.isJackpot) jackpots += 1;
+        if (r.winAmount > maxSingleWin) maxSingleWin = r.winAmount;
+      }
+      const houseProfit = totalBet - totalPayout;
+      const rtpPercent = totalBet > 0 ? Math.round((totalPayout / totalBet) * 10000) / 100 : 0;
+      return {
+        spins: rows.length,
+        players: players.size,
+        totalBet,
+        totalPayout,
+        houseProfit,
+        rtpPercent,
+        jackpots,
+        maxSingleWin,
+      };
+    };
+
+    const todayRows = this.slotsSpins.filter((r) => beijingDayKey(new Date(r.createdAt)) === todayKey);
+
+    const byPlayer = new Map<string, SlotsPlayerStat>();
+    for (const r of this.slotsSpins) {
+      let entry = byPlayer.get(r.userId);
+      if (!entry) {
+        entry = {
+          userId: r.userId,
+          nickname: this.users.get(r.userId)?.nickname ?? '玩家',
+          spins: 0,
+          totalBet: 0,
+          totalWin: 0,
+          netProfit: 0,
+          maxWin: 0,
+          jackpots: 0,
+        };
+        byPlayer.set(r.userId, entry);
+      }
+      entry.spins += 1;
+      entry.totalBet += r.totalBet;
+      entry.totalWin += r.winAmount;
+      entry.netProfit += r.netDelta;
+      if (r.winAmount > entry.maxWin) entry.maxWin = r.winAmount;
+      if (r.isJackpot) entry.jackpots += 1;
+    }
+
+    const topPlayers = [...byPlayer.values()]
+      .sort((a, b) => b.totalBet - a.totalBet)
+      .slice(0, 30);
+
+    const recentSpins: SlotsSpinLog[] = this.slotsSpins.slice(0, safeLimit).map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      nickname: this.users.get(r.userId)?.nickname ?? '玩家',
+      betPerLine: r.betPerLine,
+      lines: r.lines,
+      totalBet: r.totalBet,
+      winAmount: r.winAmount,
+      netDelta: r.netDelta,
+      isJackpot: r.isJackpot,
+      winningLines: r.winningLines,
+      createdAt: r.createdAt,
+    }));
+
+    return {
+      today: calcMetrics(todayRows),
+      total: calcMetrics(this.slotsSpins),
+      topPlayers,
+      recentSpins,
+    };
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {
