@@ -14459,3 +14459,239 @@ button.secondary:hover:not(:disabled) {
   border-radius: 8px;
   padding: 4px 8px;
 }
+
+
+/* ==================== 全扑克游戏高端大牌面与动效统一规范 ==================== */
+.showdown--pro,
+.card-game-viewport--pro,
+.lobby-game--poker-pro {
+  position: relative;
+}
+
+.showdown-top-hub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.showdown__bar--pro {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(8, 22, 16, 0.88), rgba(15, 23, 42, 0.88));
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.48);
+}
+
+.showdown__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.showdown__tags-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.showdown-look-tag {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+}
+
+.showdown-look-tag.is-looked {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: rgba(251, 191, 36, 0.72);
+  color: #fde047;
+}
+
+.showdown-allin-tag {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #dc2626, #b45309);
+  border: 1px solid #fde047;
+  color: #fff;
+}
+
+.showdown__seat.is-allin {
+  border-color: rgba(239, 68, 68, 0.72) !important;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.35);
+}
+
+.showdown__cards--pro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 6px 0;
+}
+
+.showdown-seat-card {
+  width: clamp(50px, 4.8vw, 66px) !important;
+  min-width: clamp(50px, 4.8vw, 66px) !important;
+  height: clamp(70px, 6.7vw, 92px) !important;
+  border-radius: 7px;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.55));
+}
+
+.showdown__seat-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.showdown__hand-wrap--pro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.showdown__hand-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.showdown-look-btn {
+  padding: 6px 18px !important;
+  font-size: 13.5px !important;
+  font-weight: 900 !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #fbbf24, #d97706) !important;
+  color: #140d02 !important;
+  border: 1px solid #fef08a !important;
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.45) !important;
+}
+
+.showdown__hand--pro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px !important;
+  flex-wrap: wrap;
+}
+
+.showdown-my-card {
+  width: clamp(86px, 8.8vw, 116px) !important;
+  min-width: clamp(86px, 8.8vw, 116px) !important;
+  height: clamp(120px, 12.3vw, 162px) !important;
+  border-radius: 12px;
+  filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.68));
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease;
+}
+
+.showdown-my-card:hover {
+  transform: translateY(-10px) scale(1.05);
+  filter: drop-shadow(0 16px 24px rgba(250, 204, 21, 0.52));
+  z-index: 4;
+}
+
+.showdown-my-card.is-folded {
+  opacity: 0.4;
+  filter: grayscale(0.8) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+.showdown-controls-panel {
+  width: min(96%, 780px);
+  margin: 0 auto;
+}
+
+/* 斗地主 & 跑得快：桌面中心出牌大号高清晰展示 */
+.center-play__cards--pro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.center-play__card-lg {
+  width: clamp(66px, 6.8vw, 88px) !important;
+  min-width: clamp(66px, 6.8vw, 88px) !important;
+  height: clamp(92px, 9.5vw, 123px) !important;
+  border-radius: 9px;
+  margin-left: -20px;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.62));
+  animation: pokerCardPop 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.center-play__card-lg:first-child {
+  margin-left: 0;
+}
+
+/* 牛牛 / 21点 / 百家乐：统一大号奢华扑克展台卡片 */
+.poker-stage-card {
+  width: clamp(76px, 7.8vw, 104px) !important;
+  min-width: clamp(76px, 7.8vw, 104px) !important;
+  height: clamp(106px, 10.9vw, 146px) !important;
+  border-radius: 11px;
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.62));
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), filter 0.2s ease;
+  animation: pokerCardPop 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.poker-stage-card:hover {
+  transform: translateY(-6px) scale(1.04);
+  filter: drop-shadow(0 14px 22px rgba(250, 204, 21, 0.45));
+  z-index: 4;
+}
+
+.bac-card-pro {
+  width: clamp(80px, 8.2vw, 110px) !important;
+  min-width: clamp(80px, 8.2vw, 110px) !important;
+  height: clamp(112px, 11.5vw, 154px) !important;
+}
+
+.bac-hand.is-winner-hand .bac-hand__cards {
+  filter: drop-shadow(0 0 18px rgba(250, 204, 21, 0.72));
+}
+
+.niuniu-cards-row--pro {
+  gap: 10px !important;
+  padding: 6px 0 !important;
+}
+
+.niuniu-door-card.is-win {
+  border-color: #fde047 !important;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.36), rgba(217, 119, 6, 0.24)) !important;
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.65) !important;
+}
+
+.bj-table-cards--pro .bj-row__hand {
+  gap: 10px !important;
+  flex-wrap: wrap;
+}
+
+.bj-row__points.is-bj21 {
+  color: #fde047 !important;
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.8);
+}
+
+@keyframes pokerCardPop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

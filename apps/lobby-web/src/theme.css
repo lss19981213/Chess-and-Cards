@@ -7075,22 +7075,23 @@ html, body, #root {
 }
 
 .hand-cards-rack .pcard {
-  width: 72px !important;
-  height: 100px !important;
+  width: clamp(80px, 8vw, 98px) !important;
+  height: clamp(112px, 11.2vw, 138px) !important;
   flex: 0 0 auto;
-  border-radius: 6px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.62) !important;
+  border-radius: 9px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.65) !important;
   cursor: pointer;
 }
 
 .hand-cards-rack .hand__card.is-selected {
-  transform: translateY(-17px) !important;
+  transform: translateY(-20px) !important;
+  filter: drop-shadow(0 12px 18px rgba(250, 204, 21, 0.55));
 }
 
-/* 操作按钮随牌面高度上移，不再与手牌重叠 */
+/* 操作按钮随大牌面高度上移，不再与手牌重叠 */
 .hand-action-dock-center {
-  bottom: 126px !important;
-  gap: 14px !important;
+  bottom: clamp(136px, 13.8vw, 164px) !important;
+  gap: 12px !important;
 }
 
 /* 26.3 筹码：真实矢量筹码堆叠，替代纯色圆片 */

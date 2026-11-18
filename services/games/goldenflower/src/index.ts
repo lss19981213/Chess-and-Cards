@@ -4,8 +4,9 @@ import { BaseGamePlugin, createPokerDeck, decidePokerBotAction, shuffleWithSeed,
 
 const ANTE = 50;
 const RAISE_UNIT = 100;
-const MAX_RAISES = 5;
-const MAX_RAISE_ADD = Number.MAX_SAFE_INTEGER;
+const MAX_RAISES = 6;
+/** 单次加注/全压上限与平台钱包单笔扣款限额对齐 */
+const MAX_RAISE_ADD = 1_000_000;
 const HAND_SIZE = 3;
 
 interface ResultRow {
@@ -17,6 +18,21 @@ interface ResultRow {
   folded: boolean;
 }
 
+interface ActionTag {
+  type: 'look' | 'fold' | 'check' | 'call' | 'raise' | 'allin';
+  label: string;
+  amount?: number;
+}
+
+interface ActionEvent {
+  seq: number;
+  type: 'deal' | 'look' | 'fold' | 'check' | 'call' | 'raise' | 'allin' | 'showdown';
+  playerId: string;
+  nickname: string;
+  amount?: number;
+  detail?: string;
+}
+
 interface State {
   deck: Card[];
   hands: Map<string, Card[]>;
@@ -24,7 +40,11 @@ interface State {
   roundBet: Map<string, number>;
   folded: Set<string>;
   acted: Set<string>;
+  allIn: Set<string>;
   raises: Map<string, number>;
+  actionTags: Map<string, ActionTag>;
+  actionSeq: number;
+  lastAction: ActionEvent | null;
   currentBet: number;
   turn: string | null;
   dealerIndex: number;
@@ -42,7 +62,11 @@ function emptyState(): State {
     roundBet: new Map(),
     folded: new Set(),
     acted: new Set(),
+    allIn: new Set(),
     raises: new Map(),
+    actionTags: new Map(),
+    actionSeq: 0,
+    lastAction: null,
     currentBet: 0,
     turn: null,
     dealerIndex: 0,
@@ -53,12 +77,15 @@ function emptyState(): State {
   };
 }
 
-/** 翻金花牌型：同花顺 > 金花 > 顺子 > 对子 > 散牌 */
+/** 翻金花牌型：豹子 > 同花顺 > 金花 > 顺子 > 对子 > 散牌 */
 function rankHand(cards: Card[]): { category: number; label: string; high: number } {
+  if (cards.length < 3) return { category: 0, label: '待发牌', high: 0 };
   const ranks = cards.map((c) => c.rank).sort((a, b) => b - a);
   const suits = cards.map((c) => c.suit);
   const sameSuit = suits.every((s) => s === suits[0]);
-  // A 既可当 1 也可当最大，顺子判定按 A-2-3 与 10-J-Q-K-A 两头算
+  if (ranks[0] === ranks[1] && ranks[1] === ranks[2]) {
+    return { category: 6, label: '豹子', high: ranks[0]! };
+  }
   const lows = ranks.map((r) => (r === 14 ? 1 : r)).sort((a, b) => a - b);
   const [l0, l1, l2] = lows as [number, number, number];
   let consecutive = l0 + 1 === l1 && l1 + 1 === l2;
@@ -68,31 +95,51 @@ function rankHand(cards: Card[]): { category: number; label: string; high: numbe
   if (sameSuit && consecutive) return { category: 5, label: '同花顺', high };
   if (sameSuit) return { category: 4, label: '金花', high };
   if (consecutive) return { category: 3, label: '顺子', high };
-  if (ranks[0] === ranks[1] || ranks[1] === ranks[2]) return { category: 2, label: '对子', high };
-  return { category: 1, label: '散牌', high };
+  if (ranks[0] === ranks[1] || ranks[1] === ranks[2]) {
+    const pairRank = ranks[0] === ranks[1] ? ranks[0]! : ranks[1]!;
+    return { category: 2, label: '对子', high: pairRank };
+  }
+  return { category: 1, label: '散牌', high: ranks[0]! };
 }
 
 export class GoldenFlowerPlugin extends BaseGamePlugin {
-
   override readonly meta: GameMeta = {
     gameId: 'goldenflower',
     name: '翻金花',
-    description: '三张牌比大小，同花顺通杀',
+    description: '三张牌比大小，豹子同花顺通杀',
     icon: '🌸',
     minPlayers: 2,
     maxPlayers: 6,
-    version: '1.0.0',
+    version: '1.1.0',
     clientBundle: '',
     tags: ['牌类', '多人', '竞技'],
     category: 'table',
   };
 
-  override readonly commands = ['fold', 'check', 'call', 'raise', 'look'] as const;
+  override readonly commands = ['fold', 'check', 'call', 'raise', 'look', 'allin'] as const;
 
   private state: State = emptyState();
 
   override onRoomCreate(_ctx: RoomContext): void {
     this.state = emptyState();
+  }
+
+  private emitAction(
+    type: ActionEvent['type'],
+    playerId: string,
+    nickname: string,
+    amount?: number,
+    detail?: string,
+  ): void {
+    this.state.actionSeq += 1;
+    this.state.lastAction = {
+      seq: this.state.actionSeq,
+      type,
+      playerId,
+      nickname,
+      ...(amount !== undefined ? { amount } : {}),
+      ...(detail !== undefined ? { detail } : {}),
+    };
   }
 
   override onRoundStart(ctx: RoomContext): void {
@@ -114,6 +161,7 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     }
     this.state.currentBet = ANTE;
     this.state.turn = this.nextAlive(ctx, this.state.dealerIndex);
+    this.emitAction('deal', '', '系统', ANTE, '新局发牌 · 各下底注');
     ctx.markDirty();
   }
 
@@ -121,10 +169,14 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     if (this.state.settled) throw new Error('本局已结束');
     if (this.state.folded.has(playerId)) throw new Error('你已弃牌');
 
+    const actorName = ctx.getPlayer(playerId)?.nickname ?? '玩家';
+
     // 看牌可在任意时刻由存活玩家触发，看牌后下注翻倍（明注）
     if (intent.cmd === 'look') {
       if (this.state.looked.has(playerId)) throw new Error('你已经看过手牌了');
       this.state.looked.add(playerId);
+      this.state.actionTags.set(playerId, { type: 'look', label: '已看牌' });
+      this.emitAction('look', playerId, actorName, undefined, '翻牌偷看');
       ctx.markDirty();
       return;
     }
@@ -146,16 +198,22 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
       case 'fold':
         this.state.folded.add(playerId);
         this.state.acted.add(playerId);
+        this.state.actionTags.set(playerId, { type: 'fold', label: '弃牌' });
+        this.emitAction('fold', playerId, actorName);
         break;
       case 'check':
         if (toCall > 0) throw new Error(`需要跟注 ${toCall} 才能过牌`);
         this.state.acted.add(playerId);
+        this.state.actionTags.set(playerId, { type: 'check', label: '过牌' });
+        this.emitAction('check', playerId, actorName);
         break;
       case 'call': {
         if (toCall <= 0) throw new Error('当前无需跟注');
         await pay(toCall);
         this.commit(playerId, toCall);
         this.state.acted.add(playerId);
+        this.state.actionTags.set(playerId, { type: 'call', label: `跟注 ${toCall}`, amount: toCall });
+        this.emitAction('call', playerId, actorName, toCall);
         break;
       }
       case 'raise': {
@@ -166,10 +224,11 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
         if (rawAdd !== undefined && rawAdd !== null) {
           add = Number(rawAdd);
           if (!Number.isInteger(add) || add < RAISE_UNIT) throw new Error(`加注至少 ${RAISE_UNIT}`);
+          if (add > MAX_RAISE_ADD) throw new Error(`单次加注上限 ${MAX_RAISE_ADD}`);
         }
         const nextBase = this.state.currentBet + add;
         const target = nextBase * mult;
-        const delta = target - (this.state.roundBet.get(playerId) ?? 0);
+        const delta = Math.min(MAX_RAISE_ADD, target - (this.state.roundBet.get(playerId) ?? 0));
         if (delta <= 0) throw new Error('加注金额不合法');
         await pay(delta);
         this.commit(playerId, delta);
@@ -177,6 +236,30 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
         this.state.raises.set(playerId, used + 1);
         this.state.acted.clear();
         this.state.acted.add(playerId);
+        this.state.actionTags.set(playerId, { type: 'raise', label: `加注 +${add}`, amount: delta });
+        this.emitAction('raise', playerId, actorName, delta, `+${add}`);
+        break;
+      }
+      case 'allin': {
+        const rawAmt = Number(intent.payload?.amount ?? 0);
+        const defaultPush = Math.max(toCall + RAISE_UNIT * 5, 500);
+        const pushAmount =
+          Number.isFinite(rawAmt) && rawAmt > 0
+            ? Math.min(MAX_RAISE_ADD, Math.floor(rawAmt))
+            : Math.min(MAX_RAISE_ADD, defaultPush);
+        if (pushAmount <= 0) throw new Error('筹码不足，无法全压');
+        await pay(pushAmount);
+        this.commit(playerId, pushAmount);
+        const newRoundBet = this.state.roundBet.get(playerId) ?? 0;
+        const impliedBase = Math.ceil(newRoundBet / mult);
+        if (impliedBase > this.state.currentBet) {
+          this.state.currentBet = impliedBase;
+          this.state.acted.clear();
+        }
+        this.state.allIn.add(playerId);
+        this.state.acted.add(playerId);
+        this.state.actionTags.set(playerId, { type: 'allin', label: `全压 ${pushAmount}`, amount: pushAmount });
+        this.emitAction('allin', playerId, actorName, pushAmount, 'ALL-IN');
         break;
       }
       default:
@@ -191,6 +274,7 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     if (this.state.folded.has(playerId)) return;
     this.state.folded.add(playerId);
     this.state.acted.add(playerId);
+    this.state.actionTags.set(playerId, { type: 'fold', label: '离桌弃牌' });
     if (this.state.turn === playerId) this.afterAction(ctx, playerId);
   }
 
@@ -210,7 +294,7 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     const order = [...ctx.players].sort((a, b) => a.seat - b.seat).map((p) => p.playerId);
     for (let step = 1; step <= order.length; step += 1) {
       const id = order[(fromIndex + step) % order.length]!;
-      if (!this.state.folded.has(id)) return id;
+      if (!this.state.folded.has(id) && !this.state.allIn.has(id)) return id;
     }
     return null;
   }
@@ -221,14 +305,22 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
       this.settleShowdown(ctx);
       return;
     }
-    const allActed = alive.every((id) => this.state.acted.has(id));
-    const matched = alive.every((id) => (this.state.roundBet.get(id) ?? 0) === this.state.currentBet);
-    if (allActed && matched) {
+    const actionable = alive.filter((id) => !this.state.allIn.has(id));
+    const allActed = actionable.every((id) => this.state.acted.has(id));
+    const matched = actionable.every((id) => {
+      const expected = this.state.currentBet * (this.state.looked.has(id) ? 2 : 1);
+      return (this.state.roundBet.get(id) ?? 0) >= expected;
+    });
+    if (actionable.length === 0 || (allActed && matched)) {
       this.settleShowdown(ctx);
       return;
     }
     const order = [...ctx.players].sort((a, b) => a.seat - b.seat).map((p) => p.playerId);
     this.state.turn = this.nextAlive(ctx, Math.max(0, order.indexOf(playerId)));
+    if (!this.state.turn) {
+      this.settleShowdown(ctx);
+      return;
+    }
     ctx.markDirty();
   }
 
@@ -268,6 +360,12 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     });
     this.state.results = results;
 
+    const winNames = results
+      .filter((r) => winners.includes(r.playerId))
+      .map((r) => `${r.nickname}(${r.handLabel})`)
+      .join('、');
+    this.emitAction('showdown', winners[0] ?? '', winNames || '摊牌', pot, '开牌比大小');
+
     const entries = results
       .filter((r) => (r.delta !== 0 || this.state.charged.has(r.playerId)) && ctx.getPlayer(r.playerId)?.isBot !== true)
       .map((r) => ({ playerId: r.playerId, currency: 'coin' as const, delta: r.delta, reason: 'goldenflower.result' }));
@@ -278,8 +376,9 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
 
   override botIntent(ctx: RoomContext, playerId: string, difficulty: BotDifficulty = 'medium'): GameIntent | null {
     if (this.state.settled || this.state.turn !== playerId) return null;
-    if (this.state.folded.has(playerId)) return null;
-    const toCall = this.state.currentBet - (this.state.roundBet.get(playerId) ?? 0);
+    if (this.state.folded.has(playerId) || this.state.allIn.has(playerId)) return null;
+    const mult = this.state.looked.has(playerId) ? 2 : 1;
+    const toCall = Math.max(0, this.state.currentBet * mult - (this.state.roundBet.get(playerId) ?? 0));
     const hand = this.state.hands.get(playerId) ?? [];
     const pot = [...this.state.totalBet.values()].reduce((sum, value) => sum + value, 0);
     const canRaise = (this.state.raises.get(playerId) ?? 0) < MAX_RAISES;
@@ -301,7 +400,14 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
 
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {
     const revealAll = this.state.settled;
+    const viewerLooked = viewerId ? this.state.looked.has(viewerId) : false;
+    const myRawHand = viewerId ? this.state.hands.get(viewerId) ?? [] : [];
+    const showMyHand = revealAll || viewerLooked;
+    const myHandLabel = showMyHand && myRawHand.length >= 3 ? rankHand(myRawHand).label : '';
+
     return {
+      gameVariant: 'goldenflower',
+      canLook: true,
       phase: this.state.settled ? 'settled' : 'playing',
       round: ctx.config.round,
       remainMs: 0,
@@ -309,30 +415,32 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
       turn: this.state.turn,
       currentBet: this.state.currentBet,
       pot: [...this.state.totalBet.values()].reduce((sum, value) => sum + value, 0),
-      myCards: (revealAll || (viewerId && this.state.looked.has(viewerId)))
-        ? (viewerId ? this.state.hands.get(viewerId) ?? [] : []).map((c) => ({
-            id: c.id,
-            rank: c.rank,
-            suit: c.suit,
-          }))
+      myCards: showMyHand
+        ? myRawHand.map((c) => ({ id: c.id, rank: c.rank, suit: c.suit }))
         : [],
-      looked: viewerId ? this.state.looked.has(viewerId) : false,
+      myHandLabel,
+      looked: viewerLooked,
       lookedPlayers: [...this.state.looked],
+      allIn: [...this.state.allIn],
+      lastAction: this.state.lastAction,
       myTotalBet: viewerId ? this.state.totalBet.get(viewerId) ?? 0 : 0,
       toCall: viewerId
-        ? Math.max(0, this.state.currentBet * (this.state.looked.has(viewerId) ? 2 : 1) - (this.state.roundBet.get(viewerId) ?? 0))
+        ? Math.max(0, this.state.currentBet * (viewerLooked ? 2 : 1) - (this.state.roundBet.get(viewerId) ?? 0))
         : this.state.currentBet,
       raiseUnit: RAISE_UNIT,
       maxRaiseAdd: MAX_RAISE_ADD,
       players: ctx.players.map((p) => {
         const hand = this.state.hands.get(p.playerId) ?? [];
+        const canSeeCards = revealAll || (p.playerId === viewerId && viewerLooked);
         return {
           playerId: p.playerId,
           nickname: p.nickname,
           seat: p.seat,
           isBot: p.isBot,
           folded: this.state.folded.has(p.playerId),
-          cards: revealAll || p.playerId === viewerId
+          isAllIn: this.state.allIn.has(p.playerId),
+          actionTag: this.state.actionTags.get(p.playerId) ?? null,
+          cards: canSeeCards
             ? hand.map((c) => ({ id: c.id, rank: c.rank, suit: c.suit }))
             : [],
           cardCount: hand.length,

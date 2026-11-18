@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
-import { cardArt, cardBackArt, cardLabel, type CardView } from './cards';
+import { cardArt, cardBackArt, cardLabel, isRedCard, type CardView } from './cards';
 
 interface BlackjackSnapshot {
   phase: string;
@@ -38,6 +38,79 @@ const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onAction }: Props) {
   const data = snapshot as unknown as BlackjackSnapshot | undefined;
   const [amount, setAmount] = useState(100);
+  const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
+    null,
+  );
+  const lastPhaseKeyRef = useRef<string>('');
+  const prevCardCountRef = useRef<{ my: number; dealer: number }>({ my: 0, dealer: 0 });
+  const bannerIdRef = useRef<number>(1);
+  const bannerTimerRef = useRef<number | null>(null);
+
+  const showBanner = (kind: string, text: string, sub?: string, ms = 1650) => {
+    const id = bannerIdRef.current++;
+    if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    setCenterBanner({ id, kind, text, sub });
+    bannerTimerRef.current = window.setTimeout(() => {
+      setCenterBanner((cur) => (cur?.id === id ? null : cur));
+    }, ms);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    };
+  }, []);
+
+  // 监听发牌、爆牌、21点与结算事件，驱动真实赌场音效
+  useEffect(() => {
+    if (!data) return;
+    const phaseKey = `${data.round}:${data.phase}`;
+    if (phaseKey !== lastPhaseKeyRef.current) {
+      lastPhaseKeyRef.current = phaseKey;
+      if (data.phase === 'play') {
+        audio.play('poker_deal');
+        window.setTimeout(() => audio.play('poker_deal'), 140);
+        window.setTimeout(() => audio.play('poker_deal'), 280);
+        if (data.myPoints === 21 && data.myCards.length === 2) {
+          window.setTimeout(() => audio.play('jackpot'), 420);
+          showBanner('allin', '👑 BLACKJACK 21点！', '天牌绝杀', 2000);
+        } else {
+          showBanner('deal', '发牌完成', '请选择 要牌 / 停牌 / 加倍', 1300);
+        }
+      } else if (data.phase !== 'bet' && data.results.length > 0) {
+        audio.play('poker_deal');
+        const myRow = data.results.find((r) => r.playerId === myId);
+        window.setTimeout(() => {
+          if (myRow && myRow.delta > 0) audio.play('win');
+          else if (myRow && myRow.delta < 0) audio.play('lose');
+        }, 280);
+        if (myRow) {
+          showBanner(
+            myRow.delta > 0 ? 'raise' : myRow.delta < 0 ? 'fold' : 'showdown',
+            myRow.delta > 0 ? `🎉 赢取 +${myRow.delta.toLocaleString()}` : myRow.delta < 0 ? `本局 ${myRow.delta.toLocaleString()}` : '平局退回',
+            `我 ${data.myPoints ?? '—'} 点 vs 庄 ${data.dealerPoints ?? '—'} 点`,
+            1900,
+          );
+        }
+      }
+    }
+
+    const myCount = data.myCards.length;
+    const dealerCount = data.dealerCards.length;
+    if (myCount > prevCardCountRef.current.my && prevCardCountRef.current.my > 0) {
+      audio.play('poker_deal');
+      if (data.myPoints !== null && data.myPoints > 21) {
+        window.setTimeout(() => audio.play('poker_fold'), 140);
+        showBanner('fold', `💥 爆牌 (${data.myPoints} 点)`, '超过 21 点', 1500);
+      } else if (data.myPoints === 21) {
+        window.setTimeout(() => audio.play('jackpot'), 160);
+        showBanner('allin', '✨ 恰好 21 点！', '完美停牌', 1600);
+      }
+    } else if (dealerCount > prevCardCountRef.current.dealer && prevCardCountRef.current.dealer > 0) {
+      audio.play('poker_deal');
+    }
+    prevCardCountRef.current = { my: myCount, dealer: dealerCount };
+  }, [data?.round, data?.phase, data?.myCards?.length, data?.dealerCards?.length, data?.myPoints, data?.dealerPoints, data?.results, myId]);
 
   const canBet = data?.phase === 'bet' && status === 'playing';
   const playing = data?.phase === 'play' && status === 'playing';
@@ -67,30 +140,43 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
   if (!data) return <div className="board-placeholder">等待发牌…</div>;
 
   const handleHit = () => {
-    audio.play('click');
+    audio.play('poker_deal');
     onAction('hit');
   };
 
   const handleStand = () => {
-    audio.play('pass');
+    audio.play('poker_check');
+    showBanner('check', '停牌 (Stand)', data.myPoints !== null ? `锁定 ${data.myPoints} 点` : undefined, 1100);
     onAction('stand');
   };
 
   const handleDouble = () => {
-    audio.play('chip_clack');
+    audio.play('poker_raise');
+    showBanner('raise', '加倍 (Double)！', '双倍下注再要 1 张', 1300);
     onAction('double');
   };
 
   return (
-    <div className="lobby-game lobby-game--bj">
+    <div className="lobby-game lobby-game--bj lobby-game--poker-pro">
+      {centerBanner && (
+        <div key={centerBanner.id} className={`texas-fx-banner is-${centerBanner.kind}`} role="status" aria-live="polite">
+          <strong>{centerBanner.text}</strong>
+          {centerBanner.sub && <span>{centerBanner.sub}</span>}
+        </div>
+      )}
+
       <div className="lobby-game__main">
         {/* 顶部状态条 */}
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
-          <span className={`lobby-game__phase ${data.phase === 'bet' ? 'is-open' : 'is-reveal'}`}>
-            {data.phase === 'bet' ? `下注阶段 · ${left}s` : data.phase === 'play' ? `要牌决战 · ${left}s` : `结算开牌`}
+          <span
+            className={`lobby-game__phase ${
+              data.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : 'is-reveal'
+            }`}
+          >
+            {data.phase === 'bet' ? `下注阶段 · ${left}s` : data.phase === 'play' ? `要牌决战 · ${left}s` : '结算开牌'}
           </span>
-          {betting > 0 && <span className="lobby-game__mine">已下注 {betting}</span>}
+          {betting > 0 && <span className="lobby-game__mine">已下注 {betting.toLocaleString()}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
@@ -101,46 +187,66 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
           </div>
           <div className="dealer-text-badge">
             <span className="dealer-title">荷官·艾莉丝</span>
-            <span className="dealer-action">{playing ? '等待玩家要牌' : '发牌洗牌中'}</span>
+            <span className="dealer-action">{playing ? '要牌还是停牌呢？' : '21点 · 买定离手'}</span>
           </div>
         </div>
 
-        {/* 庄家手牌与我的手牌展台 */}
-        <div className="dice-stage__cards bj-table-cards">
+        {/* 庄家手牌与我的超大高清手牌展台 */}
+        <div className="dice-stage__cards bj-table-cards bj-table-cards--pro">
           <div className="bj-row">
             <span className="bj-row__tag">庄家手牌</span>
             <div className="bj-row__hand">
               {data.dealerCards.length === 0 ? (
-                <span className="pcard pcard--back">
-                  <img src={cardBackArt()} alt="" draggable={false} />
-                </span>
+                <>
+                  <span className="pcard pcard--back poker-stage-card">
+                    <img src={cardBackArt()} alt="" draggable={false} />
+                  </span>
+                  <span className="pcard pcard--back poker-stage-card">
+                    <img src={cardBackArt()} alt="" draggable={false} />
+                  </span>
+                </>
               ) : (
                 data.dealerCards.map((card, index) => (
-                  <span key={card?.id ?? `hole-${index}`} className="pcard">
+                  <span
+                    key={card?.id ?? `hole-${index}`}
+                    className={`pcard poker-stage-card ${card && isRedCard(card) ? 'is-red' : ''} ${
+                      !card ? 'pcard--back' : ''
+                    }`}
+                  >
                     <img src={card ? cardArt(card.id) : cardBackArt()} alt={card ? cardLabel(card) : ''} draggable={false} />
                   </span>
                 ))
               )}
             </div>
-            {data.dealerPoints !== null && <strong className="bj-row__points">{data.dealerPoints} 点</strong>}
+            {data.dealerPoints !== null && (
+              <strong className={`bj-row__points ${data.dealerPoints > 21 ? 'is-bust' : ''}`}>
+                {data.dealerPoints > 21 ? `${data.dealerPoints} 点 (爆牌)` : `${data.dealerPoints} 点`}
+              </strong>
+            )}
           </div>
 
           <div className="bj-row">
             <span className="bj-row__tag">我的手牌</span>
             <div className="bj-row__hand">
               {data.myCards.length === 0 ? (
-                <span className="muted">下注后发牌</span>
+                <span className="muted">下注后立即发牌</span>
               ) : (
                 data.myCards.map((card) => (
-                  <span key={card.id} className="pcard">
+                  <span key={card.id} className={`pcard poker-stage-card ${isRedCard(card) ? 'is-red' : ''}`}>
                     <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
                   </span>
                 ))
               )}
             </div>
             {data.myPoints !== null && (
-              <strong className={`bj-row__points ${data.myPoints > 21 ? 'is-bust' : ''}`}>
-                {data.myPoints > 21 ? `${data.myPoints} 点 (爆牌)` : `${data.myPoints} 点`}
+              <strong
+                className={`bj-row__points ${data.myPoints > 21 ? 'is-bust' : data.myPoints === 21 ? 'is-bj21' : ''}`}
+              >
+                {data.myPoints > 21
+                  ? `${data.myPoints} 点 (爆牌)`
+                  : data.myPoints === 21
+                    ? '21 点 ★'
+                    : `${data.myPoints} 点`}
               </strong>
             )}
           </div>
@@ -149,21 +255,21 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
         {/* 要牌 / 停牌 / 加倍 操作区 */}
         {playing && !data.myDone && (
           <div className="bj-actions hand-actions--luxury">
-            <button type="button" className="action-btn action-btn--play" onClick={handleHit}>
+            <button type="button" className="action-btn texas-btn-call" onClick={handleHit}>
               + 要牌 (Hit)
             </button>
-            <button type="button" className="action-btn action-btn--hint" onClick={handleStand}>
+            <button type="button" className="action-btn texas-btn-fold" onClick={handleStand}>
               停牌 (Stand)
             </button>
             {data.myCards.length === 2 && balance >= betting && (
-              <button type="button" className="action-btn action-btn--pass" onClick={handleDouble}>
-                加倍 (Double)
+              <button type="button" className="action-btn texas-btn-raise" onClick={handleDouble}>
+                🔥 加倍 (Double)
               </button>
             )}
           </div>
         )}
 
-        {/* 21点下注区域：醒目高亮展示，常驻可见，清晰显示每个选项已下注金额 */}
+        {/* 21点下注区域 */}
         <div className="bj-bet-zones bj-bet-zones--prominent">
           {(data.areas ?? [
             { area: 'win', label: '闲胜 (Win)', odds: 1 },
@@ -180,7 +286,7 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
                 className={`bj-zone-btn ${bet > 0 ? 'is-bet' : ''}`}
                 disabled={!canPlace}
                 onClick={() => {
-                  audio.play('chip_clack');
+                  audio.play('poker_chip_bet');
                   onBet(area.area, amount);
                 }}
               >
@@ -188,11 +294,11 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
                   <span className="bj-zone-label">{area.label}</span>
                   <span className="bj-zone-odds">1:{area.odds}</span>
                 </div>
-                {pool > 0 && <span className="bj-zone-pool">全台 {pool}</span>}
+                {pool > 0 && <span className="bj-zone-pool">全台 {pool.toLocaleString()}</span>}
                 {bet > 0 ? (
                   <span className="bj-zone-mybet">
                     <img src={chipArt(bet)} alt="" />
-                    <span>我已押 {bet}</span>
+                    <span>我已押 {bet.toLocaleString()}</span>
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -201,11 +307,13 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
                         title="取消该选项下注"
                         onClick={(event) => {
                           event.stopPropagation();
+                          audio.play('poker_fold');
                           onClear(area.area);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             event.stopPropagation();
+                            audio.play('poker_fold');
                             onClear(area.area);
                           }
                         }}
@@ -215,7 +323,7 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
                     )}
                   </span>
                 ) : (
-                  <span className="bj-zone-empty">{canBet ? '点击下注' : '未下注'}</span>
+                  <span className="bj-zone-empty">{canBet ? '点击放筹码' : '未下注'}</span>
                 )}
               </button>
             );
@@ -246,7 +354,7 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
               type="button"
               className="ghost clear-bet-btn"
               onClick={() => {
-                audio.play('click');
+                audio.play('poker_fold');
                 onClear();
               }}
             >
@@ -282,7 +390,8 @@ export function Blackjack({ snapshot, myId, status, balance, onBet, onClear, onA
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? '我' : row.nickname}{' '}
+                {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
               </span>
             ))}
           </div>

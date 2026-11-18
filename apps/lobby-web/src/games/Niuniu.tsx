@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
 import { audio } from '../audio';
-import { cardArt, cardBackArt, cardLabel, type CardView } from './cards';
+import { cardArt, cardBackArt, cardLabel, isRedCard, type CardView } from './cards';
 
 interface NiuniuSnapshot {
   phase: string;
@@ -31,9 +31,75 @@ interface Props {
 
 const PRESET = [10, 50, 100, 500, 1000, 2000, 5000, 10000, 100000];
 
+function niuValueToArea(niu: number | null): string | null {
+  if (niu === null || niu === undefined) return null;
+  if (niu === 0) return 'none';
+  if (niu >= 10) return 'niu-n';
+  return `niu-${niu}`;
+}
+
 export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as NiuniuSnapshot | undefined;
   const [amount, setAmount] = useState(100);
+  const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
+    null,
+  );
+  const lastPhaseKeyRef = useRef<string>('');
+  const bannerIdRef = useRef<number>(1);
+  const bannerTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    };
+  }, []);
+
+  // 监听开牌与结算阶段，播放真实发牌声 + 胜负音效 + 居中动效横幅
+  useEffect(() => {
+    if (!data) return;
+    const key = `${data.round}:${data.phase}`;
+    if (key === lastPhaseKeyRef.current) return;
+    lastPhaseKeyRef.current = key;
+
+    const showBanner = (kind: string, text: string, sub?: string, ms = 1750) => {
+      const id = bannerIdRef.current++;
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+      setCenterBanner({ id, kind, text, sub });
+      bannerTimerRef.current = window.setTimeout(() => {
+        setCenterBanner((cur) => (cur?.id === id ? null : cur));
+      }, ms);
+    };
+
+    if (data.phase !== 'bet' && data.cards.length > 0) {
+      [0, 110, 220, 330, 440].forEach((delay) => {
+        window.setTimeout(() => audio.play('poker_deal'), delay);
+      });
+      const myRow = data.results.find((r) => r.playerId === myId);
+      window.setTimeout(() => {
+        if (data.niu !== null && data.niu >= 10) {
+          audio.play('jackpot');
+        } else if (myRow && myRow.delta > 0) {
+          audio.play('win');
+        } else if (myRow && myRow.delta < 0) {
+          audio.play('lose');
+        }
+      }, 540);
+
+      const isBig = data.niu !== null && data.niu >= 8;
+      showBanner(
+        isBig ? 'allin' : 'showdown',
+        `🐮 庄家开出：${data.label || '结算中'}`,
+        myRow && myRow.delta !== 0
+          ? myRow.delta > 0
+            ? `恭喜赢取 +${myRow.delta.toLocaleString()} 欢乐豆`
+            : `本局结算 ${myRow.delta.toLocaleString()}`
+          : undefined,
+        2000,
+      );
+    } else if (data.phase === 'bet' && data.round > 0) {
+      audio.play('poker_deal');
+    }
+  }, [data?.round, data?.phase, data?.cards?.length, data?.niu, data?.label, data?.results, myId]);
 
   const canBet = data?.phase === 'bet' && status === 'playing';
   const betting = useMemo(
@@ -41,6 +107,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
     [data?.myBet],
   );
   const canPlace = canBet && amount > 0 && amount <= balance;
+  const hitArea = data?.phase !== 'bet' ? niuValueToArea(data?.niu ?? null) : null;
 
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
@@ -62,15 +129,22 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
   if (!data) return <div className="board-placeholder">等待发牌…</div>;
 
   return (
-    <div className="lobby-game lobby-game--niuniu">
+    <div className="lobby-game lobby-game--niuniu lobby-game--poker-pro">
+      {centerBanner && (
+        <div key={centerBanner.id} className={`texas-fx-banner is-${centerBanner.kind}`} role="status" aria-live="polite">
+          <strong>{centerBanner.text}</strong>
+          {centerBanner.sub && <span>{centerBanner.sub}</span>}
+        </div>
+      )}
+
       <div className="lobby-game__main">
         {/* 顶部状态条 */}
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
-          <span className={`lobby-game__phase ${data.phase === 'bet' ? 'is-open' : 'is-reveal'}`}>
-            {data.phase === 'bet' ? `下注阶段 · ${left}s` : `开牌核算中`}
+          <span className={`lobby-game__phase ${data.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : 'is-reveal'}`}>
+            {data.phase === 'bet' ? `下注阶段 · ${left}s` : '开牌核算中'}
           </span>
-          {betting > 0 && <span className="lobby-game__mine">已下注 {betting}</span>}
+          {betting > 0 && <span className="lobby-game__mine">已下注 {betting.toLocaleString()}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
@@ -81,34 +155,36 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
           </div>
           <div className="dealer-text-badge">
             <span className="dealer-title">荷官·艾莉丝</span>
-            <span className="dealer-action">{data.phase === 'bet' ? '开盅请下注' : '看牌比点中'}</span>
+            <span className="dealer-action">{data.phase === 'bet' ? '五张牛牛 · 买定离手' : '亮牌比牛中'}</span>
           </div>
         </div>
 
-        {/* 庄家手牌展示 */}
+        {/* 庄家超大清晰手牌展示 */}
         <div className="banker-box niuniu-banker-box">
-          <div className="banker-box__label">庄家手牌</div>
-          <div className="niuniu-cards-row">
-            {data.cards.length === 0 ? (
-              [0, 1, 2, 3, 4].map((i) => (
-                <span key={i} className="pcard pcard--back">
-                  <img src={cardBackArt()} alt="" draggable={false} />
-                </span>
-              ))
-            ) : (
-              data.cards.map((card) => (
-                <span key={card.id} className="pcard">
-                  <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
-                </span>
-              ))
-            )}
+          <div className="banker-box__label">庄家五张牌</div>
+          <div className="niuniu-cards-row niuniu-cards-row--pro">
+            {data.cards.length === 0
+              ? [0, 1, 2, 3, 4].map((i) => (
+                  <span key={i} className="pcard pcard--back poker-stage-card">
+                    <img src={cardBackArt()} alt="" draggable={false} />
+                  </span>
+                ))
+              : data.cards.map((card, idx) => (
+                  <span
+                    key={card.id}
+                    className={`pcard poker-stage-card ${isRedCard(card) ? 'is-red' : ''}`}
+                    style={{ ['--i' as string]: idx }}
+                  >
+                    <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
+                  </span>
+                ))}
           </div>
           <div className="banker-box__points">
-            {data.label ? <strong className="niuniu-result-badge">{data.label}</strong> : '待开牌'}
+            {data.label ? <strong className="niuniu-result-badge">{data.label}</strong> : '等待开牌…'}
           </div>
         </div>
 
-        {/* 下注区域：美观奢华卡片按钮，明确标注无牛1:1、牛1~7 1:2、牛8 1:3、牛9 1:4、牛牛 1:5 */}
+        {/* 下注区域 */}
         <div className="niuniu-doors--luxury">
           {(data.areas ?? [
             { area: 'none', label: '无牛', odds: 1 },
@@ -125,16 +201,21 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
           ]).map((area) => {
             const bet = data.myBet[area.area] ?? 0;
             const pool = data.zoneTotals?.[area.area] ?? 0;
-            const odds = area.odds ?? (area.area === 'none' ? 1 : area.area === 'niu-n' ? 5 : area.area === 'niu-9' ? 4 : area.area === 'niu-8' ? 3 : 2);
+            const odds =
+              area.odds ??
+              (area.area === 'none' ? 1 : area.area === 'niu-n' ? 5 : area.area === 'niu-9' ? 4 : area.area === 'niu-8' ? 3 : 2);
             const isNiuNiu = area.area === 'niu-n';
+            const isHit = hitArea === area.area;
             return (
               <button
                 key={area.area}
                 type="button"
-                className={`niuniu-door-card ${bet > 0 ? 'is-bet' : ''} ${isNiuNiu ? 'is-niuniu' : ''}`}
+                className={`niuniu-door-card ${bet > 0 ? 'is-bet' : ''} ${isNiuNiu ? 'is-niuniu' : ''} ${
+                  isHit ? 'is-win' : ''
+                }`}
                 disabled={!canPlace}
                 onClick={() => {
-                  audio.play('chip_clack');
+                  audio.play('poker_chip_bet');
                   onBet(area.area, amount);
                 }}
               >
@@ -142,11 +223,11 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
                   <span className="niuniu-door-name">{area.label}</span>
                   <span className="niuniu-door-payout">1赔{odds}</span>
                 </div>
-                {pool > 0 && <span className="niuniu-door-pool">全台 {pool}</span>}
+                {pool > 0 && <span className="niuniu-door-pool">全台 {pool.toLocaleString()}</span>}
                 {bet > 0 ? (
                   <span className="niuniu-door-mybet">
                     <img src={chipArt(bet)} alt="" />
-                    <span>我押 {bet}</span>
+                    <span>我押 {bet.toLocaleString()}</span>
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -155,7 +236,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
                         title="取消该区下注"
                         onClick={(e) => {
                           e.stopPropagation();
-                          audio.play('click');
+                          audio.play('poker_fold');
                           onClear(area.area);
                         }}
                       >
@@ -164,7 +245,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
                     )}
                   </span>
                 ) : (
-                  <span className="niuniu-door-empty">{canBet ? '点击下注' : '未下注'}</span>
+                  <span className="niuniu-door-empty">{canBet ? '点击放筹码' : '未下注'}</span>
                 )}
               </button>
             );
@@ -195,7 +276,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
               type="button"
               className="ghost clear-bet-btn"
               onClick={() => {
-                audio.play('click');
+                audio.play('poker_fold');
                 onClear();
               }}
             >
@@ -214,7 +295,7 @@ export function Niuniu({ snapshot, myId, status, balance, onBet, onClear }: Prop
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
               </span>
             ))}
           </div>

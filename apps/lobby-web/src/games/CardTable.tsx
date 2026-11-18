@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-
-/** 手牌目标宽度：在 844×390 横屏下保证点数与花色可辨认 */
-const CARD_W = 72;
-/** 单张牌最小可视宽度（重叠后仍要露出左上角点数） */
-const MIN_STEP = 26;
 import { SeatPanel, TableStage } from '../components/TableStage';
 import { TableEffects, type EffectTrigger } from '../components/TableEffects';
 import { audio } from '../audio';
 import { cardArt, cardBackArt, cardLabel, comboLabel, isRedCard, type CardView } from './cards';
+
+/** 单张牌最小可视露出宽度（重叠后仍清晰露出左上角大号点数与花色） */
+const MIN_STEP = 28;
 
 interface HandCount {
   playerId: string;
@@ -69,17 +67,39 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
   const data = snapshot as unknown as HandSnapshot | undefined;
   const [selected, setSelected] = useState<string[]>([]);
   const [fxTrigger, setFxTrigger] = useState<EffectTrigger | null>(null);
+  const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
+    null,
+  );
   const rackRef = useRef<HTMLDivElement | null>(null);
-  /** 手牌区可用宽度，用于动态计算重叠量，保证不溢出视口 */
   const [rackWidth, setRackWidth] = useState(0);
-  /** 拖动刷选状态：一次按下后经过的牌统一置为同一模式 */
+  const [cardWidth, setCardWidth] = useState(88);
   const dragRef = useRef<{ mode: 'add' | 'remove'; seen: Set<string> } | null>(null);
+  const lastComboSigRef = useRef<string>('');
+  const localPlayedAtRef = useRef<number>(0);
+  const bannerIdRef = useRef<number>(1);
+  const bannerTimerRef = useRef<number | null>(null);
 
-  // 发牌音效
+  const showBanner = (kind: string, text: string, sub?: string, ms = 1350) => {
+    const id = bannerIdRef.current++;
+    if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    setCenterBanner({ id, kind, text, sub });
+    bannerTimerRef.current = window.setTimeout(() => {
+      setCenterBanner((cur) => (cur?.id === id ? null : cur));
+    }, ms);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    };
+  }, []);
+
+  // 开局清脆发牌声
   useEffect(() => {
     if (round === 0) return;
-    const timers = [60, 240, 420, 600].map((delay) =>
-      window.setTimeout(() => audio.play('deal'), delay),
+    lastComboSigRef.current = '';
+    const timers = [60, 210, 360, 510].map((delay) =>
+      window.setTimeout(() => audio.play('poker_deal'), delay),
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [round]);
@@ -93,43 +113,62 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
     setSelected((prev) => prev.filter((id) => hand.some((card) => card.id === id)));
   }, [hand]);
 
-  // 手牌区宽度自适应：牌数变化或屏幕旋转时重新计算重叠
+  // 手牌区宽度与实际单卡宽度自适应测量：大牌面也能完整铺开不溢出
   useEffect(() => {
     const el = rackRef.current;
     if (!el) return;
-    const update = () => setRackWidth(el.clientWidth);
+    const update = () => {
+      setRackWidth(el.clientWidth);
+      const firstCard = el.querySelector<HTMLElement>('.hand__card');
+      if (firstCard && firstCard.offsetWidth >= 56) {
+        setCardWidth(firstCard.offsetWidth);
+      }
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
   }, [hand.length]);
 
-  // 监听上家出牌特效 (炸弹、火箭、顺子)
+  // 实时监听牌桌出牌事件：播放对应音效 + 视觉播报
   useEffect(() => {
     if (!data?.lastCombo) return;
-    const kind = data.lastCombo.kind;
-    if (kind === 'rocket') {
-      audio.play('rocket');
-      setFxTrigger({ id: String(Date.now()), type: 'rocket' });
-    } else if (kind === 'bomb') {
-      audio.play('bomb');
-      setFxTrigger({ id: String(Date.now()), type: 'bomb' });
-    } else if (kind === 'straight' || kind === 'straight_pairs' || kind === 'airplane') {
-      audio.play('shunzi');
-      setFxTrigger({ id: String(Date.now()), type: 'shunzi', text: comboLabel(kind) });
-    }
-  }, [data?.lastCombo]);
+    const sig = `${round}:${data.lastPlayerId ?? ''}:${data.lastCombo.cards.map((c) => c.id).join(',')}`;
+    if (sig === lastComboSigRef.current) return;
+    lastComboSigRef.current = sig;
 
-  // 手牌动态重叠：牌多时压缩步进，牌少时铺开，始终一屏可见
-  // 注意：必须放在提前 return 之前，否则 hook 数量在不同渲染间不一致
+    const kind = data.lastCombo.kind;
+    const actor = data.handCounts.find((p) => p.playerId === data.lastPlayerId)?.nickname ?? '牌友';
+    const isJustLocal = data.lastPlayerId === myId && Date.now() - localPlayedAtRef.current < 900;
+
+    if (kind === 'rocket') {
+      if (!isJustLocal) audio.play('rocket');
+      setFxTrigger({ id: String(Date.now()), type: 'rocket' });
+      showBanner('allin', `🚀 ${actor} 王炸！`, '全场翻倍震慑', 1800);
+    } else if (kind === 'bomb') {
+      if (!isJustLocal) audio.play('bomb');
+      setFxTrigger({ id: String(Date.now()), type: 'bomb' });
+      showBanner('allin', `💣 ${actor} 炸弹！`, '火力全开', 1650);
+    } else if (kind === 'straight' || kind === 'straight_pairs' || kind === 'airplane') {
+      if (!isJustLocal) audio.play('shunzi');
+      setFxTrigger({ id: String(Date.now()), type: 'shunzi', text: comboLabel(kind) });
+      showBanner('raise', `${actor} · ${comboLabel(kind)}`, undefined, 1300);
+    } else {
+      if (!isJustLocal) {
+        audio.play('poker_deal');
+        window.setTimeout(() => audio.play('play'), 45);
+      }
+    }
+  }, [data?.lastCombo, data?.lastPlayerId, data?.handCounts, myId, round]);
+
   const cardStep = useMemo(() => {
     const count = hand.length;
-    if (count <= 1) return CARD_W;
-    const available = Math.max(260, rackWidth) - 12;
-    const raw = (available - CARD_W) / (count - 1);
-    return Math.max(MIN_STEP, Math.min(CARD_W, raw));
-  }, [hand.length, rackWidth]);
-  const cardOverlap = Math.max(0, CARD_W - cardStep);
+    if (count <= 1) return cardWidth;
+    const available = Math.max(280, rackWidth) - 16;
+    const raw = (available - cardWidth) / (count - 1);
+    return Math.max(MIN_STEP, Math.min(cardWidth * 0.85, raw));
+  }, [hand.length, rackWidth, cardWidth]);
+  const cardOverlap = Math.max(0, cardWidth - cardStep);
 
   if (!data) {
     return <div className="board-placeholder">正在发牌…</div>;
@@ -157,7 +196,6 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
     const mode: 'add' | 'remove' = selected.includes(id) ? 'remove' : 'add';
     dragRef.current = { mode, seen: new Set([id]) };
     applyCard(id, mode === 'add');
-    // 捕获指针：拖出牌面后仍能收到 move 事件，实现「划过即选」
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -169,6 +207,7 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
     const id = hit?.closest('[data-card-id]')?.getAttribute('data-card-id');
     if (!id || drag.seen.has(id)) return;
     drag.seen.add(id);
+    audio.play('click');
     applyCard(id, drag.mode === 'add');
   };
 
@@ -176,7 +215,7 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
     dragRef.current = null;
   };
 
-  /** 双击选中同点数所有牌，避免一张张点 */
+  /** 双击选中同点数所有牌 */
   const handleDoubleClick = (rank: number): void => {
     if (!isMyTurn) return;
     const same = hand.filter((card) => card.rank === rank).map((card) => card.id);
@@ -186,77 +225,133 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
 
   const handlePlayCards = () => {
     if (selected.length === 0) return;
-    // 粗略检测本地出牌特效
-    if (selected.length === 4) {
-      // 可能是炸弹
+    localPlayedAtRef.current = Date.now();
+    const picked = hand.filter((c) => selected.includes(c.id));
+    const isRocket = picked.length === 2 && picked.every((c) => c.rank >= 16);
+    const isBomb = picked.length === 4 && picked.every((c) => c.rank === picked[0]!.rank);
+    if (isRocket) {
+      audio.play('rocket');
+      setFxTrigger({ id: String(Date.now()), type: 'rocket' });
+    } else if (isBomb) {
       audio.play('bomb');
       setFxTrigger({ id: String(Date.now()), type: 'bomb' });
-    } else if (selected.length >= 5) {
+    } else if (picked.length >= 5) {
       audio.play('shunzi');
       setFxTrigger({ id: String(Date.now()), type: 'shunzi' });
     } else {
-      audio.play('play');
+      audio.play('poker_deal');
+      window.setTimeout(() => audio.play('play'), 40);
     }
     onPlay(selected);
     setSelected([]);
   };
 
+  const handlePassTurn = () => {
+    audio.play('poker_check');
+    showBanner('fold', '不出 / 过牌', undefined, 950);
+    setSelected([]);
+    onPass();
+  };
+
   const handleSmartHint = () => {
     audio.play('click');
-    if (!data.lastCombo) {
-      // 领出：选最小单张
+    if (!data.lastCombo || data.lastPlayerId === myId) {
       if (hand.length > 0) {
         setSelected([hand[hand.length - 1]!.id]);
       }
       return;
     }
-    // 简单贪心匹配：选最小的单张比上家大
+
     const targetRank = data.lastCombo.main;
-    const bigger = [...hand].reverse().find((c) => c.rank > targetRank);
-    if (bigger) {
-      setSelected([bigger.id]);
-    } else {
-      audio.play('pass');
+    const byRank = new Map<number, CardView[]>();
+    for (const c of [...hand].reverse()) {
+      const arr = byRank.get(c.rank) ?? [];
+      arr.push(c);
+      byRank.set(c.rank, arr);
     }
+
+    const needCount =
+      data.lastCombo.kind === 'pair'
+        ? 2
+        : data.lastCombo.kind === 'triple'
+          ? 3
+          : data.lastCombo.kind === 'bomb'
+            ? 4
+            : 1;
+
+    for (const [rank, group] of byRank.entries()) {
+      if (rank > targetRank && group.length >= needCount) {
+        setSelected(group.slice(0, needCount).map((c) => c.id));
+        return;
+      }
+    }
+
+    // 压不过普通牌型时尝试找炸弹
+    if (data.lastCombo.kind !== 'bomb' && data.lastCombo.kind !== 'rocket') {
+      for (const [, group] of byRank.entries()) {
+        if (group.length === 4) {
+          setSelected(group.map((c) => c.id));
+          return;
+        }
+      }
+    }
+
+    audio.play('poker_fold');
+    showBanner('fold', '要不起，建议点「不出」', undefined, 1100);
   };
 
   return (
-    <div className="card-game-viewport">
+    <div className="card-game-viewport card-game-viewport--pro">
       {/* 牌桌特效层 */}
       <TableEffects trigger={fxTrigger} onComplete={() => setFxTrigger(null)} />
 
+      {/* 居中动作特效横幅 */}
+      {centerBanner && (
+        <div key={centerBanner.id} className={`texas-fx-banner is-${centerBanner.kind}`} role="status" aria-live="polite">
+          <strong>{centerBanner.text}</strong>
+          {centerBanner.sub && <span>{centerBanner.sub}</span>}
+        </div>
+      )}
+
       <TableStage
-        watermark={variant === 'doudizhu' ? '斗地主 · 经典牌局' : '跑得快 · 争先出牌'}
+        watermark={variant === 'doudizhu' ? '斗地主 · 豪华牌桌' : '跑得快 · 争先出牌'}
         seats={others.map((player) => ({
           key: player.playerId,
           active: data.turn === player.playerId,
           dim: player.count === 0,
           node: (
-            <SeatPanel
-              nickname={player.nickname}
-              initial={player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
-              avatar={playerMedia?.[player.playerId]?.avatar}
-              frameId={playerMedia?.[player.playerId]?.equippedFrame}
-              isBot={player.isBot}
-              badge={player.isLandlord ? <em className="badge-landlord">地主</em> : null}
-              active={data.turn === player.playerId}
-              meta={player.count === 0 ? '已出完' : `余 ${player.count} 张`}
-              cards={player.count > 0 ? <CardBacks count={player.count} /> : null}
-            />
+            <div className="texas-seat-wrap">
+              <SeatPanel
+                nickname={player.nickname}
+                initial={player.nickname.replace(/^🤖\s*/, '').slice(0, 1)}
+                avatar={playerMedia?.[player.playerId]?.avatar}
+                frameId={playerMedia?.[player.playerId]?.equippedFrame}
+                isBot={player.isBot}
+                badge={player.isLandlord ? <em className="badge-landlord">地主</em> : null}
+                active={data.turn === player.playerId}
+                meta={player.count === 0 ? '已出完' : `余 ${player.count} 张`}
+                cards={player.count > 0 ? <CardBacks count={player.count} /> : null}
+              />
+              {player.count > 0 && player.count <= 2 && (
+                <span className="texas-action-pill is-allin">
+                  ⚠️ {player.count === 1 ? '报单！' : '报双！'}
+                </span>
+              )}
+            </div>
           ),
         }))}
         center={
           data.lastCombo ? (
-            <div className="center-play">
+            <div className="center-play center-play--pro">
               <div className="center-play__label">
                 <span className="last-player-name">{lastPlayer?.nickname ?? '上家'}</span>
                 <span className="last-combo-pill">{comboLabel(data.lastCombo.kind)}</span>
               </div>
-              <div className="center-play__cards">
+              <div className="center-play__cards center-play__cards--pro">
                 {data.lastCombo.cards.map((card, index) => (
                   <div
                     key={card.id}
-                    className={`pcard pcard--sm ${isRedCard(card) ? 'is-red' : ''}`}
+                    className={`pcard center-play__card-lg ${isRedCard(card) ? 'is-red' : ''}`}
                     style={{ ['--i' as string]: index }}
                   >
                     <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
@@ -273,10 +368,10 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
           )
         }
         bottom={
-          <div className="hand-super-area">
-            {/* 玩家当前手牌展台 */}
+          <div className="hand-super-area hand-super-area--pro">
+            {/* 玩家大号高清手牌展台 */}
             <div
-              className="hand-cards-rack"
+              className="hand-cards-rack hand-cards-rack--pro"
               key={`round-${round}`}
               ref={rackRef}
               onPointerDown={handlePointerDown}
@@ -302,7 +397,7 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
                     }`}
                     onDoubleClick={() => handleDoubleClick(card.rank)}
                     disabled={!isMyTurn}
-                    title={`${cardLabel(card)}（双击选中同点数）`}
+                    title={`${cardLabel(card)}（拖动滑选 / 双击选中同点数）`}
                   >
                     <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
                   </button>
@@ -311,32 +406,36 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
               {hand.length === 0 && <span className="hand-finished-tag">🎉 手牌已全部出完！</span>}
             </div>
 
-            {/* 黄金操作控制台 (居于手牌上方居中，绝不遮挡任何手牌) */}
+            {/* 黄金操作控制台 */}
             {isMyTurn && (
-              <div className="hand-action-dock-center">
+              <div className="hand-action-dock-center hand-action-dock-center--pro">
                 {canPass && (
-                  <button
-                    type="button"
-                    className="action-btn action-btn--pass"
-                    onClick={() => {
-                      audio.play('pass');
-                      onPass();
-                    }}
-                  >
+                  <button type="button" className="action-btn texas-btn-fold" onClick={handlePassTurn}>
                     不出
                   </button>
                 )}
-                <button type="button" className="action-btn action-btn--hint" onClick={handleSmartHint}>
+                {selected.length > 0 && (
+                  <button
+                    type="button"
+                    className="action-btn action-btn--hint"
+                    onClick={() => {
+                      audio.play('click');
+                      setSelected([]);
+                    }}
+                  >
+                    重选
+                  </button>
+                )}
+                <button type="button" className="action-btn texas-btn-check" onClick={handleSmartHint}>
                   提示
                 </button>
                 <button
                   type="button"
-                  className="action-btn action-btn--play"
+                  className="action-btn texas-btn-raise"
                   disabled={selected.length === 0}
                   onClick={handlePlayCards}
                 >
                   <span>出牌 ({selected.length})</span>
-                  <em className="btn-light-sweep" />
                 </button>
               </div>
             )}

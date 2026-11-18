@@ -1,6 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { chipArt } from '../chips';
 import { DEALER_MAIN } from '../assets';
+import { audio } from '../audio';
 import { cardArt, cardLabel, isRedCard, type CardView } from './cards';
 
 interface SideView {
@@ -46,23 +47,27 @@ const ZONES: Array<{ key: string; label: string; odds: string; desc: string }> =
 
 const OUTCOME_TEXT: Record<string, string> = { player: '闲赢', banker: '庄赢', tie: '和局' };
 
-function Hand({ side, revealed }: { side: SideView; revealed: boolean }) {
+function Hand({ side, revealed, isWinner }: { side: SideView; revealed: boolean; isWinner?: boolean }) {
   const cards = revealed ? side.cards : [];
   return (
-    <div className="bac-hand">
+    <div className={`bac-hand ${isWinner ? 'is-winner-hand' : ''}`}>
       <div className="bac-hand__cards">
         {revealed ? (
-          cards.map((card) => (
-            <div key={card.id} className={`pcard pcard--lg ${isRedCard(card) ? 'is-red' : ''}`}>
+          cards.map((card, idx) => (
+            <div
+              key={card.id}
+              className={`pcard poker-stage-card bac-card-pro ${isRedCard(card) ? 'is-red' : ''}`}
+              style={{ ['--i' as string]: idx }}
+            >
               <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
             </div>
           ))
         ) : (
           <>
-            <div className="pcard pcard--lg pcard--back">
+            <div className="pcard poker-stage-card bac-card-pro pcard--back">
               <img src={cardArt('back')} alt="" draggable={false} />
             </div>
-            <div className="pcard pcard--lg pcard--back">
+            <div className="pcard poker-stage-card bac-card-pro pcard--back">
               <img src={cardArt('back')} alt="" draggable={false} />
             </div>
           </>
@@ -75,7 +80,62 @@ function Hand({ side, revealed }: { side: SideView; revealed: boolean }) {
 
 export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Props) {
   const data = snapshot as unknown as BacSnapshot | undefined;
-  // 真人优先展示，其后按输赢排序，避免机器人结果被真人挤掉
+  const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
+    null,
+  );
+  const lastPhaseKeyRef = useRef<string>('');
+  const bannerIdRef = useRef<number>(1);
+  const bannerTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+    };
+  }, []);
+
+  // 监听开牌阶段与新局：播放连续清脆发牌声、胜负音效与居中播报
+  useEffect(() => {
+    if (!data) return;
+    const key = `${data.round}:${data.phase}`;
+    if (key === lastPhaseKeyRef.current) return;
+    lastPhaseKeyRef.current = key;
+
+    const showBanner = (kind: string, text: string, sub?: string, ms = 1850) => {
+      const id = bannerIdRef.current++;
+      if (bannerTimerRef.current !== null) window.clearTimeout(bannerTimerRef.current);
+      setCenterBanner({ id, kind, text, sub });
+      bannerTimerRef.current = window.setTimeout(() => {
+        setCenterBanner((cur) => (cur?.id === id ? null : cur));
+      }, ms);
+    };
+
+    if (data.phase === 'reveal') {
+      const totalCards = (data.player.cards?.length ?? 2) + (data.banker.cards?.length ?? 2);
+      for (let i = 0; i < Math.min(6, totalCards); i += 1) {
+        window.setTimeout(() => audio.play('poker_deal'), i * 115);
+      }
+      const myRow = data.results.find((r) => r.playerId === myId);
+      window.setTimeout(() => {
+        if (myRow && myRow.delta > 0) audio.play('win');
+        else if (myRow && myRow.delta < 0) audio.play('lose');
+      }, Math.min(6, totalCards) * 115 + 140);
+
+      const outcomeLabel = data.outcome ? OUTCOME_TEXT[data.outcome] ?? data.outcome : '开牌';
+      showBanner(
+        data.outcome === 'tie' ? 'raise' : 'showdown',
+        `👑 ${outcomeLabel}！（闲 ${data.player.points ?? '—'} : 庄 ${data.banker.points ?? '—'}）`,
+        myRow && myRow.delta !== 0
+          ? myRow.delta > 0
+            ? `恭喜赢取 +${myRow.delta.toLocaleString()} 欢乐豆`
+            : `本局结算 ${myRow.delta.toLocaleString()}`
+          : undefined,
+        2000,
+      );
+    } else if (data.phase === 'bet' && data.round > 0) {
+      audio.play('poker_deal');
+    }
+  }, [data?.round, data?.phase, data?.outcome, data?.player?.points, data?.banker?.points, data?.player?.cards?.length, data?.banker?.cards?.length, data?.results, myId]);
+
   const rankedResults = useMemo(() => {
     const list = [...(data?.results ?? [])];
     list.sort((a, b) => {
@@ -91,7 +151,6 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
   const [now, setNow] = useState<number>(() => Date.now());
 
   useEffect(() => {
-    // 倒计时以秒为单位，1s 刷新足够；200ms 会让整张牌桌每秒重建 5 次
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -106,22 +165,29 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
   const durationSec = Math.max(1, Math.round((data?.phaseDurationMs ?? 30_000) / 1000));
   const progress = Math.min(100, Math.max(0, (left / durationSec) * 100));
   const phaseLabel = data?.phase === 'reveal' ? '开牌中' : data?.phase === 'idle' ? '准备下一局' : '下注中';
-  const phaseClass = data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
+  const phaseClass =
+    data?.phase === 'bet' ? (left <= 5 ? 'is-urgent' : 'is-open') : data?.phase === 'reveal' ? 'is-reveal' : 'is-idle';
   const canBet = data.phase === 'bet' && status === 'playing';
-  // 余额在下注时已即时扣除，不允许超额下注
   const canPlace = canBet && amount > 0 && amount <= balance;
   const revealed = data.phase !== 'bet';
   const betting = Object.values(data.myBet ?? {}).reduce((s, v) => s + (v ?? 0), 0);
 
   return (
-    <div className="lobby-game">
+    <div className="lobby-game lobby-game--poker-pro">
+      {centerBanner && (
+        <div key={centerBanner.id} className={`texas-fx-banner is-${centerBanner.kind}`} role="status" aria-live="polite">
+          <strong>{centerBanner.text}</strong>
+          {centerBanner.sub && <span>{centerBanner.sub}</span>}
+        </div>
+      )}
+
       <div className="lobby-game__main">
         <div className="lobby-game__bar">
           <span className="lobby-game__round">第 {data.round} 局</span>
           <span className={`lobby-game__phase ${phaseClass}`}>
             {phaseLabel} · {left}s
           </span>
-          {betting > 0 && <span className="lobby-game__mine">我已下注 {betting}</span>}
+          {betting > 0 && <span className="lobby-game__mine">我已下注 {betting.toLocaleString()}</span>}
           {data.myStreak >= 2 && <span className="streak-badge">🔥 连续命中 {data.myStreak}</span>}
           <div className="phase-progress"><i style={{ width: `${progress}%` }} /></div>
         </div>
@@ -139,8 +205,8 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
 
         <div className="bac-table">
           <div className="bac-side">
-            <span className="bac-side__label">闲</span>
-            <Hand side={data.player} revealed={revealed} />
+            <span className="bac-side__label">闲 (PLAYER)</span>
+            <Hand side={data.player} revealed={revealed} isWinner={revealed && data.outcome === 'player'} />
           </div>
 
           <div className="bac-center">
@@ -152,8 +218,8 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
           </div>
 
           <div className="bac-side">
-            <span className="bac-side__label">庄</span>
-            <Hand side={data.banker} revealed={revealed} />
+            <span className="bac-side__label">庄 (BANKER)</span>
+            <Hand side={data.banker} revealed={revealed} isWinner={revealed && data.outcome === 'banker'} />
           </div>
         </div>
 
@@ -167,20 +233,23 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                 type="button"
                 className={`bac-zone ${bet > 0 ? 'is-bet' : ''} ${won ? 'is-win' : ''}`}
                 disabled={!canPlace}
-                onClick={() => onBet(zone.key, amount)}
+                onClick={() => {
+                  audio.play('poker_chip_bet');
+                  onBet(zone.key, amount);
+                }}
                 title={zone.desc}
               >
                 <span className="bac-zone__label">{zone.label}</span>
                 <span className="bac-zone__odds">{zone.odds}</span>
                 {(data.zoneTotals?.[zone.key] ?? 0) > 0 && (
                   <span className="bac-zone__pool" key={`pool-${data.zoneTotals[zone.key]}`}>
-                    全台 {data.zoneTotals[zone.key]}
+                    全台 {data.zoneTotals[zone.key]?.toLocaleString()}
                   </span>
                 )}
                 {bet > 0 ? (
                   <span className="bac-zone__bet" key={bet}>
                     <img src={chipArt(bet)} alt="" />
-                    <span>我押 {bet}</span>
+                    <span>我押 {bet.toLocaleString()}</span>
                     {canBet && (
                       <span
                         className="bet-cancel"
@@ -189,11 +258,13 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                         title="取消该区下注"
                         onClick={(event) => {
                           event.stopPropagation();
+                          audio.play('poker_fold');
                           onClear(zone.key);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
                             event.stopPropagation();
+                            audio.play('poker_fold');
                             onClear(zone.key);
                           }
                         }}
@@ -203,7 +274,7 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                     )}
                   </span>
                 ) : (
-                  <span className="bac-zone__hint">未下注</span>
+                  <span className="bac-zone__hint">{canBet ? '点击放筹码' : '未下注'}</span>
                 )}
               </button>
             );
@@ -217,7 +288,10 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                 key={value}
                 type="button"
                 className={`chip-btn ${amount === value ? 'is-active' : ''}`}
-                onClick={() => setAmount(value)}
+                onClick={() => {
+                  audio.play('click');
+                  setAmount(value);
+                }}
               >
                 <img src={chipArt(value)} alt="" />
                 <span>{value}</span>
@@ -225,7 +299,14 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
             ))}
           </div>
           {canBet && betting > 0 && (
-            <button type="button" className="ghost clear-bet-btn" onClick={() => onClear()}>
+            <button
+              type="button"
+              className="ghost clear-bet-btn"
+              onClick={() => {
+                audio.play('poker_fold');
+                onClear();
+              }}
+            >
               清空下注
             </button>
           )}
@@ -256,7 +337,8 @@ export function Baccarat({ snapshot, myId, status, balance, onBet, onClear }: Pr
                   row.playerId === myId ? 'is-me' : ''
                 }`}
               >
-                {row.playerId === myId ? '我' : row.nickname} {row.delta > 0 ? `+${row.delta}` : row.delta}
+                {row.playerId === myId ? '我' : row.nickname}{' '}
+                {row.delta > 0 ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
               </span>
             ))}
           </div>
