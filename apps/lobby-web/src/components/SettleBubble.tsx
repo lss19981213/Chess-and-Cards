@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { audio } from '../audio';
+import { gameTitleOf } from '../game-registry';
 import { Chip } from './Chip';
 
 export interface ResultRow {
@@ -23,26 +24,6 @@ interface Props {
   onAutoDismiss?: () => void;
 }
 
-const GAME_NAME: Record<string, string> = {
-  gomoku: '五子棋',
-  doudizhu: '斗地主',
-  paodekuai: '跑得快',
-  tuizhuanzi: '推筒子',
-  texas: '德州扑克',
-  dice: '骰宝',
-  baccarat: '百家乐',
-  niuniu: '斗牛',
-  blackjack: '21点',
-  stud: '梭哈',
-  goldenflower: '翻金花',
-  chess: '国际象棋',
-  xiangqi: '中国象棋',
-  'cs-mahjong': '长沙麻将',
-  'sc-mahjong': '四川血战麻将',
-  'gd-mahjong': '广东推倒胡',
-  'guobiao-mahjong': '国标麻将',
-  'hz-mahjong': '红中麻将',
-};
 
 /**
  * 结算展示组件：
@@ -68,7 +49,7 @@ export function SettleBubble({
   const isLose = delta < 0;
 
   const ranked = [...safeRows].sort((a, b) => (b?.delta ?? 0) - (a?.delta ?? 0));
-  const gameTitle = GAME_NAME[gameId] ?? gameId;
+  const gameTitle = gameTitleOf(gameId);
 
   // 常驻玩法 8 秒后仅自动收起气泡（绝不退出房间），不阻挡下注
   useEffect(() => {

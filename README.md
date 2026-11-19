@@ -25,6 +25,9 @@
 - [新增一个游戏](#新增一个游戏)
 - [安全建议](#安全建议)
 - [合规提示](#合规提示)
+- [仓库地图 CONTEXT（修 bug 先读）](CONTEXT.md)
+- [GAME_MAP（gameId→源码）](docs/GAME_MAP.md)
+- [玩法家族](docs/GAME_FAMILIES.md)
 - [运维手册（发布与热更新）](docs/运维手册-发布与热更新.md)
 - [优化方案书（单游戏热更新）](docs/优化方案书-单游戏热更新.md)
 
@@ -167,11 +170,15 @@
 ## 目录结构
 
 ```text
+CONTEXT.md / AGENTS.md      AI/开发者导航入口（修 bug 先读）
+docs/GAME_MAP.md            gameId → 插件/前端/CSS/别名
+docs/GAME_FAMILIES.md       玩法家族与共用 UI
 packages/protocol           前后端共享协议、等级经验计算、30 款头像框与 34 款荷官皮肤元数据
 packages/game-sdk           GamePlugin 契约、牌型引擎、本地分级博弈机器人算法
 packages/auth               JWT 签发与校验
 apps/api-server             大厅业务 API（认证 / OAuth / 等级 / 任务 / 排行榜 / 邮箱 / 钱包 / Neural TTS / 维护补偿 / GM）
 apps/lobby-web              大厅前端（React 18 + Vite 6，默认部署在 /lobby/ 子路径）
+apps/lobby-web/.../game-registry.ts  前端 gameId 展示字典（标题/分类/热度）
 services/room-server        WebSocket 游戏服容器（房间调度 / 观战入座 / 排空模式 / 机器人驱动 / 结算 outbox）
 services/games/*            15 个插件包（含 5 款麻将变体，共计 19 款游戏）
 tools/CcGmClient            .NET 10 WPF 原生 GM 运营中台桌面客户端
@@ -179,6 +186,7 @@ infra                       1Panel 优雅更新脚本、Nginx 配置、维护页
 Dockerfile                  多阶段国内高速构建镜像（runtime + web）
 docker-compose.1panel.yml   1Panel 原生容器编排文件
 docs/1panel-deploy.md       1Panel 详细部署与自动更新文档
+docs/运维手册-发布与热更新.md  单游戏热更 / SCOPE 发布
 ```
 
 ## 本地开发

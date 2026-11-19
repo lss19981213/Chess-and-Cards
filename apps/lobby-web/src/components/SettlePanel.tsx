@@ -1,5 +1,6 @@
 import { audio } from '../audio';
 import { DEALER_CELEBRATE } from '../assets';
+import { gameTitleOf } from '../game-registry';
 import { Chip } from './Chip';
 
 export interface ResultRow {
@@ -19,22 +20,6 @@ interface Props {
   onContinue: () => void;
   onClose: () => void;
 }
-
-const GAME_NAME: Record<string, string> = {
-  gomoku: '五子棋',
-  doudizhu: '斗地主',
-  paodekuai: '跑得快',
-  tuizhuanzi: '推筒子',
-  texas: '德州扑克',
-  dice: '骰宝',
-  baccarat: '百家乐',
-  niuniu: '斗牛',
-  blackjack: '21点',
-  stud: '梭哈',
-  goldenflower: '翻金花',
-  chess: '国际象棋',
-  xiangqi: '中国象棋',
-};
 
 export function SettlePanel({
   gameId,
@@ -77,7 +62,7 @@ export function SettlePanel({
             <div className="settle-crown-icon">{isWin ? '👑' : isLose ? '🛡️' : '⚖️'}</div>
             <h2 className="settle-title">{titleText}</h2>
             <span className="settle-sub">
-              {GAME_NAME[gameId] ?? gameId} · 第 {round} 局结算
+              {gameTitleOf(gameId)} · 第 {round} 局结算
             </span>
           </div>
 

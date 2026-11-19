@@ -10,7 +10,8 @@ import type { SnapshotEnvelope } from '../App';
 import type { User } from '../api';
 import { audio } from '../audio';
 import { speakDealerQuote } from '../speech';
-import { DEALER_MAIN, DEALER_SKINS_ASSETS, GAME_ART } from '../assets';
+import { DEALER_MAIN, DEALER_SKINS_ASSETS } from '../assets';
+import { GAME_ART, gameTitleOf } from '../game-registry';
 import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
 import { InviteFriendsModal } from './InviteFriendsModal';
@@ -68,28 +69,6 @@ const STATUS_TEXT: Record<string, string> = {
   playing: '对决中',
   settled: '开奖结算',
   closed: '房间关闭',
-};
-
-const GAME_TITLE: Record<string, string> = {
-  gomoku: '五子棋',
-  doudizhu: '斗地主',
-  paodekuai: '跑得快',
-  tuizhuanzi: '推筒子',
-  texas: '德州扑克',
-  dice: '骰宝',
-  baccarat: '百家乐',
-  niuniu: '斗牛',
-  blackjack: '21点',
-  stud: '梭哈',
-  goldenflower: '翻金花',
-  chess: '国际象棋',
-  xiangqi: '中国象棋',
-  'cs-mahjong': '长沙麻将',
-  'sc-mahjong': '四川血战麻将',
-  'gd-mahjong': '广东推倒胡',
-  'guobiao-mahjong': '大众国标麻将',
-  'hz-mahjong': '红中麻将',
-  slots: '疯狂老虎机',
 };
 
 export function Room({
@@ -382,7 +361,7 @@ export function Room({
             <span>返回大厅</span>
           </button>
           <div className="room-info-pill">
-            <strong>{GAME_TITLE[room.gameId] ?? room.gameId}</strong>
+            <strong>{gameTitleOf(room.gameId)}</strong>
             <span className="room-no">#{room.roomId.slice(0, 6)}</span>
             <span className={`room-status-dot is-${room.status}`} />
             <span className="room-status-label">{STATUS_TEXT[room.status] ?? room.status}</span>
@@ -466,7 +445,7 @@ export function Room({
         <InviteFriendsModal
           roomId={room.roomId}
           gameId={room.gameId}
-          roomName={GAME_TITLE[room.gameId] ?? room.gameId}
+          roomName={gameTitleOf(room.gameId)}
           onClose={() => setInviteOpen(false)}
         />
       )}

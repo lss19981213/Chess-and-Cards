@@ -1,3 +1,18 @@
+/**
+ * 长沙麻将五变体合集（单文件）。找 bug 请先看目录再跳转，勿全文盲搜。
+ *
+ * 目录（约行号，以当前文件为准）：
+ * - 牌型 / 状态类型定义 …… 文件前部
+ * - VariantMahjongPlugin 核心逻辑 …… 中部大类
+ * - CsMahjongPlugin   (cs-mahjong)      …… ~2429
+ * - ScMahjongPlugin   (sc-mahjong)      …… ~2463
+ * - GdMahjongPlugin   (gd-mahjong)      …… ~2497
+ * - GuobiaoMahjongPlugin (guobiao-mahjong) …… ~2531
+ * - HzMahjongPlugin   (hz-mahjong)      …… ~2565
+ *
+ * 前端共用：apps/lobby-web/src/games/CsMahjong.tsx
+ * 导航：仓库根 CONTEXT.md、docs/GAME_MAP.md
+ */
 import type { BotDifficulty, GameMeta, GameSnapshot, SettlementEntry } from '@cc/protocol';
 import type { GameIntent, RoomContext } from '@cc/game-sdk';
 import { BaseGamePlugin, shuffleWithSeed } from '@cc/game-sdk';

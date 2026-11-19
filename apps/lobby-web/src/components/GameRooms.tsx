@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { GameMeta } from '@cc/protocol';
 import { api } from '../api';
 import { audio } from '../audio';
-import { GAME_ART } from '../assets';
 import { gameStatusBadge, gameUnavailableToast, isGameJoinable } from '../gameAvailability';
+import { GAME_ART, isPersistentGame } from '../game-registry';
 
 interface TrendMark {
   round: number;
@@ -38,14 +38,12 @@ const STATUS_TEXT: Record<string, string> = {
   settled: '开奖结算中',
 };
 
-const PERSISTENT_GAME_IDS = new Set(['tuizhuanzi', 'dice', 'baccarat', 'niuniu', 'blackjack']);
-
 export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const isLive = game.persistent === true || PERSISTENT_GAME_IDS.has(game.gameId);
+  const isLive = isPersistentGame(game);
 
   const load = useCallback(async () => {
     try {

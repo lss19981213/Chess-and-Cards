@@ -3,7 +3,10 @@ export function asset(name: string): string {
   return `${import.meta.env.BASE_URL}assets/${name}`;
 }
 
-/** gameId → 卡片配图 */
+/**
+ * gameId → 卡片配图。
+ * 展示名/分类/热度等文案请改 game-registry.ts；路径总表见 docs/GAME_MAP.md。
+ */
 export const GAME_ART: Record<string, string> = {
   gomoku: asset('game-gomoku.jpg'),
   doudizhu: asset('game-doudizhu.jpg'),
