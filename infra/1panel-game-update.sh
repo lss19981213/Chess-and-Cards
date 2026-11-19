@@ -184,6 +184,9 @@ if [ "${ACTIVE:-0}" -ne 0 ]; then
   exit 3
 fi
 
+echo "==> 同步最新游戏源码至 room-server 容器..."
+docker cp services/games/. cc-room-server:/app/services/games/ 2>/dev/null || true
+
 echo "==> 热加载插件 ${GAME_KEY}..."
 RELOAD_RES="$(admin_post "/api/admin/games/${ENC_KEY}/reload" '{}')"
 echo "    reload: ${RELOAD_RES}"

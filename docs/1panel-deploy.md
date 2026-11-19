@@ -16,10 +16,11 @@
 curl -fsSL https://raw.githubusercontent.com/lss19981213/Chess-and-Cards/main/infra/1panel-update.sh | bash
 ```
 
-> 若国内机器直连 GitHub 较慢，可加镜像前缀：
+> 若国内机器直连 GitHub 较慢，可使用高速镜像：
 > ```bash
-> curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/lss19981213/Chess-and-Cards/main/infra/1panel-update.sh | bash
+> curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/lss19981213/Chess-and-Cards/main/infra/1panel-update.sh | bash
 > ```
+> （备用镜像：`https://ghproxy.net/...`）
 
 脚本会自动完成：
 1. 克隆仓库至 `/opt/1panel/apps/chess-and-cards`；
