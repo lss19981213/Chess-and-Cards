@@ -16,9 +16,10 @@ import {
 } from '@cc/protocol';
 import { BOT_NAMES, driveBot } from './bot';
 import { config } from './config';
-import { createLogger } from './logger';
+import { createLogger, registerGlobalErrorHooks } from './logger';
 
 const log = createLogger('room-server');
+registerGlobalErrorHooks(log);
 import { RoomManager } from './registry';
 import { createSettlementReporter } from './settlement';
 import { createReleaseClient, createWalletClient } from './wallet';

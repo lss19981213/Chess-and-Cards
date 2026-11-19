@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using CcGmClient.Models;
 using CcGmClient.Services;
 
@@ -25,6 +26,7 @@ namespace CcGmClient
         private PlayerItem? _selectedPlayer;
         private RoomItem? _selectedRoom;
         private FeedbackTicketItem? _selectedTicket;
+        private string _selectedLogFile = "";
         private List<GameCategoryItem> _categories = new();
         private Dictionary<string, string> _gameCategoryMap = new();
         private List<GameMetaItem> _allGames = new();
@@ -211,10 +213,15 @@ namespace CcGmClient
             ViewBroadcast.Visibility = tag == "broadcast" ? Visibility.Visible : Visibility.Collapsed;
             ViewSecurity.Visibility = tag == "security" ? Visibility.Visible : Visibility.Collapsed;
             ViewDevOps.Visibility = tag == "devops" ? Visibility.Visible : Visibility.Collapsed;
+            ViewLogs.Visibility = tag == "logs" ? Visibility.Visible : Visibility.Collapsed;
 
             if (tag == "gameops")
             {
                 _ = RefreshGameOpsAsync();
+            }
+            if (tag == "logs")
+            {
+                _ = RefreshLogsViewAsync();
             }
 
             TxtCurrentViewTitle.Text = tag switch
@@ -231,6 +238,7 @@ namespace CcGmClient
                 "broadcast" => "📢 即时跑马灯与系统公告",
                 "security" => "🛡️ 安全风控机制与解限",
                 "devops" => "🚀 运维诊断与远程持续部署",
+                "logs" => "📜 系统日志与深度排障诊断",
                 _ => "GM 运营中台"
             };
 
@@ -297,6 +305,9 @@ namespace CcGmClient
                         await RefreshSecurityEventsAsync();
                         break;
                     case "devops":
+                        break;
+                    case "logs":
+                        await RefreshLogsViewAsync();
                         break;
                 }
                 sw.Stop();
@@ -2290,6 +2301,204 @@ namespace CcGmClient
             {
                 MessageBox.Show($"删除工单失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        // ==================== 系统日志与深度排障逻辑 ====================
+
+        private async Task RefreshLogsViewAsync()
+        {
+            await Task.WhenAll(RefreshLogFilesAsync(), RefreshLogTailAsync());
+        }
+
+        private async Task RefreshLogFilesAsync()
+        {
+            try
+            {
+                var res = await _api.GetLogFilesAsync();
+                var files = res.Files ?? new List<LogFileInfo>();
+                DgLogFiles.ItemsSource = files;
+                TxtLogFilesCount.Text = $"(共 {files.Count} 个归档文件)";
+
+                if (DgLogFiles.SelectedItem is not LogFileInfo)
+                {
+                    BtnDownloadLogFile.IsEnabled = false;
+                    BtnViewLogFile.IsEnabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"拉取日志文件列表失败: {ex.Message}");
+            }
+        }
+
+        private async Task RefreshLogTailAsync()
+        {
+            try
+            {
+                var service = (CmbLogService.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+                var level = (CmbLogLevel.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+                var linesStr = (CmbLogLines.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "200";
+                _ = int.TryParse(linesStr, out var lines);
+                var keyword = TxtLogKeyword.Text.Trim();
+
+                var res = await _api.GetLogTailAsync(service, level, lines, keyword, _selectedLogFile);
+                TxtLogTerminal.Text = string.IsNullOrEmpty(res.Content) ? "[暂无符合条件的日志记录]" : res.Content;
+                TxtLogTerminal.ScrollToEnd();
+
+                TxtLogCurrentSource.Text = string.IsNullOrEmpty(_selectedLogFile)
+                    ? $"当前: 实时日志流 (显示 {res.Returned} 行)"
+                    : $"当前文件: {_selectedLogFile} (显示 {res.Returned} 行)";
+            }
+            catch (Exception ex)
+            {
+                TxtLogTerminal.Text = $"[错误] 拉取日志失败: {ex.Message}";
+            }
+        }
+
+        private async void BtnRefreshLogFiles_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshLogFilesAsync();
+            SetStatus("已刷新服务器日志文件列表");
+        }
+
+        private async void BtnRefreshLogs_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshLogTailAsync();
+            SetStatus("已刷新实时日志流");
+        }
+
+        private void DgLogFiles_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var hasSelection = DgLogFiles.SelectedItem is LogFileInfo;
+            BtnDownloadLogFile.IsEnabled = hasSelection;
+            BtnViewLogFile.IsEnabled = hasSelection;
+        }
+
+        private async void DgLogFiles_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (DgLogFiles.SelectedItem is LogFileInfo item)
+            {
+                _selectedLogFile = item.Name;
+                await RefreshLogTailAsync();
+            }
+        }
+
+        private async void BtnViewLogFile_Click(object sender, RoutedEventArgs e)
+        {
+            if (DgLogFiles.SelectedItem is LogFileInfo item)
+            {
+                _selectedLogFile = item.Name;
+                await RefreshLogTailAsync();
+                SetStatus($"已加载历史日志文件: {item.Name}");
+            }
+        }
+
+        private async void BtnDownloadLogFile_Click(object sender, RoutedEventArgs e)
+        {
+            if (DgLogFiles.SelectedItem is not LogFileInfo item) return;
+
+            var sfd = new SaveFileDialog
+            {
+                FileName = item.Name,
+                Filter = "日志文件 (*.log)|*.log|文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*",
+                Title = $"保存日志文件 - {item.Name}"
+            };
+
+            if (sfd.ShowDialog() == true)
+            {
+                try
+                {
+                    SetStatus($"正在从服务器下载日志文件 {item.Name}...");
+                    var bytes = await _api.DownloadLogFileAsync(item.Name);
+                    await File.WriteAllBytesAsync(sfd.FileName, bytes);
+
+                    SetStatus($"日志已成功保存到: {sfd.FileName} ({bytes.Length / 1024.0:F1} KB)");
+                    var ask = MessageBox.Show(
+                        $"日志文件已成功下载到:\n{sfd.FileName}\n\n是否立即用默认文本编辑器打开此日志？",
+                        "下载成功",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Information);
+
+                    if (ask == MessageBoxResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"下载日志文件失败: {ex.Message}", "下载错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private async void BtnCleanOldLogs_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(
+                "确定要清理服务器上 7 天前的历史旧日志吗？\n\n该操作将物理删除过期 .log 文件以释放服务器磁盘空间。",
+                "清理旧日志确认",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                var res = await _api.CleanLogsAsync(7);
+                MessageBox.Show(
+                    $"清理完成！\n已删除过期旧文件: {res.DeletedCount} 个\n释放磁盘空间: {res.FreedBytes / 1024.0:F1} KB",
+                    "清理成功",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                await RefreshLogFilesAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"清理旧日志失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void CmbLogFilter_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_activeView == "logs" && IsLoaded)
+            {
+                _ = RefreshLogTailAsync();
+            }
+        }
+
+        private async void BtnSearchLogs_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshLogTailAsync();
+        }
+
+        private async void TxtLogKeyword_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                await RefreshLogTailAsync();
+            }
+        }
+
+        private async void BtnResetLogFilter_Click(object sender, RoutedEventArgs e)
+        {
+            _selectedLogFile = "";
+            TxtLogKeyword.Text = "";
+            CmbLogService.SelectedIndex = 0;
+            CmbLogLevel.SelectedIndex = 0;
+            CmbLogLines.SelectedIndex = 1;
+            await RefreshLogsViewAsync();
+            SetStatus("已重置日志筛选条件，切换回实时日志流");
+        }
+
+        private void BtnCopyLogs_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(TxtLogTerminal.Text)) return;
+            Clipboard.SetText(TxtLogTerminal.Text);
+            SetStatus("已将控制台中的日志全部复制到剪贴板");
+        }
+
+        private void BtnClearLogView_Click(object sender, RoutedEventArgs e)
+        {
+            TxtLogTerminal.Clear();
+            SetStatus("已清空控制台日志视图");
         }
     }
 }

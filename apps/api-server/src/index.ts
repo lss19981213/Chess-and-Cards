@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { config } from './config';
-import { createLogger } from './logger';
+import { createLogger, registerGlobalErrorHooks } from './logger';
 import { recordEvent } from './events';
 import { MemoryRepository } from './repository/memory';
 import { PostgresRepository } from './repository/postgres';
@@ -14,6 +14,7 @@ import { registerSocialRoutes } from './routes/social';
 import { registerAdminAndInternalRoutes } from './routes/admin-internal';
 import { registerMaintenanceRoutes } from './routes/maintenance';
 import { registerTicketRoutes } from './routes/tickets';
+import { registerAdminLogRoutes } from './routes/admin-logs';
 
 /** 需要进入后台事件流的路径（轮询类接口不记，避免刷屏） */
 const EVENT_PATHS = new Set(['/api/guest', '/api/register', '/api/login', '/api/tasks/claim']);
@@ -57,6 +58,7 @@ export function createApiApp(repo: Repository): {
     }
   });
   const apiLog = createLogger('api');
+  registerGlobalErrorHooks(apiLog);
   const requestStart = new WeakMap<FastifyRequest, number>();
 
   app.addHook('onRequest', async (req, reply) => {
@@ -107,6 +109,7 @@ export function createApiApp(repo: Repository): {
   registerAdminAndInternalRoutes(app, repo, apiLog);
   registerMaintenanceRoutes(app, repo, apiLog);
   registerTicketRoutes(app, repo, apiLog);
+  registerAdminLogRoutes(app, apiLog);
 
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: 'not found' }));
 

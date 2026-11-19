@@ -126,6 +126,7 @@
                             <RadioButton x:Name="NavBroadcast" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📢  跑马灯与公告" Checked="Nav_Checked" Tag="broadcast" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavSecurity" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🛡️  安全风控解限" Checked="Nav_Checked" Tag="security" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavDevOps" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🚀  运维与远程部署" Checked="Nav_Checked" Tag="devops" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavLogs" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📜  系统日志诊断" Checked="Nav_Checked" Tag="logs" Margin="0,0,0,6"/>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -1729,6 +1730,113 @@
                                              BorderThickness="0"
                                              TextWrapping="Wrap"/>
                                 </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ==================== 8. 系统日志与深度排障 (Logs) ==================== -->
+                    <Grid x:Name="ViewLogs" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="220"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 上部分：服务器日志文件归档与下载管理 -->
+                        <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12" Padding="14,12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- 标题与操作栏 -->
+                                <Grid Grid.Row="0" Margin="0,0,0,10">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="📁 服务器归档日志文件（可直接下载到本地或在线加载）" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource BrushGold}" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtLogFilesCount" Text="(共 0 个文件)" FontSize="12" Foreground="{StaticResource BrushTextDim}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource BtnSecondary}" Content="🔄 刷新文件列表" Click="BtnRefreshLogFiles_Click" Height="28" Padding="10,0" Margin="0,0,8,0"/>
+                                        <Button x:Name="BtnDownloadLogFile" Style="{StaticResource BtnGold}" Content="📥 下载选中日志" Click="BtnDownloadLogFile_Click" Height="28" Padding="12,0" Margin="0,0,8,0" IsEnabled="False" ToolTip="将选中的服务器日志文件完整下载并保存到本地电脑"/>
+                                        <Button x:Name="BtnViewLogFile" Style="{StaticResource BtnSecondary}" Content="👁️ 在线加载调阅" Click="BtnViewLogFile_Click" Height="28" Padding="10,0" Margin="0,0,8,0" IsEnabled="False" ToolTip="将选中日志的内容直接加载到底部控制台"/>
+                                        <Button Style="{StaticResource BtnDanger}" Content="🧹 清理7天前旧日志" Click="BtnCleanOldLogs_Click" Height="28" Padding="10,0" ToolTip="删除 7 天前的历史旧日志以释放服务器磁盘空间"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 文件表格 -->
+                                <DataGrid Grid.Row="1" x:Name="DgLogFiles" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                                          Background="#080C12" Foreground="{StaticResource BrushText}" BorderBrush="{StaticResource BrushBorder}"
+                                          RowHeight="26" SelectionMode="Single" SelectionChanged="DgLogFiles_SelectionChanged"
+                                          MouseDoubleClick="DgLogFiles_MouseDoubleClick">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="日志文件名" Binding="{Binding Name}" Width="240"/>
+                                        <DataGridTextColumn Header="归属服务" Binding="{Binding ServiceText}" Width="130"/>
+                                        <DataGridTextColumn Header="文件大小" Binding="{Binding FormattedSize}" Width="100"/>
+                                        <DataGridTextColumn Header="最后写入时间" Binding="{Binding FormattedMtime}" Width="160"/>
+                                        <DataGridTextColumn Header="诊断用途说明" Binding="{Binding Hint}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <!-- 下部分：实时诊断日志流控制台 -->
+                        <Border Grid.Row="1" Background="#080C12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6" Padding="14,12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- 过滤工具栏 -->
+                                <Grid Grid.Row="0" Margin="0,0,0,10">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="服务:" Foreground="{StaticResource BrushTextMuted}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <ComboBox x:Name="CmbLogService" Width="95" Height="28" Margin="0,0,10,0" SelectionChanged="CmbLogFilter_Changed">
+                                            <ComboBoxItem Content="全部服务" Tag="all" IsSelected="True"/>
+                                            <ComboBoxItem Content="API 服务" Tag="api"/>
+                                            <ComboBoxItem Content="房间服务" Tag="room"/>
+                                            <ComboBoxItem Content="错误汇总" Tag="error"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="级别:" Foreground="{StaticResource BrushTextMuted}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <ComboBox x:Name="CmbLogLevel" Width="90" Height="28" Margin="0,0,10,0" SelectionChanged="CmbLogFilter_Changed">
+                                            <ComboBoxItem Content="全部级别" Tag="all" IsSelected="True"/>
+                                            <ComboBoxItem Content="ERROR" Tag="error"/>
+                                            <ComboBoxItem Content="WARN" Tag="warn"/>
+                                            <ComboBoxItem Content="INFO" Tag="info"/>
+                                            <ComboBoxItem Content="DEBUG" Tag="debug"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="行数:" Foreground="{StaticResource BrushTextMuted}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <ComboBox x:Name="CmbLogLines" Width="80" Height="28" Margin="0,0,10,0" SelectionChanged="CmbLogFilter_Changed">
+                                            <ComboBoxItem Content="100 行" Tag="100"/>
+                                            <ComboBoxItem Content="200 行" Tag="200" IsSelected="True"/>
+                                            <ComboBoxItem Content="500 行" Tag="500"/>
+                                            <ComboBoxItem Content="1000 行" Tag="1000"/>
+                                        </ComboBox>
+
+                                        <TextBox x:Name="TxtLogKeyword" Width="160" Height="28" VerticalContentAlignment="Center" Margin="0,0,8,0" KeyDown="TxtLogKeyword_KeyDown" ToolTip="输入关键字回车快速搜索 (例如 playerId, roomId, 500 等)"/>
+                                        <Button Style="{StaticResource BtnGold}" Content="🔍 检索" Click="BtnSearchLogs_Click" Height="28" Padding="12,0" Margin="0,0,6,0"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="重置" Click="BtnResetLogFilter_Click" Height="28" Padding="8,0"/>
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtLogCurrentSource" Text="当前: 实时日志流" FontSize="11.5" Foreground="{StaticResource BrushGreen}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="📋 复制全部" Click="BtnCopyLogs_Click" Height="28" Padding="10,0" Margin="0,0,6,0"/>
+                                        <Button Style="{StaticResource BtnSecondary}" Content="🧹 清空视图" Click="BtnClearLogView_Click" Height="28" Padding="10,0" Margin="0,0,6,0"/>
+                                        <Button Style="{StaticResource BtnGold}" Content="🔄 立即刷新" Click="BtnRefreshLogs_Click" Height="28" Padding="12,0"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 终端日志控制台输出文本框 -->
+                                <Border Grid.Row="1" Background="#04060A" BorderBrush="#1C2738" BorderThickness="1" CornerRadius="4">
+                                    <TextBox x:Name="TxtLogTerminal" IsReadOnly="True" Background="Transparent" Foreground="#D1D9E6"
+                                             FontFamily="Consolas, Cascadia Code, Courier New" FontSize="12"
+                                             AcceptsReturn="True" TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                             Padding="10,8" BorderThickness="0"/>
+                                </Border>
                             </Grid>
                         </Border>
                     </Grid>

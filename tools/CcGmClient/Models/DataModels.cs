@@ -1278,4 +1278,80 @@ namespace CcGmClient.Models
         [JsonPropertyName("games")]
         public List<GameOpsItem> Games { get; set; } = new();
     }
+
+    // ---------- 系统日志与深度排障模型 ----------
+    public class LogFileInfo
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("service")]
+        public string Service { get; set; } = "other";
+
+        [JsonIgnore]
+        public string ServiceText => Service switch
+        {
+            "api" => "🌐 API 接口服务",
+            "room" => "🎲 对战房间服务",
+            "error" => "⚠️ 综合异常汇总",
+            _ => "📄 通用日志"
+        };
+
+        [JsonPropertyName("size")]
+        public long Size { get; set; }
+
+        [JsonPropertyName("formattedSize")]
+        public string FormattedSize { get; set; } = "";
+
+        [JsonPropertyName("mtime")]
+        public double Mtime { get; set; }
+
+        [JsonPropertyName("formattedMtime")]
+        public string FormattedMtime { get; set; } = "";
+
+        [JsonPropertyName("hint")]
+        public string Hint { get; set; } = "";
+    }
+
+    public class LogFilesResponse
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("total")]
+        public int Total { get; set; }
+
+        [JsonPropertyName("files")]
+        public List<LogFileInfo> Files { get; set; } = new();
+    }
+
+    public class LogTailResponse
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("total")]
+        public int Total { get; set; }
+
+        [JsonPropertyName("returned")]
+        public int Returned { get; set; }
+
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = "";
+    }
+
+    public class LogCleanResponse
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("retainDays")]
+        public int RetainDays { get; set; }
+
+        [JsonPropertyName("deletedCount")]
+        public int DeletedCount { get; set; }
+
+        [JsonPropertyName("freedBytes")]
+        public long FreedBytes { get; set; }
+    }
 }

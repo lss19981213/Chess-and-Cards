@@ -52,7 +52,10 @@ services:
       FANTASYCLAW_OAUTH_REDIRECT_URI: ${FANTASYCLAW_OAUTH_REDIRECT_URI:-}
       FANTASYCLAW_OAUTH_SCOPE: ${FANTASYCLAW_OAUTH_SCOPE:-profile email}
       PUBLIC_LOBBY_URL: ${PUBLIC_LOBBY_URL:-/lobby/}
+      LOG_DIR: /data/logs
       TZ: Asia/Shanghai
+    volumes:
+      - ./data/logs:/data/logs
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -86,9 +89,11 @@ services:
       DISCONNECT_GRACE_MS: ${DISCONNECT_GRACE_MS:-60000}
       BOT_ENABLED: ${BOT_ENABLED:-true}
       BOT_THINK_MS: ${BOT_THINK_MS:-700}
+      LOG_DIR: /data/logs
       TZ: Asia/Shanghai
     volumes:
       - ./data/outbox:/data/outbox
+      - ./data/logs:/data/logs
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health >/dev/null 2>&1 || exit 1"]
       interval: 10s

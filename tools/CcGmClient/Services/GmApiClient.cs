@@ -565,5 +565,53 @@ namespace CcGmClient.Services
             await SendAsync<object>(HttpMethod.Post, path, body);
             return true;
         }
+
+        // ---------- 12. 系统日志与深度排障 ----------
+
+        /// <summary>
+        /// 获取服务器上已归档的日志文件列表
+        /// </summary>
+        public async Task<LogFilesResponse> GetLogFilesAsync()
+        {
+            return await SendAsync<LogFilesResponse>(HttpMethod.Get, "/api/admin/logs/files");
+        }
+
+        /// <summary>
+        /// 下载指定日志文件的二进制流
+        /// </summary>
+        public async Task<byte[]> DownloadLogFileAsync(string fileName)
+        {
+            var path = $"/api/admin/logs/download?file={Uri.EscapeDataString(fileName)}";
+            using var req = CreateRequest(HttpMethod.Get, path);
+            using var res = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+            if (!res.IsSuccessStatusCode)
+            {
+                var err = await res.Content.ReadAsStringAsync();
+                throw new Exception($"下载日志失败 ({res.StatusCode}): {err}");
+            }
+            return await res.Content.ReadAsByteArrayAsync();
+        }
+
+        /// <summary>
+        /// 在线调阅/检索最近日志内容
+        /// </summary>
+        public async Task<LogTailResponse> GetLogTailAsync(
+            string service = "all",
+            string level = "all",
+            int lines = 200,
+            string keyword = "",
+            string file = "")
+        {
+            var q = $"/api/admin/logs/tail?service={Uri.EscapeDataString(service)}&level={Uri.EscapeDataString(level)}&lines={lines}&keyword={Uri.EscapeDataString(keyword)}&file={Uri.EscapeDataString(file)}";
+            return await SendAsync<LogTailResponse>(HttpMethod.Get, q);
+        }
+
+        /// <summary>
+        /// 清理旧日志文件
+        /// </summary>
+        public async Task<LogCleanResponse> CleanLogsAsync(int retainDays = 7)
+        {
+            return await SendAsync<LogCleanResponse>(HttpMethod.Post, "/api/admin/logs/clean", new { retainDays });
+        }
     }
 }
