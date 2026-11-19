@@ -15,7 +15,7 @@ const ANTE = 50;
 const RAISE_UNIT = 100;
 const MAX_RAISES = 10;
 /** 单次加注/全压上限与钱包扣款接口对齐 */
-const MAX_RAISE_ADD = 1_000_000;
+const MAX_RAISE_ADD = 100_000_000;
 
 interface ResultRow {
   playerId: string;

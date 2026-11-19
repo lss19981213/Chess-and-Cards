@@ -6,7 +6,7 @@ const ANTE = 50;
 const RAISE_UNIT = 100;
 const MAX_RAISES = 6;
 /** 单次加注/全压上限与平台钱包单笔扣款限额对齐 */
-const MAX_RAISE_ADD = 1_000_000;
+const MAX_RAISE_ADD = 100_000_000;
 const HAND_SIZE = 3;
 
 interface ResultRow {

@@ -195,11 +195,11 @@ export function Texas({ snapshot, myId, status, balance, playerMedia, onAction }
   // 允许的最大加注增量（兼顾余额与单笔风控上限）
   const maxAllowedAdd = Math.max(
     0,
-    Math.min(data.maxRaiseAdd || 1_000_000, Math.max(0, balance - data.toCall)),
+    Math.min(data.maxRaiseAdd || 100_000_000, Math.max(0, balance - data.toCall)),
   );
   const effectiveRaiseAdd =
     maxAllowedAdd >= raiseUnit ? Math.min(Math.max(raiseAdd, raiseUnit), maxAllowedAdd) : raiseUnit;
-  const allInAmount = Math.min(1_000_000, Math.max(0, Math.floor(balance)));
+  const allInAmount = Math.min(data.maxRaiseAdd ?? 100_000_000, Math.max(0, Math.floor(balance)));
   const canAllIn = isMyTurn && allInAmount > 0;
 
   const quickPresets = [

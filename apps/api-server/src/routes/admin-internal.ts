@@ -847,7 +847,7 @@ function describeLedgerRow(bizType: string, bizId: string): { bizLabel: string; 
       !bizId ||
       !action ||
       !Number.isInteger(amount) ||
-      (action === 'debit' && (amount <= 0 || amount > 100_000_000))
+      (action === 'debit' && (amount <= 0 || amount > 100_000_000_000))
     ) {
       return reply.status(400).send({ error: '扣款参数不合法' });
     }

@@ -16,8 +16,8 @@ const SMALL_BLIND = 50;
 const BIG_BLIND = 100;
 const RAISE_UNIT = 100;
 const MAX_RAISES = 5;
-/** 单次下注/全压风控上限（与内部钱包单笔扣款上限一致） */
-const MAX_RAISE_ADD = 1_000_000;
+/** 单次下注/全压风控上限 */
+const MAX_RAISE_ADD = 100_000_000;
 
 type Phase = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
 

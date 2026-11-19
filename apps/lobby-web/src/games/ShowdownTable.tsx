@@ -183,7 +183,7 @@ export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, on
   const raiseUnit = Math.max(10, data?.raiseUnit ?? 100);
   const maxAllowedRaise = useMemo(() => {
     if (!data) return raiseUnit;
-    const cap = Math.min(data.maxRaiseAdd ?? 1_000_000, Math.max(0, balance - data.toCall));
+    const cap = Math.min(data.maxRaiseAdd ?? 100_000_000, Math.max(0, balance - data.toCall));
     return Math.max(0, cap);
   }, [data, balance, raiseUnit]);
 
@@ -211,7 +211,7 @@ export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, on
   const mult = canLookMode && data.looked ? 2 : 1;
   const need = data.toCall + clampedRaise * mult;
   const canRaiseNow = isMyTurn && maxAllowedRaise >= raiseUnit && need <= balance;
-  const allInAmount = Math.min(balance, data.maxRaiseAdd ?? 1_000_000);
+  const allInAmount = Math.min(balance, data.maxRaiseAdd ?? 100_000_000);
   const canAllIn = isMyTurn && allInAmount > 0;
 
   const fireCmd = (cmd: string, amount?: number) => {

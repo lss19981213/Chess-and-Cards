@@ -10,7 +10,7 @@ export function buildSettlementEnvelope(params: {
   input: SettlementInput;
 }): Settlement {
   const entries = params.input.entries.filter((entry) => {
-    const valid = Number.isInteger(entry.delta) && Math.abs(entry.delta) <= 1_000_000;
+    const valid = Number.isSafeInteger(entry.delta) && Math.abs(entry.delta) <= 100_000_000_000;
     if (!valid) console.warn(`[room ${params.roomId}] 结算条目非法，已丢弃`, entry);
     return valid;
   });
