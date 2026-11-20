@@ -1073,7 +1073,7 @@
                             <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="8,0,0,0">
                                 <StackPanel>
                                     <TextBlock Text="累计手续费与印花税" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
-                                    <TextBlock x:Name="TxtStockTotalFees" Text="0 豆" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushSuccess}" Margin="0,6,0,0"/>
+                                    <TextBlock x:Name="TxtStockTotalFees" Text="0 豆" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushGreen}" Margin="0,6,0,0"/>
                                 </StackPanel>
                             </Border>
                         </Grid>

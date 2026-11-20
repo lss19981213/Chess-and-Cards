@@ -41,7 +41,9 @@
         <SolidColorBrush x:Key="BrushTextMuted" Color="{StaticResource ColorTextMuted}"/>
         <SolidColorBrush x:Key="BrushTextDim" Color="{StaticResource ColorTextDim}"/>
         <SolidColorBrush x:Key="BrushGreen" Color="{StaticResource ColorGreen}"/>
+        <SolidColorBrush x:Key="BrushSuccess" Color="{StaticResource ColorGreen}"/>
         <SolidColorBrush x:Key="BrushRed" Color="{StaticResource ColorRed}"/>
+        <SolidColorBrush x:Key="BrushDanger" Color="{StaticResource ColorRed}"/>
         <SolidColorBrush x:Key="BrushBlue" Color="{StaticResource ColorBlue}"/>
 
         <!-- 鎏金渐变画刷 -->
