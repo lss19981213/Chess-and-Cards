@@ -507,7 +507,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
             </div>
             <h2 className="stock-modal-title">📈 改命股市 · 财富重构交易中心</h2>
             <p className="stock-modal-subtitle">
-              前期精选 10 支大宗黄金白银铂金与核心白酒消费龙头 · 真实股市实时数据 · T+0随时买卖改命
+              精选 30 支核心大盘资产与蓝筹龙头 · 真实股市实时数据 · T+0随时买卖改命
             </p>
           </div>
 
@@ -607,7 +607,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
               <aside className="stock-sidebar">
                 <div className="category-filter-bar">
                   {[
-                    { id: 'all', label: '全部(10)' },
+                    { id: 'all', label: `全部(${definitions.length})` },
                     { id: 'metal', label: '贵金属' },
                     { id: 'liquor', label: '白酒消费' },
                     { id: 'ev', label: '新能源' },

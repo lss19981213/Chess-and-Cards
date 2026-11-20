@@ -1032,7 +1032,7 @@
                         <Grid Grid.Row="0" Margin="0,0,0,16">
                             <StackPanel>
                                 <TextBlock Text="📈 改命股市运营监控与全服交易透视" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
-                                <TextBlock Text="全服 10 支核心资产真实大盘行情透视、持仓玩家市值汇总与交易流水风控" FontSize="12" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                                <TextBlock Text="全服 30 支核心资产真实大盘行情透视、持仓玩家市值汇总与交易流水风控" FontSize="12" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Button x:Name="BtnRefreshStocks" Style="{StaticResource BtnGold}" Content="🔄 刷新大盘与行情" Click="BtnRefreshStocks_Click" Height="32" Padding="14,0" Margin="0,0,8,0"/>
@@ -1099,7 +1099,7 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Text="📊 10 支核心标的真实实时盘口" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,0,0,8"/>
+                                        <TextBlock Grid.Row="0" Text="📊 30 支核心标的真实实时盘口" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,0,0,8"/>
                                         <DataGrid x:Name="DgStockQuotes" Grid.Row="1">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="代码" Binding="{Binding Symbol}" Width="65"/>
