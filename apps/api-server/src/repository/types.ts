@@ -1,4 +1,4 @@
-import type { Announcement, Currency, Settlement, SettlementEntry } from '@cc/protocol';
+import type { Announcement, Currency, Settlement, SettlementEntry, StockOrder, StockTradeResult } from '@cc/protocol';
 
 export interface UserRecord {
   id: string;
@@ -43,8 +43,8 @@ export interface BetAdjustment {
 }
 
 export class InsufficientFundsError extends Error {
-  constructor() {
-    super('筹码不足，无法下注');
+  constructor(message = '筹码不足，无法下注') {
+    super(message);
     this.name = 'InsufficientFundsError';
   }
 }
@@ -419,6 +419,20 @@ export interface Repository {
   ): Promise<FeedbackTicket | null>;
   listAdminTickets(filter?: AdminTicketFilter): Promise<{ tickets: FeedbackTicket[]; stats: TicketStats }>;
   deleteTicket(ticketId: string): Promise<boolean>;
+
+  // ---------- 改命股市 ----------
+  getStockHoldings(userId: string): Promise<StockHoldingRow[]>;
+  buyStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult>;
+  sellStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult>;
+  listStockOrders(userId: string, limit?: number): Promise<StockOrder[]>;
+}
+
+export interface StockHoldingRow {
+  userId: string;
+  symbol: string;
+  shares: number;
+  avgCost: number;
+  updatedAt: number;
 }
 
 export type TicketCategory = 'bug' | 'suggestion' | 'wallet' | 'gameplay' | 'account' | 'report' | 'other';

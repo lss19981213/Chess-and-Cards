@@ -26,6 +26,7 @@ import { Chip } from './Chip';
 import { DealerTipWidget } from './DealerTipWidget';
 import { DealerWardrobeModal } from './DealerWardrobeModal';
 import { FeedbackModal } from './FeedbackModal';
+import { StockMarketModal } from './StockMarketModal';
 import {
   IconFriends,
   IconGift,
@@ -97,6 +98,7 @@ export function Lobby({
   const [customQuote, setCustomQuote] = useState<string | null>(null);
   const [hoveredGame, setHoveredGame] = useState<GameMeta | null>(null);
   const [showSlotsModal, setShowSlotsModal] = useState(false);
+  const [showStockMarketModal, setShowStockMarketModal] = useState(false);
   const [showAvatarFrameModal, setShowAvatarFrameModal] = useState(false);
   const [showDealerWardrobe, setShowDealerWardrobe] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -506,15 +508,16 @@ export function Lobby({
             <span className="slots-pill-badge">HOT</span>
           </button>
 
-          {/* 🖼️ 头像框商城与更衣室 */}
+          {/* 📈 改命股市交易中心入口（紧随老虎机后面） */}
           <button
             type="button"
-            className="top-feature-pill"
-            onClick={() => (user ? setShowAvatarFrameModal(true) : onLogin())}
-            title={user ? '挑选佩戴30款尊享动态头像框' : '请先登录或注册账号'}
+            className="top-feature-pill top-feature-pill--stocks"
+            onClick={() => (user ? setShowStockMarketModal(true) : onLogin())}
+            title={user ? '进入改命股市 · 10支大宗黄金白银与核心龙头实盘交易' : '请先登录或注册账号'}
           >
-            <span className="frame-pill-icon">🖼️</span>
-            <span>头像框</span>
+            <span className="stocks-pill-icon">📈</span>
+            <span className="stocks-pill-title">改命股市</span>
+            <span className="stocks-pill-badge">HOT</span>
           </button>
 
           <button type="button" className="top-feature-pill" onClick={onRules} title="全游戏规则说明">
@@ -902,6 +905,15 @@ export function Lobby({
             if (onUserUpdate) onUserUpdate(patch);
           }}
           onClose={() => setShowSlotsModal(false)}
+        />
+      )}
+
+      {showStockMarketModal && user && (
+        <StockMarketModal
+          user={user}
+          onBalanceChange={onBalanceChange}
+          onUserUpdate={onUserUpdate}
+          onClose={() => setShowStockMarketModal(false)}
         />
       )}
 

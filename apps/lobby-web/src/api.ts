@@ -1,4 +1,13 @@
-import type { Announcement, GameMeta } from '@cc/protocol';
+import type {
+  Announcement,
+  GameMeta,
+  StockHolding,
+  StockMeta,
+  StockOrder,
+  StockQuote,
+  StockTradeResult,
+  StockTrendPoint,
+} from '@cc/protocol';
 
 export interface User {
   id: string;
@@ -506,6 +515,36 @@ export const api = {
         body: '{}',
       },
     ),
+
+  // ---------- 改命股市 ----------
+  getStockQuotes: () =>
+    request<{ definitions: StockMeta[]; quotes: StockQuote[]; timestamp: number }>('/api/stocks/quotes'),
+  getStockHoldings: () =>
+    request<{
+      holdings: StockHolding[];
+      summary: {
+        totalAssets: number;
+        availableBalance: number;
+        totalMarketValue: number;
+        totalFloatingPnl: number;
+        totalFloatingPercent: number;
+        totalTodayPnl: number;
+      };
+    }>('/api/stocks/holdings'),
+  buyStock: (symbol: string, shares: number) =>
+    request<StockTradeResult>('/api/stocks/buy', {
+      method: 'POST',
+      body: JSON.stringify({ symbol, shares }),
+    }),
+  sellStock: (symbol: string, shares: number) =>
+    request<StockTradeResult>('/api/stocks/sell', {
+      method: 'POST',
+      body: JSON.stringify({ symbol, shares }),
+    }),
+  getStockOrders: (limit = 50) =>
+    request<{ orders: StockOrder[] }>(`/api/stocks/orders?limit=${limit}`),
+  getStockTrends: (symbol: string) =>
+    request<{ symbol: string; trends: StockTrendPoint[] }>(`/api/stocks/trends/${encodeURIComponent(symbol)}`),
 };
 
 export type TicketCategory = 'bug' | 'suggestion' | 'wallet' | 'gameplay' | 'account' | 'report' | 'other';

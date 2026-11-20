@@ -15,6 +15,7 @@ import { registerAdminAndInternalRoutes } from './routes/admin-internal';
 import { registerMaintenanceRoutes } from './routes/maintenance';
 import { registerTicketRoutes } from './routes/tickets';
 import { registerAdminLogRoutes } from './routes/admin-logs';
+import { registerStockRoutes } from './routes/stocks';
 
 /** 需要进入后台事件流的路径（轮询类接口不记，避免刷屏） */
 const EVENT_PATHS = new Set(['/api/guest', '/api/register', '/api/login', '/api/tasks/claim']);
@@ -110,6 +111,7 @@ export function createApiApp(repo: Repository): {
   registerMaintenanceRoutes(app, repo, apiLog);
   registerTicketRoutes(app, repo, apiLog);
   registerAdminLogRoutes(app, apiLog);
+  registerStockRoutes(app, repo);
 
   app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: 'not found' }));
 

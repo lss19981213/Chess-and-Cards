@@ -318,6 +318,8 @@ const LEDGER_BIZ_META: Record<string, { label: string; category: string }> = {
   worship: { label: '膜拜奖励', category: 'social' },
   dealer_tip: { label: '打赏荷官', category: 'social' },
   avatar_frame: { label: '购买头像框', category: 'social' },
+  stock_buy: { label: '改命股市买入', category: 'stock' },
+  stock_sell: { label: '改命股市卖出', category: 'stock' },
   gm_grant: { label: 'GM 调账', category: 'gm' },
   init: { label: '注册赠豆', category: 'gm' },
   relief: { label: '救济金', category: 'task' },
@@ -334,7 +336,9 @@ function describeLedgerRow(bizType: string, bizId: string): { bizLabel: string; 
   else if (bizType === 'game_bet_return') note = `牌局下注本金返还 (${cleanId})`;
   else if (bizType === 'slots_spin' || bizType === 'slots_bet' || bizType === 'slots_win') {
     note = `777 老虎机真实流水 (${cleanId})`;
-  } else if (bizType === 'dealer_tip') note = `打赏荷官艾莉丝 (${cleanId})`;
+  } else if (bizType === 'stock_buy') note = `改命股市买入标的 (${cleanId})`;
+  else if (bizType === 'stock_sell') note = `改命股市平仓卖出 (${cleanId})`;
+  else if (bizType === 'dealer_tip') note = `打赏荷官艾莉丝 (${cleanId})`;
   else if (bizType === 'avatar_frame') note = `商城解锁动态头像框 (${cleanId})`;
   else if (bizType === 'task') note = `悬赏福利任务领奖 (${cleanId})`;
   else if (bizType === 'level_reward') note = `账号升级筹码奖励 (${cleanId})`;

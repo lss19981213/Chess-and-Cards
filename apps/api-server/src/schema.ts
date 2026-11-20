@@ -294,4 +294,33 @@ create table if not exists feedback_ticket_replies (
 );
 
 create index if not exists feedback_ticket_replies_ticket_idx on feedback_ticket_replies (ticket_id, created_at asc);
+
+-- 改命股市玩家持仓表
+create table if not exists stock_holdings (
+  user_id      text not null references users(id) on delete cascade,
+  symbol       text not null,
+  shares       bigint not null default 0,
+  avg_cost     numeric(14, 2) not null default 0,
+  updated_at   timestamptz not null default now(),
+  primary key (user_id, symbol)
+);
+
+create index if not exists stock_holdings_user_idx on stock_holdings (user_id);
+
+-- 改命股市委托与成交订单流水
+create table if not exists stock_orders (
+  id           text primary key,
+  user_id      text not null references users(id) on delete cascade,
+  symbol       text not null,
+  stock_name   text not null,
+  action       text not null,
+  shares       bigint not null,
+  price        numeric(14, 2) not null,
+  total_amount bigint not null,
+  fee          bigint not null default 0,
+  realized_pnl bigint not null default 0,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists stock_orders_user_idx on stock_orders (user_id, created_at desc);
 `;

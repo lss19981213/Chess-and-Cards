@@ -6,6 +6,9 @@ import {
   type Announcement,
   type Currency,
   type Settlement,
+  type StockOrder,
+  type StockTradeResult,
+  STOCK_DEFINITIONS,
 } from '@cc/protocol';
 import { periodKeyFor } from '../tasks';
 import { InsufficientFundsError } from './types';
@@ -42,6 +45,7 @@ import type {
   SlotsSpinLog,
   SlotsSpinOutcome,
   SlotsSummaryMetrics,
+  StockHoldingRow,
   TaskProgressRow,
   TicketStats,
   TicketStatus,
@@ -128,6 +132,10 @@ export class MemoryRepository implements Repository {
     string,
     { isRead: boolean; isClaimed: boolean; claimedAt: number | null; deleted: boolean }
   >();
+  /** 改命股市：玩家持仓表 `${userId}:${symbol}` -> StockHoldingRow */
+  private readonly stockHoldings = new Map<string, StockHoldingRow>();
+  /** 改命股市：订单流水表 userId -> StockOrder[] */
+  private readonly stockOrders = new Map<string, StockOrder[]>();
 
   constructor(initialCoins: number) {
     this.initialCoins = initialCoins;
@@ -1400,6 +1408,198 @@ export class MemoryRepository implements Repository {
   async deleteTicket(ticketId: string): Promise<boolean> {
     this.ticketReplies.delete(ticketId);
     return this.tickets.delete(ticketId);
+  }
+
+  // ---------- 改命股市 ----------
+  async getStockHoldings(userId: string): Promise<StockHoldingRow[]> {
+    const list: StockHoldingRow[] = [];
+    for (const [key, holding] of this.stockHoldings) {
+      if (key.startsWith(`${userId}:`) && holding.shares > 0) {
+        list.push({ ...holding });
+      }
+    }
+    return list.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async buyStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult> {
+    if (!Number.isInteger(shares) || shares <= 0) {
+      throw new Error('买入数量必须为正整数');
+    }
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+      throw new Error('股票行情价格异常');
+    }
+
+    const def = STOCK_DEFINITIONS.find((s) => s.symbol === symbol);
+    const stockName = def ? def.name : symbol;
+    const totalCost = Math.round(shares * currentPrice);
+    const fee = Math.max(1, Math.floor(totalCost * 0.0003));
+    const totalDebit = totalCost + fee;
+
+    const currentBalance = this.balances.get(userId) ?? 0;
+    if (currentBalance < totalDebit) {
+      throw new InsufficientFundsError(`欢乐豆余额不足！买入需 ${totalDebit.toLocaleString()} 豆，当前仅有 ${currentBalance.toLocaleString()} 豆`);
+    }
+
+    const nextBalance = currentBalance - totalDebit;
+    this.balances.set(userId, nextBalance);
+
+    const orderId = randomUUID();
+    this.ledgerHistory.unshift({
+      id: orderId,
+      userId,
+      currency: 'coin',
+      delta: -totalDebit,
+      balanceAfter: nextBalance,
+      bizType: 'stock_buy',
+      bizId: `stock:${orderId}`,
+      createdAt: Date.now(),
+    });
+
+    const key = `${userId}:${symbol}`;
+    const old = this.stockHoldings.get(key);
+    let newShares = shares;
+    let newAvgCost = currentPrice;
+
+    if (old && old.shares > 0) {
+      newShares = old.shares + shares;
+      newAvgCost = (old.shares * old.avgCost + totalCost) / newShares;
+    }
+
+    this.stockHoldings.set(key, {
+      userId,
+      symbol,
+      shares: newShares,
+      avgCost: Number(newAvgCost.toFixed(2)),
+      updatedAt: Date.now(),
+    });
+
+    const order: StockOrder = {
+      id: orderId,
+      userId,
+      symbol,
+      stockName,
+      action: 'buy',
+      shares,
+      price: currentPrice,
+      totalAmount: totalDebit,
+      fee,
+      realizedPnl: 0,
+      createdAt: Date.now(),
+    };
+    const userOrders = this.stockOrders.get(userId) ?? [];
+    userOrders.unshift(order);
+    this.stockOrders.set(userId, userOrders);
+
+    return {
+      ok: true,
+      orderId,
+      symbol,
+      stockName,
+      action: 'buy',
+      shares,
+      price: currentPrice,
+      totalAmount: totalDebit,
+      fee,
+      realizedPnl: 0,
+      balanceAfter: nextBalance,
+      message: `🎉 成功买入 ${shares} ${def?.unitName ?? '股'}【${stockName}】，成交均价 ${currentPrice.toFixed(2)}！`,
+    };
+  }
+
+  async sellStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult> {
+    if (!Number.isInteger(shares) || shares <= 0) {
+      throw new Error('卖出数量必须为正整数');
+    }
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+      throw new Error('股票行情价格异常');
+    }
+
+    const def = STOCK_DEFINITIONS.find((s) => s.symbol === symbol);
+    const stockName = def ? def.name : symbol;
+    const key = `${userId}:${symbol}`;
+    const holding = this.stockHoldings.get(key);
+
+    if (!holding || holding.shares <= 0) {
+      throw new Error(`您尚未持有【${stockName}】，无法卖出`);
+    }
+    if (holding.shares < shares) {
+      throw new Error(`持仓不足！您当前仅持有 ${holding.shares} ${def?.unitName ?? '股'}，无法卖出 ${shares} 股`);
+    }
+
+    const grossAmount = Math.round(shares * currentPrice);
+    const fee = Math.max(1, Math.floor(grossAmount * 0.001));
+    const netCredit = Math.max(0, grossAmount - fee);
+    const realizedPnl = Math.round((currentPrice - holding.avgCost) * shares - fee);
+
+    const remainingShares = holding.shares - shares;
+    if (remainingShares > 0) {
+      this.stockHoldings.set(key, {
+        ...holding,
+        shares: remainingShares,
+        updatedAt: Date.now(),
+      });
+    } else {
+      this.stockHoldings.set(key, {
+        ...holding,
+        shares: 0,
+        avgCost: 0,
+        updatedAt: Date.now(),
+      });
+    }
+
+    const currentBalance = this.balances.get(userId) ?? 0;
+    const nextBalance = currentBalance + netCredit;
+    this.balances.set(userId, nextBalance);
+
+    const orderId = randomUUID();
+    this.ledgerHistory.unshift({
+      id: orderId,
+      userId,
+      currency: 'coin',
+      delta: netCredit,
+      balanceAfter: nextBalance,
+      bizType: 'stock_sell',
+      bizId: `stock:${orderId}`,
+      createdAt: Date.now(),
+    });
+
+    const order: StockOrder = {
+      id: orderId,
+      userId,
+      symbol,
+      stockName,
+      action: 'sell',
+      shares,
+      price: currentPrice,
+      totalAmount: netCredit,
+      fee,
+      realizedPnl,
+      createdAt: Date.now(),
+    };
+    const userOrders = this.stockOrders.get(userId) ?? [];
+    userOrders.unshift(order);
+    this.stockOrders.set(userId, userOrders);
+
+    const pnlSign = realizedPnl >= 0 ? `+${realizedPnl.toLocaleString()}` : realizedPnl.toLocaleString();
+    return {
+      ok: true,
+      orderId,
+      symbol,
+      stockName,
+      action: 'sell',
+      shares,
+      price: currentPrice,
+      totalAmount: netCredit,
+      fee,
+      realizedPnl,
+      balanceAfter: nextBalance,
+      message: `🎉 成功卖出 ${shares} ${def?.unitName ?? '股'}【${stockName}】，净收 ${netCredit.toLocaleString()} 豆（实现盈亏: ${pnlSign} 豆）！`,
+    };
+  }
+
+  async listStockOrders(userId: string, limit = 50): Promise<StockOrder[]> {
+    const list = this.stockOrders.get(userId) ?? [];
+    return list.slice(0, Math.min(100, Math.max(1, limit)));
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {
