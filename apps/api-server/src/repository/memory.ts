@@ -46,6 +46,7 @@ import type {
   SlotsSpinOutcome,
   SlotsSummaryMetrics,
   StockHoldingRow,
+  AdminStockOverviewData,
   TaskProgressRow,
   TicketStats,
   TicketStatus,
@@ -1600,6 +1601,57 @@ export class MemoryRepository implements Repository {
   async listStockOrders(userId: string, limit = 50): Promise<StockOrder[]> {
     const list = this.stockOrders.get(userId) ?? [];
     return list.slice(0, Math.min(100, Math.max(1, limit)));
+  }
+
+  async getAdminStockOverview(): Promise<AdminStockOverviewData> {
+    const activeHolders = new Set<string>();
+    const symbolMap = new Map<string, { totalShares: number; holders: Set<string> }>();
+
+    for (const [, holding] of this.stockHoldings) {
+      if (holding.shares > 0) {
+        activeHolders.add(holding.userId);
+        const cur = symbolMap.get(holding.symbol) ?? { totalShares: 0, holders: new Set<string>() };
+        cur.totalShares += holding.shares;
+        cur.holders.add(holding.userId);
+        symbolMap.set(holding.symbol, cur);
+      }
+    }
+
+    const symbolHoldings = Array.from(symbolMap.entries()).map(([symbol, val]) => ({
+      symbol,
+      totalShares: val.totalShares,
+      holderCount: val.holders.size,
+    }));
+
+    let totalOrderCount = 0;
+    let totalTurnover = 0;
+    let totalFees = 0;
+    const allOrders: Array<StockOrder & { nickname?: string; username?: string }> = [];
+
+    for (const [userId, orders] of this.stockOrders) {
+      const user = this.users.get(userId);
+      for (const ord of orders) {
+        totalOrderCount++;
+        totalTurnover += ord.totalAmount;
+        totalFees += ord.fee;
+        allOrders.push({
+          ...ord,
+          nickname: user?.nickname ?? '神秘玩家',
+          username: user?.username ?? undefined,
+        });
+      }
+    }
+
+    allOrders.sort((a, b) => b.createdAt - a.createdAt);
+
+    return {
+      totalHolders: activeHolders.size,
+      symbolHoldings,
+      totalOrderCount,
+      totalTurnover,
+      totalFees,
+      recentOrders: allOrders.slice(0, 50),
+    };
   }
 
   private bumpCell(userId: string, taskKey: string, periodKey: string, delta: number): number {

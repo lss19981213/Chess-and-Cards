@@ -206,6 +206,7 @@ namespace CcGmClient
             ViewRooms.Visibility = tag == "rooms" ? Visibility.Visible : Visibility.Collapsed;
             ViewGameOps.Visibility = tag == "gameops" ? Visibility.Visible : Visibility.Collapsed;
             ViewSlots.Visibility = tag == "slots" ? Visibility.Visible : Visibility.Collapsed;
+            ViewStocks.Visibility = tag == "stocks" ? Visibility.Visible : Visibility.Collapsed;
             ViewCategories.Visibility = tag == "categories" ? Visibility.Visible : Visibility.Collapsed;
             ViewTasks.Visibility = tag == "tasks" ? Visibility.Visible : Visibility.Collapsed;
             ViewMailbox.Visibility = tag == "mailbox" ? Visibility.Visible : Visibility.Collapsed;
@@ -231,6 +232,7 @@ namespace CcGmClient
                 "rooms" => "🎲 房间实时透视与博弈管控",
                 "gameops" => "🕹️ 单游戏热更与上下架运维",
                 "slots" => "🎰 老虎机经营数据与概率调控",
+                "stocks" => "📈 改命股市大盘与全服交易透视",
                 "categories" => "🗂️ 大厅游戏分类与归属动态配置",
                 "tasks" => "🎯 每日任务与成长任务动态管理",
                 "mailbox" => "📬 全服邮箱发放与筹码直赠",
@@ -285,6 +287,9 @@ namespace CcGmClient
                         break;
                     case "slots":
                         await RefreshSlotsAnalyticsAsync();
+                        break;
+                    case "stocks":
+                        await RefreshStocksAsync();
                         break;
                     case "categories":
                         await RefreshCategoriesAsync();
@@ -594,6 +599,69 @@ namespace CcGmClient
                 return;
             }
             await RefreshCurrentViewAsync();
+        }
+
+        // ==================== 1.55 改命股市运营监控 (Stocks) ====================
+        private async Task RefreshStocksAsync()
+        {
+            try
+            {
+                var data = await _api.GetStocksOverviewAsync();
+                if (data == null) return;
+
+                // KPI 指标更新
+                TxtStockTotalHolders.Text = $"{data.Summary.TotalHolders:N0} 人";
+                TxtStockTotalMarketValue.Text = $"{data.Summary.TotalHoldingsMarketValue:N0} 豆";
+                TxtStockTotalTurnover.Text = $"{data.Summary.TotalTurnover:N0} 豆";
+                TxtStockTotalFees.Text = $"{data.Summary.TotalFees:N0} 豆";
+
+                // 行情盘口
+                DgStockQuotes.ItemsSource = data.Quotes;
+
+                // 持仓分布
+                DgStockHoldingsSummary.ItemsSource = data.SymbolStats;
+
+                // 交易流水
+                DgStockRecentOrders.ItemsSource = data.RecentOrders;
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"拉取股市大盘数据失败: {ex.Message}");
+            }
+        }
+
+        private async void BtnRefreshStocks_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isConnected)
+            {
+                await ConnectServerAsync();
+                return;
+            }
+            await RefreshStocksAsync();
+        }
+
+        private async void BtnForceRefreshQuotes_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isConnected)
+            {
+                await ConnectServerAsync();
+                return;
+            }
+            try
+            {
+                BtnForceRefreshQuotes.IsEnabled = false;
+                var res = await _api.RefreshStockQuotesAsync();
+                SetStatus(res.Message);
+                await RefreshStocksAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"穿透刷新行情失败: {ex.Message}", "刷新错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                BtnForceRefreshQuotes.IsEnabled = true;
+            }
         }
 
         // ==================== 1.6 游戏分类动态管理 (Categories) ====================

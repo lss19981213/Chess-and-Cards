@@ -1,7 +1,9 @@
 import type {
   Announcement,
   GameMeta,
+  KlinePeriod,
   StockHolding,
+  StockKlineItem,
   StockMeta,
   StockOrder,
   StockQuote,
@@ -545,6 +547,10 @@ export const api = {
     request<{ orders: StockOrder[] }>(`/api/stocks/orders?limit=${limit}`),
   getStockTrends: (symbol: string) =>
     request<{ symbol: string; trends: StockTrendPoint[] }>(`/api/stocks/trends/${encodeURIComponent(symbol)}`),
+  getStockKlines: (symbol: string, period: KlinePeriod = 'day') =>
+    request<{ symbol: string; period: KlinePeriod; klines: StockKlineItem[] }>(
+      `/api/stocks/klines/${encodeURIComponent(symbol)}?period=${period}`,
+    ),
 };
 
 export type TicketCategory = 'bug' | 'suggestion' | 'wallet' | 'gameplay' | 'account' | 'report' | 'other';

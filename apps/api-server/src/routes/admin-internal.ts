@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Settlement } from '@cc/protocol';
+import { STOCK_DEFINITIONS, type Settlement } from '@cc/protocol';
 import { config } from '../config';
 import { getLastSettlementAt, markSettlement, recentEvents, recordEvent } from '../events';
 import { clientIp, httpError, safeEqual } from '../http-utils';
 import type { createLogger } from '../logger';
 import { InsufficientFundsError, type Repository } from '../repository/types';
+import { getLiveStockQuotes, refreshLiveStockQuotes } from '../stock-market';
 import {
   sanitizeGameCategoriesConfig,
   type GameCategoriesConfig,
@@ -147,6 +148,55 @@ export function registerAdminAndInternalRoutes(
       nextDetail,
     );
     return { ok: true, config: next };
+  });
+
+  // ---------- 改命股市运营监控与行情管理 ----------
+  app.get('/api/admin/stocks/overview', async (req) => {
+    requireAdmin(req);
+    const [quotes, dbStats] = await Promise.all([
+      getLiveStockQuotes(),
+      repo.getAdminStockOverview(),
+    ]);
+
+    const priceMap = new Map(quotes.map((q) => [q.symbol, q.price]));
+    let totalHoldingsMarketValue = 0;
+    const symbolStats = dbStats.symbolHoldings.map((sh) => {
+      const price = priceMap.get(sh.symbol) ?? 0;
+      const marketValue = Math.round(sh.totalShares * price);
+      totalHoldingsMarketValue += marketValue;
+      const def = STOCK_DEFINITIONS.find((s) => s.symbol === sh.symbol);
+      return {
+        ...sh,
+        stockName: def?.name ?? sh.symbol,
+        currentPrice: price,
+        marketValue,
+      };
+    });
+
+    return {
+      success: true,
+      summary: {
+        totalHolders: dbStats.totalHolders,
+        totalHoldingsMarketValue,
+        totalOrderCount: dbStats.totalOrderCount,
+        totalTurnover: dbStats.totalTurnover,
+        totalFees: dbStats.totalFees,
+      },
+      quotes,
+      symbolStats,
+      recentOrders: dbStats.recentOrders,
+    };
+  });
+
+  app.post('/api/admin/stocks/refresh', async (req) => {
+    requireAdmin(req);
+    const quotes = await refreshLiveStockQuotes();
+    apiLog.info('GM 强制刷新股市行情大盘数据', { quotesCount: quotes.length });
+    return {
+      success: true,
+      message: '行情缓存已刷新，已同步最新大盘数据',
+      quotesCount: quotes.length,
+    };
   });
 
   // GM 实时读取与修改游戏分类配置（新增/重命名/排序分类、调整每个游戏归属分类）

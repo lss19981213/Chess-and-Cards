@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { STOCK_DEFINITIONS, type StockOrder, type StockTradeResult } from '@cc/protocol';
-import { InsufficientFundsError, type StockHoldingRow } from '../types';
+import { InsufficientFundsError, type AdminStockOverviewData, type StockHoldingRow } from '../types';
 
 export async function getStockHoldings(pool: pg.Pool, userId: string): Promise<StockHoldingRow[]> {
   const res = await pool.query<{
@@ -281,4 +281,92 @@ export async function listStockOrders(pool: pg.Pool, userId: string, limit = 50)
     realizedPnl: Number(r.realized_pnl),
     createdAt: r.created_at.getTime(),
   }));
+}
+
+export async function getAdminStockOverview(pool: pg.Pool): Promise<AdminStockOverviewData> {
+  // 1. 持仓玩家总数
+  const holdersRes = await pool.query<{ count: string }>(
+    `select count(distinct user_id) as count from stock_holdings where shares > 0`,
+  );
+  const totalHolders = Number(holdersRes.rows[0]?.count ?? 0);
+
+  // 2. 各标的持仓汇总
+  const symbolRes = await pool.query<{
+    symbol: string;
+    total_shares: string;
+    holder_count: string;
+  }>(
+    `select symbol, sum(shares) as total_shares, count(distinct user_id) as holder_count
+       from stock_holdings
+      where shares > 0
+      group by symbol`,
+  );
+  const symbolHoldings = symbolRes.rows.map((r) => ({
+    symbol: r.symbol,
+    totalShares: Number(r.total_shares),
+    holderCount: Number(r.holder_count),
+  }));
+
+  // 3. 历史交易总计与税费
+  const statsRes = await pool.query<{
+    total_orders: string;
+    total_turnover: string;
+    total_fees: string;
+  }>(
+    `select count(*) as total_orders,
+            coalesce(sum(total_amount), 0) as total_turnover,
+            coalesce(sum(fee), 0) as total_fees
+       from stock_orders`,
+  );
+  const totalOrderCount = Number(statsRes.rows[0]?.total_orders ?? 0);
+  const totalTurnover = Number(statsRes.rows[0]?.total_turnover ?? 0);
+  const totalFees = Number(statsRes.rows[0]?.total_fees ?? 0);
+
+  // 4. 最近 50 笔成交附带玩家信息
+  const ordersRes = await pool.query<{
+    id: string;
+    user_id: string;
+    nickname: string | null;
+    username: string | null;
+    symbol: string;
+    stock_name: string;
+    action: 'buy' | 'sell';
+    shares: string;
+    price: string;
+    total_amount: string;
+    fee: string;
+    realized_pnl: string;
+    created_at: Date;
+  }>(
+    `select o.id, o.user_id, u.nickname, u.username, o.symbol, o.stock_name, o.action,
+            o.shares, o.price, o.total_amount, o.fee, o.realized_pnl, o.created_at
+       from stock_orders o
+       left join users u on o.user_id = u.id
+      order by o.created_at desc
+      limit 50`,
+  );
+  const recentOrders = ordersRes.rows.map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    nickname: r.nickname ?? '神秘玩家',
+    username: r.username ?? undefined,
+    symbol: r.symbol,
+    stockName: r.stock_name,
+    action: r.action,
+    shares: Number(r.shares),
+    price: Number(r.price),
+    totalAmount: Number(r.total_amount),
+    fee: Number(r.fee),
+    realizedPnl: Number(r.realized_pnl),
+    createdAt: r.created_at.getTime(),
+  }));
+
+  return {
+    totalHolders,
+    symbolHoldings,
+    totalOrderCount,
+    totalTurnover,
+    totalFees,
+    recentOrders,
+  };
 }

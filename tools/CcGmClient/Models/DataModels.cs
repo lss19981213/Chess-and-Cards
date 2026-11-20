@@ -1354,4 +1354,170 @@ namespace CcGmClient.Models
         [JsonPropertyName("freedBytes")]
         public long FreedBytes { get; set; }
     }
+
+    // ---------- 改命股市运营监控模型 ----------
+    public class AdminStockSummary
+    {
+        [JsonPropertyName("totalHolders")]
+        public int TotalHolders { get; set; }
+
+        [JsonPropertyName("totalHoldingsMarketValue")]
+        public long TotalHoldingsMarketValue { get; set; }
+
+        [JsonPropertyName("totalOrderCount")]
+        public int TotalOrderCount { get; set; }
+
+        [JsonPropertyName("totalTurnover")]
+        public long TotalTurnover { get; set; }
+
+        [JsonPropertyName("totalFees")]
+        public long TotalFees { get; set; }
+    }
+
+    public class AdminStockQuoteItem
+    {
+        [JsonPropertyName("symbol")]
+        public string Symbol { get; set; } = "";
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("category")]
+        public string Category { get; set; } = "";
+
+        [JsonPropertyName("price")]
+        public double Price { get; set; }
+
+        [JsonPropertyName("yesterdayClose")]
+        public double YesterdayClose { get; set; }
+
+        [JsonPropertyName("change")]
+        public double Change { get; set; }
+
+        [JsonPropertyName("changePercent")]
+        public double ChangePercent { get; set; }
+
+        [JsonPropertyName("high")]
+        public double High { get; set; }
+
+        [JsonPropertyName("low")]
+        public double Low { get; set; }
+
+        [JsonPropertyName("volume")]
+        public double Volume { get; set; }
+
+        [JsonPropertyName("updateTime")]
+        public string UpdateTime { get; set; } = "";
+
+        [JsonIgnore]
+        public string ChangeDisplay => Change >= 0 ? $"+{Change:F2} (+{ChangePercent:F2}%)" : $"{Change:F2} ({ChangePercent:F2}%)";
+
+        [JsonIgnore]
+        public string PriceDisplay => $"{Price:F2} 豆";
+    }
+
+    public class AdminStockHoldingStat
+    {
+        [JsonPropertyName("symbol")]
+        public string Symbol { get; set; } = "";
+
+        [JsonPropertyName("stockName")]
+        public string StockName { get; set; } = "";
+
+        [JsonPropertyName("totalShares")]
+        public long TotalShares { get; set; }
+
+        [JsonPropertyName("holderCount")]
+        public int HolderCount { get; set; }
+
+        [JsonPropertyName("currentPrice")]
+        public double CurrentPrice { get; set; }
+
+        [JsonPropertyName("marketValue")]
+        public long MarketValue { get; set; }
+
+        [JsonIgnore]
+        public string MarketValueDisplay => $"{MarketValue:N0} 豆";
+    }
+
+    public class AdminStockOrderItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("userId")]
+        public string UserId { get; set; } = "";
+
+        [JsonPropertyName("nickname")]
+        public string Nickname { get; set; } = "";
+
+        [JsonPropertyName("username")]
+        public string? Username { get; set; }
+
+        [JsonPropertyName("symbol")]
+        public string Symbol { get; set; } = "";
+
+        [JsonPropertyName("stockName")]
+        public string StockName { get; set; } = "";
+
+        [JsonPropertyName("action")]
+        public string Action { get; set; } = "";
+
+        [JsonPropertyName("shares")]
+        public long Shares { get; set; }
+
+        [JsonPropertyName("price")]
+        public double Price { get; set; }
+
+        [JsonPropertyName("totalAmount")]
+        public long TotalAmount { get; set; }
+
+        [JsonPropertyName("fee")]
+        public long Fee { get; set; }
+
+        [JsonPropertyName("realizedPnl")]
+        public long RealizedPnl { get; set; }
+
+        [JsonPropertyName("createdAt")]
+        public double CreatedAt { get; set; }
+
+        [JsonIgnore]
+        public string ActionText => Action == "buy" ? "🟢 买入" : "🔴 卖出";
+
+        [JsonIgnore]
+        public string TimeDisplay => DateTimeOffset.FromUnixTimeMilliseconds((long)CreatedAt).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+
+        [JsonIgnore]
+        public string PnlDisplay => Action == "sell" ? (RealizedPnl >= 0 ? $"+{RealizedPnl:N0}" : $"{RealizedPnl:N0}") : "--";
+    }
+
+    public class AdminStocksOverviewResponse
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("summary")]
+        public AdminStockSummary Summary { get; set; } = new();
+
+        [JsonPropertyName("quotes")]
+        public List<AdminStockQuoteItem> Quotes { get; set; } = new();
+
+        [JsonPropertyName("symbolStats")]
+        public List<AdminStockHoldingStat> SymbolStats { get; set; } = new();
+
+        [JsonPropertyName("recentOrders")]
+        public List<AdminStockOrderItem> RecentOrders { get; set; } = new();
+    }
+
+    public class AdminStockRefreshResponse
+    {
+        [JsonPropertyName("success")]
+        public bool Success { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = "";
+
+        [JsonPropertyName("quotesCount")]
+        public int QuotesCount { get; set; }
+    }
 }

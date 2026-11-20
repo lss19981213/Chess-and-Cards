@@ -425,6 +425,16 @@ export interface Repository {
   buyStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult>;
   sellStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult>;
   listStockOrders(userId: string, limit?: number): Promise<StockOrder[]>;
+  getAdminStockOverview(): Promise<AdminStockOverviewData>;
+}
+
+export interface AdminStockOverviewData {
+  totalHolders: number;
+  symbolHoldings: Array<{ symbol: string; totalShares: number; holderCount: number }>;
+  totalOrderCount: number;
+  totalTurnover: number;
+  totalFees: number;
+  recentOrders: Array<StockOrder & { nickname?: string; username?: string }>;
 }
 
 export interface StockHoldingRow {

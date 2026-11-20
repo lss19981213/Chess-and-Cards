@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { STOCK_DEFINITIONS, type StockHolding } from '@cc/protocol';
+import { STOCK_DEFINITIONS, type KlinePeriod, type StockHolding } from '@cc/protocol';
 import { authHeader, httpError } from '../http-utils';
 import type { Repository } from '../repository/types';
-import { getLiveStockQuotes, getStockLivePrice, getStockTrends } from '../stock-market';
+import { getLiveStockQuotes, getStockKlines, getStockLivePrice, getStockTrends } from '../stock-market';
 import { createLogger } from '../logger';
 
 const log = createLogger('stocks-route');
@@ -29,6 +29,19 @@ export function registerStockRoutes(app: FastifyInstance, repo: Repository): voi
 
     const trends = await getStockTrends(symbol);
     return { symbol, trends };
+  });
+
+  /**
+   * 获取指定标的的蜡烛图 K 线数据（日K、周K、月K、年K）
+   */
+  app.get('/api/stocks/klines/:symbol', async (req) => {
+    const { symbol } = req.params as { symbol: string };
+    const query = req.query as { period?: KlinePeriod };
+    if (!symbol) throw httpError('缺少股票代码', 400);
+
+    const period = query.period || 'day';
+    const klines = await getStockKlines(symbol, period);
+    return { symbol, period, klines };
   });
 
   /**

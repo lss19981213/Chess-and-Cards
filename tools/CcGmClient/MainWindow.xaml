@@ -115,6 +115,7 @@
                             <RadioButton x:Name="NavRooms" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎲  房间实时透视" Checked="Nav_Checked" Tag="rooms" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavGameOps" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🕹️  单游戏热更运维" Checked="Nav_Checked" Tag="gameops" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavSlots" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎰  老虎机经营" Checked="Nav_Checked" Tag="slots" Margin="0,0,0,6"/>
+                            <RadioButton x:Name="NavStocks" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📈  改命股市监控" Checked="Nav_Checked" Tag="stocks" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavCategories" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🗂️  游戏分类管理" Checked="Nav_Checked" Tag="categories" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavTasks" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="🎯  任务配置管理" Checked="Nav_Checked" Tag="tasks" Margin="0,0,0,6"/>
                             <RadioButton x:Name="NavMailbox" Style="{x:Null}" Template="{DynamicResource NavRadioTemplate}" Content="📬  全服邮箱发放" Checked="Nav_Checked" Tag="mailbox" Margin="0,0,0,6"/>
@@ -1012,6 +1013,168 @@
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
                                             <DataGridTextColumn Header="开奖结果" Binding="{Binding JackpotBadge}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ==================== 4.55 改命股市运营监控 (Stock Market Ops) ==================== -->
+                    <Grid x:Name="ViewStocks" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 顶部标题与操作栏 -->
+                        <Grid Grid.Row="0" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Text="📈 改命股市运营监控与全服交易透视" FontSize="20" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                <TextBlock Text="全服 10 支核心资产真实大盘行情透视、持仓玩家市值汇总与交易流水风控" FontSize="12" Foreground="{StaticResource BrushTextDim}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button x:Name="BtnRefreshStocks" Style="{StaticResource BtnGold}" Content="🔄 刷新大盘与行情" Click="BtnRefreshStocks_Click" Height="32" Padding="14,0" Margin="0,0,8,0"/>
+                                <Button x:Name="BtnForceRefreshQuotes" Style="{StaticResource BtnSecondary}" Content="⚡ 穿透拉取最新行情" Click="BtnForceRefreshQuotes_Click" Height="32" Padding="12,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- KPI 核心指标卡 -->
+                        <Grid Grid.Row="1" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,8,0">
+                                <StackPanel>
+                                    <TextBlock Text="持仓玩家总数" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="TxtStockTotalHolders" Text="0 人" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushGold}" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="全服持仓总市值" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="TxtStockTotalMarketValue" Text="0 豆" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="4,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="累计成交流水" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="TxtStockTotalTurnover" Text="0 豆" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Style="{StaticResource CardPanel}" Margin="8,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="累计手续费与印花税" FontSize="11" Foreground="{StaticResource BrushTextMuted}"/>
+                                    <TextBlock x:Name="TxtStockTotalFees" Text="0 豆" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrushSuccess}" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- 下半部分：左为标的行情与持仓分布，右为实时成交流水 -->
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="580"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 左栏：标的实时行情与持仓汇总 -->
+                            <Grid Grid.Column="0" Margin="0,0,12,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="340"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- 标的实时行情盘口 -->
+                                <Border Grid.Row="0" Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="📊 10 支核心标的真实实时盘口" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,0,0,8"/>
+                                        <DataGrid x:Name="DgStockQuotes" Grid.Row="1">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="代码" Binding="{Binding Symbol}" Width="65"/>
+                                                <DataGridTextColumn Header="标的名称" Binding="{Binding Name}" Width="95"/>
+                                                <DataGridTextColumn Header="类别" Binding="{Binding Category}" Width="60"/>
+                                                <DataGridTextColumn Header="当前市价" Binding="{Binding PriceDisplay}" Width="90">
+                                                    <DataGridTextColumn.ElementStyle>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                                        </Style>
+                                                    </DataGridTextColumn.ElementStyle>
+                                                </DataGridTextColumn>
+                                                <DataGridTextColumn Header="涨跌幅" Binding="{Binding ChangeDisplay}" Width="120"/>
+                                                <DataGridTextColumn Header="昨收" Binding="{Binding YesterdayClose}" Width="70"/>
+                                                <DataGridTextColumn Header="更新时间" Binding="{Binding UpdateTime}" Width="*"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 各标的全服持仓分布 -->
+                                <Border Grid.Row="1" Style="{StaticResource CardPanel}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="💼 各标的全服持仓规模分布" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}" Margin="0,0,0,8"/>
+                                        <DataGrid x:Name="DgStockHoldingsSummary" Grid.Row="1">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="代码" Binding="{Binding Symbol}" Width="65"/>
+                                                <DataGridTextColumn Header="标的名称" Binding="{Binding StockName}" Width="100"/>
+                                                <DataGridTextColumn Header="全服总持仓" Binding="{Binding TotalShares, StringFormat={}{0:N0}}" Width="95"/>
+                                                <DataGridTextColumn Header="持仓人数" Binding="{Binding HolderCount, StringFormat={}{0:N0} 人}" Width="85"/>
+                                                <DataGridTextColumn Header="持仓总市值" Binding="{Binding MarketValueDisplay}" Width="*">
+                                                    <DataGridTextColumn.ElementStyle>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource BrushGold}"/>
+                                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                                            <Setter Property="VerticalAlignment" Value="Center"/>
+                                                        </Style>
+                                                    </DataGridTextColumn.ElementStyle>
+                                                </DataGridTextColumn>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!-- 右栏：全服股票成交订单流水 -->
+                            <Border Grid.Column="1" Style="{StaticResource CardPanel}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                                        <StackPanel>
+                                            <TextBlock Text="🧾 全服交易实时成交流水 (最近 50 笔)" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                            <TextBlock Text="买入万三佣金 / 卖出千一印花税与佣金，均已实时原子结算并计入账本" FontSize="11" Foreground="{StaticResource BrushTextDim}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <DataGrid x:Name="DgStockRecentOrders" Grid.Row="1">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="成交时间" Binding="{Binding TimeDisplay}" Width="135"/>
+                                            <DataGridTextColumn Header="玩家昵称" Binding="{Binding Nickname}" Width="95"/>
+                                            <DataGridTextColumn Header="标的" Binding="{Binding StockName}" Width="85"/>
+                                            <DataGridTextColumn Header="方向" Binding="{Binding ActionText}" Width="65"/>
+                                            <DataGridTextColumn Header="数量" Binding="{Binding Shares, StringFormat={}{0:N0}}" Width="65"/>
+                                            <DataGridTextColumn Header="单价" Binding="{Binding Price, StringFormat={}{0:F2}}" Width="75"/>
+                                            <DataGridTextColumn Header="成交总额" Binding="{Binding TotalAmount, StringFormat={}{0:N0} 豆}" Width="95"/>
+                                            <DataGridTextColumn Header="税费" Binding="{Binding Fee, StringFormat={}{0:N0} 豆}" Width="70"/>
+                                            <DataGridTextColumn Header="实现盈亏" Binding="{Binding PnlDisplay}" Width="*"/>
                                         </DataGrid.Columns>
                                     </DataGrid>
                                 </Grid>

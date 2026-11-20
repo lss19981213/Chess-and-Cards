@@ -16677,6 +16677,66 @@ button.secondary:hover:not(:disabled) {
   font-weight: 800;
 }
 
+.chart-period-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.period-btn-group {
+  display: flex;
+  gap: 4px;
+}
+
+.period-btn {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.period-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.period-btn.is-active {
+  background: #f59e0b;
+  color: #000;
+  border-color: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.ma-indicator-tags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-family: 'DIN Alternate', monospace;
+  font-weight: 700;
+}
+
+.ma-tag.ma-5 {
+  color: #facc15;
+}
+
+.ma-tag.ma-10 {
+  color: #c084fc;
+}
+
+.ma-tag.ma-20 {
+  color: #38bdf8;
+}
+
 .chart-canvas-container {
   flex: 1;
   position: relative;
@@ -17199,6 +17259,178 @@ button.secondary:hover:not(:disabled) {
   }
   .stock-portfolio-strip {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ============================================================
+   全局置顶巨大悬浮通告栏 (Global Floating Announcement Banner)
+   ============================================================ */
+.global-floating-announcement-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  z-index: 999999;
+  background: linear-gradient(180deg, rgba(20, 20, 28, 0.98) 0%, rgba(10, 10, 15, 0.99) 100%);
+  border-bottom: 2px solid rgba(234, 179, 8, 0.85);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(234, 179, 8, 0.4) inset, 0 4px 20px rgba(234, 179, 8, 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transform: translateY(-110%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+}
+
+.global-floating-announcement-banner.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.global-floating-announcement-banner.is-vip {
+  border-bottom: 2px solid rgba(245, 158, 11, 0.95);
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.95), 0 0 28px rgba(245, 158, 11, 0.4);
+}
+
+.gfa-banner__glow {
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.8), transparent);
+  pointer-events: none;
+}
+
+.gfa-banner__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 18px;
+  position: relative;
+}
+
+.gfa-banner__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  color: #1e1b4b;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.55);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.is-vip .gfa-banner__badge {
+  background: linear-gradient(135deg, #fef08a 0%, #f59e0b 50%, #b45309 100%);
+  color: #000;
+  animation: gfa-badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes gfa-badge-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.5); }
+  50% { box-shadow: 0 0 22px rgba(245, 158, 11, 0.9); }
+}
+
+.gfa-banner__viewport {
+  flex: 1;
+  margin: 0 18px;
+  overflow: hidden;
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 3%, #000 97%, transparent 100%);
+}
+
+.gfa-banner__track {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: gfa-marquee-scroll 24s linear infinite;
+  gap: 50px;
+  will-change: transform;
+}
+
+.gfa-banner__viewport:hover .gfa-banner__track {
+  animation-play-state: paused;
+}
+
+.gfa-banner__text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fef08a;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 10px rgba(250, 204, 21, 0.2);
+}
+
+.is-vip .gfa-banner__text {
+  color: #fffbeb;
+  font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 14px rgba(245, 158, 11, 0.4);
+}
+
+.gfa-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.gfa-btn {
+  cursor: pointer;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 18px;
+  padding: 5px 13px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.gfa-btn--view {
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  color: #fde047;
+}
+
+.gfa-btn--view:hover {
+  background: rgba(234, 179, 8, 0.3);
+  border-color: rgba(234, 179, 8, 0.8);
+  box-shadow: 0 0 10px rgba(234, 179, 8, 0.3);
+}
+
+.gfa-btn--close {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e2e8f0;
+}
+
+.gfa-btn--close:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fecaca;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+}
+
+@keyframes gfa-marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
   }
 }
 

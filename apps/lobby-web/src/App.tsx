@@ -16,6 +16,7 @@ import { AuthView } from './components/AuthView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FriendsView } from './components/FriendsView';
 import { GameRooms } from './components/GameRooms';
+import { GlobalAnnouncementBanner } from './components/GlobalAnnouncementBanner';
 import { LeaderboardView } from './components/LeaderboardView';
 import { Lobby } from './components/Lobby';
 import { MailView } from './components/MailView';
@@ -407,6 +408,22 @@ export default function App() {
       }, 3500);
     });
 
+    s.on(ServerMsg.Notice, (data) => {
+      const payload = data as { id?: string; title?: string; content?: string; kind?: string };
+      if (payload && payload.content) {
+        window.dispatchEvent(
+          new CustomEvent('cc:announcement', {
+            detail: {
+              id: payload.id || `ws-${Date.now()}`,
+              title: payload.title || '系统广播',
+              content: payload.content,
+              kind: payload.kind || 'bulletin',
+            },
+          }),
+        );
+      }
+    });
+
     s.on(ServerMsg.Error, (data) => {
       const payload = data as { code: string; message: string };
       setJoinError(payload.message || '操作失败');
@@ -767,6 +784,7 @@ export default function App() {
 
   return (
     <div className="landscape-app-root">
+      <GlobalAnnouncementBanner onOpenNotices={() => setView('notices')} />
       <PortraitPrompt />
       <MaintenanceOverlay
         state={maintenance}

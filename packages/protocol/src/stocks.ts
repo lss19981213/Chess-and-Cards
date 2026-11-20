@@ -98,6 +98,22 @@ export interface StockTrendPoint {
   volume: number;
 }
 
+export type KlinePeriod = 'day' | 'week' | 'month' | 'year';
+
+/** 专业蜡烛图 K 线单柱数据结构（日K、周K、月K、年K） */
+export interface StockKlineItem {
+  date: string;           // '2026-11-20' 或 '2026-W46' 或 '2026-11' 或 '2026'
+  open: number;           // 开盘价
+  close: number;          // 收盘价
+  high: number;           // 最高价
+  low: number;            // 最低价
+  volume: number;         // 成交量（手）
+  changePercent: number;  // 涨跌幅（%）
+  ma5?: number;           // 5周期均线
+  ma10?: number;          // 10周期均线
+  ma20?: number;          // 20周期均线
+}
+
 /**
  * 前期精选 10 支核心标的配置：
  * 涵盖：黄金、白银、铂金（大宗贵金属避险）；贵州茅台、五粮液（白酒双雄消费）；

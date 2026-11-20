@@ -22,10 +22,11 @@ import type {
   SlotsSpinInput,
   SlotsSpinOutcome,
   StockHoldingRow,
+  AdminStockOverviewData,
   TaskProgressRow,
   UserRecord,
 } from './types';
-import { buyStock, getStockHoldings, listStockOrders, sellStock } from './pg/stocks';
+import { buyStock, getAdminStockOverview, getStockHoldings, listStockOrders, sellStock } from './pg/stocks';
 import { getSlotsAnalytics, playSlotsSpin } from './pg/slots';
 import { getSetting, setSetting } from './pg/settings';
 import {
@@ -448,5 +449,9 @@ export class PostgresRepository implements Repository {
 
   listStockOrders(userId: string, limit?: number): Promise<StockOrder[]> {
     return listStockOrders(this.pool, userId, limit);
+  }
+
+  getAdminStockOverview(): Promise<AdminStockOverviewData> {
+    return getAdminStockOverview(this.pool);
   }
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { StockHolding, StockMeta, StockOrder, StockQuote, StockTrendPoint } from '@cc/protocol';
+import type { KlinePeriod, StockHolding, StockKlineItem, StockMeta, StockOrder, StockQuote, StockTrendPoint } from '@cc/protocol';
 import { api, type User } from '../api';
 import { audio } from '../audio';
 
@@ -32,8 +32,10 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
   const [activeTab, setActiveTab] = useState<TabType>('market');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [selectedSymbol, setSelectedSymbol] = useState<string>('600519'); // 默认贵州茅台
+  const [chartPeriod, setChartPeriod] = useState<KlinePeriod | 'trend'>('trend');
   const [trends, setTrends] = useState<StockTrendPoint[]>([]);
-  const [loadingTrends, setLoadingTrends] = useState<boolean>(false);
+  const [klines, setKlines] = useState<StockKlineItem[]>([]);
+  const [loadingChart, setLoadingChart] = useState<boolean>(false);
 
   // 交易面板状态
   const [tradeMode, setTradeMode] = useState<TradeMode>('buy');
@@ -100,7 +102,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
 
   // 获取选中标的分时走势
   const fetchTrends = async (symbol: string) => {
-    setLoadingTrends(true);
+    setLoadingChart(true);
     try {
       const res = await api.getStockTrends(symbol);
       if (res && res.trends) {
@@ -109,7 +111,22 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
     } catch {
       // 容灾忽略
     } finally {
-      setLoadingTrends(false);
+      setLoadingChart(false);
+    }
+  };
+
+  // 获取选中标的蜡烛图 K 线（日K、周K、月K、年K）
+  const fetchKlines = async (symbol: string, period: KlinePeriod) => {
+    setLoadingChart(true);
+    try {
+      const res = await api.getStockKlines(symbol, period);
+      if (res && res.klines) {
+        setKlines(res.klines);
+      }
+    } catch {
+      // 容灾忽略
+    } finally {
+      setLoadingChart(false);
     }
   };
 
@@ -133,12 +150,16 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
     return () => window.clearInterval(interval);
   }, []);
 
-  // 当选中的标的改变时，重新拉取分时走势
+  // 当选中的标的或周期改变时，重新拉取对应行情走势
   useEffect(() => {
     if (selectedSymbol) {
-      void fetchTrends(selectedSymbol);
+      if (chartPeriod === 'trend') {
+        void fetchTrends(selectedSymbol);
+      } else {
+        void fetchKlines(selectedSymbol, chartPeriod);
+      }
     }
-  }, [selectedSymbol]);
+  }, [selectedSymbol, chartPeriod]);
 
   // 当前选中的股票定义与行情快照
   const currentMeta = useMemo(() => {
@@ -159,10 +180,10 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
     return definitions.filter((d) => d.category === categoryFilter);
   }, [definitions, categoryFilter]);
 
-  // 绘制专业分时走势图 (Canvas)
+  // 绘制专业走势图 (分时曲线图 或 蜡烛图 K 线)
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || trends.length === 0 || !currentQuote) return;
+    if (!canvas || !currentQuote) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -179,98 +200,215 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
     // 清空背景
     ctx.clearRect(0, 0, w, h);
 
-    const yClose = currentQuote.yesterdayClose || currentQuote.todayOpen || 100;
-    const prices = trends.map((t) => t.price);
-    const minP = Math.min(yClose * 0.99, ...prices);
-    const maxP = Math.max(yClose * 1.01, ...prices);
-    const range = Math.max(maxP - minP, yClose * 0.02);
+    if (chartPeriod === 'trend') {
+      // ---------- 绘制分时图 ----------
+      if (trends.length === 0) return;
 
-    const getY = (val: number) => {
-      return h - 30 - ((val - minP) / range) * (h - 50);
-    };
+      const yClose = currentQuote.yesterdayClose || currentQuote.todayOpen || 100;
+      const prices = trends.map((t) => t.price);
+      const minP = Math.min(yClose * 0.99, ...prices);
+      const maxP = Math.max(yClose * 1.01, ...prices);
+      const range = Math.max(maxP - minP, yClose * 0.02);
 
-    // 绘制昨收基准参考线
-    const zeroY = getY(yClose);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.setLineDash([4, 4]);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(40, zeroY);
-    ctx.lineTo(w - 10, zeroY);
-    ctx.stroke();
+      const getY = (val: number) => {
+        return h - 30 - ((val - minP) / range) * (h - 50);
+      };
 
-    // 标注昨收价
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(yClose.toFixed(2), 35, zeroY + 3);
-    ctx.restore();
+      // 绘制昨收基准参考线
+      const zeroY = getY(yClose);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(40, zeroY);
+      ctx.lineTo(w - 10, zeroY);
+      ctx.stroke();
 
-    // 绘制分时折线与下方向渐变填充
-    const isUp = (currentQuote.changePercent ?? 0) >= 0;
-    const lineColor = isUp ? '#ff4d4f' : '#52c41a';
-    const gradColor = isUp ? 'rgba(255, 77, 79, 0.25)' : 'rgba(82, 196, 26, 0.25)';
+      // 标注昨收价
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(yClose.toFixed(2), 35, zeroY + 3);
+      ctx.restore();
 
-    const stepX = (w - 55) / Math.max(1, trends.length - 1);
+      // 绘制分时折线与下方向渐变填充
+      const isUp = (currentQuote.changePercent ?? 0) >= 0;
+      const lineColor = isUp ? '#ff4d4f' : '#52c41a';
+      const gradColor = isUp ? 'rgba(255, 77, 79, 0.25)' : 'rgba(82, 196, 26, 0.25)';
 
-    ctx.save();
-    ctx.beginPath();
-    trends.forEach((t, i) => {
-      const x = 45 + i * stepX;
-      const y = getY(t.price);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+      const stepX = (w - 55) / Math.max(1, trends.length - 1);
 
-    // 渐变填充背景
-    const fillPath = new Path2D();
-    fillPath.moveTo(45, getY(trends[0]!.price));
-    trends.forEach((t, i) => {
-      fillPath.lineTo(45 + i * stepX, getY(t.price));
-    });
-    fillPath.lineTo(45 + (trends.length - 1) * stepX, h - 25);
-    fillPath.lineTo(45, h - 25);
-    fillPath.closePath();
+      ctx.save();
+      ctx.beginPath();
+      trends.forEach((t, i) => {
+        const x = 45 + i * stepX;
+        const y = getY(t.price);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, gradColor);
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = gradient;
-    ctx.fill(fillPath);
+      // 渐变填充背景
+      const fillPath = new Path2D();
+      fillPath.moveTo(45, getY(trends[0]!.price));
+      trends.forEach((t, i) => {
+        fillPath.lineTo(45 + i * stepX, getY(t.price));
+      });
+      fillPath.lineTo(45 + (trends.length - 1) * stepX, h - 25);
+      fillPath.lineTo(45, h - 25);
+      fillPath.closePath();
 
-    // 描画主折线
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+      const gradient = ctx.createLinearGradient(0, 0, 0, h);
+      gradient.addColorStop(0, gradColor);
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = gradient;
+      ctx.fill(fillPath);
 
-    // 最后一个点绘制脉冲高亮呼吸圆
-    const lastX = 45 + (trends.length - 1) * stepX;
-    const lastY = getY(trends[trends.length - 1]!.price);
+      // 描画主折线
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-    ctx.fillStyle = lineColor;
-    ctx.beginPath();
-    ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
-    ctx.fill();
+      // 最后一个点绘制脉冲高亮呼吸圆
+      const lastX = 45 + (trends.length - 1) * stepX;
+      const lastY = getY(trends[trends.length - 1]!.price);
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(lastX, lastY, 6, 0, Math.PI * 2);
-    ctx.stroke();
+      ctx.fillStyle = lineColor;
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+      ctx.fill();
 
-    // 绘制底部时间刻度
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.font = '9px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('09:30', 45, h - 8);
-    ctx.textAlign = 'center';
-    ctx.fillText('11:30 / 13:00', w / 2, h - 8);
-    ctx.textAlign = 'right';
-    ctx.fillText('15:00', w - 12, h - 8);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 6, 0, Math.PI * 2);
+      ctx.stroke();
 
-    ctx.restore();
-  }, [trends, currentQuote]);
+      // 绘制底部时间刻度
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('09:30', 45, h - 8);
+      ctx.textAlign = 'center';
+      ctx.fillText('11:30 / 13:00', w / 2, h - 8);
+      ctx.textAlign = 'right';
+      ctx.fillText('15:00', w - 12, h - 8);
+
+      ctx.restore();
+    } else {
+      // ---------- 绘制蜡烛图 K 线 (日K / 周K / 月K / 年K) ----------
+      if (klines.length === 0) return;
+
+      const highs = klines.map((k) => k.high);
+      const lows = klines.map((k) => k.low);
+      const minP = Math.min(...lows);
+      const maxP = Math.max(...highs);
+      const range = Math.max(maxP - minP, maxP * 0.015);
+
+      const klineH = (h - 60) * 0.72;
+      const volH = (h - 60) * 0.22;
+      const volBaseY = h - 22;
+
+      const getY = (val: number) => {
+        return 28 + klineH - ((val - minP) / range) * klineH;
+      };
+
+      const maxVol = Math.max(1, ...klines.map((k) => k.volume));
+      const getVolH = (vol: number) => {
+        return (vol / maxVol) * volH;
+      };
+
+      const count = klines.length;
+      const padLeft = 45;
+      const padRight = 15;
+      const availW = w - padLeft - padRight;
+      const stepX = availW / count;
+      const candleW = Math.max(2.5, Math.min(14, stepX * 0.7));
+
+      // 绘制网格参考线
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+      ctx.lineWidth = 1;
+      [0.25, 0.5, 0.75].forEach((ratio) => {
+        const gy = 28 + klineH * ratio;
+        ctx.beginPath();
+        ctx.moveTo(padLeft, gy);
+        ctx.lineTo(w - padRight, gy);
+        ctx.stroke();
+      });
+
+      // 左侧价格刻度
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(maxP.toFixed(2), padLeft - 6, 32);
+      ctx.fillText(((maxP + minP) / 2).toFixed(2), padLeft - 6, 28 + klineH * 0.5 + 3);
+      ctx.fillText(minP.toFixed(2), padLeft - 6, 28 + klineH);
+
+      // 逐根绘制蜡烛柱实体与上下影线
+      klines.forEach((k, i) => {
+        const x = padLeft + i * stepX + stepX / 2;
+        const isUp = k.close >= k.open;
+        const color = isUp ? '#ff4d4f' : '#22c55e';
+        const topY = Math.min(getY(k.open), getY(k.close));
+        const bodyH = Math.max(1.5, Math.abs(getY(k.close) - getY(k.open)));
+
+        // 上下影线
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, getY(k.high));
+        ctx.lineTo(x, getY(k.low));
+        ctx.stroke();
+
+        // 实体矩形
+        ctx.fillStyle = color;
+        ctx.fillRect(x - candleW / 2, topY, candleW, bodyH);
+
+        // 成交量柱
+        const curVolH = getVolH(k.volume);
+        ctx.fillStyle = isUp ? 'rgba(255, 77, 79, 0.45)' : 'rgba(34, 197, 94, 0.45)';
+        ctx.fillRect(x - candleW / 2, volBaseY - curVolH, candleW, curVolH);
+      });
+
+      // 绘制均线 MA5, MA10, MA20
+      const drawMaLine = (maKey: 'ma5' | 'ma10' | 'ma20', maColor: string) => {
+        ctx.beginPath();
+        let started = false;
+        klines.forEach((k, i) => {
+          const val = k[maKey];
+          if (val !== undefined && val > 0) {
+            const x = padLeft + i * stepX + stepX / 2;
+            const y = getY(val);
+            if (!started) {
+              ctx.moveTo(x, y);
+              started = true;
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+        });
+        ctx.strokeStyle = maColor;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      };
+      drawMaLine('ma5', '#facc15');
+      drawMaLine('ma10', '#c084fc');
+      drawMaLine('ma20', '#38bdf8');
+
+      // 底部时间刻度
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(klines[0]?.date || '', padLeft, h - 6);
+      ctx.textAlign = 'center';
+      ctx.fillText(klines[Math.floor(count / 2)]?.date || '', padLeft + availW / 2, h - 6);
+      ctx.textAlign = 'right';
+      ctx.fillText(klines[count - 1]?.date || '', w - padRight, h - 6);
+
+      ctx.restore();
+    }
+  }, [trends, klines, chartPeriod, currentQuote]);
 
   // 计算交易金额预估
   const estimatedPrice = currentQuote?.price || 100;
@@ -570,10 +708,56 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                   </div>
                 </div>
 
+                {/* 走势图周期选择工具条：分时、日K、周K、月K、年K */}
+                <div className="chart-period-bar">
+                  <div className="period-btn-group">
+                    {[
+                      { id: 'trend', label: '分时' },
+                      { id: 'day', label: '日K' },
+                      { id: 'week', label: '周K' },
+                      { id: 'month', label: '月K' },
+                      { id: 'year', label: '年K' },
+                    ].map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`period-btn ${chartPeriod === p.id ? 'is-active' : ''}`}
+                        onClick={() => setChartPeriod(p.id as typeof chartPeriod)}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {chartPeriod !== 'trend' && klines.length > 0 && (
+                    <div className="ma-indicator-tags">
+                      <span className="ma-tag ma-5">
+                        MA5: {klines[klines.length - 1]?.ma5?.toFixed(2) ?? '--'}
+                      </span>
+                      <span className="ma-tag ma-10">
+                        MA10: {klines[klines.length - 1]?.ma10?.toFixed(2) ?? '--'}
+                      </span>
+                      <span className="ma-tag ma-20">
+                        MA20: {klines[klines.length - 1]?.ma20?.toFixed(2) ?? '--'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div className="chart-canvas-container">
                   <div className="chart-overlay-info">
-                    <span>分时走势 · T+0 实盘交割</span>
-                    {loadingTrends && <span className="loading-tag">加载分时中…</span>}
+                    <span>
+                      {chartPeriod === 'trend'
+                        ? '分时走势 · T+0 实盘交割'
+                        : chartPeriod === 'day'
+                          ? '日K线图 · 蜡烛图与均线'
+                          : chartPeriod === 'week'
+                            ? '周K线图 · 跨周大势'
+                            : chartPeriod === 'month'
+                              ? '月K线图 · 中长周期'
+                              : '年K线图 · 长期复利'}
+                    </span>
+                    {loadingChart && <span className="loading-tag">加载行情走势中…</span>}
                   </div>
                   <canvas ref={canvasRef} className="stock-time-canvas" />
                 </div>

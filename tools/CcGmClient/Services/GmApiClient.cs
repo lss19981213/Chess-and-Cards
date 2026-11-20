@@ -613,5 +613,23 @@ namespace CcGmClient.Services
         {
             return await SendAsync<LogCleanResponse>(HttpMethod.Post, "/api/admin/logs/clean", new { retainDays });
         }
+
+        // ---------- 13. 改命股市大盘与全服交易监控 ----------
+
+        /// <summary>
+        /// 获取改命股市全服总览、实时行情、各标的持仓汇总与最新交易成交流水
+        /// </summary>
+        public async Task<AdminStocksOverviewResponse> GetStocksOverviewAsync()
+        {
+            return await SendAsync<AdminStocksOverviewResponse>(HttpMethod.Get, "/api/admin/stocks/overview");
+        }
+
+        /// <summary>
+        /// 强制穿透缓存刷新股市实时行情
+        /// </summary>
+        public async Task<AdminStockRefreshResponse> RefreshStockQuotesAsync()
+        {
+            return await SendAsync<AdminStockRefreshResponse>(HttpMethod.Post, "/api/admin/stocks/refresh");
+        }
     }
 }
