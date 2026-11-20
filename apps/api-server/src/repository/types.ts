@@ -340,11 +340,12 @@ export interface Repository {
   listDailySnapshot(dayKey: string): Promise<LeaderboardSnapshotRow[]>;
   /** 今日净收益榜（按结算流水聚合） */
   dailyWinners(limit: number): Promise<DailyWinnerRow[]>;
-  listAnnouncements(limit: number): Promise<Announcement[]>;
+  listAnnouncements(limit: number, includeExpired?: boolean): Promise<Announcement[]>;
   createAnnouncement(input: {
     title: string;
     content: string;
     kind: Announcement['kind'];
+    expiresAt?: number | null;
   }): Promise<Announcement>;
   deleteAnnouncement(id: string): Promise<boolean>;
   close(): Promise<void>;

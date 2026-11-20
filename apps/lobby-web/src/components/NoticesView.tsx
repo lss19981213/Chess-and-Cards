@@ -43,17 +43,26 @@ export function NoticesView({ onBack }: Props) {
       <main className="view-main notices-layout">
         <div className="notices-scroll-panel">
           {loading && <div className="view-loading">正在调取官方告示…</div>}
-          {announcements.map((item) => (
-            <article key={item.id} className={`notice-card-view is-${item.kind}`}>
-              <div className="notice-card__head">
-                <span className={`kind-badge badge--${item.kind}`}>{KIND_LABEL[item.kind]}</span>
-                <h3>{item.title}</h3>
-                <time>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</time>
-              </div>
-              <p className="notice-card__content">{item.content}</p>
-            </article>
-          ))}
-          {announcements.length === 0 && !loading && (
+          {announcements
+            .filter((item) => !item.expiresAt || item.expiresAt > Date.now())
+            .map((item) => (
+              <article key={item.id} className={`notice-card-view is-${item.kind}`}>
+                <div className="notice-card__head">
+                  <span className={`kind-badge badge--${item.kind}`}>{KIND_LABEL[item.kind]}</span>
+                  <h3>{item.title}</h3>
+                  <div className="notice-card__meta">
+                    <time>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</time>
+                    {item.expiresAt && (
+                      <span className="notice-card__expire" title="有效截止时间">
+                        ⏳ 截止: {new Date(item.expiresAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="notice-card__content">{item.content}</p>
+              </article>
+            ))}
+          {announcements.filter((item) => !item.expiresAt || item.expiresAt > Date.now()).length === 0 && !loading && (
             <div className="view-empty">
               <IconNotice size={36} />
               <p>暂无新发布的官方告示</p>

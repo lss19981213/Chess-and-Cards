@@ -661,13 +661,28 @@ function describeLedgerRow(bizType: string, bizId: string): { bizLabel: string; 
     if (!content || content.length > 300) throw httpError('内容需在 1–300 字之间', 400);
     if (!['notice', 'event', 'maintenance'].includes(kind)) throw httpError('公告类型不合法', 400);
 
+    // 有效期时长（秒），默认 1 小时 = 3600 秒；若为 0 则代表永久有效
+    const expiresInSeconds = body.expiresInSeconds !== undefined ? Number(body.expiresInSeconds) : 3600;
+    let expiresAt: number | null = null;
+    if (body.expiresAt !== undefined) {
+      expiresAt = body.expiresAt === null ? null : Number(body.expiresAt);
+    } else if (expiresInSeconds > 0) {
+      expiresAt = Date.now() + expiresInSeconds * 1000;
+    }
+
     const row = await repo.createAnnouncement({
       title,
       content,
       kind: kind as 'notice' | 'event' | 'maintenance',
+      expiresAt,
     });
-    apiLog.info('发布公告', { id: row.id, title, kind });
-    recordEvent('info', 'announce', `发布公告「${title}」`, { id: row.id, kind });
+    apiLog.info('发布公告', { id: row.id, title, kind, expiresAt });
+    const validityDesc = expiresInSeconds > 0 ? `${Math.round(expiresInSeconds / 60)} 分钟` : '永久';
+    recordEvent('info', 'announce', `发布公告「${title}」（有效期: ${validityDesc}）`, {
+      id: row.id,
+      kind,
+      expiresAt,
+    });
     return { announcement: row };
   });
 
@@ -817,7 +832,9 @@ function describeLedgerRow(bizType: string, bizId: string): { bizLabel: string; 
   // ---- 公告列表（GM 工具展示与删除）----
   app.get('/api/admin/announcements', async (req) => {
     requireAdmin(req);
-    const announcements = await repo.listAnnouncements(50);
+    const query = (req.query ?? {}) as { includeExpired?: string };
+    const includeExpired = query.includeExpired === 'true' || query.includeExpired === '1';
+    const announcements = await repo.listAnnouncements(50, includeExpired);
     return { announcements };
   });
 

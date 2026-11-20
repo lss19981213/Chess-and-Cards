@@ -545,8 +545,14 @@ export class MemoryRepository implements Repository {
       .slice(0, limit);
   }
 
-  async listAnnouncements(limit: number): Promise<Announcement[]> {
-    return [...this.announcements]
+  async listAnnouncements(limit: number, includeExpired = false): Promise<Announcement[]> {
+    const now = Date.now();
+    return this.announcements
+      .filter((a) => {
+        if (includeExpired) return true;
+        const exp = a.expiresAt !== undefined ? a.expiresAt : a.createdAt + 3600_000;
+        return exp === null || exp > now;
+      })
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, Math.min(Math.max(1, limit), 50));
   }
@@ -555,8 +561,12 @@ export class MemoryRepository implements Repository {
     title: string;
     content: string;
     kind: Announcement['kind'];
+    expiresAt?: number | null;
   }): Promise<Announcement> {
-    const row: Announcement = { id: randomUUID(), ...input, createdAt: Date.now() };
+    const now = Date.now();
+    // 默认有效期 1 小时 (3,600,000 毫秒)
+    const expiresAt = input.expiresAt !== undefined ? input.expiresAt : now + 3600_000;
+    const row: Announcement = { id: randomUUID(), ...input, expiresAt, createdAt: now };
     this.announcements.unshift(row);
     if (this.announcements.length > 200) this.announcements.length = 200;
     return row;

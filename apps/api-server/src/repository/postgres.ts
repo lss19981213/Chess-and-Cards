@@ -238,14 +238,15 @@ export class PostgresRepository implements Repository {
     return getDailyWinners(this.pool, limit);
   }
 
-  listAnnouncements(limit: number): Promise<Announcement[]> {
-    return listAnnouncements(this.pool, limit);
+  listAnnouncements(limit: number, includeExpired = false): Promise<Announcement[]> {
+    return listAnnouncements(this.pool, limit, includeExpired);
   }
 
   createAnnouncement(input: {
     title: string;
     content: string;
     kind: Announcement['kind'];
+    expiresAt?: number | null;
   }): Promise<Announcement> {
     return createAnnouncement(this.pool, input);
   }

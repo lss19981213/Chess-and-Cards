@@ -693,6 +693,72 @@ namespace CcGmClient.Models
         [JsonPropertyName("createdAt")]
         public JsonElement? RawCreatedAt { get; set; }
 
+        [JsonPropertyName("expiresAt")]
+        public JsonElement? RawExpiresAt { get; set; }
+
+        [JsonIgnore]
+        public DateTime? ExpiresAtDateTime
+        {
+            get
+            {
+                if (RawExpiresAt.HasValue)
+                {
+                    var elem = RawExpiresAt.Value;
+                    if (elem.ValueKind == JsonValueKind.Number && elem.TryGetInt64(out var ms))
+                    {
+                        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().DateTime;
+                    }
+                    if (elem.ValueKind == JsonValueKind.String && DateTime.TryParse(elem.GetString(), out var dt))
+                    {
+                        return dt.ToLocalTime();
+                    }
+                }
+                return null;
+            }
+        }
+
+        [JsonIgnore]
+        public bool IsExpired
+        {
+            get
+            {
+                var exp = ExpiresAtDateTime;
+                return exp.HasValue && exp.Value < DateTime.Now;
+            }
+        }
+
+        [JsonIgnore]
+        public string ExpireDisplay
+        {
+            get
+            {
+                var exp = ExpiresAtDateTime;
+                if (!exp.HasValue) return "♾️ 永久有效";
+                return exp.Value.ToString("yyyy-MM-dd HH:mm");
+            }
+        }
+
+        [JsonIgnore]
+        public string StatusDisplay
+        {
+            get
+            {
+                if (IsExpired) return "🔴 已过期";
+                var exp = ExpiresAtDateTime;
+                if (!exp.HasValue) return "🟢 永久展示";
+                var remaining = exp.Value - DateTime.Now;
+                if (remaining.TotalMinutes < 60)
+                {
+                    return $"🟢 剩 {Math.Max(1, (int)remaining.TotalMinutes)} 分钟";
+                }
+                if (remaining.TotalHours < 24)
+                {
+                    return $"🟢 剩 {(int)remaining.TotalHours} 小时";
+                }
+                return $"🟢 剩 {(int)remaining.TotalDays} 天";
+            }
+        }
+
         [JsonIgnore]
         public string KindDisplay => Kind switch
         {

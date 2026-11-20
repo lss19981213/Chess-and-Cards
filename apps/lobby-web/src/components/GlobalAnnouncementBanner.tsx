@@ -9,6 +9,7 @@ interface AnnouncementItem {
   title?: string;
   content: string;
   kind?: string;
+  expiresAt?: number | null;
 }
 
 interface Props {
@@ -69,8 +70,11 @@ export function GlobalAnnouncementBanner({ onOpenNotices }: Props) {
 
   const enqueue = (items: AnnouncementItem[]) => {
     let added = false;
+    const now = Date.now();
     for (const item of items) {
       if (!item.content || dismissedSetRef.current.has(item.id)) continue;
+      // 若已超过有效截止时间，则直接忽略丢弃，不再在页面顶部弹窗播报
+      if (item.expiresAt != null && item.expiresAt <= now) continue;
       if (current?.id === item.id || queueRef.current.some((q) => q.id === item.id)) continue;
       queueRef.current.push(item);
       added = true;
@@ -93,7 +97,7 @@ export function GlobalAnnouncementBanner({ onOpenNotices }: Props) {
     return () => window.removeEventListener('cc:announcement', handleBroadcast);
   }, []);
 
-  // 2. 轮询官方公告列表（初次进入与定期同步）
+  // 2. 轮询官方公告列表（初次进入与定期同步，仅拉取有效期内公告）
   useEffect(() => {
     const fetchAnnouncements = () => {
       api
@@ -107,6 +111,7 @@ export function GlobalAnnouncementBanner({ onOpenNotices }: Props) {
                 title: a.title,
                 content: a.content,
                 kind: a.kind,
+                expiresAt: a.expiresAt,
               })),
             );
           }

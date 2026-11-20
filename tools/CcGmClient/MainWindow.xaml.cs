@@ -1958,6 +1958,12 @@ namespace CcGmClient
                 kind = tag;
             }
 
+            int expiresInSeconds = 3600; // 默认 1 小时
+            if (CmbAnnounceDuration.SelectedItem is ComboBoxItem durItem && durItem.Tag is string durTag && int.TryParse(durTag, out var dur))
+            {
+                expiresInSeconds = dur;
+            }
+
             if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(content))
             {
                 MessageBox.Show("标题与内容不能为空", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1966,10 +1972,11 @@ namespace CcGmClient
 
             try
             {
-                await _api.CreateAnnouncementAsync(title, content, kind);
+                await _api.CreateAnnouncementAsync(title, content, kind, expiresInSeconds);
                 TxtAnnounceTitle.Text = "";
                 TxtAnnounceContent.Text = "";
-                SetStatus($"成功发布公告「{title}」");
+                var validityStr = expiresInSeconds > 0 ? $"{expiresInSeconds / 60} 分钟" : "永久";
+                SetStatus($"成功发布公告「{title}」（有效时长: {validityStr}）");
                 await RefreshAnnouncementsAsync();
             }
             catch (Exception ex)
@@ -1985,8 +1992,14 @@ namespace CcGmClient
 
         private async Task RefreshAnnouncementsAsync()
         {
-            var list = await _api.GetAnnouncementsAsync();
+            bool showExpired = ChkShowExpiredAnnouncements?.IsChecked == true;
+            var list = await _api.GetAnnouncementsAsync(showExpired);
             DgAnnouncements.ItemsSource = list;
+        }
+
+        private void ChkShowExpiredAnnouncements_Changed(object sender, RoutedEventArgs e)
+        {
+            _ = RefreshAnnouncementsAsync();
         }
 
         private async void BtnDeleteAnnouncement_Click(object sender, RoutedEventArgs e)

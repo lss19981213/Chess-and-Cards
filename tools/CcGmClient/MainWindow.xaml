@@ -1534,6 +1534,18 @@
                                         <ComboBoxItem Content="⚠️ 停机维护 (maintenance)" Tag="maintenance"/>
                                     </ComboBox>
 
+                                    <TextBlock Text="有效时长 (到期后自动从列表消失):" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
+                                    <ComboBox x:Name="CmbAnnounceDuration" Height="30" Margin="0,0,0,10" VerticalContentAlignment="Center">
+                                        <ComboBoxItem Content="⏳ 1 小时 (默认)" Tag="3600" IsSelected="True"/>
+                                        <ComboBoxItem Content="⏳ 2 小时" Tag="7200"/>
+                                        <ComboBoxItem Content="⏳ 6 小时" Tag="21600"/>
+                                        <ComboBoxItem Content="⏳ 12 小时" Tag="43200"/>
+                                        <ComboBoxItem Content="⏳ 24 小时 (1 天)" Tag="86400"/>
+                                        <ComboBoxItem Content="⏳ 3 天" Tag="259200"/>
+                                        <ComboBoxItem Content="⏳ 7 天" Tag="604800"/>
+                                        <ComboBoxItem Content="♾️ 永久有效" Tag="0"/>
+                                    </ComboBox>
+
                                     <TextBlock Text="公告内容:" Foreground="{StaticResource BrushTextMuted}" Margin="0,0,0,4" FontSize="12"/>
                                     <TextBox x:Name="TxtAnnounceContent" Height="100" TextWrapping="Wrap" AcceptsReturn="True" Margin="0,0,0,14"/>
 
@@ -1551,17 +1563,21 @@
                                     </Grid.RowDefinitions>
 
                                     <Grid Grid.Row="0" Margin="0,0,0,10">
-                                        <TextBlock Text="已发布系统公告列表" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}"/>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="已发布系统公告列表" FontSize="14" FontWeight="Bold" Foreground="{StaticResource BrushText}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <CheckBox x:Name="ChkShowExpiredAnnouncements" Content="显示已过期历史公告" Foreground="{StaticResource BrushTextDim}" VerticalAlignment="Center" Checked="ChkShowExpiredAnnouncements_Changed" Unchecked="ChkShowExpiredAnnouncements_Changed"/>
+                                        </StackPanel>
                                         <Button Style="{StaticResource BtnSecondary}" Content="刷新" Click="BtnRefreshAnnouncements_Click" HorizontalAlignment="Right" Height="26" Padding="10,0"/>
                                     </Grid>
 
                                     <DataGrid x:Name="DgAnnouncements" Grid.Row="1" Margin="0,0,0,10">
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="80"/>
-                                            <DataGridTextColumn Header="类型" Binding="{Binding KindDisplay}" Width="100"/>
-                                            <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="160"/>
+                                            <DataGridTextColumn Header="状态" Binding="{Binding StatusDisplay}" Width="95"/>
+                                            <DataGridTextColumn Header="类型" Binding="{Binding KindDisplay}" Width="85"/>
+                                            <DataGridTextColumn Header="标题" Binding="{Binding Title}" Width="150"/>
                                             <DataGridTextColumn Header="内容" Binding="{Binding Content}" Width="*"/>
-                                            <DataGridTextColumn Header="发布时间" Binding="{Binding DisplayDate}" Width="120"/>
+                                            <DataGridTextColumn Header="发布时间" Binding="{Binding DisplayDate}" Width="110"/>
+                                            <DataGridTextColumn Header="有效截止" Binding="{Binding ExpireDisplay}" Width="110"/>
                                         </DataGrid.Columns>
                                     </DataGrid>
 

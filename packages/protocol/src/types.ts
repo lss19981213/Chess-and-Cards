@@ -38,6 +38,8 @@ export interface Announcement {
   content: string;
   kind: 'notice' | 'event' | 'maintenance';
   createdAt: number;
+  /** 有效截止时间戳（毫秒），到期后不再对玩家展示；为 null/undefined 且超过默认 1 小时时自动过期 */
+  expiresAt?: number | null;
 }
 
 export type RoomStatus = 'waiting' | 'playing' | 'settled' | 'closed';

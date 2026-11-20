@@ -447,15 +447,16 @@ namespace CcGmClient.Services
             return true;
         }
 
-        public async Task<List<AnnouncementItem>> GetAnnouncementsAsync()
+        public async Task<List<AnnouncementItem>> GetAnnouncementsAsync(bool includeExpired = false)
         {
-            var res = await SendAsync<Dictionary<string, List<AnnouncementItem>>>(HttpMethod.Get, "/api/admin/announcements");
+            var q = $"/api/admin/announcements?includeExpired={(includeExpired ? "true" : "false")}";
+            var res = await SendAsync<Dictionary<string, List<AnnouncementItem>>>(HttpMethod.Get, q);
             return res.TryGetValue("announcements", out var list) ? list : new List<AnnouncementItem>();
         }
 
-        public async Task<bool> CreateAnnouncementAsync(string title, string content, string kind = "notice")
+        public async Task<bool> CreateAnnouncementAsync(string title, string content, string kind = "notice", int expiresInSeconds = 3600)
         {
-            await SendAsync<object>(HttpMethod.Post, "/api/admin/announcements", new { title, content, kind });
+            await SendAsync<object>(HttpMethod.Post, "/api/admin/announcements", new { title, content, kind, expiresInSeconds });
             return true;
         }
 

@@ -116,10 +116,15 @@ create table if not exists announcements (
   title      text not null,
   content    text not null,
   kind       text not null default 'notice',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  expires_at timestamptz
 );
 
 create index if not exists announcements_created_idx on announcements (created_at desc);
+alter table announcements add column if not exists expires_at timestamptz;
+create index if not exists announcements_expires_idx on announcements (expires_at);
+-- 历史遗留公告若未设定 expires_at，默认以创建后 1 小时为有效截止时间
+update announcements set expires_at = created_at + interval '1 hour' where expires_at is null;
 
 -- 筹码永远不允许为负：先修正历史脏数据，再加数据库兜底约束。
 -- 老库的表已存在，CREATE TABLE IF NOT EXISTS 不会补约束，所以这里显式 ALTER。

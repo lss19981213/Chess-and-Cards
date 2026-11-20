@@ -4,42 +4,70 @@ import { totalClaimableLevelReward, type Announcement } from '@cc/protocol';
 import type { FriendRequestStatus, FriendRequestView, PlayerProfile, ProfilePatch } from '../types';
 import { avatarUrlSql } from './shared';
 
-export async function listAnnouncements(pool: pg.Pool, limit: number): Promise<Announcement[]> {
+export async function listAnnouncements(
+  pool: pg.Pool,
+  limit: number,
+  includeExpired = false,
+): Promise<Announcement[]> {
+  const safeLimit = Math.min(Math.max(1, limit), 50);
+  const sql = includeExpired
+    ? `select id, title, content, kind, created_at, expires_at
+         from announcements
+        order by created_at desc
+        limit $1`
+    : `select id, title, content, kind, created_at, expires_at
+         from announcements
+        where (expires_at is null and created_at > now() - interval '1 hour')
+           or (expires_at is not null and expires_at > now())
+        order by created_at desc
+        limit $1`;
+
   const res = await pool.query<{
     id: string;
     title: string;
     content: string;
     kind: string;
     created_at: Date;
-  }>(
-    `select id, title, content, kind, created_at
-       from announcements
-      order by created_at desc
-      limit $1`,
-    [Math.min(Math.max(1, limit), 50)],
-  );
+    expires_at: Date | null;
+  }>(sql, [safeLimit]);
+
   return res.rows.map((row) => ({
     id: row.id,
     title: row.title,
     content: row.content,
     kind: row.kind as Announcement['kind'],
     createdAt: new Date(row.created_at).getTime(),
+    expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : null,
   }));
 }
 
 export async function createAnnouncement(
   pool: pg.Pool,
-  input: { title: string; content: string; kind: Announcement['kind'] },
+  input: {
+    title: string;
+    content: string;
+    kind: Announcement['kind'];
+    expiresAt?: number | null;
+  },
 ): Promise<Announcement> {
   const id = randomUUID();
-  const res = await pool.query<{ created_at: Date }>(
-    `insert into announcements (id, title, content, kind)
-     values ($1, $2, $3, $4)
-     returning created_at`,
-    [id, input.title, input.content, input.kind],
+  const now = Date.now();
+  // 默认有效期 1 小时 (3,600,000 毫秒)
+  const expiresAt = input.expiresAt !== undefined ? input.expiresAt : now + 3600_000;
+  const expiresDate = expiresAt != null ? new Date(expiresAt) : null;
+  const res = await pool.query<{ created_at: Date; expires_at: Date | null }>(
+    `insert into announcements (id, title, content, kind, expires_at)
+     values ($1, $2, $3, $4, $5)
+     returning created_at, expires_at`,
+    [id, input.title, input.content, input.kind, expiresDate],
   );
   const created = res.rows[0]?.created_at;
-  return { id, ...input, createdAt: created ? new Date(created).getTime() : Date.now() };
+  return {
+    id,
+    ...input,
+    expiresAt,
+    createdAt: created ? new Date(created).getTime() : now,
+  };
 }
 
 export async function deleteAnnouncement(pool: pg.Pool, id: string): Promise<boolean> {
