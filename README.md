@@ -2,7 +2,8 @@
 
 一套「大厅 + 可插拔游戏」的全栈技术示范工程：**19 款**棋牌、麻将与休闲博弈游戏共用一个大厅、一套账务、一个 WebSocket 房间容器。新增游戏只需实现 `GamePlugin` 接口并放入 `services/games/`，容器自动扫描加载，大厅与房间服核心无需改动。
 
-🌐 **在线体验地址**：[http://chess.fantasyclaw.top/lobby/](http://chess.fantasyclaw.top/lobby/)
+🌐 **在线体验地址**：[http://chess.fantasyclaw.top/lobby/](http://chess.fantasyclaw.top/lobby/)  
+💬 **交流与技术支持**：微信/电话 `19936854265` · QQ `764854759`（欢迎感兴趣或需要协助的朋友随时联系，详见[联系作者](#联系作者)）
 
 界面以 **PC 1920×1080 横屏**为设计基准，采用九宫格游戏卡片与奢华黑金视觉风格，并向下自适应移动端横屏（844×390）。
 
@@ -23,6 +24,7 @@
 - [1Panel 一键部署与无感更新](#1panel-一键部署与无感更新)
 - [传统服务器部署与 GM 客户端](#传统服务器部署与-gm-客户端)
 - [新增一个游戏](#新增一个游戏)
+- [联系作者](#联系作者)
 - [安全建议](#安全建议)
 - [合规提示](#合规提示)
 - [仓库地图 CONTEXT（修 bug 先读）](CONTEXT.md)
@@ -253,6 +255,19 @@ pnpm e2e
 3. 将新包加入 `services/room-server/package.json` 依赖（`plugins.ts` 会自动发现注册）；
 4. 前端在 `apps/lobby-web/src/games/` 增加渲染组件并在 `Room.tsx` 分发；
 5. 运行 `pnpm typecheck` 与 `pnpm --filter @cc/lobby-web build` 验证后推送部署。
+
+## 联系作者
+
+如果您对本项目感兴趣、在本地运行或云端部署时需要协助、想要交流棋牌与 WebSocket 全栈架构，或有二次开发与定制需求，欢迎随时联系交流：
+
+- 📱 **电话 / 手机**：`19936854265`
+- 💬 **微信**：`19936854265`（支持直接搜索微信号或扫描下方二维码添加）
+- 🐧 **QQ**：`764854759`
+
+<div align="center">
+  <img src="docs/screenshots/wechat_contact.jpg" width="260" alt="作者个人微信二维码" /><br/>
+  <sub><b>扫一扫上方二维码添加作者微信（金克丝 · 广东深圳）</b></sub>
+</div>
 
 ## 安全建议
 
