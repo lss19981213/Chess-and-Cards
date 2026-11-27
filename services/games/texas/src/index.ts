@@ -182,15 +182,18 @@ export class TexasPlugin extends BaseGamePlugin {
     this.state.smallBlindId = sbId;
     this.state.bigBlindId = bbId;
 
-    this.postBlind(sbId ?? undefined, SMALL_BLIND);
-    this.postBlind(bbId ?? undefined, BIG_BLIND);
-    if (sbId) this.state.playerActionTags.set(sbId, { type: 'sb', label: `小盲 ${SMALL_BLIND}`, amount: SMALL_BLIND });
-    if (bbId) this.state.playerActionTags.set(bbId, { type: 'bb', label: `大盲 ${BIG_BLIND}`, amount: BIG_BLIND });
+    const sbAmt = SMALL_BLIND * (ctx.config.stakeMultiplier ?? 1);
+    const bbAmt = BIG_BLIND * (ctx.config.stakeMultiplier ?? 1);
 
-    this.state.currentBet = BIG_BLIND;
+    this.postBlind(sbId ?? undefined, sbAmt);
+    this.postBlind(bbId ?? undefined, bbAmt);
+    if (sbId) this.state.playerActionTags.set(sbId, { type: 'sb', label: `小盲 ${sbAmt}`, amount: sbAmt });
+    if (bbId) this.state.playerActionTags.set(bbId, { type: 'bb', label: `大盲 ${bbAmt}`, amount: bbAmt });
+
+    this.state.currentBet = bbAmt;
     this.state.turn = order[firstPos] ?? null;
     this.recordAction(ctx, 'deal', order[dealerPos] ?? order[0]!, {
-      detail: `第 ${ctx.config.round} 手发牌 · 盲注 ${SMALL_BLIND}/${BIG_BLIND}`,
+      detail: `第 ${ctx.config.round} 手发牌 · 盲注 ${sbAmt}/${bbAmt}`,
     });
     ctx.markDirty();
   }
@@ -238,12 +241,13 @@ export class TexasPlugin extends BaseGamePlugin {
         const used = this.state.raises.get(playerId) ?? 0;
         if (used >= MAX_RAISES) throw illegalAction('本局加注次数已达上限');
 
+        const unit = RAISE_UNIT * (ctx.config.stakeMultiplier ?? 1);
         const rawAdd = intent.payload?.amount;
-        let target = this.state.currentBet + RAISE_UNIT;
+        let target = this.state.currentBet + unit;
         if (rawAdd !== undefined && rawAdd !== null) {
           const add = Math.floor(Number(rawAdd));
-          if (!Number.isFinite(add) || add < RAISE_UNIT) {
-            throw badRequest(`加注至少 ${RAISE_UNIT}`);
+          if (!Number.isFinite(add) || add < unit) {
+            throw badRequest(`加注至少 ${unit}`);
           }
           target = this.state.currentBet + Math.min(add, MAX_RAISE_ADD);
         }
@@ -343,9 +347,9 @@ export class TexasPlugin extends BaseGamePlugin {
       myHandLabel,
       myTotalBet: viewerId ? (this.state.totalBet.get(viewerId) ?? 0) : 0,
       myRoundBet: myRound,
-      smallBlind: SMALL_BLIND,
-      bigBlind: BIG_BLIND,
-      raiseUnit: RAISE_UNIT,
+      smallBlind: SMALL_BLIND * (ctx.config.stakeMultiplier ?? 1),
+      bigBlind: BIG_BLIND * (ctx.config.stakeMultiplier ?? 1),
+      raiseUnit: RAISE_UNIT * (ctx.config.stakeMultiplier ?? 1),
       maxRaiseAdd: MAX_RAISE_ADD,
       lastAction: this.state.lastAction,
       results: this.state.results,
@@ -501,7 +505,7 @@ export class TexasPlugin extends BaseGamePlugin {
       pot: this.pot(),
       toCall,
       canRaise,
-      raiseUnit: RAISE_UNIT,
+      raiseUnit: RAISE_UNIT * (ctx.config.stakeMultiplier ?? 1),
       opponents,
       difficulty,
     });

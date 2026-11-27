@@ -7,8 +7,9 @@ import {
   MAX_PLAYER_LEVEL,
   xpRequiredForLevel,
 } from '@cc/protocol';
-import { api, type User } from '../api';
+import { api, type ProfileStatsView, type User } from '../api';
 import { audio } from '../audio';
+import { gameTitleOf } from '../game-registry';
 import { AvatarFrameModal } from './AvatarFrameModal';
 import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
@@ -113,6 +114,7 @@ export function ProfileView({
   const [rank, setRank] = useState<number | null>(null);
   const [friendsCount, setFriendsCount] = useState(0);
   const [achievements, setAchievements] = useState(0);
+  const [stats, setStats] = useState<ProfileStatsView | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hint, setHint] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null);
@@ -147,6 +149,10 @@ export function ProfileView({
       setRank(data.rank);
       setFriendsCount(data.friendsCount);
       setAchievements(data.achievements);
+      api
+        .profileStats()
+        .then((s) => setStats(s))
+        .catch(() => {});
       if (data.email !== undefined) setEmail(data.email ?? '');
       if (data.oauthProvider !== undefined) setOauthProvider(data.oauthProvider ?? null);
       if (data.oauthSub !== undefined) setOauthSub(data.oauthSub ?? null);
@@ -660,6 +666,87 @@ export function ProfileView({
               <span>您的专属邀请码:</span>
               <strong className="invite-code-pill">{user.username || user.id}</strong>
             </div>
+          </div>
+
+          {/* 生涯战绩与近期对局 */}
+          <div className="profile-edit-card profile-stats-section">
+            <div className="profile-edit-card__head">
+              <h4>📊 生涯战绩数据与近期对局</h4>
+              {stats && (
+                <span className="profile-stats-summary-pill">
+                  总场次 {stats.totalPlayed} · 胜率 {stats.winRate}% · 最高单局 +{stats.bestSingleWin.toLocaleString()}
+                </span>
+              )}
+            </div>
+
+            {stats && stats.totalPlayed > 0 ? (
+              <>
+                <div className="profile-stats-kpis">
+                  <div className="stats-kpi-box">
+                    <span>总对局</span>
+                    <strong>{stats.totalPlayed}</strong>
+                  </div>
+                  <div className="stats-kpi-box">
+                    <span>总胜场</span>
+                    <strong>{stats.totalWon}</strong>
+                  </div>
+                  <div className="stats-kpi-box">
+                    <span>综合胜率</span>
+                    <strong className="text-gold">{stats.winRate}%</strong>
+                  </div>
+                  <div className="stats-kpi-box">
+                    <span>净收益</span>
+                    <strong className={stats.totalNet >= 0 ? 'up' : 'down'}>
+                      {stats.totalNet >= 0 ? `+${stats.totalNet.toLocaleString()}` : stats.totalNet.toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+
+                {stats.byGame.length > 0 && (
+                  <div className="profile-bygame-grid">
+                    {stats.byGame.slice(0, 8).map((g) => {
+                      const rate = g.played > 0 ? Math.round((g.won / g.played) * 100) : 0;
+                      return (
+                        <div key={g.gameId} className="bygame-card">
+                          <div className="bygame-card__head">
+                            <strong>{gameTitleOf(g.gameId)}</strong>
+                            <span>胜率 {rate}%</span>
+                          </div>
+                          <div className="bygame-card__meta">
+                            <span>{g.won}/{g.played} 胜</span>
+                            <em className={g.netProfit >= 0 ? 'up' : 'down'}>
+                              {g.netProfit >= 0 ? `+${g.netProfit.toLocaleString()}` : g.netProfit.toLocaleString()}
+                            </em>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {stats.recentMatches.length > 0 && (
+                  <div className="profile-recent-matches">
+                    <h5>最近 {Math.min(10, stats.recentMatches.length)} 局记录</h5>
+                    <div className="recent-matches-list">
+                      {stats.recentMatches.slice(0, 10).map((m) => (
+                        <div key={m.settlementId} className={`recent-match-row ${m.won ? 'is-win' : 'is-loss'}`}>
+                          <span className="match-game">{gameTitleOf(m.gameId)}</span>
+                          <span className="match-round">第 {m.round} 局</span>
+                          <span className="match-time">
+                            {new Date(m.finishedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <strong className={m.delta >= 0 ? 'up' : 'down'}>
+                            {m.delta >= 0 ? `+${m.delta.toLocaleString()}` : m.delta.toLocaleString()}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="hint">暂无对局战绩，快去体验一局吧！</p>
+            )}
           </div>
 
           <div className="profile-action-grid">

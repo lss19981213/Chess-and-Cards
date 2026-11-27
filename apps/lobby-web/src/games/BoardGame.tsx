@@ -19,6 +19,9 @@ interface BoardSnapshot {
   }>;
   lastMove: { from: { f?: number; c?: number; r: number }; to: { f?: number; c?: number; r: number } } | null;
   winner: string | null;
+  isDraw?: boolean;
+  drawOfferBy?: string | null;
+  canUndo?: boolean;
   results: Array<{ playerId: string; nickname: string; delta: number; detail: string }>;
   players: Array<{ playerId: string; nickname: string; color: string; isBot: boolean }>;
 }
@@ -993,6 +996,7 @@ function ChessBoard({
 export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) {
   const data = snapshot as unknown as BoardSnapshot | undefined;
   const [selected, setSelected] = useState<string | null>(null);
+  const [confirmResign, setConfirmResign] = useState(false);
 
   const isXq = variant === 'xiangqi';
   const rows = isXq ? 10 : 8;
@@ -1067,7 +1071,9 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
       <div className="boardgame__bar">
         <span className="boardgame__turn">
           {data.winner
-            ? `${data.winner === data.myColor ? '你赢了' : '对方赢了'}`
+            ? data.isDraw || data.winner === 'draw'
+              ? '双方和棋'
+              : `${data.winner === data.myColor ? '你赢了' : '对方赢了'}`
             : myTurn
               ? '轮到你走'
               : '等待对方走…'}
@@ -1085,7 +1091,87 @@ export function BoardGame({ snapshot, myId, status, variant, onAction }: Props) 
             </em>
           )}
         </span>
+        {status === 'playing' && !data.winner && data.myColor && (
+          <div className="board-actions-bar">
+            {data.canUndo && (
+              <button
+                type="button"
+                className="btn-board-act"
+                onClick={() => {
+                  audio.play('click');
+                  setConfirmResign(false);
+                  onAction('undo');
+                }}
+              >
+                ↩️ 悔棋
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-board-act"
+              disabled={data.drawOfferBy === myId}
+              onClick={() => {
+                audio.play('click');
+                setConfirmResign(false);
+                onAction('draw_offer');
+              }}
+            >
+              {data.drawOfferBy === myId ? '已提和…' : '🤝 求和'}
+            </button>
+            {confirmResign ? (
+              <button
+                type="button"
+                className="btn-board-act is-danger-confirm"
+                onClick={() => {
+                  audio.play('alert');
+                  setConfirmResign(false);
+                  onAction('resign');
+                }}
+                onBlur={() => setConfirmResign(false)}
+              >
+                确认认输?
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-board-act is-danger"
+                onClick={() => {
+                  audio.play('click');
+                  setConfirmResign(true);
+                }}
+              >
+                🏳️ 认输
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {status === 'playing' && !data.winner && data.drawOfferBy && data.drawOfferBy !== myId && (
+        <div className="board-draw-offer-banner">
+          <span>🤝 对手请求和棋，是否同意？</span>
+          <button
+            type="button"
+            className="btn-board-mini is-accept"
+            onClick={() => {
+              audio.play('click');
+              onAction('draw_accept');
+            }}
+          >
+            同意和棋
+          </button>
+          <button
+            type="button"
+            className="btn-board-mini is-decline"
+            onClick={() => {
+              audio.play('click');
+              onAction('draw_decline');
+            }}
+          >
+            拒绝
+          </button>
+        </div>
+      )}
 
       {isXq ? (
         <XiangqiBoard

@@ -53,6 +53,28 @@ export const BOT_DIFFICULTY_LABEL: Record<BotDifficulty, string> = {
   high: '高级',
 };
 
+/** 对战/牌桌底注场次梯度（平民/进阶/大师/至尊） */
+export type StakesTier = 'novice' | 'classic' | 'master' | 'vip';
+
+export interface StakesTierConfig {
+  tier: StakesTier;
+  label: string;
+  multiplier: number;
+  minBalance: number;
+  badge: string;
+}
+
+export const STAKES_TIERS: ReadonlyArray<StakesTierConfig> = [
+  { tier: 'novice', label: '平民场', multiplier: 1, minBalance: 0, badge: '1x 底注' },
+  { tier: 'classic', label: '进阶场', multiplier: 5, minBalance: 500, badge: '5x 底注' },
+  { tier: 'master', label: '大师场', multiplier: 20, minBalance: 5000, badge: '20x 底注' },
+  { tier: 'vip', label: '至尊场', multiplier: 100, minBalance: 25000, badge: '100x 底注' },
+];
+
+export function stakesTierOf(tier?: string | null): StakesTierConfig {
+  return STAKES_TIERS.find((t) => t.tier === tier) ?? STAKES_TIERS[0]!;
+}
+
 /** 房间内玩家的公开视图，快照会下发给同房间所有人。 */
 export interface PlayerView {
   playerId: string;
@@ -94,6 +116,13 @@ export interface RoomView {
   botHosted?: boolean;
   /** 当前观战玩家列表 */
   spectators?: SpectatorView[];
+  /** 底注场次档位与倍率 */
+  stakesTier?: StakesTier;
+  stakeMultiplier?: number;
+  /** 对战回合超时托管状态 */
+  turnActorId?: string | null;
+  turnDeadlineAt?: number | null;
+  hostedPlayerIds?: string[];
 }
 
 export type Currency = 'coin';

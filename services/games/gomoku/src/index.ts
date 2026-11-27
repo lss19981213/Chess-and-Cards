@@ -22,6 +22,8 @@ interface BoardState {
   winner: number;
   lastMove: { x: number; y: number; side: number } | null;
   moveCount: number;
+  drawOfferBy: string | null;
+  history: Array<{ cells: number[]; turn: number; lastMove: { x: number; y: number; side: number } | null; moveCount: number }>;
 }
 
 function createState(): BoardState {
@@ -31,6 +33,8 @@ function createState(): BoardState {
     winner: 0,
     lastMove: null,
     moveCount: 0,
+    drawOfferBy: null,
+    history: [],
   };
 }
 
@@ -66,7 +70,7 @@ export class GomokuPlugin extends BaseGamePlugin {
     category: 'board',
   };
 
-  override readonly commands: readonly string[] = ['place'];
+  override readonly commands: readonly string[] = ['place', 'resign', 'draw_offer', 'draw_accept', 'draw_decline', 'undo'];
 
   private state: BoardState = createState();
 
@@ -85,6 +89,68 @@ export class GomokuPlugin extends BaseGamePlugin {
     if (player.seat > 1) throw illegalAction('观战者不能落子');
 
     const side = player.seat === 0 ? BLACK : WHITE;
+
+    if (intent.cmd === 'resign') {
+      const opp = ctx.players.find((p) => p.playerId !== playerId);
+      if (!opp) return;
+      this.state.winner = side === BLACK ? WHITE : BLACK;
+      this.settleWin(ctx, opp.playerId);
+      ctx.markDirty();
+      return;
+    }
+
+    if (intent.cmd === 'draw_offer') {
+      const opp = ctx.players.find((p) => p.playerId !== playerId);
+      if (opp?.isBot) {
+        if (this.state.moveCount >= 16 && Math.random() < 0.5) {
+          this.state.winner = DRAW;
+          ctx.settle({ entries: [], winners: [] });
+        } else {
+          this.state.drawOfferBy = null;
+        }
+        ctx.markDirty();
+        return;
+      }
+      this.state.drawOfferBy = playerId;
+      ctx.markDirty();
+      return;
+    }
+
+    if (intent.cmd === 'draw_accept') {
+      if (!this.state.drawOfferBy || this.state.drawOfferBy === playerId) {
+        throw illegalAction('当前没有待确认的和棋请求');
+      }
+      this.state.winner = DRAW;
+      this.state.drawOfferBy = null;
+      ctx.settle({ entries: [], winners: [] });
+      ctx.markDirty();
+      return;
+    }
+
+    if (intent.cmd === 'draw_decline') {
+      if (this.state.drawOfferBy && this.state.drawOfferBy !== playerId) {
+        this.state.drawOfferBy = null;
+        ctx.markDirty();
+      }
+      return;
+    }
+
+    if (intent.cmd === 'undo') {
+      if (!ctx.players.some((p) => p.isBot)) throw illegalAction('双人真人对局暂不支持悔棋');
+      if (this.state.history.length === 0) throw illegalAction('暂无可悔之棋');
+      const steps = this.state.turn === side && this.state.history.length >= 2 ? 2 : 1;
+      for (let i = 0; i < steps && this.state.history.length > 0; i += 1) {
+        const snap = this.state.history.pop()!;
+        this.state.cells = snap.cells;
+        this.state.turn = snap.turn;
+        this.state.lastMove = snap.lastMove;
+        this.state.moveCount = snap.moveCount;
+      }
+      this.state.drawOfferBy = null;
+      ctx.markDirty();
+      return;
+    }
+
     if (side !== this.state.turn) throw illegalAction('还没轮到你落子');
 
     const x = Number(intent.payload.x);
@@ -95,6 +161,15 @@ export class GomokuPlugin extends BaseGamePlugin {
 
     const index = y * SIZE + x;
     if (this.state.cells[index] !== 0) throw illegalAction('该位置已有棋子');
+
+    this.state.history.push({
+      cells: [...this.state.cells],
+      turn: this.state.turn,
+      lastMove: this.state.lastMove,
+      moveCount: this.state.moveCount,
+    });
+    if (this.state.history.length > 60) this.state.history.shift();
+    this.state.drawOfferBy = null;
 
     this.state.cells[index] = side;
     this.state.moveCount += 1;
@@ -134,6 +209,9 @@ export class GomokuPlugin extends BaseGamePlugin {
       lastMove: this.state.lastMove,
       moveCount: this.state.moveCount,
       mySide,
+      drawOfferBy: this.state.drawOfferBy,
+      canUndo: this.state.history.length > 0 && ctx.players.some((p) => p.isBot) && this.state.winner === 0,
+      stakeMultiplier: ctx.config.stakeMultiplier ?? 1,
       seats: ctx.players.map((p) => ({
         playerId: p.playerId,
         seat: p.seat,
@@ -444,10 +522,11 @@ export class GomokuPlugin extends BaseGamePlugin {
   }
 
   private settleWin(ctx: RoomContext, winnerId: string): void {
+    const winCoin = WIN_COIN * (ctx.config.stakeMultiplier ?? 1);
     const entries: SettlementEntry[] = ctx.players.map((p) => ({
       playerId: p.playerId,
       currency: 'coin' as const,
-      delta: p.playerId === winnerId ? WIN_COIN : -WIN_COIN,
+      delta: p.playerId === winnerId ? winCoin : -winCoin,
       reason: 'gomoku.result',
     }));
     ctx.settle({ entries, winners: [winnerId] });

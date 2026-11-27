@@ -1,0 +1,937 @@
+/* ============================================================================
+ * 棋牌大厅综合体验升级样式（P0 / P1 / P2 新增组件与交互）
+ * 配色契合黑金奢华主题：深海曜石底 + 流金渐变边框 + 碧玉/朱红功能色
+ * ============================================================================ */
+
+/* ---------- 1. 大厅顶栏「设置」下拉菜单 ---------- */
+.top-settings-wrap {
+  position: relative;
+}
+
+.top-settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.top-settings-trigger.is-open {
+  border-color: rgba(247, 200, 96, 0.72);
+  background: rgba(247, 200, 96, 0.14);
+}
+
+.top-settings-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 196px;
+  padding: 8px;
+  border-radius: 14px;
+  background: linear-gradient(165deg, rgba(19, 25, 42, 0.98), rgba(10, 14, 26, 0.98));
+  border: 1px solid rgba(247, 200, 96, 0.38);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.65);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  backdrop-filter: blur(16px);
+}
+
+.settings-pop-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.settings-pop-item:hover {
+  background: rgba(247, 200, 96, 0.14);
+  color: #fde68a;
+}
+
+.settings-pop-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- 2. 房间大厅场次档位与 Bot 难度选择 ---------- */
+.stakes-tier-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+
+.stakes-tier-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(16, 22, 38, 0.72);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.stakes-tier-pill:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(247, 200, 96, 0.45);
+}
+
+.stakes-tier-pill.is-active {
+  border-color: #f5c04f;
+  background: linear-gradient(135deg, rgba(245, 192, 79, 0.2), rgba(20, 27, 46, 0.92));
+  color: #fef3c7;
+  box-shadow: 0 0 18px rgba(245, 192, 79, 0.18);
+}
+
+.stakes-tier-pill.is-locked {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.stakes-tier-pill .tier-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stakes-tier-pill .tier-mult {
+  font-size: 15px;
+  color: #fbbf24;
+}
+
+.stakes-tier-pill .tier-req {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.rooms-tier-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.rooms-diff-pills,
+.waiting-bot-diff-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rooms-diff-pill,
+.waiting-diff-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rooms-diff-pill.is-active,
+.waiting-diff-btn.is-active {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #111827;
+}
+
+.room-tier-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid rgba(251, 191, 36, 0.38);
+  background: rgba(251, 191, 36, 0.12);
+  color: #fde68a;
+}
+
+.room-tier-tag.is-master {
+  border-color: rgba(192, 132, 252, 0.45);
+  background: rgba(192, 132, 252, 0.15);
+  color: #e9d5ff;
+}
+
+.room-tier-tag.is-vip {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(239, 68, 68, 0.18);
+  color: #fecaca;
+}
+
+/* ---------- 3. 牌桌顶栏倒计时、托管按钮与聊天抽屉 ---------- */
+.turn-countdown-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+}
+
+.turn-countdown-pill.is-mine {
+  border-color: rgba(251, 191, 36, 0.6);
+  color: #fde68a;
+}
+
+.turn-countdown-pill.is-urgent {
+  border-color: #ef4444;
+  background: rgba(220, 38, 38, 0.25);
+  color: #fecaca;
+  animation: ccPulseUrgent 0.8s ease-in-out infinite;
+}
+
+@keyframes ccPulseUrgent {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.room-host-toggle-btn {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.78);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.room-host-toggle-btn.is-hosted {
+  border-color: #38bdf8;
+  background: rgba(14, 165, 233, 0.22);
+  color: #bae6fd;
+}
+
+.room-hosting-banner {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.95), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  color: #e0f2fe;
+  font-size: 13px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.room-hosting-banner button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.waiting-bot-badge,
+.tag-bot--low,
+.tag-bot--medium,
+.tag-bot--high {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 11px;
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+}
+
+.chat-trigger-btn {
+  position: relative;
+}
+
+.chat-unread-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+.room-chat-drawer {
+  position: fixed;
+  right: 16px;
+  bottom: 76px;
+  width: min(340px, calc(100vw - 32px));
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: linear-gradient(170deg, rgba(17, 24, 39, 0.96), rgba(9, 13, 24, 0.98));
+  border: 1px solid rgba(247, 200, 96, 0.35);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.65);
+  z-index: 105;
+  overflow: hidden;
+  backdrop-filter: blur(14px);
+}
+
+.room-chat-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fde68a;
+  font-size: 13px;
+}
+
+.room-chat-drawer__head button {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.room-chat-drawer__list {
+  flex: 1;
+  min-height: 150px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.room-chat-empty {
+  margin: auto;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.room-chat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.72);
+  font-size: 12px;
+}
+
+.room-chat-item.is-mine {
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.room-chat-item strong {
+  color: #fbbf24;
+  font-size: 11px;
+}
+
+.room-chat-item span {
+  color: #e2e8f0;
+  word-break: break-word;
+}
+
+.room-chat-drawer__form {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.room-chat-drawer__form input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(2, 6, 23, 0.7);
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.room-chat-drawer__form button {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #111827;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ---------- 4. 玩家名片弹窗 (PlayerCardModal) ---------- */
+.player-card-modal {
+  position: relative;
+  width: min(420px, calc(100vw - 32px));
+  padding: 22px;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #161e31, #0b101d);
+  border: 1px solid rgba(247, 200, 96, 0.42);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.72);
+  color: #f8fafc;
+}
+
+.player-card-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.player-card-modal__state {
+  padding: 36px 12px;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.player-card-modal__state.is-error {
+  color: #fca5a5;
+}
+
+.player-card-modal__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.player-card-modal__name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-card-modal__name-row h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #fef3c7;
+}
+
+.player-card-rank-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.player-card-modal__bio {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.player-card-modal__stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pc-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pc-stat-item span {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.pc-stat-item strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: #f8fafc;
+}
+
+.pc-stat-item strong.is-gold {
+  color: #fbbf24;
+}
+
+.player-card-modal__msg {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #a7f3d0;
+  font-size: 12px;
+  text-align: center;
+}
+
+.player-card-modal__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pc-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.pc-btn--gold {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+  color: #111827;
+}
+
+.pc-btn--ghost {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #e2e8f0;
+}
+
+.pc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- 5. 斗牌工具栏：底牌、倍率、理牌、记牌器 ---------- */
+.card-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto 6px;
+  padding: 4px 10px;
+}
+
+.ddz-bottom-cards {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ddz-meta-lbl {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.ddz-mini-card {
+  width: 26px;
+  height: 36px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: #fff;
+  display: inline-flex;
+}
+
+.ddz-mini-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ddz-mult-badge {
+  margin-left: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  color: #fde68a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.card-toolbar-btns {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.btn-card-tool {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(15, 23, 42, 0.78);
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-card-tool.is-active {
+  border-color: #fbbf24;
+  background: rgba(245, 158, 11, 0.22);
+  color: #fde68a;
+}
+
+.card-counter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: 780px;
+  margin: 0 auto 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(9, 14, 26, 0.88);
+  border: 1px solid rgba(247, 200, 96, 0.25);
+}
+
+.counter-cell {
+  min-width: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 5px;
+  border-radius: 7px;
+  background: rgba(30, 41, 59, 0.7);
+  font-size: 11px;
+}
+
+.counter-cell.is-empty {
+  opacity: 0.35;
+}
+
+.counter-rank {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.counter-left {
+  color: #fde68a;
+  font-size: 13px;
+}
+
+/* ---------- 6. 棋类操作与金花 PK ---------- */
+.gomoku-bottom-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.board-actions-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.btn-board-act {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(15, 23, 42, 0.78);
+  color: #e2e8f0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-board-act:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-board-act.is-danger {
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+}
+
+.btn-board-act.is-danger-confirm {
+  background: #dc2626;
+  border-color: #f87171;
+  color: #fff;
+  font-weight: 700;
+}
+
+.board-draw-offer-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin: 6px auto;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  color: #fef3c7;
+  font-size: 13px;
+}
+
+.btn-board-mini {
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-board-mini.is-accept {
+  background: #10b981;
+  color: #06281c;
+}
+
+.btn-board-mini.is-decline {
+  background: rgba(255, 255, 255, 0.14);
+  color: #e2e8f0;
+}
+
+.showdown-pk-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.showdown-btn-pk {
+  background: linear-gradient(135deg, #b91c1c, #ea580c);
+  color: #fff;
+  border-color: rgba(251, 146, 60, 0.55);
+}
+
+.btn-showdown-pk-mini {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 146, 60, 0.65);
+  background: rgba(234, 88, 12, 0.25);
+  color: #fed7aa;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.showdown-pk-picker {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(251, 146, 60, 0.5);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+  z-index: 40;
+}
+
+.btn-pk-target {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(234, 88, 12, 0.2);
+  color: #ffedd5;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* ---------- 7. 个人中心生涯战绩 & 双向股市 ---------- */
+.profile-stats-summary-pill {
+  font-size: 12px;
+  color: #fbbf24;
+}
+
+.profile-stats-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.stats-kpi-box {
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stats-kpi-box span {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.stats-kpi-box strong {
+  font-size: 16px;
+}
+
+.profile-bygame-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.bygame-card {
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.56);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bygame-card__head,
+.bygame-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.bygame-card__meta {
+  margin-top: 4px;
+  color: #94a3b8;
+}
+
+.profile-recent-matches h5 {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.recent-matches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-match-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.7fr 1.1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.5);
+  font-size: 12px;
+}
+
+.recent-match-row .match-time,
+.recent-match-row .match-round {
+  color: #94a3b8;
+}
+
+.stock-side-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.side-pill {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.75);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.side-pill--long.is-active {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+  color: #fecaca;
+}
+
+.side-pill--short.is-active {
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.2);
+  color: #bbf7d0;
+}
+
+.stock-side-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.stock-side-badge.is-long {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+}
+
+.stock-side-badge.is-short {
+  background: rgba(34, 197, 94, 0.22);
+  color: #86efac;
+}
+
+.btn-table-action--quick {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+}
+
+@media (max-width: 640px) {
+  .profile-stats-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .recent-match-row {
+    grid-template-columns: 1fr auto;
+  }
+  .recent-match-row .match-time,
+  .recent-match-row .match-round {
+    display: none;
+  }
+}

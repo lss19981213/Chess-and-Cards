@@ -116,9 +116,13 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     category: 'table',
   };
 
-  override readonly commands = ['fold', 'check', 'call', 'raise', 'look', 'allin'] as const;
+  override readonly commands = ['fold', 'check', 'call', 'raise', 'look', 'allin', 'compare'] as const;
 
   private state: State = emptyState();
+
+  private stakeMult(ctx: RoomContext): number {
+    return ctx.config.stakeMultiplier ?? 1;
+  }
 
   override onRoomCreate(_ctx: RoomContext): void {
     this.state = emptyState();
@@ -150,18 +154,19 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
     this.state.dealerIndex = (ctx.config.round - 1) % players.length;
     this.state.deck = shuffleWithSeed(createPokerDeck(), ctx.config.seed);
 
+    const ante = ANTE * this.stakeMult(ctx);
     let cursor = 0;
     for (const player of players) {
       const cards: Card[] = [];
       for (let i = 0; i < HAND_SIZE; i += 1) cards.push(this.state.deck[cursor++]!);
       this.state.hands.set(player.playerId, cards);
-      this.state.totalBet.set(player.playerId, ANTE);
-      this.state.roundBet.set(player.playerId, ANTE);
+      this.state.totalBet.set(player.playerId, ante);
+      this.state.roundBet.set(player.playerId, ante);
       this.state.raises.set(player.playerId, 0);
     }
-    this.state.currentBet = ANTE;
+    this.state.currentBet = ante;
     this.state.turn = this.nextAlive(ctx, this.state.dealerIndex);
-    this.emitAction('deal', '', '系统', ANTE, '新局发牌 · 各下底注');
+    this.emitAction('deal', '', '系统', ante, '新局发牌 · 各下底注');
     ctx.markDirty();
   }
 
@@ -219,11 +224,12 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
       case 'raise': {
         const used = this.state.raises.get(playerId) ?? 0;
         if (used >= MAX_RAISES) throw new Error('本局加注次数已达上限');
+        const unit = RAISE_UNIT * this.stakeMult(ctx);
         const rawAdd = intent.payload?.amount;
-        let add = RAISE_UNIT;
+        let add = unit;
         if (rawAdd !== undefined && rawAdd !== null) {
           add = Number(rawAdd);
-          if (!Number.isInteger(add) || add < RAISE_UNIT) throw new Error(`加注至少 ${RAISE_UNIT}`);
+          if (!Number.isInteger(add) || add < unit) throw new Error(`加注至少 ${unit}`);
           if (add > MAX_RAISE_ADD) throw new Error(`单次加注上限 ${MAX_RAISE_ADD}`);
         }
         const nextBase = this.state.currentBet + add;
@@ -240,9 +246,37 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
         this.emitAction('raise', playerId, actorName, delta, `+${add}`);
         break;
       }
+      case 'compare': {
+        const others = this.aliveIds(ctx).filter((id) => id !== playerId);
+        if (others.length === 0) throw new Error('没有可比牌的对手');
+        const requestedTarget = typeof intent.payload?.targetId === 'string' ? intent.payload.targetId : '';
+        const targetId = others.includes(requestedTarget) ? requestedTarget : others[0]!;
+        const pkCost = Math.max(toCall, this.state.currentBet * mult);
+        await pay(pkCost);
+        this.commit(playerId, pkCost);
+        const myRank = rankHand(this.state.hands.get(playerId) ?? []);
+        const oppRank = rankHand(this.state.hands.get(targetId) ?? []);
+        const iWin =
+          myRank.category > oppRank.category ||
+          (myRank.category === oppRank.category && myRank.high > oppRank.high);
+        const loserId = iWin ? targetId : playerId;
+        const loserName = ctx.getPlayer(loserId)?.nickname ?? '玩家';
+        const targetName = ctx.getPlayer(targetId)?.nickname ?? '对手';
+        this.state.folded.add(loserId);
+        this.state.acted.add(playerId);
+        this.state.actionTags.set(loserId, { type: 'fold', label: '比牌淘汰' });
+        this.state.actionTags.set(playerId, {
+          type: iWin ? 'call' : 'fold',
+          label: iWin ? `PK胜 ${targetName}` : '比牌淘汰',
+          amount: pkCost,
+        });
+        this.emitAction('call', playerId, actorName, pkCost, `⚔️ 比牌 ${targetName} · ${loserName} 淘汰`);
+        break;
+      }
       case 'allin': {
+        const unit = RAISE_UNIT * this.stakeMult(ctx);
         const rawAmt = Number(intent.payload?.amount ?? 0);
-        const defaultPush = Math.max(toCall + RAISE_UNIT * 5, 500);
+        const defaultPush = Math.max(toCall + unit * 5, 500 * this.stakeMult(ctx));
         const pushAmount =
           Number.isFinite(rawAmt) && rawAmt > 0
             ? Math.min(MAX_RAISE_ADD, Math.floor(rawAmt))
@@ -392,7 +426,7 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
       pot,
       toCall,
       canRaise,
-      raiseUnit: RAISE_UNIT,
+      raiseUnit: RAISE_UNIT * this.stakeMult(ctx),
       opponents,
       difficulty,
     });
@@ -427,7 +461,7 @@ export class GoldenFlowerPlugin extends BaseGamePlugin {
       toCall: viewerId
         ? Math.max(0, this.state.currentBet * (viewerLooked ? 2 : 1) - (this.state.roundBet.get(viewerId) ?? 0))
         : this.state.currentBet,
-      raiseUnit: RAISE_UNIT,
+      raiseUnit: RAISE_UNIT * this.stakeMult(ctx),
       maxRaiseAdd: MAX_RAISE_ADD,
       players: ctx.players.map((p) => {
         const hand = this.state.hands.get(p.playerId) ?? [];

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { BotDifficulty, GameMeta, GameOpsStatus, RoomSummary, Settlement } from '@cc/protocol';
+import type { BotDifficulty, GameMeta, GameOpsStatus, RoomSummary, Settlement, StakesTier } from '@cc/protocol';
 import { AppError, ErrorCode } from '@cc/protocol';
 import { PLUGIN_API_VERSION, type GamePluginFactory } from '@cc/game-sdk';
 import type { WebSocket } from 'ws';
@@ -338,13 +338,14 @@ export class RoomManager {
     return gameId ? all.filter((r) => r.gameId === gameId) : all;
   }
 
-  /** 快速匹配：常驻房间优先，其次可加入的房间，否则新开一间 */
+  /** 快速匹配：常驻房间优先，其次同档位可加入房间，否则按指定底注档位新开一间 */
   joinOrCreate(
     gameId: string,
     mode: string,
     maxPlayers: number,
     player: { playerId: string; nickname: string },
     socket: WebSocket,
+    stakesTier: StakesTier = 'novice',
   ): GameRoom {
     this.assertGameAcceptsJoin(gameId);
     const factory = this.factories.get(gameId);
@@ -370,16 +371,18 @@ export class RoomManager {
 
     const botHostedRooms = this.list(gameId).filter((r) => r.isBotHosted);
     if (botHostedRooms.length > 0) {
-      const sorted = [...botHostedRooms].sort((a, b) => a.spectatorCount - b.spectatorCount);
+      const tierMatched = botHostedRooms.filter((r) => r.stakesTier === stakesTier);
+      const pool = tierMatched.length > 0 ? tierMatched : botHostedRooms;
+      const sorted = [...pool].sort((a, b) => a.spectatorCount - b.spectatorCount);
       const target = sorted[0]!;
       target.joinAsSpectator(player, socket);
       return target;
     }
 
-    let room = this.list(gameId).find((r) => r.isJoinable);
+    let room = this.list(gameId).find((r) => r.isJoinable && r.stakesTier === stakesTier);
     if (!room) {
       const plugin = factory();
-      room = new GameRoom(randomUUID(), plugin, mode, maxPlayers, this.deps);
+      room = new GameRoom(randomUUID(), plugin, mode, maxPlayers, this.deps, { stakesTier });
       this.rooms.set(room.id, room);
     }
     room.join(player, socket);
@@ -406,6 +409,7 @@ export class RoomManager {
     maxPlayers: number,
     player: { playerId: string; nickname: string },
     socket: WebSocket,
+    stakesTier: StakesTier = 'novice',
   ): GameRoom {
     this.assertGameAcceptsJoin(gameId);
     const factory = this.factories.get(gameId);
@@ -414,7 +418,7 @@ export class RoomManager {
     if (meta?.persistent) {
       throw new AppError(ErrorCode.IllegalAction, '该玩法由平台坐庄，不能自行建房');
     }
-    const room = new GameRoom(randomUUID(), factory(), mode, maxPlayers, this.deps);
+    const room = new GameRoom(randomUUID(), factory(), mode, maxPlayers, this.deps, { stakesTier });
     this.rooms.set(room.id, room);
     room.join(player, socket);
     return room;
@@ -459,8 +463,10 @@ export class RoomManager {
     if (!factory || !meta) return null;
 
     const no = tableNo ?? this.list(gameId).filter((r) => r.isBotHosted).length + 1;
+    const tier: StakesTier = no <= 2 ? 'novice' : no <= 4 ? 'classic' : 'master';
     const room = new GameRoom(randomUUID(), factory(), 'classic', meta.maxPlayers, this.deps, {
       botHosted: true,
+      stakesTier: tier,
     });
     room.setPlatformNo(no);
     this.rooms.set(room.id, room);
@@ -511,6 +517,24 @@ export class RoomManager {
         roomId: room.id,
       });
     }
+  }
+
+  /** 汇总每个玩法当前的真实房间数与在线人数，供大厅实时展示 */
+  getGameLiveSummary(): Record<string, { rooms: number; humans: number; bots: number; spectators: number }> {
+    const out: Record<string, { rooms: number; humans: number; bots: number; spectators: number }> = {};
+    for (const meta of this.metas.values()) {
+      out[meta.gameId] = { rooms: 0, humans: 0, bots: 0, spectators: 0 };
+    }
+    for (const room of this.list()) {
+      const entry = out[room.gameId] ?? { rooms: 0, humans: 0, bots: 0, spectators: 0 };
+      const sum = room.summary();
+      entry.rooms += 1;
+      entry.humans += sum.humans;
+      entry.bots += sum.bots;
+      entry.spectators += sum.spectators ?? 0;
+      out[room.gameId] = entry;
+    }
+    return out;
   }
 
   shutdown(): void {

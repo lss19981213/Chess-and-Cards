@@ -40,14 +40,15 @@ export interface StockQuote {
   isTrading: boolean;     // 是否在交易时段
 }
 
-/** 玩家持仓记录 */
+/** 玩家持仓记录（支持做多与做空双向持仓） */
 export interface StockHolding {
   symbol: string;
+  side?: 'long' | 'short'; // 默认 'long' 做多，'short' 为融券做空
   shares: number;         // 持股数量（股/手）
-  avgCost: number;        // 持仓成本均价
+  avgCost: number;        // 持仓成本均价 / 开空均价
   currentPrice: number;   // 当前最新市价
-  marketValue: number;    // 持仓市值（shares * currentPrice）
-  floatingPnl: number;    // 浮动盈亏额（marketValue - shares * avgCost）
+  marketValue: number;    // 持仓市值 / 空单保证金含浮盈净值
+  floatingPnl: number;    // 浮动盈亏额
   floatingPnlPercent: number; // 浮动盈亏率（%）
   todayPnl: number;       // 今日盈亏额（基于昨收价变动）
   stockMeta: StockMeta;   // 标的元数据
@@ -59,12 +60,12 @@ export interface StockOrder {
   userId: string;
   symbol: string;
   stockName: string;
-  action: 'buy' | 'sell';
+  action: 'buy' | 'sell' | 'short_open' | 'short_close';
   shares: number;
   price: number;
   totalAmount: number;    // 成交总额（筹码）
   fee: number;            // 手续费/印花税（筹码）
-  realizedPnl: number;    // 卖出时的实现盈亏（筹码，买入时为0）
+  realizedPnl: number;    // 平仓时的实现盈亏（筹码，开仓时为0）
   createdAt: number;
 }
 
@@ -72,6 +73,7 @@ export interface StockOrder {
 export interface StockTradeInput {
   symbol: string;
   shares: number;         // 买入或卖出的股数/手数（必须为正整数）
+  side?: 'long' | 'short';
 }
 
 /** 交易结果响应 */
@@ -80,7 +82,7 @@ export interface StockTradeResult {
   orderId: string;
   symbol: string;
   stockName: string;
-  action: 'buy' | 'sell';
+  action: 'buy' | 'sell' | 'short_open' | 'short_close';
   shares: number;
   price: number;
   totalAmount: number;
@@ -88,6 +90,19 @@ export interface StockTradeResult {
   realizedPnl: number;
   balanceAfter: number;   // 交易后玩家可用欢乐豆余额
   message: string;
+}
+
+/** 股神收益排行榜单行 */
+export interface StockLeaderboardEntry {
+  rank: number;
+  userId: string;
+  nickname: string;
+  avatar: string | null;
+  equippedFrame: string;
+  totalMarketValue: number;
+  totalFloatingPnl: number;
+  totalRealizedPnl: number;
+  totalStockScore: number;
 }
 
 /** 标的走势分时点 */

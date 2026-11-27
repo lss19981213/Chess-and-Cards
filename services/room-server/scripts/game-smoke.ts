@@ -163,9 +163,15 @@ function testDoudizhu(): void {
   const { ctx } = makeCtx(players);
 
   plugin.onRoundStart(ctx);
+  const initView = plugin.getSnapshot(ctx, 'p1') as Record<string, any>;
+  assert(initView.phase === 'bidding', '开局进入叫分抢地主阶段');
+  assert(initView.turn === 'p1', '叫分阶段由首家开始');
+
+  // p1 直接叫 3 分抢地主，立即进入加倍阶段并获得底牌
+  plugin.onIntent(ctx, 'p1', { cmd: 'bid', payload: { score: 3 } });
   const views = players.map((p) => plugin.getSnapshot(ctx, p.playerId) as Record<string, any>);
 
-  assert(views[0]!.landlordId === 'p1', '座位最小者为地主');
+  assert(views[0]!.landlordId === 'p1', '叫3分者成为地主');
   assert((views[0]!.myHand as unknown[]).length === 20, '地主 20 张');
   assert((views[1]!.myHand as unknown[]).length === 17, '农民 17 张');
   assert((views[0]!.bottomCards as unknown[]).length === 3, '底牌三张公开');
@@ -173,7 +179,20 @@ function testDoudizhu(): void {
   const total = views.reduce((sum, view) => sum + (view.myHand as unknown[]).length, 0);
   assert(total === 54, '总牌数 54');
 
-  const landlordHand = views[0]!.myHand as Array<{ id: string; rank: number }>;
+  // 完成加倍阶段
+  let guard = 0;
+  while (guard < 6) {
+    const snap = plugin.getSnapshot(ctx, 'p1') as Record<string, any>;
+    if (snap.phase !== 'doubling') break;
+    const actor = snap.turn as string;
+    plugin.onIntent(ctx, actor, { cmd: 'double', payload: { factor: actor === 'p2' ? 2 : 1 } });
+    guard += 1;
+  }
+
+  const playingSnap = plugin.getSnapshot(ctx, 'p1') as Record<string, any>;
+  assert(playingSnap.phase === 'playing' && playingSnap.turn === 'p1', '加倍后进入出牌阶段由地主先出');
+
+  const landlordHand = playingSnap.myHand as Array<{ id: string; rank: number }>;
   const lowest = landlordHand[landlordHand.length - 1]!;
   plugin.onIntent(ctx, 'p1', { cmd: 'play', payload: { cards: [lowest.id] } });
   const after = plugin.getSnapshot(ctx, 'p1') as Record<string, any>;

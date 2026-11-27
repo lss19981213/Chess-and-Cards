@@ -1421,20 +1421,26 @@ export class MemoryRepository implements Repository {
     return this.tickets.delete(ticketId);
   }
 
-  // ---------- 改命股市 ----------
+  // ---------- 改命股市（支持做多与融券做空双向交易） ----------
   async getStockHoldings(userId: string): Promise<StockHoldingRow[]> {
     const list: StockHoldingRow[] = [];
     for (const [key, holding] of this.stockHoldings) {
       if (key.startsWith(`${userId}:`) && holding.shares > 0) {
-        list.push({ ...holding });
+        list.push({ ...holding, side: holding.side ?? 'long' });
       }
     }
     return list.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  async buyStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult> {
+  async buyStock(
+    userId: string,
+    symbol: string,
+    shares: number,
+    currentPrice: number,
+    side: 'long' | 'short' = 'long',
+  ): Promise<StockTradeResult> {
     if (!Number.isInteger(shares) || shares <= 0) {
-      throw new Error('买入数量必须为正整数');
+      throw new Error('委托数量必须为正整数');
     }
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       throw new Error('股票行情价格异常');
@@ -1448,12 +1454,15 @@ export class MemoryRepository implements Repository {
 
     const currentBalance = this.balances.get(userId) ?? 0;
     if (currentBalance < totalDebit) {
-      throw new InsufficientFundsError(`欢乐豆余额不足！买入需 ${totalDebit.toLocaleString()} 豆，当前仅有 ${currentBalance.toLocaleString()} 豆`);
+      throw new InsufficientFundsError(
+        `欢乐豆余额不足！${side === 'short' ? '融券做空保证金' : '买入'}需 ${totalDebit.toLocaleString()} 豆，当前仅有 ${currentBalance.toLocaleString()} 豆`,
+      );
     }
 
     const nextBalance = currentBalance - totalDebit;
     this.balances.set(userId, nextBalance);
 
+    const action = side === 'short' ? 'short_open' : 'buy';
     const orderId = randomUUID();
     this.ledgerHistory.unshift({
       id: orderId,
@@ -1461,12 +1470,12 @@ export class MemoryRepository implements Repository {
       currency: 'coin',
       delta: -totalDebit,
       balanceAfter: nextBalance,
-      bizType: 'stock_buy',
+      bizType: side === 'short' ? 'stock_short_open' : 'stock_buy',
       bizId: `stock:${orderId}`,
       createdAt: Date.now(),
     });
 
-    const key = `${userId}:${symbol}`;
+    const key = `${userId}:${symbol}:${side}`;
     const old = this.stockHoldings.get(key);
     let newShares = shares;
     let newAvgCost = currentPrice;
@@ -1479,6 +1488,7 @@ export class MemoryRepository implements Repository {
     this.stockHoldings.set(key, {
       userId,
       symbol,
+      side,
       shares: newShares,
       avgCost: Number(newAvgCost.toFixed(2)),
       updatedAt: Date.now(),
@@ -1489,7 +1499,7 @@ export class MemoryRepository implements Repository {
       userId,
       symbol,
       stockName,
-      action: 'buy',
+      action,
       shares,
       price: currentPrice,
       totalAmount: totalDebit,
@@ -1506,20 +1516,29 @@ export class MemoryRepository implements Repository {
       orderId,
       symbol,
       stockName,
-      action: 'buy',
+      action,
       shares,
       price: currentPrice,
       totalAmount: totalDebit,
       fee,
       realizedPnl: 0,
       balanceAfter: nextBalance,
-      message: `🎉 成功买入 ${shares} ${def?.unitName ?? '股'}【${stockName}】，成交均价 ${currentPrice.toFixed(2)}！`,
+      message:
+        side === 'short'
+          ? `📉 成功开空 ${shares} ${def?.unitName ?? '股'}【${stockName}】，开空均价 ${currentPrice.toFixed(2)}！`
+          : `🎉 成功买入 ${shares} ${def?.unitName ?? '股'}【${stockName}】，成交均价 ${currentPrice.toFixed(2)}！`,
     };
   }
 
-  async sellStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult> {
+  async sellStock(
+    userId: string,
+    symbol: string,
+    shares: number,
+    currentPrice: number,
+    side: 'long' | 'short' = 'long',
+  ): Promise<StockTradeResult> {
     if (!Number.isInteger(shares) || shares <= 0) {
-      throw new Error('卖出数量必须为正整数');
+      throw new Error('平仓数量必须为正整数');
     }
     if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
       throw new Error('股票行情价格异常');
@@ -1527,31 +1546,40 @@ export class MemoryRepository implements Repository {
 
     const def = STOCK_DEFINITIONS.find((s) => s.symbol === symbol);
     const stockName = def ? def.name : symbol;
-    const key = `${userId}:${symbol}`;
-    const holding = this.stockHoldings.get(key);
+    const key = `${userId}:${symbol}:${side}`;
+    const holding = this.stockHoldings.get(key) ?? (side === 'long' ? this.stockHoldings.get(`${userId}:${symbol}`) : undefined);
+    const holdingKey = this.stockHoldings.has(key) ? key : `${userId}:${symbol}`;
 
     if (!holding || holding.shares <= 0) {
-      throw new Error(`您尚未持有【${stockName}】，无法卖出`);
+      throw new Error(`您尚未持有【${stockName}】${side === 'short' ? '空单' : '多单'}，无法平仓`);
     }
     if (holding.shares < shares) {
-      throw new Error(`持仓不足！您当前仅持有 ${holding.shares} ${def?.unitName ?? '股'}，无法卖出 ${shares} 股`);
+      throw new Error(`持仓不足！当前仅持有 ${holding.shares} ${def?.unitName ?? '股'}，无法平仓 ${shares} 股`);
     }
 
-    const grossAmount = Math.round(shares * currentPrice);
-    const fee = Math.max(1, Math.floor(grossAmount * 0.001));
+    const grossAmount =
+      side === 'short'
+        ? Math.max(0, Math.round(holding.avgCost * shares + (holding.avgCost - currentPrice) * shares))
+        : Math.round(shares * currentPrice);
+    const fee = Math.max(1, Math.floor(Math.round(shares * currentPrice) * 0.001));
     const netCredit = Math.max(0, grossAmount - fee);
-    const realizedPnl = Math.round((currentPrice - holding.avgCost) * shares - fee);
+    const realizedPnl =
+      side === 'short'
+        ? Math.round((holding.avgCost - currentPrice) * shares - fee)
+        : Math.round((currentPrice - holding.avgCost) * shares - fee);
 
     const remainingShares = holding.shares - shares;
     if (remainingShares > 0) {
-      this.stockHoldings.set(key, {
+      this.stockHoldings.set(holdingKey, {
         ...holding,
+        side,
         shares: remainingShares,
         updatedAt: Date.now(),
       });
     } else {
-      this.stockHoldings.set(key, {
+      this.stockHoldings.set(holdingKey, {
         ...holding,
+        side,
         shares: 0,
         avgCost: 0,
         updatedAt: Date.now(),
@@ -1562,6 +1590,7 @@ export class MemoryRepository implements Repository {
     const nextBalance = currentBalance + netCredit;
     this.balances.set(userId, nextBalance);
 
+    const action = side === 'short' ? 'short_close' : 'sell';
     const orderId = randomUUID();
     this.ledgerHistory.unshift({
       id: orderId,
@@ -1569,7 +1598,7 @@ export class MemoryRepository implements Repository {
       currency: 'coin',
       delta: netCredit,
       balanceAfter: nextBalance,
-      bizType: 'stock_sell',
+      bizType: side === 'short' ? 'stock_short_close' : 'stock_sell',
       bizId: `stock:${orderId}`,
       createdAt: Date.now(),
     });
@@ -1579,7 +1608,7 @@ export class MemoryRepository implements Repository {
       userId,
       symbol,
       stockName,
-      action: 'sell',
+      action,
       shares,
       price: currentPrice,
       totalAmount: netCredit,
@@ -1597,20 +1626,55 @@ export class MemoryRepository implements Repository {
       orderId,
       symbol,
       stockName,
-      action: 'sell',
+      action,
       shares,
       price: currentPrice,
       totalAmount: netCredit,
       fee,
       realizedPnl,
       balanceAfter: nextBalance,
-      message: `🎉 成功卖出 ${shares} ${def?.unitName ?? '股'}【${stockName}】，净收 ${netCredit.toLocaleString()} 豆（实现盈亏: ${pnlSign} 豆）！`,
+      message:
+        side === 'short'
+          ? `📈 成功平空 ${shares} ${def?.unitName ?? '股'}【${stockName}】，退回结算 ${netCredit.toLocaleString()} 豆（实现盈亏: ${pnlSign} 豆）！`
+          : `🎉 成功卖出 ${shares} ${def?.unitName ?? '股'}【${stockName}】，净收 ${netCredit.toLocaleString()} 豆（实现盈亏: ${pnlSign} 豆）！`,
     };
   }
 
   async listStockOrders(userId: string, limit = 50): Promise<StockOrder[]> {
     const list = this.stockOrders.get(userId) ?? [];
     return list.slice(0, Math.min(100, Math.max(1, limit)));
+  }
+
+  async listAllStockHolderSnapshots(): Promise<import('./types').StockHolderSnapshotRow[]> {
+    const userMap = new Map<string, { holdings: StockHoldingRow[]; realized: number }>();
+    for (const [, holding] of this.stockHoldings) {
+      if (holding.shares <= 0) continue;
+      const entry = userMap.get(holding.userId) ?? { holdings: [], realized: 0 };
+      entry.holdings.push({ ...holding, side: holding.side ?? 'long' });
+      userMap.set(holding.userId, entry);
+    }
+    for (const [userId, orders] of this.stockOrders) {
+      const entry = userMap.get(userId) ?? { holdings: [], realized: 0 };
+      for (const o of orders) entry.realized += o.realizedPnl;
+      if (entry.holdings.length > 0 || entry.realized !== 0) {
+        userMap.set(userId, entry);
+      }
+    }
+    const rows: import('./types').StockHolderSnapshotRow[] = [];
+    for (const [userId, data] of userMap) {
+      const user = this.users.get(userId);
+      const profile = this.profiles.get(userId);
+      if (!user) continue;
+      rows.push({
+        userId,
+        nickname: user.nickname,
+        avatar: profile?.avatar ?? null,
+        equippedFrame: profile?.equippedFrame ?? 'frame_default',
+        holdings: data.holdings,
+        totalRealizedPnl: data.realized,
+      });
+    }
+    return rows;
   }
 
   async getAdminStockOverview(): Promise<AdminStockOverviewData> {

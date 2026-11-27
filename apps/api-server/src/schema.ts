@@ -300,15 +300,33 @@ create table if not exists feedback_ticket_replies (
 
 create index if not exists feedback_ticket_replies_ticket_idx on feedback_ticket_replies (ticket_id, created_at asc);
 
--- 改命股市玩家持仓表
+-- 改命股市玩家持仓表（支持做多 long 与融券做空 short 双向持仓）
 create table if not exists stock_holdings (
   user_id      text not null references users(id) on delete cascade,
   symbol       text not null,
+  side         text not null default 'long',
   shares       bigint not null default 0,
   avg_cost     numeric(14, 2) not null default 0,
   updated_at   timestamptz not null default now(),
-  primary key (user_id, symbol)
+  primary key (user_id, symbol, side)
 );
+
+alter table stock_holdings add column if not exists side text not null default 'long';
+do $$
+begin
+  if exists (
+    select 1 from information_schema.table_constraints
+     where table_name = 'stock_holdings' and constraint_type = 'PRIMARY KEY'
+  ) then
+    if (select count(*) from information_schema.key_column_usage where table_name = 'stock_holdings' and constraint_name = (
+      select constraint_name from information_schema.table_constraints where table_name = 'stock_holdings' and constraint_type = 'PRIMARY KEY' limit 1
+    )) < 3 then
+      alter table stock_holdings drop constraint stock_holdings_pkey;
+      alter table stock_holdings add primary key (user_id, symbol, side);
+    end if;
+  end if;
+end
+$$;
 
 create index if not exists stock_holdings_user_idx on stock_holdings (user_id);
 

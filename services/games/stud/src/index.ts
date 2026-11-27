@@ -162,21 +162,22 @@ export class StudPlugin extends BaseGamePlugin {
     this.state.deck = shuffleWithSeed(buildStudDeck(), ctx.config.seed);
     this.state.street = 1;
 
+    const ante = ANTE * (ctx.config.stakeMultiplier ?? 1);
     let cursor = 0;
     // 第1轮发2张牌：第1张底牌(暗)，第2张明牌
     for (const player of players) {
       const cards: Card[] = [this.state.deck[cursor++]!, this.state.deck[cursor++]!];
       this.state.hands.set(player.playerId, cards);
-      this.state.totalBet.set(player.playerId, ANTE);
-      this.state.roundBet.set(player.playerId, ANTE);
+      this.state.totalBet.set(player.playerId, ante);
+      this.state.roundBet.set(player.playerId, ante);
       this.state.raises.set(player.playerId, 0);
     }
     this.state.deckCursor = cursor;
-    this.state.currentBet = ANTE;
+    this.state.currentBet = ante;
 
     // 明牌(第2张牌)最大者首位行动
     this.state.turn = this.findLeadPlayer(ctx);
-    this.emitAction('deal', '', '系统', ANTE, '第 1 轮 · 1底1明发牌');
+    this.emitAction('deal', '', '系统', ante, '第 1 轮 · 1底1明发牌');
     ctx.markDirty();
   }
 
@@ -245,11 +246,12 @@ export class StudPlugin extends BaseGamePlugin {
       case 'raise': {
         const used = this.state.raises.get(playerId) ?? 0;
         if (used >= MAX_RAISES) throw new Error('本局加注次数已达上限');
+        const unit = RAISE_UNIT * (ctx.config.stakeMultiplier ?? 1);
         const rawAdd = intent.payload?.amount;
-        let add = RAISE_UNIT;
+        let add = unit;
         if (rawAdd !== undefined && rawAdd !== null) {
           add = Number(rawAdd);
-          if (!Number.isInteger(add) || add < RAISE_UNIT) throw new Error(`加注至少 ${RAISE_UNIT}`);
+          if (!Number.isInteger(add) || add < unit) throw new Error(`加注至少 ${unit}`);
           if (add > MAX_RAISE_ADD) throw new Error(`单次加注上限 ${MAX_RAISE_ADD}`);
         }
         const target = this.state.currentBet + add;
@@ -477,7 +479,7 @@ export class StudPlugin extends BaseGamePlugin {
       pot,
       toCall,
       canRaise,
-      raiseUnit: RAISE_UNIT,
+      raiseUnit: RAISE_UNIT * (ctx.config.stakeMultiplier ?? 1),
       opponents,
       difficulty,
     });
@@ -508,7 +510,7 @@ export class StudPlugin extends BaseGamePlugin {
       toCall: viewerId
         ? Math.max(0, this.state.currentBet - (this.state.roundBet.get(viewerId) ?? 0))
         : this.state.currentBet,
-      raiseUnit: RAISE_UNIT,
+      raiseUnit: RAISE_UNIT * (ctx.config.stakeMultiplier ?? 1),
       maxRaiseAdd: MAX_RAISE_ADD,
       street: this.state.street,
       allIn: [...this.state.allIn],

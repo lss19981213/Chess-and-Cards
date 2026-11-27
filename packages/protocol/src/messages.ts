@@ -19,6 +19,10 @@ export const ClientMsg = {
   SitDown: 'client:sit_down',
   /** 离座返回观战或取消入座预约 */
   StandUp: 'client:stand_up',
+  /** 切换当前玩家自动托管状态 */
+  ToggleHost: 'client:toggle_host',
+  /** 房间内文字聊天 */
+  RoomChat: 'client:room_chat',
 } as const;
 
 export type ClientMsgType = (typeof ClientMsg)[keyof typeof ClientMsg];
@@ -34,6 +38,8 @@ export const ServerMsg = {
   Pong: 'server:pong',
   /** 广播的快捷喊话 */
   Emote: 'server:emote',
+  /** 广播的房间文字聊天 */
+  RoomChat: 'server:room_chat',
   /** 全服系统公告与跑马灯通知 */
   Notice: 'server:notice',
 } as const;
@@ -75,6 +81,17 @@ export interface JoinRoomPayload {
   roomId?: string;
   /** 可选默认机器人难度 */
   botDifficulty?: import('./types').BotDifficulty;
+  /** 底注场次档位 */
+  stakesTier?: import('./types').StakesTier;
+}
+
+export interface RoomChatPayload {
+  playerId: string;
+  nickname: string;
+  text: string;
+  avatar?: string | null;
+  equippedFrame?: string;
+  at: number;
 }
 
 export interface AddBotPayload {
@@ -112,6 +129,9 @@ export interface RoomSummary {
   joinable: boolean;
   /** 最近 3 把走势，常驻台专用 */
   recent: TrendMark[];
+  /** 底注场次档位与倍率 */
+  stakesTier?: import('./types').StakesTier;
+  stakeMultiplier?: number;
 }
 
 export interface IntentPayload {

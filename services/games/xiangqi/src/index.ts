@@ -31,6 +31,9 @@ interface State {
   board: Array<Piece | null>;
   turn: Color;
   winner: Color | null;
+  isDraw: boolean;
+  drawOfferBy: string | null;
+  history: Array<{ board: Array<Piece | null>; turn: Color; lastMove: Move | null }>;
   results: ResultRow[];
   lastMove: Move | null;
 }
@@ -82,6 +85,9 @@ function emptyState(): State {
     board: initialBoard(),
     turn: 'r',
     winner: null,
+    isDraw: false,
+    drawOfferBy: null,
+    history: [],
     results: [],
     lastMove: null,
   };
@@ -587,7 +593,16 @@ function xqNegamax(
 
 function chooseXiangqiBotMove(state: State, color: Color, difficulty: BotDifficulty): Move | null {
   const boardCopy = state.board.map((p) => (p ? { ...p } : null));
-  const dummy: State = { board: boardCopy, turn: color, winner: null, results: [], lastMove: null };
+  const dummy: State = {
+    board: boardCopy,
+    turn: color,
+    winner: null,
+    isDraw: false,
+    drawOfferBy: null,
+    history: [],
+    results: [],
+    lastMove: null,
+  };
   const rootMoves = xqSearchMoves(dummy, color, false);
   if (rootMoves.length === 0) return null;
 
@@ -653,7 +668,7 @@ export class XiangqiPlugin extends BaseGamePlugin {
     category: 'board',
   };
 
-  override readonly commands = ['move'] as const;
+  override readonly commands = ['move', 'resign', 'draw_offer', 'draw_accept', 'draw_decline', 'undo'] as const;
 
   private state: State = emptyState();
 
@@ -667,9 +682,67 @@ export class XiangqiPlugin extends BaseGamePlugin {
   }
 
   override onIntent(ctx: RoomContext, playerId: string, intent: GameIntent): void {
-    if (this.state.winner) throw new Error('本局已结束');
+    if (this.state.winner || this.state.isDraw) throw new Error('本局已结束');
     const color = this.colorOf(ctx, playerId);
     if (!color) throw new Error('你不在本局中');
+
+    if (intent.cmd === 'resign') {
+      const oppColor: Color = color === 'r' ? 'b' : 'r';
+      this.state.winner = oppColor;
+      this.settle(ctx, oppColor, '认输结算');
+      ctx.markDirty();
+      return;
+    }
+
+    if (intent.cmd === 'draw_offer') {
+      const opponent = ctx.players.find((p) => p.playerId !== playerId);
+      if (opponent?.isBot) {
+        if (this.state.history.length >= 16 && Math.random() < 0.5) {
+          this.settleDraw(ctx);
+        } else {
+          this.state.drawOfferBy = null;
+        }
+        ctx.markDirty();
+        return;
+      }
+      this.state.drawOfferBy = playerId;
+      ctx.markDirty();
+      return;
+    }
+
+    if (intent.cmd === 'draw_accept') {
+      if (!this.state.drawOfferBy || this.state.drawOfferBy === playerId) {
+        throw new Error('当前没有待确认的和棋请求');
+      }
+      this.settleDraw(ctx);
+      ctx.markDirty();
+      return;
+    }
+
+    if (intent.cmd === 'draw_decline') {
+      if (this.state.drawOfferBy && this.state.drawOfferBy !== playerId) {
+        this.state.drawOfferBy = null;
+        ctx.markDirty();
+      }
+      return;
+    }
+
+    if (intent.cmd === 'undo') {
+      const hasBot = ctx.players.some((p) => p.isBot);
+      if (!hasBot) throw new Error('双人真人对局暂不支持直接悔棋');
+      if (this.state.history.length === 0) throw new Error('暂无可悔之棋');
+      const steps = this.state.turn === color && this.state.history.length >= 2 ? 2 : 1;
+      for (let i = 0; i < steps && this.state.history.length > 0; i += 1) {
+        const snap = this.state.history.pop()!;
+        this.state.board = snap.board;
+        this.state.turn = snap.turn;
+        this.state.lastMove = snap.lastMove;
+      }
+      this.state.drawOfferBy = null;
+      ctx.markDirty();
+      return;
+    }
+
     if (this.state.turn !== color) throw new Error('还没轮到你走');
 
     const fromRaw = (intent.payload?.from ?? {}) as { c?: number; r?: number };
@@ -683,6 +756,14 @@ export class XiangqiPlugin extends BaseGamePlugin {
     const moves = legalMoves(this.state, color);
     const match = moves.find((m) => m.from.c === from.c && m.from.r === from.r && m.to.c === to.c && m.to.r === to.r);
     if (!match) throw new Error('这一步不合法');
+
+    this.state.history.push({
+      board: this.state.board.map((p) => (p ? { ...p } : null)),
+      turn: this.state.turn,
+      lastMove: this.state.lastMove,
+    });
+    if (this.state.history.length > 60) this.state.history.shift();
+    this.state.drawOfferBy = null;
 
     applyMove(this.state, match);
 
@@ -703,7 +784,21 @@ export class XiangqiPlugin extends BaseGamePlugin {
     return index === 0 ? 'r' : 'b';
   }
 
-  private settle(ctx: RoomContext, winnerColor: Color): void {
+  private settleDraw(ctx: RoomContext): void {
+    this.state.isDraw = true;
+    this.state.drawOfferBy = null;
+    const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
+    this.state.results = players.map((p) => ({
+      playerId: p.playerId,
+      nickname: p.nickname,
+      delta: 0,
+      detail: '双方议和',
+    }));
+    ctx.settle({ entries: [], winners: [] });
+  }
+
+  private settle(ctx: RoomContext, winnerColor: Color, winReason = '绝杀对手'): void {
+    const winCoin = WIN_COIN * (ctx.config.stakeMultiplier ?? 1);
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
     const results: ResultRow[] = players.map((p, index) => {
       const color: Color = index === 0 ? 'r' : 'b';
@@ -711,8 +806,8 @@ export class XiangqiPlugin extends BaseGamePlugin {
       return {
         playerId: p.playerId,
         nickname: p.nickname,
-        delta: win ? WIN_COIN : -WIN_COIN,
-        detail: win ? '绝杀对手' : '被绝杀',
+        delta: win ? winCoin : -winCoin,
+        detail: win ? winReason : '惜败收官',
       };
     });
     this.state.results = results;
@@ -724,7 +819,7 @@ export class XiangqiPlugin extends BaseGamePlugin {
 
   override botIntent(ctx: RoomContext, playerId: string, difficulty: BotDifficulty = 'medium'): GameIntent | null {
     const color = this.colorOf(ctx, playerId);
-    if (!color || this.state.winner || this.state.turn !== color) return null;
+    if (!color || this.state.winner || this.state.isDraw || this.state.turn !== color) return null;
     const move = chooseXiangqiBotMove(this.state, color, difficulty);
     if (!move) return null;
     return { cmd: 'move', payload: { from: move.from, to: move.to } };
@@ -732,15 +827,19 @@ export class XiangqiPlugin extends BaseGamePlugin {
 
   override getSnapshot(ctx: RoomContext, viewerId: string | null): GameSnapshot {
     const color = viewerId ? this.colorOf(ctx, viewerId) : null;
-    const moves = color && !this.state.winner ? legalMoves(this.state, color) : [];
+    const moves = color && !this.state.winner && !this.state.isDraw ? legalMoves(this.state, color) : [];
     return {
-      phase: this.state.winner ? 'settled' : 'playing',
+      phase: this.state.winner || this.state.isDraw ? 'settled' : 'playing',
       round: ctx.config.round,
       remainMs: 0,
       phaseDurationMs: 0,
       turn: this.state.turn,
       myColor: color,
       inCheck: color ? inCheck(this.state.board, color) : false,
+      drawOfferBy: this.state.drawOfferBy,
+      canUndo: this.state.history.length > 0 && ctx.players.some((p) => p.isBot) && !this.state.winner && !this.state.isDraw,
+      isDraw: this.state.isDraw,
+      stakeMultiplier: ctx.config.stakeMultiplier ?? 1,
       board: this.state.board.map((piece, i) => ({
         c: i % COLS,
         r: Math.floor(i / COLS),
@@ -767,7 +866,7 @@ export class XiangqiPlugin extends BaseGamePlugin {
   }
 
   override getCurrentActor(ctx: RoomContext): string | null {
-    if (this.state.winner) return null;
+    if (this.state.winner || this.state.isDraw) return null;
     const players = [...ctx.players].sort((a, b) => a.seat - b.seat);
     const index = this.state.turn === 'r' ? 0 : 1;
     return players[index]?.playerId ?? null;

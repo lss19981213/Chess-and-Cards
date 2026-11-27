@@ -5,6 +5,9 @@ import type { ReleaseClient, WalletClient } from '../wallet';
 
 export const TICK_MS = 200;
 export const SETTLE_RESET_MS = 5_000;
+/** 对战回合单步超时时长（毫秒）与托管自动出牌延迟 */
+export const TURN_TIMEOUT_MS = 20_000;
+export const HOST_ACT_DELAY_MS = 1_100;
 /** 平台台容量 */
 export const PLATFORM_CAPACITY = 168;
 

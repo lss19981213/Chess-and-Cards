@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import type { SnapshotEnvelope } from '../App';
 import { audio } from '../audio';
 import { SeatPanel, TableStage } from '../components/TableStage';
@@ -11,6 +11,8 @@ interface GomokuSnapshot {
   lastMove: { x: number; y: number; side: number } | null;
   moveCount: number;
   mySide: number;
+  drawOfferBy?: string | null;
+  canUndo?: boolean;
 }
 
 interface SeatInfo {
@@ -35,9 +37,11 @@ interface Props {
   myId: string;
   players: SeatInfo[];
   onPlace: (x: number, y: number) => void;
+  onAction?: (cmd: string, payload?: Record<string, unknown>) => void;
 }
 
-export function Gomoku({ snapshot, status, myId, players, onPlace }: Props) {
+export function Gomoku({ snapshot, status, myId, players, onPlace, onAction }: Props) {
+  const [confirmResign, setConfirmResign] = useState(false);
   const data = snapshot?.snapshot as GomokuSnapshot | undefined;
   if (!data || !Array.isArray(data.cells)) {
     return <div className="board-placeholder">等待开局…</div>;
@@ -145,11 +149,92 @@ export function Gomoku({ snapshot, status, myId, players, onPlace }: Props) {
         </svg>
       }
       bottom={
-        <div className="gomoku-bar">
-          <span className={`gomoku-bar__status ${interactive ? 'is-on' : ''}`}>{statusText}</span>
-          <span className="gomoku-bar__meta">
-            你执{data.mySide === 1 ? '黑' : data.mySide === 2 ? '白' : '—'} · 第 {data.moveCount} 手
-          </span>
+        <div className="gomoku-bottom-wrap">
+          {status === 'playing' && data.winner === 0 && data.drawOfferBy && data.drawOfferBy !== myId && onAction && (
+            <div className="board-draw-offer-banner">
+              <span>🤝 对手请求和棋，是否同意？</span>
+              <button
+                type="button"
+                className="btn-board-mini is-accept"
+                onClick={() => {
+                  audio.play('click');
+                  onAction('draw_accept');
+                }}
+              >
+                同意和棋
+              </button>
+              <button
+                type="button"
+                className="btn-board-mini is-decline"
+                onClick={() => {
+                  audio.play('click');
+                  onAction('draw_decline');
+                }}
+              >
+                拒绝
+              </button>
+            </div>
+          )}
+          <div className="gomoku-bar">
+            <span className={`gomoku-bar__status ${interactive ? 'is-on' : ''}`}>{statusText}</span>
+            <span className="gomoku-bar__meta">
+              你执{data.mySide === 1 ? '黑' : data.mySide === 2 ? '白' : '—'} · 第 {data.moveCount} 手
+            </span>
+            {status === 'playing' && data.winner === 0 && data.mySide !== 0 && onAction && (
+              <div className="board-actions-bar">
+                {data.canUndo && (
+                  <button
+                    type="button"
+                    className="btn-board-act"
+                    onClick={() => {
+                      audio.play('click');
+                      setConfirmResign(false);
+                      onAction('undo');
+                    }}
+                  >
+                    ↩️ 悔棋
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-board-act"
+                  disabled={data.drawOfferBy === myId}
+                  onClick={() => {
+                    audio.play('click');
+                    setConfirmResign(false);
+                    onAction('draw_offer');
+                  }}
+                >
+                  {data.drawOfferBy === myId ? '已提和…' : '🤝 求和'}
+                </button>
+                {confirmResign ? (
+                  <button
+                    type="button"
+                    className="btn-board-act is-danger-confirm"
+                    onClick={() => {
+                      audio.play('alert');
+                      setConfirmResign(false);
+                      onAction('resign');
+                    }}
+                    onBlur={() => setConfirmResign(false)}
+                  >
+                    确认认输?
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-board-act is-danger"
+                    onClick={() => {
+                      audio.play('click');
+                      setConfirmResign(true);
+                    }}
+                  >
+                    🏳️ 认输
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       }
     />

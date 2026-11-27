@@ -4,11 +4,13 @@ import {
   AppError,
   ErrorCode,
   ServerMsg,
+  stakesTierOf,
   type BotDifficulty,
   type GameMeta,
   type RoomStatus,
   type RoomSummary,
   type RoomView,
+  type StakesTier,
 } from '@cc/protocol';
 import type { GamePlugin, PlayerContext, RoomContext, SettlementInput } from '@cc/game-sdk';
 import { BOT_NAMES } from './bot';
@@ -16,9 +18,11 @@ import { createLogger } from './logger';
 import { reconcileAmbientSeats } from './room/ambient';
 import { applySettlementScores, buildSettlementEnvelope } from './room/settlement';
 import {
+  HOST_ACT_DELAY_MS,
   PLATFORM_CAPACITY,
   SETTLE_RESET_MS,
   TICK_MS,
+  TURN_TIMEOUT_MS,
   sendEnvelope,
   type RoomDeps,
   type Seat,
@@ -59,8 +63,16 @@ export class GameRoom {
   private closed = false;
   private readonly persistent: boolean;
   private readonly botHosted: boolean;
+  readonly stakesTier: StakesTier;
+  readonly stakeMultiplier: number;
   private platformNo = 0;
   private emoteTimes = new Map<string, number[]>();
+  private chatTimes = new Map<string, number[]>();
+  /** 开启了托管（手动或超时自动开启）的玩家集合 */
+  private readonly hostedPlayers = new Set<string>();
+  private turnActorId: string | null = null;
+  private turnDeadlineAt: number | null = null;
+  private hostActionInFlight = false;
   /** 结算展示期间预约的准备意愿 */
   private pendingReady = new Map<string, boolean>();
   /** 已开启「连续对局」的玩家：之后每局结算都自动准备 */
@@ -76,7 +88,7 @@ export class GameRoom {
     mode: string,
     maxPlayers: number,
     deps: RoomDeps,
-    options: { persistent?: boolean; botHosted?: boolean } = {},
+    options: { persistent?: boolean; botHosted?: boolean; stakesTier?: StakesTier } = {},
   ) {
     this.id = id;
     this.plugin = plugin;
@@ -85,6 +97,9 @@ export class GameRoom {
     this.deps = deps;
     this.persistent = options.persistent === true;
     this.botHosted = options.botHosted === true;
+    const tierCfg = stakesTierOf(options.stakesTier);
+    this.stakesTier = tierCfg.tier;
+    this.stakeMultiplier = this.persistent ? 1 : tierCfg.multiplier;
 
     const getConfig = () => ({
       roomId: this.id,
@@ -93,6 +108,7 @@ export class GameRoom {
       maxPlayers: this.maxPlayers,
       round: this.round,
       seed: this.seed,
+      stakeMultiplier: this.stakeMultiplier,
     });
     const getPlayers = () => toPlayerContexts(this.seats.values());
 
@@ -248,6 +264,11 @@ export class GameRoom {
       seats: this.seats.values(),
       botHosted: this.botHosted,
       spectators: this.spectators.values(),
+      stakesTier: this.stakesTier,
+      stakeMultiplier: this.stakeMultiplier,
+      turnActorId: this.turnActorId,
+      turnDeadlineAt: this.turnDeadlineAt,
+      hostedPlayerIds: [...this.hostedPlayers],
     });
   }
 
@@ -265,6 +286,8 @@ export class GameRoom {
       status: this.status,
       joinable: this.isJoinable,
       recent: recentTrendFor(this.plugin, this.ctx, this.persistent),
+      stakesTier: this.stakesTier,
+      stakeMultiplier: this.stakeMultiplier,
     });
   }
 
@@ -648,7 +671,12 @@ export class GameRoom {
     this.tryStart();
   }
 
-  async handleIntent(playerId: string, cmd: string, payload: Record<string, unknown>): Promise<void> {
+  async handleIntent(
+    playerId: string,
+    cmd: string,
+    payload: Record<string, unknown>,
+    isHostedAuto = false,
+  ): Promise<void> {
     if (!this.seats.has(playerId)) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
     if (this.status !== 'playing') throw new AppError(ErrorCode.IllegalAction, '当前不在对局中');
     if (
@@ -663,6 +691,10 @@ export class GameRoom {
     }
     if (!this.plugin.commands.includes(cmd)) {
       throw new AppError(ErrorCode.IllegalAction, `未知指令: ${cmd}`);
+    }
+    // 真人手动出牌/行动时自动取消超时托管状态
+    if (!isHostedAuto && this.hostedPlayers.delete(playerId)) {
+      this.broadcastView();
     }
     // 同一玩家的指令串行执行，避免 await 扣款期间并发下注重复扣款或覆盖注单
     const prev = this.intentQueues.get(playerId) ?? Promise.resolve();
@@ -729,6 +761,35 @@ export class GameRoom {
       } catch (error) {
         console.error(`[room ${this.id}] onTick 异常`, error);
       }
+
+      // 回合制对战玩法：监测当前行动玩家，计算超时与自动托管代打
+      if (!this.persistent && typeof this.plugin.getCurrentActor === 'function') {
+        const actor = this.currentActor();
+        if (actor !== this.turnActorId) {
+          this.turnActorId = actor;
+          if (actor && !this.isBot(actor)) {
+            this.turnDeadlineAt = this.hostedPlayers.has(actor)
+              ? Date.now() + HOST_ACT_DELAY_MS
+              : Date.now() + TURN_TIMEOUT_MS;
+          } else {
+            this.turnDeadlineAt = null;
+          }
+          this.broadcastView();
+        } else if (
+          this.turnActorId &&
+          !this.isBot(this.turnActorId) &&
+          this.turnDeadlineAt !== null &&
+          Date.now() >= this.turnDeadlineAt &&
+          !this.hostActionInFlight
+        ) {
+          if (!this.hostedPlayers.has(this.turnActorId)) {
+            this.hostedPlayers.add(this.turnActorId);
+            this.broadcastView();
+          }
+          void this.triggerHostedAction(this.turnActorId);
+        }
+      }
+
       if (this.dirty) {
         this.dirty = false;
         this.lastSyncPushAt = Date.now();
@@ -738,6 +799,40 @@ export class GameRoom {
         this.pushSnapshots();
       }
     }
+  }
+
+  private async triggerHostedAction(actorId: string): Promise<void> {
+    if (this.closed || this.status !== 'playing' || this.hostActionInFlight) return;
+    if (this.currentActor() !== actorId || this.isBot(actorId)) return;
+    this.hostActionInFlight = true;
+    try {
+      const intent = this.plugin.botIntent?.(this.ctx, actorId, 'high') ?? null;
+      if (!intent) return;
+      await this.handleIntent(actorId, intent.cmd, intent.payload, true);
+    } catch (error) {
+      roomLog.warn('超时/托管代打执行失败', {
+        roomId: this.id,
+        actorId,
+        error: (error as Error).message,
+      });
+    } finally {
+      this.hostActionInFlight = false;
+    }
+  }
+
+  /** 玩家主动切换托管状态 */
+  toggleHost(playerId: string): boolean {
+    if (!this.seats.has(playerId)) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+    if (this.persistent) throw new AppError(ErrorCode.IllegalAction, '百人下注玩法不支持托管');
+    const next = !this.hostedPlayers.has(playerId);
+    if (next) this.hostedPlayers.add(playerId);
+    else this.hostedPlayers.delete(playerId);
+
+    if (this.status === 'playing' && this.turnActorId === playerId) {
+      this.turnDeadlineAt = next ? Date.now() + HOST_ACT_DELAY_MS : Date.now() + TURN_TIMEOUT_MS;
+    }
+    this.broadcastView();
+    return next;
   }
 
   private tryStart(): void {
@@ -754,6 +849,9 @@ export class GameRoom {
     this.status = 'playing';
     this.settledThisRound = false;
     this.activeHumanBets.clear();
+    this.hostedPlayers.clear();
+    this.turnActorId = null;
+    this.turnDeadlineAt = null;
     this.plugin.onRoundStart?.(this.ctx);
     this.dirty = true;
     this.broadcastView();
@@ -766,6 +864,9 @@ export class GameRoom {
     }
     this.settledThisRound = true;
     this.activeHumanBets.clear();
+    this.turnActorId = null;
+    this.turnDeadlineAt = null;
+    this.hostedPlayers.clear();
     this.status = this.persistent ? 'playing' : 'settled';
 
     const settlement = buildSettlementEnvelope({
@@ -846,6 +947,33 @@ export class GameRoom {
       nickname: who.nickname,
       key,
       text,
+      at: now,
+    });
+  }
+
+  /** 房间内轻量文字聊天（含刷屏限频与长度裁剪） */
+  sendChat(playerId: string, rawText: string): void {
+    const who = this.seats.get(playerId) ?? this.spectators.get(playerId);
+    if (!who) throw new AppError(ErrorCode.RoomNotFound, '你不在该房间内');
+    if (this.closed) return;
+
+    const text = rawText.replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!text) throw new AppError(ErrorCode.BadRequest, '请输入聊天内容');
+
+    const now = Date.now();
+    const recent = (this.chatTimes.get(playerId) ?? []).filter((t) => now - t < 10_000);
+    if (recent.length >= 6) {
+      throw new AppError(ErrorCode.RateLimited, '发言太频繁，休息 10 秒再发吧');
+    }
+    recent.push(now);
+    this.chatTimes.set(playerId, recent);
+
+    this.ctx.broadcast(ServerMsg.RoomChat, {
+      playerId,
+      nickname: who.nickname,
+      text,
+      avatar: who.avatar ?? null,
+      equippedFrame: who.equippedFrame ?? 'frame_default',
       at: now,
     });
   }

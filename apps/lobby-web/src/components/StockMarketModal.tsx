@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { KlinePeriod, StockHolding, StockKlineItem, StockMeta, StockOrder, StockQuote, StockTrendPoint } from '@cc/protocol';
+import type {
+  KlinePeriod,
+  StockHolding,
+  StockKlineItem,
+  StockLeaderboardEntry,
+  StockMeta,
+  StockOrder,
+  StockQuote,
+  StockTrendPoint,
+} from '@cc/protocol';
 import { api, type User } from '../api';
 import { audio } from '../audio';
 
@@ -10,8 +19,9 @@ interface Props {
   onClose: () => void;
 }
 
-type TabType = 'market' | 'holdings' | 'orders';
+type TabType = 'market' | 'holdings' | 'orders' | 'leaderboard';
 type TradeMode = 'buy' | 'sell';
+type TradeSide = 'long' | 'short';
 
 export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose }: Props) {
   // 基础数据状态
@@ -39,7 +49,9 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
 
   // 交易面板状态
   const [tradeMode, setTradeMode] = useState<TradeMode>('buy');
+  const [tradeSide, setTradeSide] = useState<TradeSide>('long');
   const [tradeShares, setTradeShares] = useState<number>(100);
+  const [stockRank, setStockRank] = useState<StockLeaderboardEntry[]>([]);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
@@ -130,11 +142,24 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
     }
   };
 
+  // 获取股神排行榜
+  const fetchLeaderboard = async () => {
+    try {
+      const res = await api.getStockLeaderboard(30);
+      if (res && res.entries) {
+        setStockRank(res.entries);
+      }
+    } catch {
+      // 容灾忽略
+    }
+  };
+
   // 初始化加载与定时 4 秒刷新
   useEffect(() => {
     void fetchQuotes();
     void fetchHoldings();
     void fetchOrders();
+    void fetchLeaderboard();
 
     const interval = window.setInterval(() => {
       setCountdown((prev) => {
@@ -171,8 +196,12 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
   }, [quotes, selectedSymbol]);
 
   const currentHolding = useMemo(() => {
-    return holdings.find((h) => h.symbol === selectedSymbol);
-  }, [holdings, selectedSymbol]);
+    return holdings.find((h) => h.symbol === selectedSymbol && (h.side ?? 'long') === tradeSide);
+  }, [holdings, selectedSymbol, tradeSide]);
+
+  const anyHoldingForSymbol = useMemo(() => {
+    return currentHolding ?? holdings.find((h) => h.symbol === selectedSymbol);
+  }, [holdings, selectedSymbol, currentHolding]);
 
   // 标的分类过滤
   const filteredDefinitions = useMemo(() => {
@@ -294,6 +323,30 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
       ctx.textAlign = 'right';
       ctx.fillText('15:00', w - 12, h - 8);
 
+      // 若持有当前标的，在分时图叠加金色虚线持仓成本线
+      if (anyHoldingForSymbol && anyHoldingForSymbol.avgCost > 0) {
+        const costY = getY(anyHoldingForSymbol.avgCost);
+        if (costY >= 14 && costY <= h - 28) {
+          ctx.save();
+          ctx.strokeStyle = '#f59e0b';
+          ctx.setLineDash([6, 4]);
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(45, costY);
+          ctx.lineTo(w - 10, costY);
+          ctx.stroke();
+          ctx.fillStyle = '#fbbf24';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(
+            `${anyHoldingForSymbol.side === 'short' ? '开空均价' : '持仓成本'} ${anyHoldingForSymbol.avgCost.toFixed(2)}`,
+            50,
+            Math.max(12, costY - 4),
+          );
+          ctx.restore();
+        }
+      }
+
       ctx.restore();
     } else {
       // ---------- 绘制蜡烛图 K 线 (日K / 周K / 月K / 年K) ----------
@@ -396,6 +449,30 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
       drawMaLine('ma10', '#c084fc');
       drawMaLine('ma20', '#38bdf8');
 
+      // 若持有当前标的，在 K 线图叠加持仓成本虚线
+      if (anyHoldingForSymbol && anyHoldingForSymbol.avgCost > 0) {
+        const costY = getY(anyHoldingForSymbol.avgCost);
+        if (costY >= 24 && costY <= 28 + klineH) {
+          ctx.save();
+          ctx.strokeStyle = '#f59e0b';
+          ctx.setLineDash([6, 4]);
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(padLeft, costY);
+          ctx.lineTo(w - padRight, costY);
+          ctx.stroke();
+          ctx.fillStyle = '#fbbf24';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(
+            `${anyHoldingForSymbol.side === 'short' ? '开空均价' : '持仓成本'} ${anyHoldingForSymbol.avgCost.toFixed(2)}`,
+            padLeft + 4,
+            Math.max(20, costY - 4),
+          );
+          ctx.restore();
+        }
+      }
+
       // 底部时间刻度
       ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
       ctx.font = '9px sans-serif';
@@ -408,7 +485,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
 
       ctx.restore();
     }
-  }, [trends, klines, chartPeriod, currentQuote]);
+  }, [trends, klines, chartPeriod, currentQuote, anyHoldingForSymbol]);
 
   // 计算交易金额预估
   const estimatedPrice = currentQuote?.price || 100;
@@ -446,7 +523,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
 
     setSubmitting(true);
     try {
-      const res = await api.buyStock(currentMeta.symbol, tradeShares);
+      const res = await api.buyStock(currentMeta.symbol, tradeShares, tradeSide);
       if (res && res.ok) {
         audio.play('coin');
         showToast(res.message);
@@ -454,31 +531,36 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
         onUserUpdate?.({ balance: res.balanceAfter });
         void fetchHoldings();
         void fetchOrders();
+        void fetchLeaderboard();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '买入失败';
+      const msg = err instanceof Error ? err.message : tradeSide === 'short' ? '开空失败' : '买入失败';
       showToast(`❌ ${msg}`);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // 执行市价卖出
+  // 执行市价卖出 / 平空
   const handleSell = async () => {
     if (!currentMeta) return;
     const holdShares = currentHolding?.shares || 0;
     if (holdShares <= 0) {
-      showToast(`⚠️ 您尚未持有【${currentMeta.name}】，无法卖出！`);
+      showToast(
+        tradeSide === 'short'
+          ? `⚠️ 您尚未持有【${currentMeta.name}】空单，无法平空！`
+          : `⚠️ 您尚未持有【${currentMeta.name}】，无法卖出！`,
+      );
       return;
     }
     if (tradeShares <= 0 || tradeShares > holdShares) {
-      showToast(`⚠️ 卖出数量超出持仓（当前最多可卖 ${holdShares} 股/手）！`);
+      showToast(`⚠️ 平仓数量超出持仓（当前最多 ${holdShares} 股/手）！`);
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await api.sellStock(currentMeta.symbol, tradeShares);
+      const res = await api.sellStock(currentMeta.symbol, tradeShares, tradeSide);
       if (res && res.ok) {
         audio.play('win');
         showToast(res.message);
@@ -486,10 +568,33 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
         onUserUpdate?.({ balance: res.balanceAfter });
         void fetchHoldings();
         void fetchOrders();
+        void fetchLeaderboard();
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '卖出失败';
+      const msg = err instanceof Error ? err.message : '平仓失败';
       showToast(`❌ ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 一键全平单笔持仓
+  const handleQuickCloseHolding = async (h: StockHolding) => {
+    if (submitting || h.shares <= 0) return;
+    setSubmitting(true);
+    try {
+      const res = await api.sellStock(h.symbol, h.shares, h.side ?? 'long');
+      if (res && res.ok) {
+        audio.play('win');
+        showToast(res.message);
+        onBalanceChange?.(res.balanceAfter);
+        onUserUpdate?.({ balance: res.balanceAfter });
+        void fetchHoldings();
+        void fetchOrders();
+        void fetchLeaderboard();
+      }
+    } catch (err: unknown) {
+      showToast(`❌ ${err instanceof Error ? err.message : '一键平仓失败'}`);
     } finally {
       setSubmitting(false);
     }
@@ -596,6 +701,16 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
             onClick={() => setActiveTab('orders')}
           >
             📜 交易明细流水
+          </button>
+          <button
+            type="button"
+            className={`stock-tab-btn ${activeTab === 'leaderboard' ? 'is-active' : ''}`}
+            onClick={() => {
+              setActiveTab('leaderboard');
+              void fetchLeaderboard();
+            }}
+          >
+            🏆 股神收益榜
           </button>
         </nav>
 
@@ -788,8 +903,31 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                 </div>
               </main>
 
-              {/* 右侧：买入/卖出下单柜台 */}
+              {/* 右侧：双向做多/融券做空下单柜台 */}
               <aside className="stock-trade-panel">
+                <div className="stock-side-switch" role="group" aria-label="交易方向">
+                  <button
+                    type="button"
+                    className={`side-pill side-pill--long ${tradeSide === 'long' ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setTradeSide('long');
+                      setTradeShares(100);
+                    }}
+                  >
+                    📈 做多 (看涨)
+                  </button>
+                  <button
+                    type="button"
+                    className={`side-pill side-pill--short ${tradeSide === 'short' ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setTradeSide('short');
+                      setTradeShares(100);
+                    }}
+                  >
+                    📉 融券做空 (看跌)
+                  </button>
+                </div>
+
                 <div className="trade-mode-toggle">
                   <button
                     type="button"
@@ -799,7 +937,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                       setTradeShares(100);
                     }}
                   >
-                    市价买入 (做多)
+                    {tradeSide === 'long' ? '市价买入 (开多)' : '融券开空 (看跌)'}
                   </button>
                   <button
                     type="button"
@@ -809,7 +947,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                       setTradeShares(currentHolding?.shares || 100);
                     }}
                   >
-                    市价卖出 (平仓)
+                    {tradeSide === 'long' ? '市价卖出 (平多)' : '买券还空 (平空)'}
                   </button>
                 </div>
 
@@ -930,7 +1068,11 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                       disabled={submitting || tradeShares <= 0 || summary.availableBalance < estimatedBuyTotal}
                       onClick={handleBuy}
                     >
-                      {submitting ? '提交买入中…' : `立即买入 · ${estimatedBuyTotal.toLocaleString()} 豆`}
+                      {submitting
+                        ? '提交建仓中…'
+                        : tradeSide === 'short'
+                          ? `融券开空 · 冻结 ${estimatedBuyTotal.toLocaleString()} 豆`
+                          : `立即买入 · ${estimatedBuyTotal.toLocaleString()} 豆`}
                     </button>
                   ) : (
                     <button
@@ -939,7 +1081,11 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                       disabled={submitting || tradeShares <= 0 || (currentHolding?.shares || 0) < tradeShares}
                       onClick={handleSell}
                     >
-                      {submitting ? '提交卖出中…' : `立即卖出 · 净收 ${estimatedSellNet.toLocaleString()} 豆`}
+                      {submitting
+                        ? '提交平仓中…'
+                        : tradeSide === 'short'
+                          ? `买券平空 · ${tradeShares} ${currentMeta?.unitName}`
+                          : `立即卖出 · 净收 ${estimatedSellNet.toLocaleString()} 豆`}
                     </button>
                   )}
                 </div>
@@ -983,11 +1129,17 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                     <tbody>
                       {holdings.map((h) => {
                         const isUp = h.floatingPnl >= 0;
+                        const hSide: 'long' | 'short' = h.side ?? 'long';
                         return (
-                          <tr key={h.symbol}>
+                          <tr key={`${h.symbol}-${hSide}`}>
                             <td>
                               <div className="td-stock-cell">
-                                <span className="cell-name">{h.stockMeta.name}</span>
+                                <span className="cell-name">
+                                  <em className={`stock-side-badge is-${hSide}`}>
+                                    {hSide === 'short' ? '空' : '多'}
+                                  </em>
+                                  {h.stockMeta.name}
+                                </span>
                                 <span className="cell-code">{h.stockMeta.displayCode}</span>
                               </div>
                             </td>
@@ -1014,6 +1166,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                                   className="btn-table-action btn-table-action--add"
                                   onClick={() => {
                                     setSelectedSymbol(h.symbol);
+                                    setTradeSide(hSide);
                                     setTradeMode('buy');
                                     setActiveTab('market');
                                   }}
@@ -1025,12 +1178,21 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                                   className="btn-table-action btn-table-action--sell"
                                   onClick={() => {
                                     setSelectedSymbol(h.symbol);
+                                    setTradeSide(hSide);
                                     setTradeMode('sell');
                                     setTradeShares(h.shares);
                                     setActiveTab('market');
                                   }}
                                 >
-                                  平仓
+                                  指定平仓
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-table-action btn-table-action--quick"
+                                  disabled={submitting}
+                                  onClick={() => void handleQuickCloseHolding(h)}
+                                >
+                                  一键全平
                                 </button>
                               </div>
                             </td>
@@ -1070,8 +1232,16 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                     </thead>
                     <tbody>
                       {orders.map((o) => {
-                        const isBuy = o.action === 'buy';
+                        const isOpen = o.action === 'buy' || o.action === 'short_open';
                         const isProfit = o.realizedPnl >= 0;
+                        const dirLabel =
+                          o.action === 'buy'
+                            ? '🔴 买入开多'
+                            : o.action === 'sell'
+                              ? '🟢 卖出平多'
+                              : o.action === 'short_open'
+                                ? '🔵 融券开空'
+                                : '🟣 买券平空';
                         return (
                           <tr key={o.id}>
                             <td className="text-muted">
@@ -1081,8 +1251,8 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                               <strong>{o.stockName}</strong> ({o.symbol})
                             </td>
                             <td>
-                              <span className={`trade-dir-tag ${isBuy ? 'dir-buy' : 'dir-sell'}`}>
-                                {isBuy ? '🔴 买入建仓' : '🟢 卖出平仓'}
+                              <span className={`trade-dir-tag ${isOpen ? 'dir-buy' : 'dir-sell'}`}>
+                                {dirLabel}
                               </span>
                             </td>
                             <td>{o.shares}</td>
@@ -1090,7 +1260,7 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                             <td>{o.totalAmount.toLocaleString()} 豆</td>
                             <td>{o.fee} 豆</td>
                             <td>
-                              {isBuy ? (
+                              {isOpen ? (
                                 <span className="text-muted">--</span>
                               ) : (
                                 <span className={isProfit ? 'text-gain' : 'text-loss'}>
@@ -1101,6 +1271,69 @@ export function StockMarketModal({ user, onBalanceChange, onUserUpdate, onClose 
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 股神收益榜标签页 */}
+          {activeTab === 'leaderboard' && (
+            <div className="stock-orders-view">
+              {stockRank.length === 0 ? (
+                <div className="stock-empty-box">
+                  <div className="empty-icon">🏆</div>
+                  <div className="empty-title">股神榜虚位以待</div>
+                  <div className="empty-sub">参与股票做多或做空交易即可登榜，角逐全服股市操盘王！</div>
+                </div>
+              ) : (
+                <div className="stock-table-card">
+                  <table className="stock-data-table">
+                    <thead>
+                      <tr>
+                        <th>名次</th>
+                        <th>操盘手</th>
+                        <th>持仓市值</th>
+                        <th>当前浮盈</th>
+                        <th>累计已实现盈亏</th>
+                        <th>综合股神积分</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stockRank.map((entry) => (
+                        <tr key={entry.userId} className={entry.userId === user.id ? 'is-me' : ''}>
+                          <td>
+                            <strong>
+                              {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
+                            </strong>
+                          </td>
+                          <td>
+                            <strong>{entry.nickname}</strong>
+                          </td>
+                          <td>{entry.totalMarketValue.toLocaleString()} 豆</td>
+                          <td className={entry.totalFloatingPnl >= 0 ? 'text-gain' : 'text-loss'}>
+                            {entry.totalFloatingPnl >= 0
+                              ? `+${entry.totalFloatingPnl.toLocaleString()}`
+                              : entry.totalFloatingPnl.toLocaleString()}{' '}
+                            豆
+                          </td>
+                          <td className={entry.totalRealizedPnl >= 0 ? 'text-gain' : 'text-loss'}>
+                            {entry.totalRealizedPnl >= 0
+                              ? `+${entry.totalRealizedPnl.toLocaleString()}`
+                              : entry.totalRealizedPnl.toLocaleString()}{' '}
+                            豆
+                          </td>
+                          <td className={entry.totalStockScore >= 0 ? 'text-gain' : 'text-loss'}>
+                            <strong>
+                              {entry.totalStockScore >= 0
+                                ? `+${entry.totalStockScore.toLocaleString()}`
+                                : entry.totalStockScore.toLocaleString()}{' '}
+                              豆
+                            </strong>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

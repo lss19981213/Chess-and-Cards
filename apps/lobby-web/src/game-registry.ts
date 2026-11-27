@@ -93,26 +93,26 @@ export const GAME_DEALER_QUOTES: Record<string, string> = {
   baccarat: '“免佣庄闲博弈，长龙走势清晰，艾莉丝陪主人见证神路！💎”',
 };
 
-/** 卡片热度文案（展示用，非真实在线） */
+/** 卡片兜底玩法标签（当无实时桌台统计时使用，展示真实特点而不虚构在线人数） */
 export const LIVE_HEAT_MAP: Record<string, string> = {
-  tuizhuanzi: '🎰 5,780 人同台',
-  doudizhu: '🔥 4,320 人在线',
-  'cs-mahjong': '🀄 3,960 人搓麻',
-  'sc-mahjong': '🌶️ 4,180 人血战',
-  'gd-mahjong': '🐎 3,120 人买马',
-  'guobiao-mahjong': '👑 2,540 人竞技',
-  'hz-mahjong': '🧧 4,680 人抢红中',
-  niuniu: '🔥 3,850 人在玩',
-  blackjack: '🎩 3,210 人在玩',
-  paodekuai: '⚡ 2,780 人激战',
-  baccarat: '💎 4,520 人在玩',
-  dice: '🎲 2,930 人同台',
-  texas: '♠️ 2,190 人激战',
-  goldenflower: '🔥 1,980 人在玩',
-  stud: '🕶️ 1,420 人在玩',
-  xiangqi: '♟️ 1,650 局对弈',
-  gomoku: '♟️ 1,320 局对弈',
-  chess: '♟️ 860 局对弈',
+  tuizhuanzi: '🎰 平台坐庄 · 极速轮播',
+  doudizhu: '🃏 叫分抢地主 · 春天翻倍',
+  'cs-mahjong': '🀄 258硬将 · 起手胡抓鸟',
+  'sc-mahjong': '🌶️ 血战到底 · 刮风下雨',
+  'gd-mahjong': '🐎 136张 · 推倒胡买4马',
+  'guobiao-mahjong': '👑 竞技国标 · 8番起胡',
+  'hz-mahjong': '🧧 红中癞子 · 扎4码翻倍',
+  niuniu: '🐂 极速百人 · 最高10倍',
+  blackjack: '🎩 实盘21点 · 双倍分牌',
+  paodekuai: '⚡ 16张快节奏 · 关门翻倍',
+  baccarat: '💎 经典路单 · 免佣庄闲',
+  dice: '🎲 逐颗开骰 · 豹子24倍',
+  texas: '♠️ 多人全压 · 德州策略',
+  goldenflower: '🌸 看牌闷抓 · 指定PK',
+  stud: '🕶️ 港式五张 · 暗牌偷鸡',
+  xiangqi: '♟️ 楚河汉界 · 智谋对弈',
+  gomoku: '⚫ 15路连珠 · VCF算杀',
+  chess: '♞ 64格西洋 · 升变易位',
 };
 
 /** 底分 / 准入提示文案 */

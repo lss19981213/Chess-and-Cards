@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { StockLeaderboardEntry } from '@cc/protocol';
 import {
   api,
   type LeaderboardEntry,
@@ -9,6 +10,7 @@ import { audio } from '../audio';
 import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
 import { IconBack, IconCrown, IconTrophy } from './Icons';
+import { PlayerCardModal } from './PlayerCardModal';
 
 interface Props {
   myUserId: string | null;
@@ -16,7 +18,7 @@ interface Props {
   onBack: () => void;
 }
 
-type Tab = 'total' | 'level' | 'reward';
+type Tab = 'total' | 'level' | 'daily' | 'stock' | 'reward';
 
 const RANK_TITLES = ['赌神', '赌圣', '赌侠', '赌王', '赌将', '豪侠', '名手', '高手', '老手', '新星'];
 
@@ -39,6 +41,11 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
   const [tab, setTab] = useState<Tab>('total');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [levelEntries, setLevelEntries] = useState<LevelLeaderboardEntry[]>([]);
+  const [dailyEntries, setDailyEntries] = useState<
+    Array<{ userId: string; nickname: string; net: number; rounds: number }>
+  >([]);
+  const [dailyDay, setDailyDay] = useState('');
+  const [stockEntries, setStockEntries] = useState<StockLeaderboardEntry[]>([]);
   const [rewards, setRewards] = useState<LeaderboardRewardRow[]>([]);
   const [rewardDay, setRewardDay] = useState('');
   const [myRank, setMyRank] = useState<number | null>(null);
@@ -48,6 +55,7 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
   const [worshippingId, setWorshippingId] = useState<string | null>(null);
   const [flyingHearts, setFlyingHearts] = useState<{ id: string; x: number; y: number }[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [cardUserId, setCardUserId] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -78,11 +86,22 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
                 setRemainingWorships(data.remainingWorshipsToday);
               }
             })
-          : api.leaderboardRewards().then((data) => {
-              if (cancelled) return;
-              setRewards(data.entries);
-              setRewardDay(data.dayKey);
-            });
+          : tab === 'daily'
+            ? api.dailyWinners(30).then((data) => {
+                if (cancelled) return;
+                setDailyEntries(data.entries);
+                setDailyDay(data.dayKey);
+              })
+            : tab === 'stock'
+              ? api.getStockLeaderboard(30).then((data) => {
+                  if (cancelled) return;
+                  setStockEntries(data.entries);
+                })
+              : api.leaderboardRewards().then((data) => {
+                  if (cancelled) return;
+                  setRewards(data.entries);
+                  setRewardDay(data.dayKey);
+                });
 
     task
       .catch((err: unknown) => {
@@ -162,9 +181,13 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
           <IconTrophy size={22} />
           <h2>至尊名人堂</h2>
           <span className="view-sub">
-            {isLevelTab
-              ? '账号等级与流水巅峰榜 · 最高 Lv.100 雀坛宗师 · 膜拜赢筹码'
-              : '筹码财富巅峰排行 · 每日结算尊贵头衔 · 膜拜赢金币'}
+            {tab === 'level'
+              ? '账号等级与流水巅峰榜 · 最高 Lv.100 雀坛宗师 · 点击头像查看战绩'
+              : tab === 'daily'
+                ? '今日牌桌净胜筹码榜 · 实时结算展示当日战神'
+                : tab === 'stock'
+                  ? '改命股市净盈亏总榜 · 已实现收益 + 实时持仓浮盈'
+                  : '筹码财富巅峰排行 · 点击玩家查看名片与战绩 · 膜拜赢金币'}
           </span>
         </div>
         <div className="view-tabs-group">
@@ -181,6 +204,20 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
             onClick={() => setTab('level')}
           >
             ⭐ 等级排行
+          </button>
+          <button
+            type="button"
+            className={`view-tab-btn ${tab === 'daily' ? 'is-active' : ''}`}
+            onClick={() => setTab('daily')}
+          >
+            🌞 今日赢分王
+          </button>
+          <button
+            type="button"
+            className={`view-tab-btn ${tab === 'stock' ? 'is-active' : ''}`}
+            onClick={() => setTab('stock')}
+          >
+            📈 股神榜
           </button>
           <button
             type="button"
@@ -210,8 +247,11 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
                     <div className="podium-crown">{idx === 0 ? '👑' : idx === 1 ? '🥈' : '🥉'}</div>
                     <div
                       className="podium-avatar-box"
-                      onClick={(e) => item.userId !== myUserId && handleWorship(item.userId, item.nickname, e)}
-                      title={item.userId !== myUserId ? '点击膜拜大神，获赠 +188 筹码' : '这是你自己'}
+                      onClick={() => {
+                        audio.play('click');
+                        setCardUserId(item.userId);
+                      }}
+                      title="点击查看玩家战绩名片"
                     >
                       <AvatarWithFrame
                         nickname={item.nickname}
@@ -289,8 +329,11 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
                           </div>
                           <div
                             className="rank-user-col"
-                            onClick={(e) => !isMe && handleWorship(item.userId, item.nickname, e)}
-                            title={!isMe ? '点击膜拜该玩家' : '这是你自己'}
+                            onClick={() => {
+                              audio.play('click');
+                              setCardUserId(item.userId);
+                            }}
+                            title="点击查看玩家战绩与名片"
                           >
                             <AvatarWithFrame
                               nickname={item.nickname}
@@ -347,8 +390,11 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
                           </div>
                           <div
                             className="rank-user-col"
-                            onClick={(e) => !isMe && handleWorship(item.userId, item.nickname, e)}
-                            title={!isMe ? '点击膜拜该玩家' : '这是你自己'}
+                            onClick={() => {
+                              audio.play('click');
+                              setCardUserId(item.userId);
+                            }}
+                            title="点击查看玩家战绩与名片"
                           >
                             <AvatarWithFrame
                               nickname={item.nickname}
@@ -393,12 +439,96 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
               </div>
             </section>
           </>
+        ) : tab === 'daily' ? (
+          <section className="rank-reward-full">
+            <div className="reward-day-pill">统计日期：{dailyDay || '今日'} · 今日牌桌净赢分榜</div>
+            <div className="rank-table-list">
+              {dailyEntries.map((row, idx) => (
+                <div
+                  key={row.userId}
+                  className={`rank-item-card ${row.userId === myUserId ? 'is-me' : ''} ${idx < 3 ? `is-top${idx + 1}` : ''}`}
+                  onClick={() => setCardUserId(row.userId)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="rank-index-col">
+                    <span className="rank-badge-num">
+                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
+                    </span>
+                  </div>
+                  <div className="rank-user-col">
+                    <strong>{row.nickname}</strong>
+                    <span className="worship-mini-badge">今日有效局数 {row.rounds} 局 · 点击查看名片</span>
+                  </div>
+                  <div className="rank-balance-col">
+                    <Chip size={16} />
+                    <strong className={row.net >= 0 ? 'up' : 'down'}>
+                      {row.net >= 0 ? `+${row.net.toLocaleString()}` : row.net.toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+              ))}
+              {!loading && dailyEntries.length === 0 && (
+                <p className="hint">今日暂未产生净赢分记录，快开一局争当今日榜首！</p>
+              )}
+            </div>
+          </section>
+        ) : tab === 'stock' ? (
+          <section className="rank-reward-full">
+            <div className="reward-day-pill">改命股市股神榜 · 按已实现盈亏 + 持仓浮盈排行</div>
+            <div className="rank-table-list">
+              {stockEntries.map((row) => (
+                <div
+                  key={row.userId}
+                  className={`rank-item-card ${row.userId === myUserId ? 'is-me' : ''} ${row.rank <= 3 ? `is-top${row.rank}` : ''}`}
+                  onClick={() => setCardUserId(row.userId)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="rank-index-col">
+                    <span className="rank-badge-num">
+                      {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : row.rank}
+                    </span>
+                  </div>
+                  <div className="rank-user-col">
+                    <AvatarWithFrame
+                      nickname={row.nickname}
+                      avatar={row.avatar}
+                      frameId={row.equippedFrame}
+                      size={42}
+                      showCrown={row.rank === 1}
+                    />
+                    <div className="rank-user-text">
+                      <strong>{row.nickname}</strong>
+                      <span className="worship-mini-badge">
+                        持仓市值 {row.totalMarketValue.toLocaleString()} · 浮盈 {row.totalFloatingPnl >= 0 ? `+${row.totalFloatingPnl.toLocaleString()}` : row.totalFloatingPnl.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="rank-balance-col">
+                    <strong className={row.totalStockScore >= 0 ? 'up' : 'down'}>
+                      总战绩 {row.totalStockScore >= 0 ? `+${row.totalStockScore.toLocaleString()}` : row.totalStockScore.toLocaleString()} 豆
+                    </strong>
+                  </div>
+                </div>
+              ))}
+              {!loading && stockEntries.length === 0 && (
+                <p className="hint">股市风云初起，前往「改命股市」买入或做空即可上榜！</p>
+              )}
+            </div>
+          </section>
         ) : (
           <section className="rank-reward-full">
             <div className="reward-day-pill">统计日期：{rewardDay || '今日'}</div>
             <div className="rank-table-list">
               {rewards.map((row) => (
-                <div key={row.userId} className="rank-item-card">
+                <div
+                  key={row.userId}
+                  className="rank-item-card"
+                  onClick={() => setCardUserId(row.userId)}
+                  role="button"
+                  tabIndex={0}
+                >
                   <div className="rank-index-col">
                     <span className="rank-badge-num">{row.rank}</span>
                   </div>
@@ -428,6 +558,16 @@ export function LeaderboardView({ myUserId, onBalanceChange, onBack }: Props) {
           💖 膜拜 +188!
         </div>
       ))}
+
+      {cardUserId && (
+        <PlayerCardModal
+          userId={cardUserId}
+          onClose={() => setCardUserId(null)}
+          onWorshipDone={(newBal) => {
+            if (typeof newBal === 'number' && onBalanceChange) onBalanceChange(newBal);
+          }}
+        />
+      )}
     </div>
   );
 }

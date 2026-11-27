@@ -423,10 +423,32 @@ export interface Repository {
 
   // ---------- 改命股市 ----------
   getStockHoldings(userId: string): Promise<StockHoldingRow[]>;
-  buyStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult>;
-  sellStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult>;
+  buyStock(
+    userId: string,
+    symbol: string,
+    shares: number,
+    currentPrice: number,
+    side?: 'long' | 'short',
+  ): Promise<StockTradeResult>;
+  sellStock(
+    userId: string,
+    symbol: string,
+    shares: number,
+    currentPrice: number,
+    side?: 'long' | 'short',
+  ): Promise<StockTradeResult>;
   listStockOrders(userId: string, limit?: number): Promise<StockOrder[]>;
+  listAllStockHolderSnapshots(): Promise<StockHolderSnapshotRow[]>;
   getAdminStockOverview(): Promise<AdminStockOverviewData>;
+}
+
+export interface StockHolderSnapshotRow {
+  userId: string;
+  nickname: string;
+  avatar: string | null;
+  equippedFrame: string;
+  holdings: StockHoldingRow[];
+  totalRealizedPnl: number;
 }
 
 export interface AdminStockOverviewData {
@@ -441,6 +463,7 @@ export interface AdminStockOverviewData {
 export interface StockHoldingRow {
   userId: string;
   symbol: string;
+  side?: 'long' | 'short';
   shares: number;
   avgCost: number;
   updatedAt: number;

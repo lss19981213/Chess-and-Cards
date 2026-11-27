@@ -219,6 +219,12 @@ async function handleHttp(
     return;
   }
 
+  if (url.pathname === '/summary') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ summary: manager.getGameLiveSummary() }));
+    return;
+  }
+
   // ---- 单游戏运营 / 热更（仅内部密钥）----
   const gameOpsMatch = url.pathname.match(
     /^\/internal\/games\/([^/]+)\/(drain|disable|enable|reload|status)$/,
@@ -671,6 +677,9 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
         typeof rawMax === 'number' && Number.isInteger(rawMax) && rawMax >= 2 && rawMax <= 16
           ? rawMax
           : 2;
+      const rawTier = typeof payload.stakesTier === 'string' ? payload.stakesTier : 'novice';
+      const stakesTier =
+        rawTier === 'classic' || rawTier === 'master' || rawTier === 'vip' ? rawTier : 'novice';
       const roomId = typeof payload.roomId === 'string' ? payload.roomId : undefined;
       const create = payload.create === true;
       const avatar = typeof payload.avatar === 'string' && payload.avatar.length <= 512 ? payload.avatar : null;
@@ -713,9 +722,9 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
           room = target;
         }
       } else if (create) {
-        room = manager.createRoom(gameId, mode, maxPlayers, player, session.ws);
+        room = manager.createRoom(gameId, mode, maxPlayers, player, session.ws, stakesTier);
       } else {
-        room = manager.joinOrCreate(gameId, mode, maxPlayers, player, session.ws);
+        room = manager.joinOrCreate(gameId, mode, maxPlayers, player, session.ws, stakesTier);
       }
 
       session.roomId = room.id;
@@ -762,13 +771,27 @@ async function handleMessage(session: Session, raw: string): Promise<void> {
       if (is1v1 && room.view().hostId !== session.playerId) {
         throw new AppError(ErrorCode.IllegalAction, '1对1游戏中只有房主可以添加机器人');
       }
-      // 陪玩机器人统一使用最高智慧难度
-      const difficulty: BotDifficulty = 'high';
+      const rawDiff = typeof payload.difficulty === 'string' ? payload.difficulty : 'high';
+      const difficulty: BotDifficulty =
+        rawDiff === 'low' || rawDiff === 'medium' || rawDiff === 'high' ? rawDiff : 'high';
       const used = new Set(room.view().players.map((p) => p.nickname));
       const free = BOT_NAMES.filter((name) => !used.has(`🤖 ${name}`));
       const nickname =
         free[Math.floor(Math.random() * free.length)] ?? `机器人${room.view().players.length + 1}`;
       room.addBot(`bot:${randomUUID()}`, `🤖 ${nickname}`, difficulty);
+      return;
+    }
+
+    case ClientMsg.ToggleHost: {
+      const room = requireRoom(session);
+      room.toggleHost(session.playerId);
+      return;
+    }
+
+    case ClientMsg.RoomChat: {
+      const room = requireRoom(session);
+      const text = typeof payload.text === 'string' ? payload.text : '';
+      room.sendChat(session.playerId, text);
       return;
     }
 

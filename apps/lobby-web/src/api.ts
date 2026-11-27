@@ -2,8 +2,10 @@ import type {
   Announcement,
   GameMeta,
   KlinePeriod,
+  StakesTier,
   StockHolding,
   StockKlineItem,
+  StockLeaderboardEntry,
   StockMeta,
   StockOrder,
   StockQuote,
@@ -262,6 +264,10 @@ export const api = {
 
   me: () => request<{ user: User }>('/api/me'),
   games: () => request<{ games: GameMeta[] }>('/api/games'),
+  gamesSummary: () =>
+    request<{
+      summary: Record<string, { rooms: number; humans: number; bots: number; spectators: number }>;
+    }>('/api/games/summary'),
   gameCategories: () => request<GameCategoriesConfig>('/api/game-categories'),
   records: () => request<{ records: unknown[] }>('/api/records?limit=20'),
 
@@ -315,6 +321,8 @@ export const api = {
         spectators?: number;
         joinable: boolean;
         recent: Array<{ round: number; text: string; tone: 'red' | 'blue' | 'green' | 'neutral' }>;
+        stakesTier?: StakesTier;
+        stakeMultiplier?: number;
       }>;
     }>(`/api/rooms?gameId=${encodeURIComponent(gameId)}`),
 
@@ -411,6 +419,10 @@ export const api = {
       oauthProvider?: string | null;
       oauthSub?: string | null;
     }>('/api/profile'),
+
+  profileStats: () => request<ProfileStatsView>('/api/profile/stats'),
+
+  playerCard: (userId: string) => request<PlayerCardView>(`/api/users/${encodeURIComponent(userId)}/card`),
 
   updateProfile: (patch: { nickname?: string; bio?: string; avatar?: string | null }) =>
     request<{ profile: PlayerProfile }>('/api/profile', {
@@ -533,16 +545,18 @@ export const api = {
         totalTodayPnl: number;
       };
     }>('/api/stocks/holdings'),
-  buyStock: (symbol: string, shares: number) =>
+  buyStock: (symbol: string, shares: number, side: 'long' | 'short' = 'long') =>
     request<StockTradeResult>('/api/stocks/buy', {
       method: 'POST',
-      body: JSON.stringify({ symbol, shares }),
+      body: JSON.stringify({ symbol, shares, side }),
     }),
-  sellStock: (symbol: string, shares: number) =>
+  sellStock: (symbol: string, shares: number, side: 'long' | 'short' = 'long') =>
     request<StockTradeResult>('/api/stocks/sell', {
       method: 'POST',
-      body: JSON.stringify({ symbol, shares }),
+      body: JSON.stringify({ symbol, shares, side }),
     }),
+  getStockLeaderboard: (limit = 30) =>
+    request<{ entries: StockLeaderboardEntry[] }>(`/api/stocks/leaderboard?limit=${limit}`),
   getStockOrders: (limit = 50) =>
     request<{ orders: StockOrder[] }>(`/api/stocks/orders?limit=${limit}`),
   getStockTrends: (symbol: string) =>
@@ -675,4 +689,45 @@ export interface GameCategoryDef {
 export interface GameCategoriesConfig {
   categories: GameCategoryDef[];
   gameCategoryMap: Record<string, string>;
+}
+
+export interface ProfileStatsView {
+  totalPlayed: number;
+  totalWon: number;
+  winRate: number;
+  totalNet: number;
+  bestSingleWin: number;
+  byGame: Array<{
+    gameId: string;
+    played: number;
+    won: number;
+    netProfit: number;
+    bestWin: number;
+  }>;
+  recentMatches: Array<{
+    settlementId: string;
+    gameId: string;
+    round: number;
+    delta: number;
+    finishedAt: number;
+    won: boolean;
+  }>;
+}
+
+export interface PlayerCardView {
+  userId: string;
+  nickname: string;
+  bio: string;
+  avatar: string | null;
+  equippedFrame: string;
+  level: number;
+  worshipCount: number;
+  balance: number;
+  rank: number | null;
+  played: number;
+  won: number;
+  winRate: number;
+  bestWin: number;
+  isFriend: boolean;
+  isSelf: boolean;
 }

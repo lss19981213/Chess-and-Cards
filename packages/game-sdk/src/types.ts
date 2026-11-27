@@ -20,6 +20,8 @@ export interface RoomConfig {
   round: number;
   /** 每局随机种子，写入战报，支持回放与公平性验证 */
   seed: string;
+  /** 底注场次倍率（默认为 1） */
+  stakeMultiplier?: number;
 }
 
 export interface GameIntent {

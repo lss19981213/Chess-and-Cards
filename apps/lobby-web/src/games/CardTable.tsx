@@ -2,10 +2,45 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { SeatPanel, TableStage } from '../components/TableStage';
 import { TableEffects, type EffectTrigger } from '../components/TableEffects';
 import { audio } from '../audio';
-import { cardArt, cardBackArt, cardLabel, comboLabel, isRedCard, type CardView } from './cards';
+import { cardArt, cardBackArt, cardLabel, comboLabel, findSuggestedCardCombos, isRedCard, rankLabel, type CardView } from './cards';
 
 /** 单张牌最小可视露出宽度（重叠后仍清晰露出左上角大号点数与花色） */
 const MIN_STEP = 28;
+
+/** 斗地主/跑得快记牌器各点数总张数模板 */
+const DDZ_DECK_COUNTS: ReadonlyArray<[number, number]> = [
+  [17, 1],
+  [16, 1],
+  [15, 4],
+  [14, 4],
+  [13, 4],
+  [12, 4],
+  [11, 4],
+  [10, 4],
+  [9, 4],
+  [8, 4],
+  [7, 4],
+  [6, 4],
+  [5, 4],
+  [4, 4],
+  [3, 4],
+];
+
+const PDK_DECK_COUNTS: ReadonlyArray<[number, number]> = [
+  [15, 1],
+  [14, 3],
+  [13, 4],
+  [12, 4],
+  [11, 4],
+  [10, 4],
+  [9, 4],
+  [8, 4],
+  [7, 4],
+  [6, 4],
+  [5, 4],
+  [4, 4],
+  [3, 4],
+];
 
 interface HandCount {
   playerId: string;
@@ -14,6 +49,8 @@ interface HandCount {
   count: number;
   isLandlord?: boolean;
   isBot?: boolean;
+  bid?: number | null;
+  doubled?: boolean;
 }
 
 interface LastCombo {
@@ -24,9 +61,14 @@ interface LastCombo {
 }
 
 interface HandSnapshot {
+  phase?: 'bidding' | 'doubling' | 'playing' | 'settled';
   turn: string | null;
   myHand: CardView[];
   landlordId?: string | null;
+  bottomCards?: CardView[];
+  highestBid?: number;
+  multiplier?: number;
+  playedCards?: CardView[];
   handCounts: HandCount[];
   lastCombo: LastCombo | null;
   lastPlayerId: string | null;
@@ -42,6 +84,8 @@ interface Props {
   playerMedia?: Record<string, { avatar?: string | null; equippedFrame?: string }>;
   onPlay: (cards: string[]) => void;
   onPass: () => void;
+  onBid?: (score: 0 | 1 | 2 | 3) => void;
+  onDouble?: (factor: 1 | 2) => void;
 }
 
 function CardBacks({ count }: { count: number }) {
@@ -63,9 +107,23 @@ function CardBacks({ count }: { count: number }) {
   );
 }
 
-export function CardTable({ variant, snapshot, myId, status, round, playerMedia, onPlay, onPass }: Props) {
+export function CardTable({
+  variant,
+  snapshot,
+  myId,
+  status,
+  round,
+  playerMedia,
+  onPlay,
+  onPass,
+  onBid,
+  onDouble,
+}: Props) {
   const data = snapshot as unknown as HandSnapshot | undefined;
   const [selected, setSelected] = useState<string[]>([]);
+  const [sortMode, setSortMode] = useState<'rank' | 'bomb'>('rank');
+  const [counterOpen, setCounterOpen] = useState(false);
+  const [hintIdx, setHintIdx] = useState(0);
   const [fxTrigger, setFxTrigger] = useState<EffectTrigger | null>(null);
   const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
     null,
@@ -106,8 +164,39 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
 
   const hand = useMemo(() => {
     const cards = data?.myHand ?? [];
+    if (sortMode === 'bomb') {
+      const rankCount = new Map<number, number>();
+      for (const c of cards) rankCount.set(c.rank, (rankCount.get(c.rank) ?? 0) + 1);
+      const hasRocket = (rankCount.get(16) ?? 0) > 0 && (rankCount.get(17) ?? 0) > 0;
+      return [...cards].sort((a, b) => {
+        const aBomb = (rankCount.get(a.rank) ?? 0) === 4 || (hasRocket && a.rank >= 16) ? 1 : 0;
+        const bBomb = (rankCount.get(b.rank) ?? 0) === 4 || (hasRocket && b.rank >= 16) ? 1 : 0;
+        if (aBomb !== bBomb) return bBomb - aBomb;
+        const aCnt = rankCount.get(a.rank) ?? 0;
+        const bCnt = rankCount.get(b.rank) ?? 0;
+        if (aCnt !== bCnt) return bCnt - aCnt;
+        return b.rank - a.rank || (a.suit ?? '').localeCompare(b.suit ?? '');
+      });
+    }
     return [...cards].sort((a, b) => b.rank - a.rank || (a.suit ?? '').localeCompare(b.suit ?? ''));
-  }, [data?.myHand]);
+  }, [data?.myHand, sortMode]);
+
+  // 记牌器：统计除自己手牌与已打出的牌外，场外还剩多少张对应点数
+  const remainingRankCounts = useMemo(() => {
+    const seen = new Map<number, number>();
+    for (const c of data?.myHand ?? []) seen.set(c.rank, (seen.get(c.rank) ?? 0) + 1);
+    for (const c of data?.playedCards ?? []) seen.set(c.rank, (seen.get(c.rank) ?? 0) + 1);
+    const tpl = variant === 'doudizhu' ? DDZ_DECK_COUNTS : PDK_DECK_COUNTS;
+    return tpl.map(([rank, total]) => ({
+      rank,
+      label: rankLabel(rank),
+      left: Math.max(0, total - (seen.get(rank) ?? 0)),
+    }));
+  }, [data?.myHand, data?.playedCards, variant]);
+
+  useEffect(() => {
+    setHintIdx(0);
+  }, [data?.turn, data?.lastPlayerId, hand.length]);
 
   useEffect(() => {
     setSelected((prev) => prev.filter((id) => hand.some((card) => card.id === id)));
@@ -174,8 +263,9 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
     return <div className="board-placeholder">正在发牌…</div>;
   }
 
-  const isMyTurn = data.turn === myId && status === 'playing';
-  const canPass = Boolean(data.lastCombo) && data.lastPlayerId !== myId;
+  const phase = data.phase ?? 'playing';
+  const isMyTurn = data.turn === myId && status === 'playing' && phase !== 'settled';
+  const canPass = phase === 'playing' && Boolean(data.lastCombo) && data.lastPlayerId !== myId;
   const others = data.handCounts.filter((player) => player.playerId !== myId);
   const lastPlayer = data.handCounts.find((player) => player.playerId === data.lastPlayerId);
 
@@ -254,50 +344,18 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
   };
 
   const handleSmartHint = () => {
-    audio.play('click');
-    if (!data.lastCombo || data.lastPlayerId === myId) {
-      if (hand.length > 0) {
-        setSelected([hand[hand.length - 1]!.id]);
-      }
+    const prevCombo =
+      data.lastCombo && data.lastPlayerId !== myId ? data.lastCombo : null;
+    const combos = findSuggestedCardCombos(hand, prevCombo, variant);
+    if (combos.length === 0) {
+      audio.play('poker_fold');
+      showBanner('fold', '要不起，建议点「不出」', undefined, 1100);
       return;
     }
-
-    const targetRank = data.lastCombo.main;
-    const byRank = new Map<number, CardView[]>();
-    for (const c of [...hand].reverse()) {
-      const arr = byRank.get(c.rank) ?? [];
-      arr.push(c);
-      byRank.set(c.rank, arr);
-    }
-
-    const needCount =
-      data.lastCombo.kind === 'pair'
-        ? 2
-        : data.lastCombo.kind === 'triple'
-          ? 3
-          : data.lastCombo.kind === 'bomb'
-            ? 4
-            : 1;
-
-    for (const [rank, group] of byRank.entries()) {
-      if (rank > targetRank && group.length >= needCount) {
-        setSelected(group.slice(0, needCount).map((c) => c.id));
-        return;
-      }
-    }
-
-    // 压不过普通牌型时尝试找炸弹
-    if (data.lastCombo.kind !== 'bomb' && data.lastCombo.kind !== 'rocket') {
-      for (const [, group] of byRank.entries()) {
-        if (group.length === 4) {
-          setSelected(group.map((c) => c.id));
-          return;
-        }
-      }
-    }
-
-    audio.play('poker_fold');
-    showBanner('fold', '要不起，建议点「不出」', undefined, 1100);
+    audio.play('click');
+    const pick = combos[hintIdx % combos.length]!;
+    setSelected(pick);
+    setHintIdx((prev) => prev + 1);
   };
 
   return (
@@ -341,7 +399,21 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
           ),
         }))}
         center={
-          data.lastCombo ? (
+          phase === 'bidding' || phase === 'doubling' ? (
+            <div className={`center-hint-box ${isMyTurn ? 'is-my-turn' : ''}`}>
+              <span className="turn-sparkle">✦</span>
+              <span>
+                {phase === 'bidding'
+                  ? isMyTurn
+                    ? `请叫分抢地主（当前最高 ${data.highestBid ?? 0} 分）`
+                    : '正在叫分抢地主…'
+                  : isMyTurn
+                    ? '是否选择加倍？（×2 收益翻倍）'
+                    : '正在等待加倍选择…'}
+              </span>
+              <span className="turn-sparkle">✦</span>
+            </div>
+          ) : data.lastCombo ? (
             <div className="center-play center-play--pro">
               <div className="center-play__label">
                 <span className="last-player-name">{lastPlayer?.nickname ?? '上家'}</span>
@@ -369,6 +441,63 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
         }
         bottom={
           <div className="hand-super-area hand-super-area--pro">
+            {/* 斗牌工具栏：底牌、倍率、理牌模式、记牌器 */}
+            <div className="card-table-toolbar">
+              {variant === 'doudizhu' && (
+                <div className="ddz-bottom-cards" title="三张地主底牌">
+                  <span className="ddz-meta-lbl">底牌:</span>
+                  {(data.bottomCards && data.bottomCards.length > 0
+                    ? data.bottomCards
+                    : [0, 1, 2]
+                  ).map((item, idx) =>
+                    typeof item === 'number' ? (
+                      <span key={`back-${idx}`} className="ddz-mini-card is-back">
+                        <img src={cardBackArt()} alt="底牌" draggable={false} />
+                      </span>
+                    ) : (
+                      <span key={item.id} className="ddz-mini-card">
+                        <img src={cardArt(item.id)} alt={cardLabel(item)} draggable={false} />
+                      </span>
+                    ),
+                  )}
+                  <span className="ddz-mult-badge">×{data.multiplier ?? 1} 倍</span>
+                </div>
+              )}
+              <div className="card-toolbar-btns">
+                <button
+                  type="button"
+                  className={`btn-card-tool ${sortMode === 'bomb' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    audio.play('click');
+                    setSortMode((m) => (m === 'rank' ? 'bomb' : 'rank'));
+                  }}
+                >
+                  {sortMode === 'rank' ? '🔀 炸弹优先' : '🔀 按点数'}
+                </button>
+                <button
+                  type="button"
+                  className={`btn-card-tool ${counterOpen ? 'is-active' : ''}`}
+                  onClick={() => {
+                    audio.play('click');
+                    setCounterOpen((v) => !v);
+                  }}
+                >
+                  📊 记牌器 {counterOpen ? '▲' : '▼'}
+                </button>
+              </div>
+            </div>
+
+            {counterOpen && (
+              <div className="card-counter-bar" aria-label="剩余牌统计">
+                {remainingRankCounts.map((entry) => (
+                  <div key={entry.rank} className={`counter-cell ${entry.left === 0 ? 'is-empty' : ''}`}>
+                    <span className="counter-rank">{entry.label}</span>
+                    <strong className="counter-left">{entry.left}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* 玩家大号高清手牌展台 */}
             <div
               className="hand-cards-rack hand-cards-rack--pro"
@@ -396,7 +525,7 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
                       isSelected ? 'is-selected' : ''
                     }`}
                     onDoubleClick={() => handleDoubleClick(card.rank)}
-                    disabled={!isMyTurn}
+                    disabled={!isMyTurn || phase !== 'playing'}
                     title={`${cardLabel(card)}（拖动滑选 / 双击选中同点数）`}
                   >
                     <img src={cardArt(card.id)} alt={cardLabel(card)} draggable={false} />
@@ -406,8 +535,64 @@ export function CardTable({ variant, snapshot, myId, status, round, playerMedia,
               {hand.length === 0 && <span className="hand-finished-tag">🎉 手牌已全部出完！</span>}
             </div>
 
+            {/* 斗地主叫分抢地主控制台 */}
+            {isMyTurn && phase === 'bidding' && onBid && (
+              <div className="hand-action-dock-center hand-action-dock-center--pro ddz-bid-dock">
+                <button
+                  type="button"
+                  className="action-btn texas-btn-fold"
+                  onClick={() => {
+                    audio.play('poker_check');
+                    onBid(0);
+                  }}
+                >
+                  不叫
+                </button>
+                {([1, 2, 3] as const).map((score) => (
+                  <button
+                    key={score}
+                    type="button"
+                    className="action-btn texas-btn-raise"
+                    disabled={(data.highestBid ?? 0) >= score}
+                    onClick={() => {
+                      audio.play('poker_raise');
+                      onBid(score);
+                    }}
+                  >
+                    {score} 分
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* 斗地主加倍控制台 */}
+            {isMyTurn && phase === 'doubling' && onDouble && (
+              <div className="hand-action-dock-center hand-action-dock-center--pro ddz-bid-dock">
+                <button
+                  type="button"
+                  className="action-btn texas-btn-fold"
+                  onClick={() => {
+                    audio.play('poker_check');
+                    onDouble(1);
+                  }}
+                >
+                  不加倍
+                </button>
+                <button
+                  type="button"
+                  className="action-btn texas-btn-allin"
+                  onClick={() => {
+                    audio.play('poker_allin');
+                    onDouble(2);
+                  }}
+                >
+                  🔥 加倍 ×2
+                </button>
+              </div>
+            )}
+
             {/* 黄金操作控制台 */}
-            {isMyTurn && (
+            {isMyTurn && phase === 'playing' && (
               <div className="hand-action-dock-center hand-action-dock-center--pro">
                 {canPass && (
                   <button type="button" className="action-btn texas-btn-fold" onClick={handlePassTurn}>

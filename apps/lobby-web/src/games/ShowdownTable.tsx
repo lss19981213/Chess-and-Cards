@@ -68,6 +68,7 @@ interface Props {
   balance: number;
   playerMedia?: Record<string, { avatar?: string | null; equippedFrame?: string }>;
   onAction: (cmd: string, amount?: number) => void;
+  onCompare?: (targetId?: string) => void;
 }
 
 const STUD_STREETS: ReadonlyArray<{ step: number; label: string }> = [
@@ -77,9 +78,10 @@ const STUD_STREETS: ReadonlyArray<{ step: number; label: string }> = [
   { step: 4, label: '第4轮 · 5张决战' },
 ];
 
-export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, onAction }: Props) {
+export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, onAction, onCompare }: Props) {
   const data = snapshot as unknown as ShowdownSnapshot | undefined;
   const [raiseAdd, setRaiseAdd] = useState(100);
+  const [pkPickerOpen, setPkPickerOpen] = useState(false);
   const [centerBanner, setCenterBanner] = useState<{ id: number; kind: string; text: string; sub?: string } | null>(
     null,
   );
@@ -213,6 +215,16 @@ export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, on
   const canRaiseNow = isMyTurn && maxAllowedRaise >= raiseUnit && need <= balance;
   const allInAmount = Math.min(balance, data.maxRaiseAdd ?? 100_000_000);
   const canAllIn = isMyTurn && allInAmount > 0;
+  const aliveOthers = data.players.filter((p) => p.playerId !== myId && !p.folded);
+  const pkCost = Math.max(data.toCall, data.currentBet * mult);
+  const canCompare = canLookMode && !isStud && isMyTurn && aliveOthers.length > 0 && pkCost <= balance && Boolean(onCompare);
+
+  const fireCompare = (targetId: string) => {
+    setPkPickerOpen(false);
+    localCmdRef.current = { cmd: 'compare', at: Date.now() };
+    audio.play('poker_allin');
+    onCompare?.(targetId);
+  };
 
   const fireCmd = (cmd: string, amount?: number) => {
     localCmdRef.current = { cmd, at: Date.now() };
@@ -347,6 +359,16 @@ export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, on
                   <span className={`texas-action-pill is-${player.actionTag.type === 'look' ? 'check' : player.actionTag.type}`}>
                     {player.actionTag.label}
                   </span>
+                )}
+                {canCompare && player.playerId !== myId && !player.folded && (
+                  <button
+                    type="button"
+                    className="btn-showdown-pk-mini"
+                    onClick={() => fireCompare(player.playerId)}
+                    title={`花费 ${pkCost.toLocaleString()} 豆与 ${player.nickname} 比牌`}
+                  >
+                    ⚔️ 比牌
+                  </button>
                 )}
               </div>
             </div>
@@ -512,6 +534,40 @@ export function ShowdownTable({ snapshot, myId, status, balance, playerMedia, on
                 加注 +{clampedRaise.toLocaleString()}
               </button>
             </div>
+
+            {canLookMode && !isStud && onCompare && (
+              <div className="showdown-pk-wrap">
+                <button
+                  type="button"
+                  className="action-btn showdown-btn-pk"
+                  disabled={!canCompare}
+                  onClick={() => {
+                    if (aliveOthers.length === 1) {
+                      fireCompare(aliveOthers[0]!.playerId);
+                    } else {
+                      audio.play('click');
+                      setPkPickerOpen((v) => !v);
+                    }
+                  }}
+                >
+                  ⚔️ 比牌 PK ({pkCost.toLocaleString()})
+                </button>
+                {pkPickerOpen && aliveOthers.length > 1 && (
+                  <div className="showdown-pk-picker">
+                    {aliveOthers.map((opp) => (
+                      <button
+                        key={opp.playerId}
+                        type="button"
+                        className="btn-pk-target"
+                        onClick={() => fireCompare(opp.playerId)}
+                      >
+                        PK {opp.nickname}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               type="button"

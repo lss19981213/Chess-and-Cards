@@ -1432,12 +1432,16 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     return true;
   }
 
+  private baseWin(ctx: RoomContext): number {
+    return this.variant.baseWin * (ctx.config.stakeMultiplier ?? 1);
+  }
+
   /** 补杠无人抢杠后完成补牌动作 */
   private finishUpgradeKongDraw(ctx: RoomContext, playerId: string, upgradedTile: MahjongTileData): void {
     const hand = this.state.hands.get(playerId) ?? [];
     const dq = this.state.dingque.get(playerId);
     const otherIds = ctx.players.map((p) => p.playerId).filter((id) => id !== playerId);
-    this.addGangBonus(ctx, playerId, otherIds, Math.round(this.variant.baseWin * 0.5));
+    this.addGangBonus(ctx, playerId, otherIds, Math.round(this.baseWin(ctx) * 0.5));
     if (this.state.wall.length === 0) {
       this.state.hands.set(playerId, sortHand(hand, dq, this.variant.wildCard));
       this.finishWallExhausted(ctx);
@@ -1586,7 +1590,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       this.state.melds.set(playerId, melds);
       this.state.lastDiscard = null;
       this.state.turn = playerId;
-      this.addGangBonus(ctx, playerId, [discarderId], this.variant.baseWin);
+      this.addGangBonus(ctx, playerId, [discarderId], this.baseWin(ctx));
 
       if (this.state.wall.length === 0) {
         this.state.hands.set(playerId, sortHand(kept, dq, this.variant.wildCard));
@@ -1788,7 +1792,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
           const melds = this.state.melds.get(playerId) ?? [];
           melds.push({ type: 'kong', concealed: true, tiles: quad });
           this.state.melds.set(playerId, melds);
-          this.addGangBonus(ctx, playerId, otherIds, this.variant.baseWin);
+          this.addGangBonus(ctx, playerId, otherIds, this.baseWin(ctx));
 
           if (this.state.wall.length === 0) {
             this.state.hands.set(playerId, sortHand(kept, dq, this.variant.wildCard));
@@ -1906,7 +1910,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       if (!this.state.winners.includes(winnerId)) this.state.winners.push(winnerId);
 
       const expMult = Math.min(64, Math.pow(2, Math.max(0, evalRes.fan - 1)));
-      const unitScore = Math.round(this.variant.baseWin * expMult * this.variant.fanBoost);
+      const unitScore = Math.round(this.baseWin(ctx) * expMult * this.variant.fanBoost);
 
       const activePayers = ctx.players
         .map((p) => p.playerId)
@@ -1988,8 +1992,9 @@ class VariantMahjongPlugin extends BaseGamePlugin {
 
     if (this.variant.guobiaoScoring) {
       // 国标计分：8 底分 + 番数（每分 = baseWin 筹码），自摸三家全付，点和放炮包番 + 三家各出底分
-      const basePts = 8 * this.variant.baseWin;
-      const fanPts = evalRes.fan * this.variant.baseWin;
+      const bw = this.baseWin(ctx);
+      const basePts = 8 * bw;
+      const fanPts = evalRes.fan * bw;
       if (isSelfDraw) {
         const perLoser = basePts + fanPts;
         for (const p of ctx.players) {
@@ -2010,7 +2015,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     } else {
       const selfDrawMult = isSelfDraw ? 2 : 1;
       const unitWin = Math.round(
-        this.variant.baseWin * evalRes.fan * this.variant.fanBoost * selfDrawMult * (1 + birdHit),
+        this.baseWin(ctx) * evalRes.fan * this.variant.fanBoost * selfDrawMult * (1 + birdHit),
       );
       if (isSelfDraw || !discarderId) {
         const losers = ctx.players.filter((p) => p.playerId !== winnerId);
@@ -2099,7 +2104,8 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       }
 
       // 查花猪赔付
-      const huazhuPenalty = this.variant.baseWin * 8;
+      const bw = this.baseWin(ctx);
+      const huazhuPenalty = bw * 8;
       for (const hzId of huazhuIds) {
         for (const p of ctx.players) {
           if (p.playerId === hzId || huazhuIds.has(p.playerId)) continue;
@@ -2116,7 +2122,7 @@ class VariantMahjongPlugin extends BaseGamePlugin {
           for (const other of remaining) {
             const otherFan = tenpaiFan.get(other.playerId) ?? 0;
             if (otherFan > 0) {
-              const pay = Math.round(this.variant.baseWin * Math.pow(2, Math.min(4, otherFan - 1)));
+              const pay = Math.round(bw * Math.pow(2, Math.min(4, otherFan - 1)));
               this.state.runningDelta.set(p.playerId, (this.state.runningDelta.get(p.playerId) ?? 0) - pay);
               this.state.runningDelta.set(other.playerId, (this.state.runningDelta.get(other.playerId) ?? 0) + pay);
             }
@@ -2197,7 +2203,13 @@ class VariantMahjongPlugin extends BaseGamePlugin {
     playerId: string,
     _difficulty: BotDifficulty = 'high',
   ): GameIntent | null {
-    if (this.state.settled || this.state.phase !== 'playing') return null;
+    if (this.state.settled) return null;
+    if (this.state.phase === 'dingque') {
+      if (this.state.dingque.has(playerId)) return null;
+      const hand = this.state.hands.get(playerId) ?? [];
+      return { cmd: 'dingque', payload: { suit: recommendDingqueSuit(hand) } };
+    }
+    if (this.state.phase !== 'playing') return null;
     if (this.state.huDone.has(playerId)) return null;
 
     const hand = this.state.hands.get(playerId) ?? [];
@@ -2366,7 +2378,8 @@ class VariantMahjongPlugin extends BaseGamePlugin {
       variantId: this.meta.gameId,
       variantName: this.meta.name,
       bonusLabel: this.variant.bonusLabel,
-      baseWin: this.variant.baseWin,
+      baseWin: this.baseWin(ctx),
+      stakeMultiplier: ctx.config.stakeMultiplier ?? 1,
       includeHonors: this.variant.includeHonors,
       wildCard: this.variant.wildCard ?? null,
       zimoOnly: Boolean(this.variant.zimoOnly),
@@ -2420,7 +2433,12 @@ class VariantMahjongPlugin extends BaseGamePlugin {
   }
 
   override getCurrentActor(ctx?: RoomContext): string | null {
-    if (this.state.settled || this.state.phase !== 'playing') return null;
+    if (this.state.settled) return null;
+    if (this.state.phase === 'dingque' && ctx) {
+      const pendingPlayer = ctx.players.find((p) => !this.state.dingque.has(p.playerId));
+      return pendingPlayer?.playerId ?? null;
+    }
+    if (this.state.phase !== 'playing') return null;
     if (this.state.pendingClaim) {
       const pending = this.state.pendingClaim;
       const undecided: string[] = [];

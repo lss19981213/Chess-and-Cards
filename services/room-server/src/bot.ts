@@ -1,3 +1,4 @@
+import { EMOTES } from '@cc/protocol';
 import { config } from './config';
 import type { GameRoom } from './room';
 
@@ -31,17 +32,29 @@ export const BOT_NAMES: readonly string[] = [
 ];
 
 /**
- * 驱动机器人行动：按难度模拟人类思索节奏，随后调用本地插件 `botIntent`。
+ * 驱动机器人行动：按难度模拟人类思索节奏（含人性化随机停顿与偶发喊话），随后调用本地插件 `botIntent`。
  * 返回 true 表示已成功提交合法动作。
  */
 export async function driveBot(room: GameRoom, botId: string): Promise<boolean> {
   const diff = room.botDifficultyOf(botId);
-  const scale = diff === 'low' ? 0.7 : diff === 'high' ? 1.15 : 1.0;
-  const think = Math.round(config.bot.thinkMs * scale) + Math.floor(Math.random() * 420);
+  const scale = diff === 'low' ? 0.85 : diff === 'high' ? 1.25 : 1.05;
+  const baseThink = Math.max(700, config.bot.thinkMs);
+  const think = Math.round(baseThink * scale) + Math.floor(Math.random() * 850);
   await new Promise((resolve) => setTimeout(resolve, think));
 
   // 思考期间局面可能已经变化
   if (room.currentActor() !== botId) return false;
 
-  return room.actAsBot(botId);
+  const ok = await room.actAsBot(botId);
+  if (ok && Math.random() < 0.08) {
+    const emote = EMOTES[Math.floor(Math.random() * EMOTES.length)];
+    if (emote) {
+      try {
+        room.sendEmote(botId, emote.key, emote.text);
+      } catch {
+        /* 限频时忽略 */
+      }
+    }
+  }
+  return ok;
 }

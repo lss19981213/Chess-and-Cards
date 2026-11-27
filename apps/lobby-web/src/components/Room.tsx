@@ -1,8 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  BOT_DIFFICULTY_LABEL,
   DEALER_VOICES,
   EMOTES,
+  stakesTierOf,
+  type BotDifficulty,
   type EmotePayload,
+  type RoomChatPayload,
   type RoomView,
   type Settlement,
 } from '@cc/protocol';
@@ -15,6 +19,7 @@ import { GAME_ART, gameTitleOf } from '../game-registry';
 import { AvatarWithFrame } from './AvatarWithFrame';
 import { Chip } from './Chip';
 import { InviteFriendsModal } from './InviteFriendsModal';
+import { PlayerCardModal } from './PlayerCardModal';
 import { RulesModal } from './RulesModal';
 import { SettleBubble, type ResultRow } from './SettleBubble';
 import { SettlementFx } from './SettlementFx';
@@ -54,7 +59,12 @@ interface Props {
   onReady: (ready: boolean) => void;
   onLeave: () => void;
   onIntent: (cmd: string, payload: Record<string, unknown>) => void;
-  onAddBot: () => void;
+  onAddBot: (difficulty?: BotDifficulty) => void;
+  botDifficulty?: BotDifficulty;
+  onChangeBotDifficulty?: (difficulty: BotDifficulty) => void;
+  onToggleHost?: () => void;
+  chats?: RoomChatPayload[];
+  onSendChat?: (text: string) => void;
   onSitDown?: () => void;
   onStandUp?: () => void;
   emotes: EmotePayload[];
@@ -83,6 +93,11 @@ export function Room({
   onLeave,
   onIntent,
   onAddBot,
+  botDifficulty = 'high',
+  onChangeBotDifficulty,
+  onToggleHost,
+  chats = [],
+  onSendChat,
   onSitDown,
   onStandUp,
   emotes,
@@ -126,9 +141,41 @@ export function Room({
   const [rulesOpen, setRulesOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [emoteOpen, setEmoteOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatDraft, setChatDraft] = useState('');
+  const [unreadChat, setUnreadChat] = useState(0);
+  const [inspectPlayerId, setInspectPlayerId] = useState<string | null>(null);
   const [playersDrawerOpen, setPlayersDrawerOpen] = useState(false);
   const [cheerEffect, setCheerEffect] = useState(false);
   const [customDealerTip, setCustomDealerTip] = useState<string | null>(null);
+  const [turnRemainSec, setTurnRemainSec] = useState<number | null>(null);
+  const lastChatCountRef = useRef(0);
+
+  const isMeHosted = Boolean(room.hostedPlayerIds?.includes(myId));
+  const tierInfo = stakesTierOf(room.stakesTier);
+
+  // 回合超时倒计时实时刷新
+  useEffect(() => {
+    if (!room.turnDeadlineAt || room.status !== 'playing' || isPersistentGame) {
+      setTurnRemainSec(null);
+      return;
+    }
+    const update = () => {
+      const rem = Math.max(0, Math.ceil((room.turnDeadlineAt! - Date.now()) / 1000));
+      setTurnRemainSec(rem);
+    };
+    update();
+    const t = window.setInterval(update, 300);
+    return () => window.clearInterval(t);
+  }, [room.turnDeadlineAt, room.status, isPersistentGame]);
+
+  // 聊天未读提醒
+  useEffect(() => {
+    if (chats.length > lastChatCountRef.current) {
+      if (!chatOpen) setUnreadChat((c) => c + (chats.length - lastChatCountRef.current));
+    }
+    lastChatCountRef.current = chats.length;
+  }, [chats.length, chatOpen]);
 
   const dealerTip = useMemo(() => {
     if (customDealerTip) return customDealerTip;
@@ -207,6 +254,7 @@ export function Room({
             myId={myId}
             players={room.players}
             onPlace={(x, y) => dispatch('place', { x, y })}
+            onAction={(cmd, payload) => dispatch(cmd, payload ?? {})}
           />
         );
       case 'doudizhu':
@@ -221,6 +269,8 @@ export function Room({
             playerMedia={playerMedia}
             onPlay={(cards) => dispatch('play', { cards })}
             onPass={() => dispatch('pass')}
+            onBid={(score) => dispatch('bid', { score })}
+            onDouble={(factor) => dispatch('double', { factor })}
           />
         );
       case 'tuizhuanzi':
@@ -300,6 +350,7 @@ export function Room({
             balance={balance}
             playerMedia={playerMedia}
             onAction={(cmd, amount) => dispatch(cmd, amount === undefined ? {} : { amount })}
+            onCompare={(targetId) => dispatch('compare', targetId ? { targetId } : {})}
           />
         );
       case 'texas':
@@ -363,6 +414,9 @@ export function Room({
           <div className="room-info-pill">
             <strong>{gameTitleOf(room.gameId)}</strong>
             <span className="room-no">#{room.roomId.slice(0, 6)}</span>
+            {!isPersistentGame && (
+              <span className={`room-tier-tag is-${tierInfo.tier}`}>{tierInfo.label} {tierInfo.multiplier}x</span>
+            )}
             <span className={`room-status-dot is-${room.status}`} />
             <span className="room-status-label">{STATUS_TEXT[room.status] ?? room.status}</span>
           </div>
@@ -370,9 +424,27 @@ export function Room({
 
         <div className="room-topbar__center">
           <span className="round-badge">第 <strong>{room.round}</strong> 局</span>
+          {turnRemainSec !== null && room.turnActorId && (
+            <span className={`turn-countdown-pill ${turnRemainSec <= 5 ? 'is-urgent' : ''} ${room.turnActorId === myId ? 'is-mine' : ''}`}>
+              ⏱ {room.turnActorId === myId ? '轮到你' : '对方思考'} · {turnRemainSec}s
+            </span>
+          )}
         </div>
 
         <div className="room-topbar__right">
+          {!isPersistentGame && !isSpectator && room.status === 'playing' && onToggleHost && (
+            <button
+              type="button"
+              className={`room-host-toggle-btn ${isMeHosted ? 'is-hosted' : ''}`}
+              onClick={() => {
+                audio.play('click');
+                onToggleHost();
+              }}
+              title={isMeHosted ? '点击取消自动托管' : '临时离开时开启自动托管代打'}
+            >
+              {isMeHosted ? '🤖 取消托管' : '🤖 托管'}
+            </button>
+          )}
           <button
             type="button"
             className="room-players-btn"
@@ -441,6 +513,9 @@ export function Room({
       </header>
 
       {rulesOpen && <RulesModal gameId={room.gameId} onClose={() => setRulesOpen(false)} />}
+      {inspectPlayerId && (
+        <PlayerCardModal userId={inspectPlayerId} onClose={() => setInspectPlayerId(null)} />
+      )}
       {inviteOpen && (
         <InviteFriendsModal
           roomId={room.roomId}
@@ -602,8 +677,14 @@ export function Room({
                 <div className="waiting-players-row">
                   {room.players.map((p) => {
                     const media = playerMedia[p.playerId];
+                    const canInspect = !p.isBot && !p.playerId.startsWith('bot:') && !p.playerId.startsWith('ambient:');
                     return (
-                      <div key={p.playerId} className={`waiting-player-avatar ${p.ready ? 'is-ready' : ''}`}>
+                      <div
+                        key={p.playerId}
+                        className={`waiting-player-avatar ${p.ready ? 'is-ready' : ''} ${canInspect ? 'is-clickable' : ''}`}
+                        onClick={() => canInspect && setInspectPlayerId(p.playerId)}
+                        title={canInspect ? '点击查看玩家名片 / 加好友' : undefined}
+                      >
                         <div className="avatar-disc avatar-disc--framed">
                           <AvatarWithFrame
                             nickname={p.nickname}
@@ -615,8 +696,8 @@ export function Room({
                         </div>
                         <span className="avatar-name">{p.nickname}</span>
                         {p.isBot && (
-                          <em className="waiting-bot-badge is-high">
-                            大师AI
+                          <em className={`waiting-bot-badge is-${p.botDifficulty ?? 'high'}`}>
+                            {BOT_DIFFICULTY_LABEL[p.botDifficulty ?? 'high']}AI
                           </em>
                         )}
                       </div>
@@ -675,26 +756,74 @@ export function Room({
                   </button>
 
                   {(isHost || room.maxPlayers > 2) && room.players.length < room.maxPlayers && (
-                    <button
-                      type="button"
-                      className="btn-bot-quick"
-                      onClick={() => {
-                        audio.play('click');
-                        onAddBot();
-                      }}
-                      title="加入1名大师级机器人"
-                    >
-                      🤖 +1陪玩
-                    </button>
+                    <>
+                      {onChangeBotDifficulty && (
+                        <div className="waiting-bot-diff-switch" title="选择陪玩机器人智能程度">
+                          {(['low', 'medium', 'high'] as const).map((d) => (
+                            <button
+                              key={d}
+                              type="button"
+                              className={`waiting-diff-btn ${botDifficulty === d ? 'is-active' : ''}`}
+                              onClick={() => onChangeBotDifficulty(d)}
+                            >
+                              {BOT_DIFFICULTY_LABEL[d]}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-bot-quick"
+                        onClick={() => {
+                          audio.play('click');
+                          onAddBot(botDifficulty);
+                        }}
+                        title={`加入1名${BOT_DIFFICULTY_LABEL[botDifficulty]}机器人`}
+                      >
+                        🤖 +1{BOT_DIFFICULTY_LABEL[botDifficulty]}AI
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* 局内快捷表情按钮与抽屉 */}
-          {room.status === 'playing' && (
-            <div className="table-emote-trigger-container">
+          {/* 托管中提示条 */}
+          {isMeHosted && room.status === 'playing' && !isPersistentGame && (
+            <div className="room-hosting-banner" role="status">
+              <span>🤖 当前处于系统智能托管代打中</span>
+              {onToggleHost && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    audio.play('click');
+                    onToggleHost();
+                  }}
+                >
+                  立即恢复手动出牌
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 局内快捷表情与房间文字聊天抽屉 */}
+          <div className="table-emote-trigger-container">
+            {onSendChat && (
+              <button
+                type="button"
+                className={`emote-trigger-btn chat-trigger-btn ${chatOpen ? 'is-open' : ''}`}
+                onClick={() => {
+                  setChatOpen(!chatOpen);
+                  setUnreadChat(0);
+                }}
+                title="牌桌文字聊天"
+              >
+                💭
+                {unreadChat > 0 && <span className="chat-unread-badge">{unreadChat > 9 ? '9+' : unreadChat}</span>}
+              </button>
+            )}
+            {room.status === 'playing' && (
               <button
                 type="button"
                 className={`emote-trigger-btn ${emoteOpen ? 'is-open' : ''}`}
@@ -703,29 +832,75 @@ export function Room({
               >
                 💬
               </button>
-              {emoteOpen && (
-                <div className="floating-emote-bar">
-                  {EMOTES.map((emote) => (
-                    <button
-                      key={emote.key}
-                      type="button"
-                      className="emote-pill"
-                      onClick={() => {
-                        audio.play('click');
-                        onEmote(emote.key);
-                        setEmoteOpen(false);
-                      }}
-                    >
-                      {emote.text}
-                    </button>
-                  ))}
+            )}
+
+            {emoteOpen && room.status === 'playing' && (
+              <div className="floating-emote-bar">
+                {EMOTES.map((emote) => (
+                  <button
+                    key={emote.key}
+                    type="button"
+                    className="emote-pill"
+                    onClick={() => {
+                      audio.play('click');
+                      onEmote(emote.key);
+                      setEmoteOpen(false);
+                    }}
+                  >
+                    {emote.text}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {chatOpen && onSendChat && (
+              <div className="room-chat-drawer" role="dialog" aria-label="牌桌聊天">
+                <div className="room-chat-drawer__head">
+                  <strong>牌桌茶水间</strong>
+                  <button type="button" onClick={() => setChatOpen(false)}>✕</button>
                 </div>
-              )}
-            </div>
-          )}
+                <div className="room-chat-drawer__list">
+                  {chats.length === 0 ? (
+                    <div className="room-chat-empty">还没有发言，打个招呼吧~</div>
+                  ) : (
+                    chats.map((msg, i) => (
+                      <div key={`${msg.at}-${i}`} className={`room-chat-item ${msg.playerId === myId ? 'is-mine' : ''}`}>
+                        <strong
+                          onClick={() => msg.playerId !== myId && setInspectPlayerId(msg.playerId)}
+                          title={msg.playerId !== myId ? '点击查看玩家名片' : undefined}
+                        >
+                          {msg.nickname}：
+                        </strong>
+                        <span>{msg.text}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <form
+                  className="room-chat-drawer__form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const text = chatDraft.trim();
+                    if (!text) return;
+                    onSendChat(text);
+                    setChatDraft('');
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={chatDraft}
+                    maxLength={80}
+                    placeholder="发送消息给同桌牌友…"
+                    onChange={(e) => setChatDraft(e.target.value)}
+                  />
+                  <button type="submit">发送</button>
+                </form>
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* 侧滑玩家抽屉（可折叠） */}
+        {/* 侧滑玩家抽屉（可折叠，点击玩家可查看名片加好友） */}
         {playersDrawerOpen && (
           <aside className="room-players-drawer">
             <div className="drawer-header">
@@ -737,8 +912,14 @@ export function Room({
             <ul className="drawer-player-list">
               {room.players.map((p) => {
                 const media = playerMedia[p.playerId];
+                const canInspect = !p.isBot && !p.playerId.startsWith('bot:') && !p.playerId.startsWith('ambient:');
                 return (
-                  <li key={p.playerId} className={`drawer-player-item ${p.playerId === myId ? 'is-me' : ''}`}>
+                  <li
+                    key={p.playerId}
+                    className={`drawer-player-item ${p.playerId === myId ? 'is-me' : ''} ${canInspect ? 'is-clickable' : ''}`}
+                    onClick={() => canInspect && setInspectPlayerId(p.playerId)}
+                    title={canInspect ? '点击查看名片 / 加好友' : undefined}
+                  >
                     <AvatarWithFrame
                       nickname={p.nickname}
                       avatar={media?.avatar}
@@ -750,8 +931,8 @@ export function Room({
                         {p.nickname}
                         {p.playerId === room.hostId && <em className="tag-host">房主</em>}
                         {p.isBot && (
-                          <em className="tag-bot tag-bot--high">
-                            大师AI
+                          <em className={`tag-bot tag-bot--${p.botDifficulty ?? 'high'}`}>
+                            {BOT_DIFFICULTY_LABEL[p.botDifficulty ?? 'high']}AI
                           </em>
                         )}
                       </span>

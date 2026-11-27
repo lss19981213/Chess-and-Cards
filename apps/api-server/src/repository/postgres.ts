@@ -26,7 +26,14 @@ import type {
   TaskProgressRow,
   UserRecord,
 } from './types';
-import { buyStock, getAdminStockOverview, getStockHoldings, listStockOrders, sellStock } from './pg/stocks';
+import {
+  buyStock,
+  getAdminStockOverview,
+  getStockHoldings,
+  listAllStockHolderSnapshots,
+  listStockOrders,
+  sellStock,
+} from './pg/stocks';
 import { getSlotsAnalytics, playSlotsSpin } from './pg/slots';
 import { getSetting, setSetting } from './pg/settings';
 import {
@@ -440,16 +447,32 @@ export class PostgresRepository implements Repository {
     return getStockHoldings(this.pool, userId);
   }
 
-  buyStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult> {
-    return buyStock(this.pool, userId, symbol, shares, currentPrice);
+  buyStock(
+    userId: string,
+    symbol: string,
+    shares: number,
+    currentPrice: number,
+    side: 'long' | 'short' = 'long',
+  ): Promise<StockTradeResult> {
+    return buyStock(this.pool, userId, symbol, shares, currentPrice, side);
   }
 
-  sellStock(userId: string, symbol: string, shares: number, currentPrice: number): Promise<StockTradeResult> {
-    return sellStock(this.pool, userId, symbol, shares, currentPrice);
+  sellStock(
+    userId: string,
+    symbol: string,
+    shares: number,
+    currentPrice: number,
+    side: 'long' | 'short' = 'long',
+  ): Promise<StockTradeResult> {
+    return sellStock(this.pool, userId, symbol, shares, currentPrice, side);
   }
 
   listStockOrders(userId: string, limit?: number): Promise<StockOrder[]> {
     return listStockOrders(this.pool, userId, limit);
+  }
+
+  listAllStockHolderSnapshots(): Promise<import('./types').StockHolderSnapshotRow[]> {
+    return listAllStockHolderSnapshots(this.pool);
   }
 
   getAdminStockOverview(): Promise<AdminStockOverviewData> {

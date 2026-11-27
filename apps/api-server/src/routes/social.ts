@@ -75,6 +75,124 @@ export function registerSocialRoutes(app: FastifyInstance, repo: Repository): ()
     };
   });
 
+  // 个人各游戏胜率、战绩概览与最近对局流水
+  app.get('/api/profile/stats', async (req) => {
+    const claims = authHeader(req);
+    const records = await repo.listRecords(claims.sub, 100);
+    const gameMap = new Map<
+      string,
+      { gameId: string; played: number; won: number; netProfit: number; bestWin: number }
+    >();
+    const recentMatches: Array<{
+      settlementId: string;
+      gameId: string;
+      round: number;
+      delta: number;
+      finishedAt: number;
+      won: boolean;
+    }> = [];
+
+    let totalPlayed = 0;
+    let totalWon = 0;
+    let totalNet = 0;
+    let bestSingleWin = 0;
+
+    for (const rec of records) {
+      const mine = rec.entries.find((e) => e.playerId === claims.sub);
+      const delta = mine?.delta ?? 0;
+      const won = delta > 0 || rec.winners.includes(claims.sub);
+      totalPlayed += 1;
+      if (won) totalWon += 1;
+      totalNet += delta;
+      if (delta > bestSingleWin) bestSingleWin = delta;
+
+      const cur = gameMap.get(rec.gameId) ?? {
+        gameId: rec.gameId,
+        played: 0,
+        won: 0,
+        netProfit: 0,
+        bestWin: 0,
+      };
+      cur.played += 1;
+      if (won) cur.won += 1;
+      cur.netProfit += delta;
+      if (delta > cur.bestWin) cur.bestWin = delta;
+      gameMap.set(rec.gameId, cur);
+
+      if (recentMatches.length < 25) {
+        recentMatches.push({
+          settlementId: rec.settlementId,
+          gameId: rec.gameId,
+          round: rec.round,
+          delta,
+          finishedAt: rec.finishedAt,
+          won,
+        });
+      }
+    }
+
+    return {
+      totalPlayed,
+      totalWon,
+      winRate: totalPlayed > 0 ? Number(((totalWon / totalPlayed) * 100).toFixed(1)) : 0,
+      totalNet,
+      bestSingleWin,
+      byGame: [...gameMap.values()].sort((a, b) => b.played - a.played),
+      recentMatches,
+    };
+  });
+
+  // 公开玩家名片（供牌桌内点击头像、排行榜点击查看战绩与一键加好友）
+  app.get('/api/users/:userId/card', async (req) => {
+    const targetId = String((req.params as { userId?: string }).userId ?? '');
+    if (!targetId) throw httpError('缺少用户 ID', 400);
+
+    let viewerId: string | null = null;
+    try {
+      viewerId = authHeader(req).sub;
+    } catch {
+      /* 允许未登录预览 */
+    }
+
+    const [profile, balance, rank, records, isFriend] = await Promise.all([
+      repo.getProfile(targetId),
+      repo.getBalance(targetId, 'coin'),
+      repo.leaderboardRank(targetId),
+      repo.listRecords(targetId, 60),
+      viewerId && viewerId !== targetId ? repo.areFriends(viewerId, targetId) : Promise.resolve(false),
+    ]);
+    if (!profile) throw httpError('该玩家不存在或为陪玩机器人', 404);
+
+    let played = 0;
+    let won = 0;
+    let bestWin = 0;
+    for (const r of records) {
+      const me = r.entries.find((e) => e.playerId === targetId);
+      const d = me?.delta ?? 0;
+      played += 1;
+      if (d > 0 || r.winners.includes(targetId)) won += 1;
+      if (d > bestWin) bestWin = d;
+    }
+
+    return {
+      userId: profile.userId,
+      nickname: profile.nickname,
+      bio: profile.bio,
+      avatar: profile.avatar,
+      equippedFrame: profile.equippedFrame ?? 'frame_default',
+      level: profile.level ?? 1,
+      worshipCount: profile.worshipCount ?? 0,
+      balance,
+      rank,
+      played,
+      won,
+      winRate: played > 0 ? Number(((won / played) * 100).toFixed(1)) : 0,
+      bestWin,
+      isFriend,
+      isSelf: viewerId === targetId,
+    };
+  });
+
   app.patch('/api/profile', async (req) => {
     const claims = authHeader(req);
     const body = (req.body ?? {}) as Record<string, unknown>;

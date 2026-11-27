@@ -100,6 +100,10 @@ export function Lobby({
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [mailAlertCount, setMailAlertCount] = useState(0);
   const [ticketUnreadCount, setTicketUnreadCount] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [liveSummary, setLiveSummary] = useState<
+    Record<string, { rooms: number; humans: number; bots: number; spectators: number }>
+  >({});
 
   useEffect(() => {
     if (!user) {
@@ -165,7 +169,19 @@ export function Lobby({
         .catch(() => undefined);
     };
     loadCategories();
-    const timer = window.setInterval(loadCategories, 30_000);
+    const loadSummary = () => {
+      void api
+        .gamesSummary()
+        .then((res) => {
+          if (res?.summary) setLiveSummary(res.summary);
+        })
+        .catch(() => undefined);
+    };
+    loadSummary();
+    const timer = window.setInterval(() => {
+      loadCategories();
+      loadSummary();
+    }, 20_000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -411,66 +427,87 @@ export function Lobby({
             type="button"
             className="top-feature-pill top-feature-pill--stocks"
             onClick={() => (user ? setShowStockMarketModal(true) : onLogin())}
-            title={user ? '进入改命股市 · 10支大宗黄金白银与核心龙头实盘交易' : '请先登录或注册账号'}
+            title={user ? '进入改命股市 · 30支大宗黄金白银与核心龙头实盘交易' : '请先登录或注册账号'}
           >
             <span className="stocks-pill-icon">📈</span>
             <span className="stocks-pill-title">改命股市</span>
             <span className="stocks-pill-badge">HOT</span>
           </button>
 
-          <button type="button" className="top-feature-pill" onClick={onRules} title="全游戏规则说明">
-            <IconRules size={15} />
-            <span>规则</span>
-          </button>
-
           <div className="tool-divider" />
 
-          {/* 媒体控制群 */}
-          <div className="top-media-group">
+          {/* 收纳式「⚙️ 更多/设置」浮层（容纳规则、反馈工单、音乐/音效开关与切歌，减少顶栏拥挤） */}
+          <div className="top-settings-wrap">
             <button
               type="button"
-              className={`media-icon-btn ${musicOn ? 'is-active' : ''}`}
-              title={musicOn ? '关闭背景音乐' : '开启背景音乐'}
-              onClick={() => setMusicOn(audio.toggleMusic())}
-            >
-              <IconMusic on={musicOn} size={15} />
-            </button>
-            <button
-              type="button"
-              className={`media-icon-btn ${sfxOn ? 'is-active' : ''}`}
-              title={sfxOn ? '关闭音效' : '开启音效'}
-              onClick={() => setSfxOn(audio.toggleSfx())}
-            >
-              <IconSound on={sfxOn} size={15} />
-            </button>
-            <button
-              type="button"
-              className="media-icon-btn"
-              title={`切歌（当前：${trackName}）`}
-              onClick={() => setTrackName(audio.nextTrack())}
-            >
-              <IconNext size={14} />
-            </button>
-            <button
-              type="button"
-              className="media-icon-btn media-icon-btn--feedback"
-              title={user ? '问题反馈 / 查看工单进度' : '问题反馈（请先登录）'}
-              aria-label="问题反馈"
+              className={`top-feature-pill top-settings-trigger ${settingsOpen ? 'is-open' : ''}`}
               onClick={() => {
                 audio.play('click');
-                if (user) setShowFeedbackModal(true);
-                else onLogin();
+                setSettingsOpen((v) => !v);
               }}
+              title="规则说明、问题反馈与声音设置"
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                <path d="M12 8v3" />
-                <path d="M12 14h.01" />
-              </svg>
+              <span>⚙️</span>
+              <span>设置</span>
               {ticketUnreadCount > 0 && (
                 <span className="feedback-btn-badge">{ticketUnreadCount > 9 ? '9+' : ticketUnreadCount}</span>
               )}
             </button>
+
+            {settingsOpen && (
+              <div className="top-settings-popover" role="menu">
+                <button
+                  type="button"
+                  className="settings-pop-item"
+                  onClick={() => {
+                    audio.play('click');
+                    setSettingsOpen(false);
+                    onRules();
+                  }}
+                >
+                  <IconRules size={15} />
+                  <span>全游戏规则速查</span>
+                </button>
+                <button
+                  type="button"
+                  className="settings-pop-item"
+                  onClick={() => {
+                    audio.play('click');
+                    setSettingsOpen(false);
+                    if (user) setShowFeedbackModal(true);
+                    else onLogin();
+                  }}
+                >
+                  <span>💬 问题反馈 / 工单</span>
+                  {ticketUnreadCount > 0 && <em className="pop-unread-tag">{ticketUnreadCount}</em>}
+                </button>
+                <div className="settings-pop-divider" />
+                <button
+                  type="button"
+                  className="settings-pop-item"
+                  onClick={() => setMusicOn(audio.toggleMusic())}
+                >
+                  <IconMusic on={musicOn} size={15} />
+                  <span>背景音乐：{musicOn ? '开启' : '静音'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="settings-pop-item"
+                  onClick={() => setSfxOn(audio.toggleSfx())}
+                >
+                  <IconSound on={sfxOn} size={15} />
+                  <span>游戏音效：{sfxOn ? '开启' : '静音'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="settings-pop-item"
+                  onClick={() => setTrackName(audio.nextTrack())}
+                >
+                  <IconNext size={14} />
+                  <span>切换曲目（{trackName}）</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -576,7 +613,12 @@ export function Lobby({
               {pageGames.map((game, index) => {
                 const isLive = game.persistent === true || gameCategoryMap[game.gameId] === 'live';
                 const artUrl = GAME_ART[game.gameId];
-                const heatText = LIVE_HEAT_MAP[game.gameId] ?? (isLive ? '🎰 万人同台' : '🔥 火热开局');
+                const stat = liveSummary[game.gameId];
+                const heatText = stat && stat.rooms > 0
+                  ? stat.humans > 0
+                    ? `🟢 ${stat.rooms} 桌开放 · ${stat.humans} 人在线`
+                    : `🤖 ${stat.rooms} 桌热战中`
+                  : LIVE_HEAT_MAP[game.gameId] ?? (isLive ? '🎰 平台常驻开奖' : '⚡ 极速秒匹');
                 const stakesText = STAKES_MAP[game.gameId] ?? '💰 底分 10 豆 · 准入 100 豆';
                 const joinable = isGameJoinable(game);
                 const maintBadge = gameStatusBadge(game);

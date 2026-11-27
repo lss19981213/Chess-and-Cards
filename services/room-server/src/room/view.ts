@@ -1,4 +1,4 @@
-import type { GameMeta, PlayerView, RoomStatus, RoomSummary, RoomView, SpectatorView, TrendMark } from '@cc/protocol';
+import type { GameMeta, PlayerView, RoomStatus, RoomSummary, RoomView, SpectatorView, StakesTier, TrendMark } from '@cc/protocol';
 import type { GamePlugin, PlayerContext, RoomContext } from '@cc/game-sdk';
 import type { Seat, Spectator } from './types';
 
@@ -51,6 +51,11 @@ export function buildRoomView(input: {
   seats: Iterable<Seat>;
   botHosted?: boolean;
   spectators?: Iterable<Spectator>;
+  stakesTier?: StakesTier;
+  stakeMultiplier?: number;
+  turnActorId?: string | null;
+  turnDeadlineAt?: number | null;
+  hostedPlayerIds?: string[];
 }): RoomView {
   return {
     roomId: input.roomId,
@@ -63,6 +68,11 @@ export function buildRoomView(input: {
     hostId: input.hostId,
     ...(input.botHosted ? { botHosted: true } : {}),
     ...(input.spectators ? { spectators: toSpectatorViews(input.spectators) } : {}),
+    ...(input.stakesTier ? { stakesTier: input.stakesTier } : {}),
+    ...(input.stakeMultiplier !== undefined ? { stakeMultiplier: input.stakeMultiplier } : {}),
+    ...(input.turnActorId !== undefined ? { turnActorId: input.turnActorId } : {}),
+    ...(input.turnDeadlineAt !== undefined ? { turnDeadlineAt: input.turnDeadlineAt } : {}),
+    ...(input.hostedPlayerIds && input.hostedPlayerIds.length > 0 ? { hostedPlayerIds: input.hostedPlayerIds } : {}),
   };
 }
 
@@ -136,6 +146,8 @@ export function buildRoomSummary(input: {
   status: RoomStatus;
   joinable: boolean;
   recent: TrendMark[];
+  stakesTier?: StakesTier;
+  stakeMultiplier?: number;
 }): RoomSummary {
   const list = [...input.seats];
   const host = list.find((seat) => seat.playerId === input.hostId);
@@ -161,5 +173,7 @@ export function buildRoomSummary(input: {
     ...(input.spectatorCount ? { spectators: input.spectatorCount } : {}),
     joinable: input.joinable || (input.persistent && list.length < input.capacity) || isBotHosted,
     recent: input.recent,
+    ...(input.stakesTier ? { stakesTier: input.stakesTier } : {}),
+    ...(input.stakeMultiplier !== undefined ? { stakeMultiplier: input.stakeMultiplier } : {}),
   };
 }

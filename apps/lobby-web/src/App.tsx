@@ -3,10 +3,14 @@ import {
   ClientMsg,
   ErrorCode,
   ServerMsg,
+  stakesTierOf,
+  type BotDifficulty,
   type EmotePayload,
   type GameMeta,
+  type RoomChatPayload,
   type RoomView,
   type Settlement,
+  type StakesTier,
 } from '@cc/protocol';
 import { api, getToken, setToken, type User } from './api';
 import { audio } from './audio';
@@ -92,6 +96,8 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<SnapshotEnvelope | null>(null);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
   const [emotes, setEmotes] = useState<EmotePayload[]>([]);
+  const [roomChats, setRoomChats] = useState<RoomChatPayload[]>([]);
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('high');
   const [selectedGame, setSelectedGame] = useState<GameMeta | null>(null);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -103,8 +109,69 @@ export default function App() {
   });
   const wasUpdatingRef = useRef<boolean>(false);
 
-  // 全屏视图状态流转 (彻底消除弹窗)
-  const [view, setView] = useState<AppView>('lobby');
+  // 全屏视图状态流转 + 同步浏览器历史记录（支持手机侧滑与浏览器返回键逐级回退）
+  const [view, setViewRaw] = useState<AppView>('lobby');
+  const viewRef = useRef<AppView>('lobby');
+  const roomRef = useRef<RoomView | null>(null);
+  roomRef.current = room;
+  const botDifficultyRef = useRef<BotDifficulty>('high');
+  botDifficultyRef.current = botDifficulty;
+  const handlingPopRef = useRef(false);
+
+  const setView = useCallback((nextView: AppView) => {
+    setViewRaw(nextView);
+    if (viewRef.current !== nextView) {
+      viewRef.current = nextView;
+      if (!handlingPopRef.current && typeof window !== 'undefined') {
+        try {
+          window.history.pushState({ ccView: nextView }, '', nextView === 'lobby' ? '#lobby' : `#${nextView}`);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.history.replaceState({ ccView: 'lobby' }, '', '#lobby');
+    } catch {
+      /* ignore */
+    }
+    const onPopState = (ev: PopStateEvent) => {
+      const targetView = ((ev.state as { ccView?: AppView } | null)?.ccView ?? 'lobby') as AppView;
+      if (viewRef.current === 'room' && roomRef.current && targetView !== 'room') {
+        // 若正在进行非观战的对战对局，提醒玩家确认后离桌
+        const inActiveFight =
+          roomRef.current.status === 'playing' &&
+          !games.find((g) => g.gameId === roomRef.current?.gameId)?.persistent &&
+          !roomRef.current.botHosted;
+        if (inActiveFight && !window.confirm('牌局正在进行中，确定要退出牌桌返回吗？')) {
+          try {
+            window.history.pushState({ ccView: 'room' }, '', '#room');
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        socketRef.current?.send(ClientMsg.LeaveRoom, {});
+        socketRef.current?.setRoomRef(null);
+        setRoom(null);
+        setSnapshot(null);
+        setSettlement(null);
+        setRoomChats([]);
+      }
+      handlingPopRef.current = true;
+      const safeTarget: AppView = targetView === 'room' && !roomRef.current ? 'lobby' : targetView;
+      viewRef.current = safeTarget;
+      setViewRaw(safeTarget);
+      window.setTimeout(() => {
+        handlingPopRef.current = false;
+      }, 0);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [games]);
   const [authInitialTab, setAuthInitialTab] = useState<'login' | 'register'>('login');
 
   const socketRef = useRef<GameSocket | null>(null);
@@ -336,7 +403,7 @@ export default function App() {
           const need = payload.room.maxPlayers - payload.room.players.length;
           for (let i = 0; i < need; i++) {
             window.setTimeout(() => {
-              s.send(ClientMsg.AddBot, { difficulty: 'high' });
+              s.send(ClientMsg.AddBot, { difficulty: botDifficultyRef.current });
             }, (i + 1) * 80);
           }
         }
@@ -406,6 +473,11 @@ export default function App() {
           prev.filter((item) => !(item.playerId === payload.playerId && item.at === payload.at)),
         );
       }, 3500);
+    });
+
+    s.on(ServerMsg.RoomChat, (data) => {
+      const payload = data as RoomChatPayload;
+      setRoomChats((prev) => [...prev.slice(-49), payload]);
     });
 
     s.on(ServerMsg.Notice, (data) => {
@@ -556,7 +628,7 @@ export default function App() {
     setView('game_rooms');
   };
 
-  const handleJoinRoom = (roomId: string | null, create = false): void => {
+  const handleJoinRoom = (roomId: string | null, create = false, stakesTier: StakesTier = 'novice'): void => {
     if (maintenance.mode !== 'normal') {
       audio.play('alert');
       showToast('🛠️ 平台即将紧急更新，当前暂停加入新牌局，更新完成后自动补偿 1,000 欢乐豆！');
@@ -574,12 +646,20 @@ export default function App() {
       requireLogin('register', '请先登录或创建账号后再入座对局！');
       return;
     }
+    const tierCfg = stakesTierOf(stakesTier);
+    if (!roomId && !selectedGame.persistent && user.balance < tierCfg.minBalance) {
+      audio.play('alert');
+      showToast(`进入【${tierCfg.label}】需至少 ${tierCfg.minBalance.toLocaleString()} 欢乐豆`);
+      return;
+    }
     autoStartRef.current = !selectedGame.persistent && !create && !roomId;
+    setRoomChats([]);
 
     socketRef.current.send(ClientMsg.JoinRoom, {
       gameId: selectedGame.gameId,
       roomId: roomId ?? undefined,
       create,
+      stakesTier,
       ...playerAppearance(),
     });
   };
@@ -591,6 +671,7 @@ export default function App() {
     setRoom(null);
     setSnapshot(null);
     setSettlement(null);
+    setRoomChats([]);
     setView('lobby');
   };
 
@@ -602,12 +683,20 @@ export default function App() {
     socketRef.current?.send(ClientMsg.Intent, { cmd, payload });
   };
 
-  const handleAddBot = (): void => {
-    socketRef.current?.send(ClientMsg.AddBot, { difficulty: 'high' });
+  const handleAddBot = (difficulty?: BotDifficulty): void => {
+    socketRef.current?.send(ClientMsg.AddBot, { difficulty: difficulty ?? botDifficultyRef.current });
   };
 
   const handleEmote = (key: string): void => {
     socketRef.current?.send(ClientMsg.Emote, { key });
+  };
+
+  const handleToggleHost = (): void => {
+    socketRef.current?.send(ClientMsg.ToggleHost, {});
+  };
+
+  const handleSendChat = (text: string): void => {
+    socketRef.current?.send(ClientMsg.RoomChat, { text });
   };
 
   const handleSitDown = (): void => {
@@ -665,6 +754,11 @@ export default function App() {
           onLeave={handleLeaveRoom}
           onIntent={handleIntent}
           onAddBot={handleAddBot}
+          botDifficulty={botDifficulty}
+          onChangeBotDifficulty={setBotDifficulty}
+          onToggleHost={handleToggleHost}
+          chats={roomChats}
+          onSendChat={handleSendChat}
           onSitDown={handleSitDown}
           onStandUp={handleStandUp}
           emotes={emotes}
@@ -679,6 +773,9 @@ export default function App() {
       return (
         <GameRooms
           game={selectedGame}
+          balance={user?.balance ?? 0}
+          botDifficulty={botDifficulty}
+          onChangeBotDifficulty={setBotDifficulty}
           onBack={() => setView('lobby')}
           onJoin={handleJoinRoom}
           joinError={joinError}

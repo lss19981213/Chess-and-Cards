@@ -370,6 +370,8 @@ const LEDGER_BIZ_META: Record<string, { label: string; category: string }> = {
   avatar_frame: { label: '购买头像框', category: 'social' },
   stock_buy: { label: '改命股市买入', category: 'stock' },
   stock_sell: { label: '改命股市卖出', category: 'stock' },
+  stock_short_open: { label: '改命股市做空', category: 'stock' },
+  stock_short_close: { label: '改命股市平空', category: 'stock' },
   gm_grant: { label: 'GM 调账', category: 'gm' },
   init: { label: '注册赠豆', category: 'gm' },
   relief: { label: '救济金', category: 'task' },
@@ -388,6 +390,8 @@ function describeLedgerRow(bizType: string, bizId: string): { bizLabel: string; 
     note = `777 老虎机真实流水 (${cleanId})`;
   } else if (bizType === 'stock_buy') note = `改命股市买入标的 (${cleanId})`;
   else if (bizType === 'stock_sell') note = `改命股市平仓卖出 (${cleanId})`;
+  else if (bizType === 'stock_short_open') note = `改命股市融券做空 (${cleanId})`;
+  else if (bizType === 'stock_short_close') note = `改命股市平空结算 (${cleanId})`;
   else if (bizType === 'dealer_tip') note = `打赏荷官艾莉丝 (${cleanId})`;
   else if (bizType === 'avatar_frame') note = `商城解锁动态头像框 (${cleanId})`;
   else if (bizType === 'task') note = `悬赏福利任务领奖 (${cleanId})`;

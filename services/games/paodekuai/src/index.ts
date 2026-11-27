@@ -242,6 +242,8 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
         : null,
       lastPlayerId: this.state.lastPlayerId,
       passCount: this.state.passCount,
+      playedCards: this.state.playedCards,
+      stakeMultiplier: ctx.config.stakeMultiplier ?? 1,
       finished: this.state.finished,
     };
   }
@@ -287,23 +289,36 @@ export class PaodekuaiPlugin extends BaseGamePlugin {
 
     if (!action) return null;
 
+    let chosenCards: Card[] | null = action.cmd === 'play' ? action.cards : null;
+
     // 跑得快规则：能管必管，手中有能压制上家的牌型时不可过牌
     if (action.cmd === 'pass' && this.state.lastCombo && this.state.lastPlayerId !== playerId) {
       const beating = findAllBeatingMoves(hand, this.state.lastCombo, PAODEKUAI_RULES);
       if (beating.length > 0) {
-        return { cmd: 'play', payload: { cards: beating[0]!.combo.cards.map((c) => c.id) } };
+        chosenCards = beating[0]!.combo.cards;
+      } else {
+        return { cmd: 'pass', payload: {} };
       }
-      return { cmd: 'pass', payload: {} };
     }
 
-    if (action.cmd === 'pass') return { cmd: 'pass', payload: {} };
-    return { cmd: 'play', payload: { cards: action.cards.map((c) => c.id) } };
+    if (!chosenCards) return { cmd: 'pass', payload: {} };
+
+    // 跑得快报单顶大兜底：下家只剩 1 张牌时若出单张，必须出手中最大单张
+    const nextPid = this.nextPlayer(ctx, playerId);
+    if (nextPid && (this.state.hands.get(nextPid)?.length ?? 0) === 1 && chosenCards.length === 1) {
+      const topCard = [...hand].sort((a, b) => b.rank - a.rank)[0];
+      if (topCard && topCard.rank > chosenCards[0]!.rank) {
+        chosenCards = [topCard];
+      }
+    }
+
+    return { cmd: 'play', payload: { cards: chosenCards.map((c) => c.id) } };
   }
 
   private settleWin(ctx: RoomContext, winnerId: string): void {
     if (this.state.settled) return;
     this.state.settled = true;
-    const BASE_PER_CARD = 10;
+    const BASE_PER_CARD = 10 * (ctx.config.stakeMultiplier ?? 1);
     let totalWin = 0;
     const loserDeltas = new Map<string, number>();
 

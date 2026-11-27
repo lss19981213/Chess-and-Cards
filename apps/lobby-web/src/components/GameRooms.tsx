@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { GameMeta } from '@cc/protocol';
+import {
+  BOT_DIFFICULTY_LABEL,
+  STAKES_TIERS,
+  stakesTierOf,
+  type BotDifficulty,
+  type GameMeta,
+  type StakesTier,
+} from '@cc/protocol';
 import { api } from '../api';
 import { audio } from '../audio';
 import { gameStatusBadge, gameUnavailableToast, isGameJoinable } from '../gameAvailability';
@@ -23,12 +30,17 @@ interface RoomItem {
   spectators?: number;
   joinable: boolean;
   recent: TrendMark[];
+  stakesTier?: StakesTier;
+  stakeMultiplier?: number;
 }
 
 interface Props {
   game: GameMeta;
+  balance: number;
+  botDifficulty: BotDifficulty;
+  onChangeBotDifficulty: (diff: BotDifficulty) => void;
   onBack: () => void;
-  onJoin: (roomId: string | null, create: boolean) => void;
+  onJoin: (roomId: string | null, create: boolean, stakesTier?: StakesTier) => void;
   joinError: string | null;
 }
 
@@ -38,10 +50,19 @@ const STATUS_TEXT: Record<string, string> = {
   settled: '开奖结算中',
 };
 
-export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
+export function GameRooms({
+  game,
+  balance,
+  botDifficulty,
+  onChangeBotDifficulty,
+  onBack,
+  onJoin,
+  joinError,
+}: Props) {
   const [rooms, setRooms] = useState<RoomItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTier, setSelectedTier] = useState<StakesTier>('novice');
 
   const isLive = isPersistentGame(game);
 
@@ -72,7 +93,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
       return;
     }
     audio.play('click');
-    onJoin(null, false);
+    onJoin(null, false, selectedTier);
   };
 
   const handleCreate = () => {
@@ -81,7 +102,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
       return;
     }
     audio.play('click');
-    onJoin(null, true);
+    onJoin(null, true, selectedTier);
   };
 
   const handleSelectRoom = (roomId: string) => {
@@ -92,6 +113,12 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
     audio.play('click');
     onJoin(roomId, false);
   };
+
+  const filteredRooms = isLive
+    ? rooms
+    : rooms.filter((r) => !r.stakesTier || r.stakesTier === selectedTier);
+
+  const displayRooms = filteredRooms.length > 0 ? filteredRooms : rooms;
 
   return (
     <div className="rooms-stage lobby--luxury">
@@ -149,16 +176,38 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
                 <strong className="stat-val">{game.maxPlayers}人</strong>
               </div>
             </div>
+
             {!isLive && (
-              <button
-                type="button"
-                className="btn-create-room"
-                onClick={handleCreate}
-                disabled={!joinable}
-                title={joinable ? undefined : gameUnavailableToast(game)}
-              >
-                {joinable ? '+ 创建专属房间' : '维护中不可建房'}
-              </button>
+              <div className="rooms-tier-config">
+                <div className="rooms-config-block">
+                  <span className="rooms-config-label">选择陪玩 AI 强度</span>
+                  <div className="rooms-diff-pills">
+                    {(['low', 'medium', 'high'] as const).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        className={`rooms-diff-pill ${botDifficulty === d ? 'is-active' : ''}`}
+                        onClick={() => {
+                          audio.play('click');
+                          onChangeBotDifficulty(d);
+                        }}
+                      >
+                        {BOT_DIFFICULTY_LABEL[d]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-create-room"
+                  onClick={handleCreate}
+                  disabled={!joinable}
+                  title={joinable ? undefined : gameUnavailableToast(game)}
+                >
+                  {joinable ? `+ 创建${stakesTierOf(selectedTier).label} (${stakesTierOf(selectedTier).badge})` : '维护中不可建房'}
+                </button>
+              </div>
             )}
           </div>
         </aside>
@@ -168,9 +217,43 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
           {joinError && <div className="luxury-alert is-error">{joinError}</div>}
           {error && <div className="luxury-alert is-error">{error}</div>}
 
+          {/* 底注场次梯度选择条 */}
+          {!isLive && (
+            <div className="stakes-tier-bar" role="tablist" aria-label="底注场次选择">
+              {STAKES_TIERS.map((t) => {
+                const locked = balance < t.minBalance;
+                const active = selectedTier === t.tier;
+                return (
+                  <button
+                    key={t.tier}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`stakes-tier-pill is-${t.tier} ${active ? 'is-active' : ''} ${locked ? 'is-locked' : ''}`}
+                    onClick={() => {
+                      audio.play('click');
+                      setSelectedTier(t.tier);
+                    }}
+                    title={
+                      locked
+                        ? `需持有至少 ${t.minBalance.toLocaleString()} 欢乐豆（当前仅预览同场次桌台）`
+                        : `${t.label} · ${t.badge}`
+                    }
+                  >
+                    <span className="tier-name">{t.label}</span>
+                    <strong className="tier-mult">{t.badge}</strong>
+                    <small className="tier-req">
+                      {t.minBalance === 0 ? '无门槛' : `准入 ${t.minBalance.toLocaleString()}`}
+                    </small>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div className="rooms-grid-header">
             <span className="rooms-count-hint">
-              实时桌台列表 · <strong>{rooms.length}</strong> 台已开放
+              实时桌台列表 · <strong>{displayRooms.length}</strong> 台已开放
             </span>
             <button type="button" className="refresh-pill" onClick={() => void load()}>
               ↻ 刷新
@@ -178,8 +261,9 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
           </div>
 
           <div className="rooms-table-grid">
-            {rooms.map((room) => {
+            {displayRooms.map((room) => {
               const marks = (room.recent ?? []).slice(-4);
+              const tierInfo = stakesTierOf(room.stakesTier);
               const canEnter =
                 room.joinable ||
                 Boolean(room.botHosted) ||
@@ -196,6 +280,9 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
                     <div className="room-card__id">
                       <span className="table-badge">桌</span>
                       <strong>{room.roomName || room.roomId.slice(0, 6)}</strong>
+                      {!room.persistent && (
+                        <span className={`room-tier-tag is-${tierInfo.tier}`}>{tierInfo.label} {tierInfo.multiplier}x</span>
+                      )}
                     </div>
                     <span className={`status-pill is-${room.status}`}>
                       {STATUS_TEXT[room.status] ?? room.status}
@@ -259,7 +346,7 @@ export function GameRooms({ game, onBack, onJoin, joinError }: Props) {
               );
             })}
 
-            {rooms.length === 0 && !loading && (
+            {displayRooms.length === 0 && !loading && (
               <div className="rooms-empty-state">
                 <div className="empty-felt-icon">🪑</div>
                 <h4>当前暂无空闲桌台</h4>

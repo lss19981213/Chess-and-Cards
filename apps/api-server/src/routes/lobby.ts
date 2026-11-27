@@ -132,6 +132,17 @@ export function registerLobbyRoutes(app: FastifyInstance, repo: Repository): voi
 
   app.get('/api/games', async () => ({ games: await getGames() }));
 
+  // 公开接口：拉取每个玩法当前真实的活跃房间与人数统计，避免大厅展示虚假人数
+  app.get('/api/games/summary', async () => {
+    try {
+      const res = await fetch(`${config.roomServerUrl}/summary`, { signal: AbortSignal.timeout(2000) });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      return await res.json();
+    } catch {
+      return { summary: {} };
+    }
+  });
+
   // 公开接口：获取由 GM 端动态配置的游戏分类与游戏归属映射
   app.get('/api/game-categories', async () => {
     const saved = await repo.getSetting<Partial<GameCategoriesConfig>>('game_categories');
